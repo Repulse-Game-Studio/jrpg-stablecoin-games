@@ -1,0 +1,105 @@
+name: test
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"   # weekly: also checks the built-in public RPC endpoints
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AGAVE_VERSION: v4.3.0
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run pytest
+      - name: Release zip builds
+        run: uv run python tools/package.py
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Install Agave (solana-test-validator)
+        run: |
+          curl -sSfL -o /tmp/agave.tar.bz2 \
+            "https://github.com/anza-xyz/agave/releases/download/${AGAVE_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          tar xjf /tmp/agave.tar.bz2 -C /tmp
+          echo /tmp/solana-release/bin >> "$GITHUB_PATH"
+      - run: uv sync
+      - run: uv run pytest -m integration   # uses the runner's preinstalled Google Chrome
+
+  renpy-e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        renpy: ["8.3.7", "8.5.3"]   # 8.3 embeds Python 3.9, 8.5 Python 3.12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Install Agave (solana-test-validator)
+        run: |
+          curl -sSfL -o /tmp/agave.tar.bz2 \
+            "https://github.com/anza-xyz/agave/releases/download/${AGAVE_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          tar xjf /tmp/agave.tar.bz2 -C /tmp
+          echo /tmp/solana-release/bin >> "$GITHUB_PATH"
+      - run: uv sync
+      - name: Download Ren'Py SDK
+        run: |
+          curl -sSfL -o /tmp/renpy.tar.bz2 "https://www.renpy.org/dl/${{ matrix.renpy }}/renpy-${{ matrix.renpy }}-sdk.tar.bz2"
+          tar xjf /tmp/renpy.tar.bz2 -C /tmp
+      - name: Ren'Py lint
+        run: |
+          uv run python tools/sync_demo.py
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy /tmp/renpy-${{ matrix.renpy }}-sdk/renpy.sh examples/demo_game lint
+      - name: Ren'Py end-to-end payment (EVM)
+        run: >
+          CRYPTOPAY_E2E_VIDEODRIVER=x11 xvfb-run -a
+          uv run python tools/run_renpy_e2e.py --sdk /tmp/renpy-${{ matrix.renpy }}-sdk
+      - name: Ren'Py end-to-end payment (Solana)
+        run: >
+          CRYPTOPAY_E2E_VIDEODRIVER=x11 xvfb-run -a
+          uv run python tools/run_renpy_e2e.py --sdk /tmp/renpy-${{ matrix.renpy }}-sdk --family solana
+
+  renpy-web-e2e:
+    runs-on: ubuntu-latest
+    env:
+      RENPY: "8.5.3"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: uv sync
+      - name: Download Ren'Py SDK with web support
+        run: |
+          curl -sSfL -o /tmp/renpy.tar.bz2 "https://www.renpy.org/dl/${RENPY}/renpy-${RENPY}-sdk.tar.bz2"
+          tar xjf /tmp/renpy.tar.bz2 -C /tmp
+          curl -sSfL -o /tmp/renpy-web.zip "https://www.renpy.org/dl/${RENPY}/renpy-${RENPY}-web.zip"
+          unzip -q /tmp/renpy-web.zip -d "/tmp/renpy-${RENPY}-sdk"
+      - name: Ren'Py web build end-to-end payment
+        run: xvfb-run -a uv run python tools/run_renpy_web_e2e.py --sdk "/tmp/renpy-${RENPY}-sdk"
+
+  public-rpcs:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run python tools/check_rpcs.py
+      - run: uv run python tools/check_rpcs.py --testnet

@@ -1,0 +1,48 @@
+[project]
+name = "cryptopay-renpy"
+version = "0.1.0"
+description = "Client-side USDC/USDT tips and unlocks for Ren'Py games"
+readme = "README.md"
+license = "MIT"
+# Ren'Py 8.2/8.3 embed Python 3.9: all plugin code must stay 3.9-compatible.
+requires-python = ">=3.9"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "hypothesis>=6",
+    "ruff>=0.6",
+    "playwright>=1.60.0",
+    "solders==0.27.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["plugin/game/python-packages"]
+testpaths = ["tests"]
+markers = [
+    "integration: needs a local Anvil node (Foundry); run with -m integration",
+]
+addopts = "-m 'not integration'"
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+src = ["plugin/game/python-packages", "tests"]
+extend-exclude = [  # vendored third-party code, kept identical to upstream
+    "plugin/game/python-packages/cryptopay_core/_xkcp.py",
+    "plugin/game/python-packages/cryptopay_core/_qrcodegen.py",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["cryptopay_core"]
+known-local-folder = ["fakes", "mock_token", "conftest", "solana_local", "browser_mocks"]
