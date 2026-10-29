@@ -1,0 +1,10 @@
+# docker compose -f website/docker-compose.yml up -d --build
+# Then open http://localhost:8080/stablecoinforgames/docs/ (set DOCS_PORT for another port)
+services:
+  docs:
+    build:
+      context: ..
+      dockerfile: website/Dockerfile
+    ports:
+      - "127.0.0.1:${DOCS_PORT:-8080}:3000"
+    restart: unless-stopped
