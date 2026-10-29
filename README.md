@@ -39,7 +39,7 @@ Players can read how paying works, which wallets work and how to restore a purch
 | `plugin/game/python-packages/scfg_core/` | Engine-independent core (Python 3.9, stdlib only) |
 | `examples/demo_game/` | Demo game (run `tools/sync_demo.py` first) |
 | `docs/` | The docs: `players/` for players, `developers/` for the developer guide (joined into one `scfg-README.md` in the zip) |
-| `website/` | Docusaurus site built from `docs/`, sidebar in `sidebars.json`. Deployed to GitHub Pages by `.github/workflows/docs.yml` |
+| `website/` | Docusaurus site built from `docs/`, sidebar in `sidebars.json`. `.github/workflows/docs.yml` checks that it builds |
 | `tests/unit/` | Fast unit tests |
 | `tests/integration/` | Local Anvil chain, local Solana validator and headless Chrome tests (`-m integration`) |
 | `tests/renpy_e2e/`, `tests/renpy_web_e2e/` | Real Ren'Py runs (desktop and web build) driving a payment through the screens |

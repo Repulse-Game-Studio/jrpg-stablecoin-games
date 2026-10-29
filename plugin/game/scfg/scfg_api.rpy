@@ -1,7 +1,7 @@
 ## Stablecoin for Games (scfg): USDC/USDT tips and unlock purchases for Ren'Py, paid straight to
 ## the developer's wallet. No server, no accounts.
 ##
-## Developer API (see docs/developer-guide.md):
+## Developer API (see docs/developers/):
 ##
 ##     init python:
 ##         scfg.add_chain(...)   # optional: your own EVM chain, before configure()
