@@ -42,6 +42,14 @@ module.exports = {
       }),
     ],
   ],
+  // Search index built into the site at build time, so it needs no outside service.
+  // It only works in a production build (npm run build && npm run serve), not npm start.
+  themes: [
+    [
+      "@easyops-cn/docusaurus-search-local",
+      {hashed: true, docsDir: "../docs", docsRouteBasePath: "/", indexBlog: false, highlightSearchTermsOnTargetPage: true},
+    ],
+  ],
   themeConfig: {
     image: "img/social-card.png",
     colorMode: {defaultMode: "dark", respectPrefersColorScheme: false},
