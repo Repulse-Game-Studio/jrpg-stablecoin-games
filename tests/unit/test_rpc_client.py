@@ -1,7 +1,7 @@
 import pytest
 
-from cryptopay_core.coio import Sync
-from cryptopay_core.rpc import (
+from scfg_core.coio import Sync
+from scfg_core.rpc import (
     COOLDOWN_MAX,
     COOLDOWN_START,
     MIN_LOG_RANGE,
@@ -222,7 +222,7 @@ def test_log_range_is_remembered_per_endpoint():
 
 
 def test_suggested_range_uses_stated_limit_or_halves():
-    from cryptopay_core.rpc import suggested_range
+    from scfg_core.rpc import suggested_range
     assert suggested_range(RpcError(-32602, "eth_getLogs is limited to 0 - 50 blocks range"), 2000) == 50
     assert suggested_range(RpcError(35, "ranges over 10000 blocks are not supported on free plan"), 2000) == 1000
     assert suggested_range(RpcError(-32602, "Archive requests require a personal token"), 500) == 250

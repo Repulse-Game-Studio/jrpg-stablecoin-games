@@ -2,10 +2,10 @@ from decimal import Decimal
 
 import pytest
 
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.config import add_item, build_config
-from cryptopay_core.engine import MIN_TIP, START_BLOCK_MARGIN, Engine
-from cryptopay_core.errors import ConfigError
+from scfg_core.chains import MAINNET
+from scfg_core.config import add_item, build_config
+from scfg_core.engine import MIN_TIP, START_BLOCK_MARGIN, Engine
+from scfg_core.errors import ConfigError
 
 from fakes import FakeChain, FakeClock, transfer_log
 

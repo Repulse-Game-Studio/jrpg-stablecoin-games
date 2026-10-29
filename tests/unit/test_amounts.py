@@ -4,7 +4,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from cryptopay_core.amounts import (
+from scfg_core.amounts import (
     decimal_to_units,
     decode,
     encode,

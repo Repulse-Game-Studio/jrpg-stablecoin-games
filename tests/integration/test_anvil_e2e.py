@@ -5,7 +5,7 @@ Skipped automatically when `anvil` is not on PATH.
 """
 import pytest
 
-from cryptopay_core.amounts import units_to_decimal
+from scfg_core.amounts import units_to_decimal
 
 from conftest import mine, pay, tick_until
 
@@ -59,10 +59,10 @@ def test_reverify_keeps_real_receipts_and_drops_invented_ones(world):
 
 
 def test_developer_defined_chain(world):
-    """A chain added with cryptopay.add_chain(): Anvil over plain http on localhost."""
-    from cryptopay_core.config import add_item, build_chain, build_config
-    from cryptopay_core.engine import Engine
-    from cryptopay_core.rpc import UrllibTransport
+    """A chain added with scfg.add_chain(): Anvil over plain http on localhost."""
+    from scfg_core.config import add_item, build_chain, build_config
+    from scfg_core.engine import Engine
+    from scfg_core.rpc import UrllibTransport
 
     rpc = world["rpc"]
     local = build_chain("devnet", name="Local devnet", chain_id=int(rpc.call("eth_chainId", []), 16),

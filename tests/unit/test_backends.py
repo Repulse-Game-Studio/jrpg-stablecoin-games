@@ -1,14 +1,14 @@
 import pytest
 
-from cryptopay_core.backends import backend_for, backend_for_family, normalize_any_tx
-from cryptopay_core.backends.evm import START_BLOCK_MARGIN
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.config import add_item, build_config
-from cryptopay_core.engine import Engine
-from cryptopay_core.evm import TransferLog
-from cryptopay_core.receipts import add_receipt, make_receipt
-from cryptopay_core.reverify import reverify_receipts
-from cryptopay_core.sessions import create_session
+from scfg_core.backends import backend_for, backend_for_family, normalize_any_tx
+from scfg_core.backends.evm import START_BLOCK_MARGIN
+from scfg_core.chains import MAINNET
+from scfg_core.config import add_item, build_config
+from scfg_core.engine import Engine
+from scfg_core.evm import TransferLog
+from scfg_core.receipts import add_receipt, make_receipt
+from scfg_core.reverify import reverify_receipts
+from scfg_core.sessions import create_session
 
 from fakes import FakeChain, drive, transfer_log
 

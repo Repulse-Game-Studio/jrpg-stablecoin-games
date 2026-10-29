@@ -1,0 +1,136 @@
+/* Stablecoin for Games docs: jrpg.com brand (themes/fastest, tailwind.config.js "jrpg" theme). */
+
+@font-face {
+  font-family: "Audiowide";
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/audiowide-latin-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Barlow Condensed";
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/barlow-condensed-latin-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/inter-latin-var.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-latin-var.woff2") format("woff2");
+}
+
+:root {
+  --ifm-color-primary: #8151a6;
+  --ifm-color-primary-dark: #744995;
+  --ifm-color-primary-darker: #6e458d;
+  --ifm-color-primary-darkest: #5a3974;
+  --ifm-color-primary-light: #8e5eb4;
+  --ifm-color-primary-lighter: #9465b8;
+  --ifm-color-primary-lightest: #a57dc4;
+
+  --ifm-font-family-base: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --ifm-font-family-monospace: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --ifm-heading-font-family: "Barlow Condensed", "Oswald", system-ui, sans-serif;
+  --ifm-heading-font-weight: 600;
+  --ifm-code-font-size: 90%;
+  --ifm-global-radius: 0.5rem;
+  --docusaurus-highlighted-code-line-bg: rgba(129, 81, 166, 0.15);
+  --img-border: #e4dcef;
+}
+
+html[data-theme="dark"] {
+  --ifm-color-primary: #b896d9;
+  --ifm-color-primary-dark: #a982d0;
+  --ifm-color-primary-darker: #a178cb;
+  --ifm-color-primary-darkest: #8a5bbd;
+  --ifm-color-primary-light: #c7aae2;
+  --ifm-color-primary-lighter: #cfb4e6;
+  --ifm-color-primary-lightest: #e4d4f1;
+
+  --ifm-background-color: #0b0710;
+  --ifm-background-surface-color: #15101e;
+  --ifm-navbar-background-color: #0b0710;
+  --ifm-footer-background-color: #15101e;
+  --ifm-color-content: #ece8f6;
+  --ifm-toc-border-color: #1f1830;
+  --ifm-color-emphasis-200: #1f1830;
+  --ifm-color-emphasis-300: #2c2440;
+  --ifm-table-stripe-background: rgba(129, 81, 166, 0.06);
+  --ifm-code-background: #1f1830;
+  --docusaurus-highlighted-code-line-bg: rgba(129, 81, 166, 0.3);
+  --img-border: #2c2440;
+}
+
+.navbar__title {
+  font-family: "Audiowide", system-ui, sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.markdown h1:first-child {
+  font-size: 2.6rem;
+  letter-spacing: 0.01em;
+}
+
+.markdown h2 {
+  font-size: 1.9rem;
+}
+
+.navbar {
+  border-bottom: 1px solid var(--ifm-toc-border-color);
+  box-shadow: none;
+}
+
+.footer {
+  border-top: 1px solid var(--ifm-toc-border-color);
+}
+
+.footer__title {
+  font-family: var(--ifm-heading-font-family);
+  font-size: 1.1rem;
+}
+
+/* The home page is its own breadcrumb. */
+.docs-doc-id-README .theme-doc-breadcrumbs {
+  display: none;
+}
+
+.home-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 3rem;
+  margin-top: 1rem;
+}
+@media (max-width: 768px) {
+  .home-split {
+    grid-template-columns: 1fr;
+  }
+}
+.home-split h2 {
+  margin-top: 0;
+}
+
+/* Payment sheet screenshots in the player pages. */
+.markdown img {
+  border-radius: var(--ifm-global-radius);
+  border: 1px solid var(--img-border);
+}
+.markdown img[src*="/sheet-"] {
+  display: block;
+  max-width: 360px;
+  margin: 0.5rem 0 1.25rem;
+}
+
+html[data-theme="dark"] .theme-code-block {
+  border: 1px solid var(--img-border);
+}
+
+.docs-doc-id-README .markdown > p {
+  max-width: 68ch;
+}

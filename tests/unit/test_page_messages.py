@@ -1,6 +1,6 @@
 import pytest
 
-from cryptopay_core.page_messages import parse_build_message, parse_tx_message
+from scfg_core.page_messages import parse_build_message, parse_tx_message
 
 EVM_TX = "0x" + "ab" * 32
 SOL_ACCOUNT = "CejwupnRUhnYHb72dZ8rqnWsvFw49MDYKZ2SvurkX4K3"

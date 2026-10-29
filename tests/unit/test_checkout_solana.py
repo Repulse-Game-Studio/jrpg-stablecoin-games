@@ -1,15 +1,15 @@
 import pytest
 from solders.keypair import Keypair
 
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.checkout import MESSAGES, CheckoutController
-from cryptopay_core.config import add_item, build_config
-from cryptopay_core.engine import Engine
-from cryptopay_core.local_server import CheckoutServer
-from cryptopay_core.payments import prepare_payment
-from cryptopay_core.restore_flow import RestoreController
-from cryptopay_core.solana.base58 import b58encode
-from cryptopay_core.solana.pda import associated_token_address
+from scfg_core.chains import MAINNET
+from scfg_core.checkout import MESSAGES, CheckoutController
+from scfg_core.config import add_item, build_config
+from scfg_core.engine import Engine
+from scfg_core.local_server import CheckoutServer
+from scfg_core.payments import prepare_payment
+from scfg_core.restore_flow import RestoreController
+from scfg_core.solana.base58 import b58encode
+from scfg_core.solana.pda import associated_token_address
 
 from fakes import FakeChain, FakeClock, FakeSolanaChain, immediate_submitter
 
@@ -107,7 +107,7 @@ def test_local_server_accepts_a_signature_hint():
 
 
 def test_transaction_that_never_landed_lets_the_player_pay_again():
-    from cryptopay_core.watcher import StepOutcome
+    from scfg_core.watcher import StepOutcome
 
     ctl, _ = started("solana")
     assert ctl.submit_hash(SIG) is True and ctl.hint_tx == SIG
@@ -122,7 +122,7 @@ SIG2 = b58encode((8).to_bytes(64, "big"))
 
 
 def test_status_names_the_signature_that_never_landed():
-    from cryptopay_core.watcher import StepOutcome
+    from scfg_core.watcher import StepOutcome
 
     ctl, _ = started("solana")
     assert ctl.status_info()["dropped_tx"] is None
@@ -133,7 +133,7 @@ def test_status_names_the_signature_that_never_landed():
 
 
 def test_a_new_hint_clears_the_old_not_landed_status():
-    from cryptopay_core.watcher import StepOutcome
+    from scfg_core.watcher import StepOutcome
 
     ctl, e = started("solana")
     ctl.submit_hash(SIG)
@@ -147,7 +147,7 @@ def test_a_new_hint_clears_the_old_not_landed_status():
 @pytest.mark.parametrize("error", ["tx_not_landed", "tx_reverted", "tx_not_a_payment"])
 def test_a_verdict_on_an_older_hint_does_not_touch_the_newer_one(error):
     """The worker may judge the old hint just before the page reports the next one."""
-    from cryptopay_core.watcher import StepOutcome
+    from scfg_core.watcher import StepOutcome
 
     ctl, _ = started("solana")
     ctl.submit_hash(SIG)

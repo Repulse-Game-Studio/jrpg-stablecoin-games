@@ -1,10 +1,10 @@
 
 import pytest
 
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.evm import TransferLog
-from cryptopay_core.receipts import add_receipt, make_receipt
-from cryptopay_core.reverify import FUTURE_TOLERANCE_BLOCKS, reverify_receipts
+from scfg_core.chains import MAINNET
+from scfg_core.evm import TransferLog
+from scfg_core.receipts import add_receipt, make_receipt
+from scfg_core.reverify import FUTURE_TOLERANCE_BLOCKS, reverify_receipts
 
 from fakes import FakeChain, drive, transfer_log
 

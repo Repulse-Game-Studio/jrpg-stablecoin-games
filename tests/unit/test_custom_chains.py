@@ -1,11 +1,11 @@
-"""Developer-defined chains: cryptopay.add_chain() -> config.build_chain()."""
+"""Developer-defined chains: scfg.add_chain() -> config.build_chain()."""
 
 import pytest
 
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.config import add_item, build_chain, build_config, enabled_chains
-from cryptopay_core.engine import Engine
-from cryptopay_core.errors import ConfigError
+from scfg_core.chains import MAINNET
+from scfg_core.config import add_item, build_chain, build_config, enabled_chains
+from scfg_core.engine import Engine
+from scfg_core.errors import ConfigError
 
 from fakes import FakeChain, FakeClock, transfer_log
 

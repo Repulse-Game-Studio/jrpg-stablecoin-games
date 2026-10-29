@@ -3,9 +3,9 @@ from decimal import Decimal
 
 import pytest
 
-from cryptopay_core.evm import TransferLog
-from cryptopay_core.models import Item
-from cryptopay_core.receipts import (
+from scfg_core.evm import TransferLog
+from scfg_core.models import Item
+from scfg_core.receipts import (
     add_receipt,
     compute_ownership,
     make_receipt,

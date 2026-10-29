@@ -1,10 +1,10 @@
 import pytest
 from solders.keypair import Keypair
 
-from cryptopay_core.chains import DISPLAY_ORDER, MAINNET, TESTNET
-from cryptopay_core.config import add_item, build_chain, build_config, enabled_chains
-from cryptopay_core.errors import ConfigError
-from cryptopay_core.solana.pda import associated_token_address
+from scfg_core.chains import DISPLAY_ORDER, MAINNET, TESTNET
+from scfg_core.config import add_item, build_chain, build_config, enabled_chains
+from scfg_core.errors import ConfigError
+from scfg_core.solana.pda import associated_token_address
 
 DEV = "0x52908400098527886E0F7030069857D2E4169EE7"
 OLD = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"

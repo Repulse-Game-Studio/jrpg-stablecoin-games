@@ -3,10 +3,10 @@ from decimal import Decimal
 
 import pytest
 
-from cryptopay_core.coio import run_sync
-from cryptopay_core.engine import Snapshot
-from cryptopay_core.watcher import StepOutcome
-from cryptopay_core.worker import Worker
+from scfg_core.coio import run_sync
+from scfg_core.engine import Snapshot
+from scfg_core.watcher import StepOutcome
+from scfg_core.worker import Worker
 
 
 class FakeEngine:

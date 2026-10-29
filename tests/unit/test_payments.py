@@ -2,9 +2,9 @@ from decimal import Decimal
 
 import pytest
 
-from cryptopay_core.config import add_item, build_config
-from cryptopay_core.errors import ConfigError
-from cryptopay_core.payments import MIN_TIP, PaymentSpec, prepare_payment
+from scfg_core.config import add_item, build_config
+from scfg_core.errors import ConfigError
+from scfg_core.payments import MIN_TIP, PaymentSpec, prepare_payment
 
 DEV = "0x52908400098527886E0F7030069857D2E4169EE7"
 

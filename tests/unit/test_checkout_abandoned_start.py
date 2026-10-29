@@ -5,10 +5,10 @@ Cancel) must not leave a session behind: it would be watched for 24 h and report
 import inspect
 from concurrent.futures import Future
 
-from cryptopay_core.checkout import CheckoutController
-from cryptopay_core.config import add_item, build_config
-from cryptopay_core.engine import Engine
-from cryptopay_core.payments import prepare_payment
+from scfg_core.checkout import CheckoutController
+from scfg_core.config import add_item, build_config
+from scfg_core.engine import Engine
+from scfg_core.payments import prepare_payment
 
 from fakes import FakeChain, FakeClock
 

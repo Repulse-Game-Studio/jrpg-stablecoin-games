@@ -1,8 +1,8 @@
 import pytest
 
-from cryptopay_core.coio import Sync
-from cryptopay_core.rpc import RpcClient, RpcError, RpcUnavailable
-from cryptopay_core.solana.rpc import TX_VERSION, SolanaRpc
+from scfg_core.coio import Sync
+from scfg_core.rpc import RpcClient, RpcError, RpcUnavailable
+from scfg_core.solana.rpc import TX_VERSION, SolanaRpc
 
 from fakes import FakeTransport, down, err, ok
 

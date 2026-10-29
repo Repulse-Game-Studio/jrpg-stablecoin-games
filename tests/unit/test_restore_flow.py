@@ -1,8 +1,8 @@
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.config import add_item, build_config
-from cryptopay_core.engine import Engine
-from cryptopay_core.restore import TIP_CHOICE
-from cryptopay_core.restore_flow import RestoreController
+from scfg_core.chains import MAINNET
+from scfg_core.config import add_item, build_config
+from scfg_core.engine import Engine
+from scfg_core.restore import TIP_CHOICE
+from scfg_core.restore_flow import RestoreController
 
 from fakes import FakeChain, immediate_submitter, transfer_log
 

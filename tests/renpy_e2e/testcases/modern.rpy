@@ -13,20 +13,20 @@ testcase default:
     $ e2e_pay_open_checkout()
     pause 0.5 until eval e2e_has("e2e-paid") timeout 60
     assert eval (e2e_step() == "done")
-    assert eval cryptopay.owns("chapter2")
+    assert eval scfg.owns("chapter2")
     click "Continue" until eval e2e_has("e2e-restore-open") timeout 30
     assert eval (e2e_status == "paid")
-    assert eval (len(persistent.cryptopay_receipts) == 1)
+    assert eval (len(persistent.scfg_receipts) == 1)
     $ e2e_restore_ctl().tx_input = e2e_last_tx
     click "Check" until eval (e2e_restore_ctl().state != "input") timeout 30
     pause 0.5 until eval e2e_has("e2e-restore-done") timeout 60
-    $ e2e_owned_before_clear = cryptopay.owns("chapter2")
-    $ e2e_receipts_before_clear = len(persistent.cryptopay_receipts)
-    $ cryptopay.clear_local_data()
-    pause 0.2 until eval (not cryptopay.owns("chapter2")) timeout 30
+    $ e2e_owned_before_clear = scfg.owns("chapter2")
+    $ e2e_receipts_before_clear = len(persistent.scfg_receipts)
+    $ scfg.clear_local_data()
+    pause 0.2 until eval (not scfg.owns("chapter2")) timeout 30
     pause 1.0
-    assert eval (len(persistent.cryptopay_receipts) == 0)
-    $ e2e_report(status=e2e_status, owned=e2e_owned_before_clear, receipts=e2e_receipts_before_clear, tx=e2e_last_tx, purchases_listed=1, restore_state=e2e_restore_ctl().state, cleared=not cryptopay.owns("chapter2"))
+    assert eval (len(persistent.scfg_receipts) == 0)
+    $ e2e_report(status=e2e_status, owned=e2e_owned_before_clear, receipts=e2e_receipts_before_clear, tx=e2e_last_tx, purchases_listed=1, restore_state=e2e_restore_ctl().state, cleared=not scfg.owns("chapter2"))
     move "Close"
     pause 0.3
     click "Close"

@@ -1,7 +1,7 @@
 import pytest
 
-from cryptopay_core.chains import DISPLAY_ORDER, MAINNET, TESTNET, get_chains
-from cryptopay_core.evm import is_checksum_address
+from scfg_core.chains import DISPLAY_ORDER, MAINNET, TESTNET, get_chains
+from scfg_core.evm import is_checksum_address
 
 # Pinned from Circle's and Tether's official contract pages. If one of these
 # changes, the registry must change deliberately, never by accident.
@@ -67,7 +67,7 @@ def test_get_chains():
 
 
 def test_token_address_is_normalized_to_checksum():
-    from cryptopay_core.chains import Token
+    from scfg_core.chains import Token
     assert Token("0xaf88d065e77c8cc2239327c5edb3a432268e5831").address == PINNED[("arbitrum", "USDC")]
     with pytest.raises(ValueError):
         Token("not an address")

@@ -1,6 +1,6 @@
 import pytest
 
-from cryptopay_core.coio import (
+from scfg_core.coio import (
     Request,
     Sync,
     TransportError,

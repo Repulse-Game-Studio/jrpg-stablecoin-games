@@ -1,6 +1,6 @@
 import pytest
 
-from cryptopay_core.evm import (
+from scfg_core.evm import (
     TRANSFER_TOPIC,
     address_topic,
     is_checksum_address,

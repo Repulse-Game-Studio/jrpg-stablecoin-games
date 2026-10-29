@@ -7,7 +7,7 @@ from solders.message import Message
 from solders.pubkey import Pubkey
 from solders.transaction import Transaction
 
-from cryptopay_core.solana.tx import (
+from scfg_core.solana.tx import (
     COMPUTE_BUDGET_PROGRAM_ID,
     AccountMeta,
     Instruction,

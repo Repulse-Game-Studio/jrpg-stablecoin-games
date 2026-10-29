@@ -1,11 +1,11 @@
 from decimal import Decimal
 
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.evm import TRANSFER_TOPIC, address_topic
-from cryptopay_core.models import Item
-from cryptopay_core.receipts import receipt_key
-from cryptopay_core.sessions import HINT_TIMEOUT_S, SCAN_HORIZON_S, create_session, set_hint
-from cryptopay_core.watcher import SCAN_STEP_BLOCKS, advance
+from scfg_core.chains import MAINNET
+from scfg_core.evm import TRANSFER_TOPIC, address_topic
+from scfg_core.models import Item
+from scfg_core.receipts import receipt_key
+from scfg_core.sessions import HINT_TIMEOUT_S, SCAN_HORIZON_S, create_session, set_hint
+from scfg_core.watcher import SCAN_STEP_BLOCKS, advance
 
 from fakes import FakeChain, drive, transfer_log
 
@@ -212,7 +212,7 @@ def test_hint_with_several_transfers_takes_largest_qualifying():
 
 
 def test_scan_step_is_bounded_by_calls_when_rpc_reports_its_range():
-    from cryptopay_core.watcher import MAX_SCAN_CALLS
+    from scfg_core.watcher import MAX_SCAN_CALLS
     pending, receipts, chain, rec = setup(head=995 + 100_000)
     chain.log_range = 50                      # a stingy public endpoint
     step(pending, receipts, chain, rec)

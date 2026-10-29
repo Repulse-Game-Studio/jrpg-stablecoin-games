@@ -25,7 +25,7 @@ wheels = [
 ]
 
 [[package]]
-name = "cryptopay-renpy"
+name = "scfg-renpy"
 version = "0.1.0"
 source = { virtual = "." }
 
