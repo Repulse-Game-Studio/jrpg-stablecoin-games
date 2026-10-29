@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "plugin" / "game"
 DST = ROOT / "examples" / "demo_game" / "game"
 
-for name in ("cryptopay", "python-packages"):
+for name in ("scfg", "python-packages"):
     target = DST / name
     if target.exists():
         shutil.rmtree(target)

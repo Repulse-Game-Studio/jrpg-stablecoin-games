@@ -1,4 +1,4 @@
-from cryptopay_core.evm import TRANSFER_TOPIC, address_topic, parse_transfer_log
+from scfg_core.evm import TRANSFER_TOPIC, address_topic, parse_transfer_log
 
 USDC = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
 PAYER = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"

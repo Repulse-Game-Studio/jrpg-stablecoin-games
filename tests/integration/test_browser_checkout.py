@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pytest
 
-from cryptopay_core.checkout import CheckoutController
-from cryptopay_core.local_server import CheckoutServer
-from cryptopay_core.payments import prepare_payment
+from scfg_core.checkout import CheckoutController
+from scfg_core.local_server import CheckoutServer
+from scfg_core.payments import prepare_payment
 
 from browser_mocks import install_mock_wallet
 from conftest import mine, tick_until
@@ -24,7 +24,7 @@ from conftest import mine, tick_until
 pytestmark = pytest.mark.integration
 playwright_api = pytest.importorskip("playwright.sync_api")
 
-WEB = Path(__file__).resolve().parents[2] / "plugin" / "game" / "cryptopay" / "web"
+WEB = Path(__file__).resolve().parents[2] / "plugin" / "game" / "scfg" / "web"
 
 
 def immediate(engine):

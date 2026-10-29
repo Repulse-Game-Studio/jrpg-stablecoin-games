@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from cryptopay_core.local_server import MAX_BODY, CheckoutServer
+from scfg_core.local_server import MAX_BODY, CheckoutServer
 
 TX = "0x" + "ab" * 32
 
@@ -154,7 +154,7 @@ def test_family_scripts_are_served(name):
 def test_build_that_never_finishes_answers_503_and_is_cancelled(monkeypatch):
     from concurrent.futures import Future
 
-    monkeypatch.setattr("cryptopay_core.local_server.BUILD_TIMEOUT_S", 0.05)
+    monkeypatch.setattr("scfg_core.local_server.BUILD_TIMEOUT_S", 0.05)
     never = Future()
     srv = CheckoutServer(
         load_asset=lambda name: b"", session_info={}, on_tx=lambda tx, sender: None,

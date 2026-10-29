@@ -4,9 +4,9 @@ import pytest
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
 
-from cryptopay_core.solana.base58 import b58decode
-from cryptopay_core.solana.ed25519 import is_on_curve
-from cryptopay_core.solana.pda import (
+from scfg_core.solana.base58 import b58decode
+from scfg_core.solana.ed25519 import is_on_curve
+from scfg_core.solana.pda import (
     ASSOCIATED_TOKEN_PROGRAM_ID,
     TOKEN_PROGRAM_ID,
     associated_token_address,
@@ -34,7 +34,7 @@ def test_wrong_length_is_not_on_curve():
 
 def test_find_program_address_matches_solders():
     program = Pubkey.from_string(ASSOCIATED_TOKEN_PROGRAM_ID)
-    for seed in (b"", b"a", b"cryptopay", bytes(32)):
+    for seed in (b"", b"a", b"scfg", bytes(32)):
         expected, bump = Pubkey.find_program_address([seed], program)
         assert find_program_address([seed], bytes(program)) == (bytes(expected), bump)
 

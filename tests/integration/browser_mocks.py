@@ -1,8 +1,8 @@
 """Mock browser wallets for the integration tests and the web e2e runner: an EIP-6963
 wallet backed by an RPC client (Anvil), and a Wallet Standard Solana wallet that signs
 with a local keypair and sends through the local cluster."""
-from cryptopay_core.rpc import RpcError
-from cryptopay_core.solana.base58 import b58decode
+from scfg_core.rpc import RpcError
+from scfg_core.solana.base58 import b58decode
 
 MOCK_WALLET = """
 (() => {

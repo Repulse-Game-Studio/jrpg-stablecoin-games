@@ -70,11 +70,11 @@ jobs:
           SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy /tmp/renpy-${{ matrix.renpy }}-sdk/renpy.sh examples/demo_game lint
       - name: Ren'Py end-to-end payment (EVM)
         run: >
-          CRYPTOPAY_E2E_VIDEODRIVER=x11 xvfb-run -a
+          SCFG_E2E_VIDEODRIVER=x11 xvfb-run -a
           uv run python tools/run_renpy_e2e.py --sdk /tmp/renpy-${{ matrix.renpy }}-sdk
       - name: Ren'Py end-to-end payment (Solana)
         run: >
-          CRYPTOPAY_E2E_VIDEODRIVER=x11 xvfb-run -a
+          SCFG_E2E_VIDEODRIVER=x11 xvfb-run -a
           uv run python tools/run_renpy_e2e.py --sdk /tmp/renpy-${{ matrix.renpy }}-sdk --family solana
 
   renpy-web-e2e:

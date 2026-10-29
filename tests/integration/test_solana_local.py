@@ -7,9 +7,9 @@ import base64
 import pytest
 from solders.keypair import Keypair
 
-from cryptopay_core.engine import Engine
-from cryptopay_core.rpc import UrllibTransport
-from cryptopay_core.solana.base58 import b58encode
+from scfg_core.engine import Engine
+from scfg_core.rpc import UrllibTransport
+from scfg_core.solana.base58 import b58encode
 
 from conftest import tick_until_status
 
@@ -65,7 +65,7 @@ def test_reverify_and_restore(solana_world):
 
 def test_missing_token_account_marks_usdc_unready(solana_world):
     w = solana_world
-    from cryptopay_core.config import add_item, build_config
+    from scfg_core.config import add_item, build_config
     cfg = build_config(solana_wallet=str(Keypair().pubkey()), testnet=True, chains=["solana"])
     add_item(cfg, "chapter2", code=37, price="4.99", token="USDC", title="Chapter 2")
     engine = Engine(cfg, transport=UrllibTransport())

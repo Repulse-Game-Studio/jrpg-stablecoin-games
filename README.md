@@ -1,4 +1,4 @@
-# cryptopay for Ren'Py
+# Stablecoin for Games
 
 Accept **USDC/USDT tips and unlock purchases** in Ren'Py games, paid straight to the
 developer's wallet, on Ethereum, Arbitrum, Polygon, Base and **Solana**. No server, no
@@ -7,34 +7,39 @@ in Ren'Py's web (HTML5) build.
 
 ```renpy
 init python:
-    cryptopay.configure(wallet="0xYourWallet", testnet=True)
-    cryptopay.add_item("chapter2", code=1, price="4.99", token="USDC", title="Chapter 2")
+    scfg.configure(wallet="0xYourWallet", testnet=True)
+    scfg.add_item("chapter2", code=1, price="4.99", token="USDC", title="Chapter 2")
 
 label end_of_chapter1:
-    $ result = cryptopay.pay("unlock", item="chapter2")
-    if cryptopay.owns("chapter2"):
+    $ result = scfg.pay("unlock", item="chapter2")
+    if scfg.owns("chapter2"):
         jump chapter2
 ```
 
 ## Using it in your game
 
-1. Build the drop-in zip with `uv run python tools/package.py`, which writes `dist/cryptopay-renpy-<version>.zip`.
-2. Unzip it into your Ren'Py project folder. You get `game/cryptopay/` and
-   `game/python-packages/cryptopay_core/`.
-3. Follow the [developer guide](docs/developer-guide.md). It covers configuration, the API,
-   testing on testnets, customizing the look, web builds and the security model.
+1. Build the drop-in zip with `uv run python tools/package.py`, which writes `dist/scfg-renpy-<version>.zip`.
+2. Unzip it into your Ren'Py project folder. You get `game/scfg/` and
+   `game/python-packages/scfg_core/`.
+3. Follow the [developer guide](docs/developers/README.md). It covers configuration, the
+   API, testing on testnets, customizing the look, web builds and the security model.
 
-Requires Ren'Py 8.2 or newer. Read the guide's "Security and limitations" section before
-selling anything: without a server, unlocks are honour-grade.
+Requires Ren'Py 8.2 or newer. Read [Security and limitations](docs/developers/security/README.md)
+before selling anything: without a server, unlocks are honour-grade.
+
+The docs are published at https://jrpg.com/stablecoinforgames/docs/.
+Players can read how paying works, which wallets work and how to restore a purchase in
+[docs/players/](docs/players/paying.md).
 
 ## Repository layout
 
 | Path | Contents |
 |---|---|
-| `plugin/game/cryptopay/` | Ren'Py glue: API (`cryptopay_api.rpy`), screens, UI images (`ui/`), browser checkout page and web-build bridge (`web/`) |
-| `plugin/game/python-packages/cryptopay_core/` | Engine-independent core (Python 3.9, stdlib only) |
+| `plugin/game/scfg/` | Ren'Py glue: API (`scfg_api.rpy`), screens, UI images (`ui/`), browser checkout page and web-build bridge (`web/`) |
+| `plugin/game/python-packages/scfg_core/` | Engine-independent core (Python 3.9, stdlib only) |
 | `examples/demo_game/` | Demo game (run `tools/sync_demo.py` first) |
-| `docs/developer-guide.md` | The guide for game developers (shipped in the zip as `cryptopay-README.md`) |
+| `docs/` | The docs: `players/` for players, `developers/` for the developer guide (joined into one `scfg-README.md` in the zip) |
+| `website/` | Docusaurus site built from `docs/`, sidebar in `sidebars.json`. Deployed to GitHub Pages by `.github/workflows/docs.yml` |
 | `tests/unit/` | Fast unit tests |
 | `tests/integration/` | Local Anvil chain, local Solana validator and headless Chrome tests (`-m integration`) |
 | `tests/renpy_e2e/`, `tests/renpy_web_e2e/` | Real Ren'Py runs (desktop and web build) driving a payment through the screens |
@@ -60,12 +65,15 @@ uv run python tools/run_renpy_e2e.py --sdk /path/to/renpy-8.5.3-sdk --family sol
 uv run python tools/run_renpy_web_e2e.py --sdk /path/to/renpy-8.5.3-sdk
 
 uv run python tools/check_rpcs.py         # are the built-in public RPCs alive?
-uv run python tools/package.py            # build dist/cryptopay-renpy-<version>.zip
+uv run python tools/package.py            # build dist/scfg-renpy-<version>.zip
+
+# docs site (Node 20+)
+cd website && npm ci && npm start         # live preview at http://localhost:3000/stablecoinforgames/docs/
 ```
 
 ## License
 
 MIT, see [`LICENSE`](LICENSE).
 
-Third-party code vendored unmodified: `cryptopay_core/_xkcp.py` (Keccak team, CC0) and
-`cryptopay_core/_qrcodegen.py` (Project Nayuki, MIT).
+Third-party code vendored unmodified: `scfg_core/_xkcp.py` (Keccak team, CC0) and
+`scfg_core/_qrcodegen.py` (Project Nayuki, MIT).

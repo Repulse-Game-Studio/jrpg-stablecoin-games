@@ -4,7 +4,7 @@ import pytest
 from solders.pubkey import Pubkey
 from solders.signature import Signature
 
-from cryptopay_core.solana.base58 import (
+from scfg_core.solana.base58 import (
     b58decode,
     b58encode,
     decode_fixed,

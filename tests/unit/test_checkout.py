@@ -2,11 +2,11 @@ from decimal import Decimal
 
 import pytest
 
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.checkout import CheckoutController
-from cryptopay_core.config import add_item, build_config
-from cryptopay_core.engine import Engine
-from cryptopay_core.payments import prepare_payment
+from scfg_core.chains import MAINNET
+from scfg_core.checkout import CheckoutController
+from scfg_core.config import add_item, build_config
+from scfg_core.engine import Engine
+from scfg_core.payments import prepare_payment
 
 from fakes import FakeChain, FakeClock, immediate_submitter, transfer_log
 
@@ -142,14 +142,14 @@ def test_outcomes_drive_states_to_paid():
 
 
 def test_outcomes_for_other_sessions_are_ignored():
-    from cryptopay_core.watcher import StepOutcome
+    from scfg_core.watcher import StepOutcome
     ctl, *_ = started()
     ctl.on_outcome(StepOutcome("ps_other", "paid"))
     assert ctl.state == "waiting"
 
 
 def test_reorg_and_hint_errors():
-    from cryptopay_core.watcher import StepOutcome
+    from scfg_core.watcher import StepOutcome
     ctl, *_ = started()
     ctl.hint_tx = TX
     ctl.on_outcome(StepOutcome(ctl.session_id, "confirming", confirmations=3, required=20))

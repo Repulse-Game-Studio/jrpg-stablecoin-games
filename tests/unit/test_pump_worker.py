@@ -3,13 +3,13 @@ from decimal import Decimal
 
 import pytest
 
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.coio import Request, TransportError
-from cryptopay_core.config import add_item, build_config
-from cryptopay_core.engine import Engine, Snapshot
-from cryptopay_core.pump_worker import PumpWorker
-from cryptopay_core.watcher import StepOutcome
-from cryptopay_core.worker import Worker
+from scfg_core.chains import MAINNET
+from scfg_core.coio import Request, TransportError
+from scfg_core.config import add_item, build_config
+from scfg_core.engine import Engine, Snapshot
+from scfg_core.pump_worker import PumpWorker
+from scfg_core.watcher import StepOutcome
+from scfg_core.worker import Worker
 
 from fakes import FakeClock, FakeTransport, transfer_log
 

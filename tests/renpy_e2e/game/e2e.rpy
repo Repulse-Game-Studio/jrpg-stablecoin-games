@@ -11,35 +11,35 @@ init python:
     import time as _e2e_time
     from dataclasses import replace as _e2e_replace
 
-    from cryptopay_core import chains as _e2e_chains
-    from cryptopay_core.chains import Token as _E2EToken
-    from cryptopay_core.coio import Sync as _E2ESync
-    from cryptopay_core.rpc import RpcClient as _E2ERpc, UrllibTransport as _E2ETransport
+    from scfg_core import chains as _e2e_chains
+    from scfg_core.chains import Token as _E2EToken
+    from scfg_core.coio import Sync as _E2ESync
+    from scfg_core.rpc import RpcClient as _E2ERpc, UrllibTransport as _E2ETransport
 
     E2E = _e2e_os.environ
-    E2E_FAMILY = E2E.get("CRYPTOPAY_E2E_FAMILY", "evm")
+    E2E_FAMILY = E2E.get("SCFG_E2E_FAMILY", "evm")
 
     if E2E_FAMILY == "solana":
         _e2e_chains.TESTNET["solana"] = _e2e_replace(
-            _e2e_chains.TESTNET["solana"], rpc=(E2E["CRYPTOPAY_E2E_RPC"],),
-            tokens=python_dict(USDC=_E2EToken(E2E["CRYPTOPAY_E2E_USDC"])))
-        cryptopay.configure(solana_wallet=E2E["CRYPTOPAY_E2E_DEV"], testnet=True,
+            _e2e_chains.TESTNET["solana"], rpc=(E2E["SCFG_E2E_RPC"],),
+            tokens=python_dict(USDC=_E2EToken(E2E["SCFG_E2E_USDC"])))
+        scfg.configure(solana_wallet=E2E["SCFG_E2E_DEV"], testnet=True,
                             chains=["solana"], tokens=["USDC"])
     else:
         _e2e_chains.MAINNET["arbitrum"] = _e2e_replace(
-            _e2e_chains.MAINNET["arbitrum"], rpc=(E2E["CRYPTOPAY_E2E_RPC"],), confirmations=2,
-            tokens=python_dict(USDC=_E2EToken(E2E["CRYPTOPAY_E2E_USDC"])))
-        cryptopay.configure(wallet=E2E["CRYPTOPAY_E2E_DEV"], chains=["arbitrum"], tokens=["USDC"])
+            _e2e_chains.MAINNET["arbitrum"], rpc=(E2E["SCFG_E2E_RPC"],), confirmations=2,
+            tokens=python_dict(USDC=_E2EToken(E2E["SCFG_E2E_USDC"])))
+        scfg.configure(wallet=E2E["SCFG_E2E_DEV"], chains=["arbitrum"], tokens=["USDC"])
 
-    cryptopay.add_item("chapter2", code=1, price="1.00", token="USDC", title="Chapter 2")
+    scfg.add_item("chapter2", code=1, price="1.00", token="USDC", title="Chapter 2")
 
     def e2e_rpc():
-        return _E2ESync(_E2ERpc([E2E["CRYPTOPAY_E2E_RPC"]]), _E2ETransport())
+        return _E2ESync(_E2ERpc([E2E["SCFG_E2E_RPC"]]), _E2ETransport())
 
     def _e2e_pay_solana(units, reference):
         """Ren'Py has no solders to sign with: hand the payment to the runner, which pays it
         from the funded player and writes the signature back."""
-        path = E2E["CRYPTOPAY_E2E_PAYREQ"]
+        path = E2E["SCFG_E2E_PAYREQ"]
         with open(path + ".tmp", "w") as f:
             _e2e_json.dump(python_dict(units=units, reference=reference), f)
         _e2e_os.replace(path + ".tmp", path)  # the runner never sees a half-written request
@@ -55,21 +55,21 @@ init python:
 
     def e2e_pay_open_checkout(units=None):
         """Pay the session shown on the payment screen, from the funded payer account."""
-        ctl = python_list(cryptopay._state.checkouts.values())[0]
+        ctl = python_list(scfg._state.checkouts.values())[0]
         units = units or ctl.session["units"]
         if E2E_FAMILY == "solana":
             return _e2e_pay_solana(units, ctl.session["reference"])
-        data = ("0xa9059cbb" + "0" * 24 + E2E["CRYPTOPAY_E2E_DEV"][2:].lower()
+        data = ("0xa9059cbb" + "0" * 24 + E2E["SCFG_E2E_DEV"][2:].lower()
                 + format(units, "064x"))
         rpc = e2e_rpc()
         tx = rpc.call("eth_sendTransaction", [python_dict(
-            {"from": E2E["CRYPTOPAY_E2E_PAYER"], "to": E2E["CRYPTOPAY_E2E_USDC"], "data": data})])
+            {"from": E2E["SCFG_E2E_PAYER"], "to": E2E["SCFG_E2E_USDC"], "data": data})])
         rpc.call("anvil_mine", ["0x3"])
         store.e2e_last_tx = tx
         return tx
 
     def e2e_report(**values):
-        with open(E2E["CRYPTOPAY_E2E_OUT"], "w") as f:
+        with open(E2E["SCFG_E2E_OUT"], "w") as f:
             _e2e_json.dump(values, f)
 
 default e2e_last_tx = None
@@ -77,23 +77,23 @@ default e2e_status = None
 default e2e_restore_status = None
 
 label start:
-    $ result = cryptopay.pay("unlock", item="chapter2")
+    $ result = scfg.pay("unlock", item="chapter2")
     $ e2e_status = result.status
-    $ restore_result = cryptopay.restore()
+    $ restore_result = scfg.restore()
     $ e2e_restore_status = restore_result.status
     $ renpy.quit()
 
 
 init python:
     def e2e_restore_ctl():
-        return python_list(cryptopay._state.restores.values())[0]
+        return python_list(scfg._state.restores.values())[0]
 
 
 
 init python:
     def e2e_markers():
         """Which test milestones have been reached (shown as clickable markers)."""
-        st = cryptopay._state
+        st = scfg._state
         ctl = st.checkouts.get("c1")
         out = python_list()
         if ctl is not None and ctl.session:
@@ -107,11 +107,11 @@ init python:
         return out
 
     def e2e_method():
-        ctl = cryptopay._state.checkouts.get("c1")
+        ctl = scfg._state.checkouts.get("c1")
         return ctl.method if ctl is not None else None
 
     def e2e_step():
-        ctl = cryptopay._state.checkouts.get("c1")
+        ctl = scfg._state.checkouts.get("c1")
         return ctl.step if ctl is not None else None
 
     def e2e_has(marker):
@@ -149,10 +149,10 @@ init python:
 
     def _e2e_debug_dump():
         now = _e2e_time.time()
-        if now - _e2e_debug["last"] < 1.0 or "CRYPTOPAY_E2E_DEBUG" not in E2E:
+        if now - _e2e_debug["last"] < 1.0 or "SCFG_E2E_DEBUG" not in E2E:
             return
         _e2e_debug["last"] = now
-        st = cryptopay._state
+        st = scfg._state
         import renpy.test.testexecution as _tx
         import renpy.test.testmouse as _tm
         lines = ["node=%s state=%r mouse=%r real_pointer_left=%d" % (
@@ -161,16 +161,16 @@ init python:
         snap = st.worker.snapshot if st.worker else None
         lines += ["owned=%r snap_receipts=%r persistent_receipts=%r" % (
             sorted(snap.owned) if snap else None, len(snap.receipts) if snap else None,
-            len(persistent.cryptopay_receipts or {}))]
+            len(persistent.scfg_receipts or {}))]
         lines += ["running=%r status=%r restores=%d screens=%r" % (
             st.worker.running if st.worker else None, store.e2e_status, len(st.restores),
-            [n for n in ("cryptopay_payment", "cryptopay_restore") if renpy.get_screen(n)])]
+            [n for n in ("scfg_payment", "scfg_restore") if renpy.get_screen(n)])]
         for cid, c in st.checkouts.items():
             fut = c._future
             lines.append("%s state=%s step=%s error=%s method=%s session=%s fut_done=%s fut_exc=%r" % (
                 cid, c.state, c.step, c.error, c.method, bool(c.session),
                 fut.done() if fut else None, fut.exception() if fut and fut.done() else None))
-        with open(E2E["CRYPTOPAY_E2E_DEBUG"], "a") as f:
+        with open(E2E["SCFG_E2E_DEBUG"], "a") as f:
             f.write(" | ".join(lines) + "\n")
 
     config.periodic_callbacks.append(_e2e_debug_dump)

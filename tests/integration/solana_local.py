@@ -21,14 +21,14 @@ from solders.system_program import ID as SYSTEM_PROGRAM
 from solders.system_program import CreateAccountParams, create_account
 from solders.transaction import Transaction
 
-from cryptopay_core.coio import Sync
-from cryptopay_core.rpc import RpcClient, UrllibTransport
-from cryptopay_core.solana.pda import (
+from scfg_core.coio import Sync
+from scfg_core.rpc import RpcClient, UrllibTransport
+from scfg_core.solana.pda import (
     ASSOCIATED_TOKEN_PROGRAM_ID,
     TOKEN_PROGRAM_ID,
     associated_token_address,
 )
-from cryptopay_core.solana.tx import transfer_checked
+from scfg_core.solana.tx import transfer_checked
 
 TOKEN = Pubkey.from_string(TOKEN_PROGRAM_ID)
 ATA = Pubkey.from_string(ASSOCIATED_TOKEN_PROGRAM_ID)
@@ -49,7 +49,7 @@ def to_solders(ix):
 
 class LocalSolana:
     def __init__(self, exe: str):
-        self.ledger = tempfile.mkdtemp(prefix="cryptopay-solana-")
+        self.ledger = tempfile.mkdtemp(prefix="scfg-solana-")
         port = _free_port()
         self.proc = subprocess.Popen(
             [exe, "--ledger", self.ledger, "--reset", "--quiet", "--rpc-port", str(port),

@@ -2,10 +2,10 @@ from decimal import Decimal
 
 import pytest
 
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.config import add_item, build_config
-from cryptopay_core.receipts import receipt_key
-from cryptopay_core.restore import TIP_CHOICE, RestoreError, apply, classify, lookup
+from scfg_core.chains import MAINNET
+from scfg_core.config import add_item, build_config
+from scfg_core.receipts import receipt_key
+from scfg_core.restore import TIP_CHOICE, RestoreError, apply, classify, lookup
 
 from fakes import FakeChain, drive, transfer_log
 

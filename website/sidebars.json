@@ -1,0 +1,42 @@
+{
+  "docs": [
+    "README",
+    {
+      "type": "category",
+      "label": "For players",
+      "collapsed": false,
+      "items": ["players/paying", "players/wallets", "players/restore"]
+    },
+    {
+      "type": "category",
+      "label": "For developers",
+      "collapsed": false,
+      "link": {"type": "doc", "id": "developers/README"},
+      "items": [
+        "developers/install",
+        {
+          "type": "category",
+          "label": "Configure",
+          "link": {"type": "doc", "id": "developers/configure/README"},
+          "items": ["developers/configure/solana"]
+        },
+        {
+          "type": "category",
+          "label": "Use it",
+          "link": {"type": "doc", "id": "developers/use/README"},
+          "items": ["developers/use/api-reference"]
+        },
+        "developers/testing",
+        "developers/customizing",
+        {
+          "type": "category",
+          "label": "Security and limitations",
+          "link": {"type": "doc", "id": "developers/security/README"},
+          "items": ["developers/security/web-builds"]
+        },
+        "developers/troubleshooting",
+        "developers/how-it-works"
+      ]
+    }
+  ]
+}

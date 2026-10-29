@@ -2,7 +2,7 @@
 import functools
 import inspect
 
-from cryptopay_core.coio import TransportError, run_sync
+from scfg_core.coio import TransportError, run_sync
 
 
 def coop(*names):
@@ -89,7 +89,7 @@ class FakeChain:
     def _check(self, name):
         self.calls.append(name)
         if self.down:
-            from cryptopay_core.rpc import RpcUnavailable
+            from scfg_core.rpc import RpcUnavailable
             raise RpcUnavailable("fake outage")
 
     def block_hash(self, n):
@@ -116,7 +116,7 @@ class FakeChain:
 
 
 def transfer_log(token, sender, recipient, value, *, block, tx_hash, log_index=0, block_hash=None):
-    from cryptopay_core.evm import TRANSFER_TOPIC, address_topic
+    from scfg_core.evm import TRANSFER_TOPIC, address_topic
     return {
         "address": token.lower(),
         "topics": [TRANSFER_TOPIC, address_topic(sender), address_topic(recipient)],
@@ -186,7 +186,7 @@ class FakeSolanaChain:
     def _check(self, name):
         self.calls.append(name)
         if self.down:
-            from cryptopay_core.rpc import RpcUnavailable
+            from scfg_core.rpc import RpcUnavailable
             raise RpcUnavailable("fake outage")
 
     def pay(self, sig, *, mint, payer, owner, amount, slot=None, err=None, addresses=(),

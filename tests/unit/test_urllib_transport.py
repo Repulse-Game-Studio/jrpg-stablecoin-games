@@ -4,7 +4,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from cryptopay_core.rpc import TransportError, UrllibTransport
+from scfg_core.rpc import TransportError, UrllibTransport
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -50,7 +50,7 @@ def test_posts_json_and_parses_response(base_url):
                                                          "method": "eth_chainId", "params": []}, 5)
     assert resp["result"] == "eth_chainId"
     assert resp["ct"] == "application/json"
-    assert resp["ua"].startswith("cryptopay/")
+    assert resp["ua"].startswith("scfg/")
 
 
 def test_http_error_raises_with_status(base_url):

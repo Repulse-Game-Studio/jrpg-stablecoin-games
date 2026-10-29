@@ -8,14 +8,14 @@ import pytest
 from solders.keypair import Keypair
 from solders.transaction import Transaction
 
-from cryptopay_core.backends.solana import MAX_PRIORITY_FEE, MIN_PRIORITY_FEE, SolanaBackend
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.checkout import CheckoutController
-from cryptopay_core.config import add_item, build_config
-from cryptopay_core.engine import Engine
-from cryptopay_core.local_server import CheckoutServer
-from cryptopay_core.payments import prepare_payment
-from cryptopay_core.solana.pda import associated_token_address
+from scfg_core.backends.solana import MAX_PRIORITY_FEE, MIN_PRIORITY_FEE, SolanaBackend
+from scfg_core.chains import MAINNET
+from scfg_core.checkout import CheckoutController
+from scfg_core.config import add_item, build_config
+from scfg_core.engine import Engine
+from scfg_core.local_server import CheckoutServer
+from scfg_core.payments import prepare_payment
+from scfg_core.solana.pda import associated_token_address
 
 from fakes import FakeChain, FakeClock, FakeSolanaChain, coop, drive, immediate_submitter
 

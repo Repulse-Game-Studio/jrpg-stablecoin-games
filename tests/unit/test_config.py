@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from cryptopay_core.config import (
+from scfg_core.config import (
     DEFAULT_ACCENT,
     DEFAULT_METHODS,
     add_item,
@@ -12,8 +12,8 @@ from cryptopay_core.config import (
     logo_content_type,
     text_on,
 )
-from cryptopay_core.errors import ConfigError
-from cryptopay_core.models import Item
+from scfg_core.errors import ConfigError
+from scfg_core.models import Item
 
 DEV = "0x52908400098527886E0F7030069857D2E4169EE7"
 OLD = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"

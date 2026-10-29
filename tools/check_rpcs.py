@@ -31,10 +31,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "plugin" / "game" / "python-packages"))
 
-from cryptopay_core.chains import MAINNET, TESTNET  # noqa: E402
-from cryptopay_core.coio import Sync  # noqa: E402
-from cryptopay_core.evm import TRANSFER_TOPIC, address_topic  # noqa: E402
-from cryptopay_core.rpc import (  # noqa: E402
+from scfg_core.chains import MAINNET, TESTNET  # noqa: E402
+from scfg_core.coio import Sync  # noqa: E402
+from scfg_core.evm import TRANSFER_TOPIC, address_topic  # noqa: E402
+from scfg_core.rpc import (  # noqa: E402
     RpcClient,
     RpcError,
     RpcUnavailable,
@@ -109,10 +109,10 @@ def check_cors(url: str, origin: str = WEB_ORIGIN, timeout: float = 15) -> bool:
     ctx = _ssl_context() if url.startswith("https:") else None
     preflight = urllib.request.Request(url, method="OPTIONS", headers={
         "Origin": origin, "Access-Control-Request-Method": "POST",
-        "Access-Control-Request-Headers": "content-type", "User-Agent": "cryptopay-check"})
+        "Access-Control-Request-Headers": "content-type", "User-Agent": "scfg-check"})
     body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "eth_chainId", "params": []})
     post = urllib.request.Request(url, data=body.encode(), method="POST", headers={
-        "Origin": origin, "Content-Type": "application/json", "User-Agent": "cryptopay-check"})
+        "Origin": origin, "Content-Type": "application/json", "User-Agent": "scfg-check"})
     def ask(req, judge) -> bool:
         try:
             with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:

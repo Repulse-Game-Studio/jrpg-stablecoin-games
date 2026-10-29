@@ -11,12 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from cryptopay_core.checkout import CheckoutController
-from cryptopay_core.engine import Engine
-from cryptopay_core.overlay import OverlayCheckout
-from cryptopay_core.payments import prepare_payment
-from cryptopay_core.pump_worker import PumpWorker
-from cryptopay_core.web_page import WebPage
+from scfg_core.checkout import CheckoutController
+from scfg_core.engine import Engine
+from scfg_core.overlay import OverlayCheckout
+from scfg_core.payments import prepare_payment
+from scfg_core.pump_worker import PumpWorker
+from scfg_core.web_page import WebPage
 
 from browser_mocks import install_mock_solana_wallet, install_mock_wallet
 from conftest import mine
@@ -24,7 +24,7 @@ from conftest import mine
 pytestmark = pytest.mark.integration
 playwright_api = pytest.importorskip("playwright.sync_api")
 
-WEB = Path(__file__).resolve().parents[2] / "plugin" / "game" / "cryptopay" / "web"
+WEB = Path(__file__).resolve().parents[2] / "plugin" / "game" / "scfg" / "web"
 GAME_URL = "http://localhost:8123/"   # answered by page.route: no server, a secure context
 
 
@@ -71,7 +71,7 @@ def game_page(browser):
 
 
 def web_game(page, config):
-    """What cryptopay_api.rpy sets up in the web build, minus Ren'Py."""
+    """What scfg_api.rpy sets up in the web build, minus Ren'Py."""
     page.goto(GAME_URL)
     web = WebPage(PageJs(page), lambda name: (WEB / name).read_bytes())
     web.install()

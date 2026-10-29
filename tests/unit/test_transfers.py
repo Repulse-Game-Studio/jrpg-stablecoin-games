@@ -1,6 +1,6 @@
-from cryptopay_core.evm import TransferLog
-from cryptopay_core.receipts import make_receipt, receipt_key
-from cryptopay_core.transfers import Transfer
+from scfg_core.evm import TransferLog
+from scfg_core.receipts import make_receipt, receipt_key
+from scfg_core.transfers import Transfer
 
 DEV = "0x52908400098527886E0F7030069857D2E4169EE7"
 PAYER = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"

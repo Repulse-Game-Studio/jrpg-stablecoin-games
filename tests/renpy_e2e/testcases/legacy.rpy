@@ -29,20 +29,20 @@ testcase default:
     $ e2e_pay_open_checkout()
     pause 0.5 until "e2e-paid"
     assert e2e_step() == "done"
-    assert cryptopay.owns("chapter2")
+    assert scfg.owns("chapter2")
     move "Continue"
     pause 0.3
     "Continue"
     # pay() returned; the script opens the restore screen next.
     pause 0.2 until "e2e-restore-open"
     assert e2e_status == "paid"
-    assert len(persistent.cryptopay_receipts) == 1
+    assert len(persistent.scfg_receipts) == 1
     $ e2e_restore_ctl().tx_input = e2e_last_tx
     move "Check"
     pause 0.3
     "Check"
     pause 0.5 until "e2e-restore-done"
-    $ e2e_report(status=e2e_status, owned=cryptopay.owns("chapter2"), receipts=len(persistent.cryptopay_receipts), tx=e2e_last_tx, purchases_listed=len(cryptopay.receipts()), restore_state=e2e_restore_ctl().state)
+    $ e2e_report(status=e2e_status, owned=scfg.owns("chapter2"), receipts=len(persistent.scfg_receipts), tx=e2e_last_tx, purchases_listed=len(scfg.receipts()), restore_state=e2e_restore_ctl().state)
     move "Close"
     pause 0.3
     "Close"

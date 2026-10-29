@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from cryptopay_core.sessions import (
+from scfg_core.sessions import (
     HINT_TIMEOUT_S,
     SCAN_HORIZON_S,
     SESSION_WINDOW_S,

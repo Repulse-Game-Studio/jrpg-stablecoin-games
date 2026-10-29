@@ -38,8 +38,8 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from run_renpy_e2e import setup_evm, wait_receipt  # noqa: E402
 
-from cryptopay_core.coio import Sync  # noqa: E402
-from cryptopay_core.rpc import RpcClient, UrllibTransport  # noqa: E402
+from scfg_core.coio import Sync  # noqa: E402
+from scfg_core.rpc import RpcClient, UrllibTransport  # noqa: E402
 
 from browser_mocks import install_mock_wallet  # noqa: E402
 
@@ -156,26 +156,26 @@ def main() -> int:
         return 2
     from playwright.sync_api import sync_playwright
 
-    for name in ("cryptopay", "python-packages"):
+    for name in ("scfg", "python-packages"):
         target = GAME / "game" / name
         if target.exists():
             shutil.rmtree(target)
         shutil.copytree(ROOT / "plugin" / "game" / name, target,
                         ignore=shutil.ignore_patterns("__pycache__", "*.rpyc"))
-    work = Path(tempfile.mkdtemp(prefix="cryptopay-web-e2e-"))
+    work = Path(tempfile.mkdtemp(prefix="scfg-web-e2e-"))
     env, cleanup = setup_evm(anvil, work)
     httpd = None
     console: list = []   # the page's console: the game's Python output and errors
     try:
         (GAME / "game" / "e2e_web_config.json").write_text(json.dumps({
-            "rpc": env["CRYPTOPAY_E2E_RPC"], "usdc": env["CRYPTOPAY_E2E_USDC"],
-            "dev": env["CRYPTOPAY_E2E_DEV"]}))
+            "rpc": env["SCFG_E2E_RPC"], "usdc": env["SCFG_E2E_USDC"],
+            "dev": env["SCFG_E2E_DEV"]}))
         print("building the web game (this takes a minute)…")
         build(args.sdk, work / "web")
         url, httpd = serve(work / "web")
-        rpc = Sync(RpcClient([env["CRYPTOPAY_E2E_RPC"]]), UrllibTransport())
-        payer, usdc, dev = (env["CRYPTOPAY_E2E_PAYER"], env["CRYPTOPAY_E2E_USDC"],
-                            env["CRYPTOPAY_E2E_DEV"])
+        rpc = Sync(RpcClient([env["SCFG_E2E_RPC"]]), UrllibTransport())
+        payer, usdc, dev = (env["SCFG_E2E_PAYER"], env["SCFG_E2E_USDC"],
+                            env["SCFG_E2E_DEV"])
 
         with sync_playwright() as p:
             options = dict(headless=not args.headed, args=[
@@ -200,27 +200,27 @@ def main() -> int:
             assert s["web"] and s["supported"], s
 
             # 1. Browser wallet through the overlay.
-            py(page, "cryptopay._open_checkout('unlock', 'chapter2', None, None, None, False)")
+            py(page, "scfg._open_checkout('unlock', 'chapter2', None, None, None, False)")
             s = wait_for(page, lambda s: s["step"] == "method", "the method step")
             assert "browser" in s["methods"], s
             cid = s["cid"]
-            py(page, f"cryptopay._choose_method({cid!r}, 'browser')")
-            py(page, f"cryptopay._open_browser({cid!r})")
+            py(page, f"scfg._choose_method({cid!r}, 'browser')")
+            py(page, f"scfg._open_browser({cid!r})")
             page.get_by_role("button", name="Pay with Mock Wallet").click()
             page.get_by_role("button", name=re.compile(r"^Pay \d")).click()
             wait_for(page, lambda s: s["hint"], "the overlay's tx hint")
             rpc.call("anvil_mine", ["0x3"])
             s = wait_for(page, lambda s: s["owned"], "chapter2 to be owned")
             print("1. browser wallet: paid, owned")
-            py(page, f"cryptopay._close_checkout({cid!r}, 'finish')")
+            py(page, f"scfg._close_checkout({cid!r}, 'finish')")
 
             # 2. Manual transfer found by the watcher.
-            py(page, "cryptopay._open_checkout('tip', None, '2', 'USDC', None, False)")
+            py(page, "scfg._open_checkout('tip', None, '2', 'USDC', None, False)")
             s = wait_for(page, lambda s: s["step"] == "amount", "the tip's amount step")
             cid = s["cid"]
-            py(page, f"cryptopay._next_step({cid!r})")
+            py(page, f"scfg._next_step({cid!r})")
             s = wait_for(page, lambda s: s["step"] == "method" and s["units"], "the tip session")
-            py(page, f"cryptopay._choose_method({cid!r}, 'manual')")
+            py(page, f"scfg._choose_method({cid!r}, 'manual')")
             data = ("0xa9059cbb" + "0" * 24 + dev[2:].lower() + format(s["units"], "064x"))
             wait_receipt(rpc, rpc.call("eth_sendTransaction",
                                        [{"from": payer, "to": usdc, "data": data}]))
@@ -230,12 +230,12 @@ def main() -> int:
             # identifying micro-units), all of it counted as tipped.
             assert Decimal(s["tip_total"]) == Decimal(s["units"]).scaleb(-6), s
             print(f"2. manual transfer: found, receipts=2, tip_total={s['tip_total']}")
-            py(page, f"cryptopay._close_checkout({cid!r}, 'finish')")
+            py(page, f"scfg._close_checkout({cid!r}, 'finish')")
 
             # 3. Reload: receipts and a pending session survive.
-            py(page, "cryptopay._open_checkout('tip', None, '3', 'USDC', None, False)")
+            py(page, "scfg._open_checkout('tip', None, '3', 'USDC', None, False)")
             s = wait_for(page, lambda s: s["step"] == "amount", "a third checkout")
-            py(page, f"cryptopay._next_step({s['cid']!r})")
+            py(page, f"scfg._next_step({s['cid']!r})")
             wait_for(page, lambda s: s["pending"] >= 1, "the pending tip in persistent")
             wait_saved(page)                 # the plugin saves it itself; none forced here
             page.reload()

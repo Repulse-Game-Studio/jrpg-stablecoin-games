@@ -1,4 +1,4 @@
-from cryptopay_core.paylinks import eip681_transfer_uri, qr_matrix, qr_rects
+from scfg_core.paylinks import eip681_transfer_uri, qr_matrix, qr_rects
 
 
 def test_eip681_uri():

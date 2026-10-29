@@ -9,12 +9,12 @@ from dataclasses import replace
 import pytest
 from solders.keypair import Keypair
 
-from cryptopay_core import chains as chains_module
-from cryptopay_core.chains import Token
-from cryptopay_core.coio import Sync
-from cryptopay_core.config import add_item, build_config
-from cryptopay_core.engine import Engine
-from cryptopay_core.rpc import RpcClient, UrllibTransport
+from scfg_core import chains as chains_module
+from scfg_core.chains import Token
+from scfg_core.coio import Sync
+from scfg_core.config import add_item, build_config
+from scfg_core.engine import Engine
+from scfg_core.rpc import RpcClient, UrllibTransport
 
 from mock_token import BYTECODE, MINT_SELECTOR, TRANSFER_SELECTOR
 from solana_local import LocalSolana

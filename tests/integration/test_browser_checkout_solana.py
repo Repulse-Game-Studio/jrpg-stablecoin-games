@@ -16,16 +16,16 @@ from pathlib import Path
 
 import pytest
 
-from cryptopay_core.checkout import CheckoutController
-from cryptopay_core.local_server import CheckoutServer
-from cryptopay_core.payments import prepare_payment
+from scfg_core.checkout import CheckoutController
+from scfg_core.local_server import CheckoutServer
+from scfg_core.payments import prepare_payment
 
 from browser_mocks import install_mock_solana_wallet
 
 pytestmark = pytest.mark.integration
 playwright_api = pytest.importorskip("playwright.sync_api")
 
-WEB = Path(__file__).resolve().parents[2] / "plugin" / "game" / "cryptopay" / "web"
+WEB = Path(__file__).resolve().parents[2] / "plugin" / "game" / "scfg" / "web"
 
 
 def immediate(engine):
@@ -130,7 +130,7 @@ def test_pays_through_the_page(solana_world, browser):
 
 
 def test_dropped_transaction_lets_the_player_pay_again(solana_world, browser, monkeypatch):
-    monkeypatch.setattr("cryptopay_core.backends.solana.SOLANA_HINT_TIMEOUT_S", 3)
+    monkeypatch.setattr("scfg_core.backends.solana.SOLANA_HINT_TIMEOUT_S", 3)
     w = solana_world
     ctl, url = open_checkout(w)
     page, sent = new_page(browser, w, drop_first=True)
@@ -184,7 +184,7 @@ def test_retry_is_not_offered_again_for_a_send_the_game_never_heard_of(
     """The first send is dropped and Pay comes back; the second send lands but its POST /tx
     fails, so the game still reports the first send's tx_not_landed. Pay must stay hidden
     until the game finds the payment by its reference."""
-    monkeypatch.setattr("cryptopay_core.backends.solana.SOLANA_HINT_TIMEOUT_S", 3)
+    monkeypatch.setattr("scfg_core.backends.solana.SOLANA_HINT_TIMEOUT_S", 3)
     w = solana_world
     ctl, url = open_checkout(w)
     page, sent = new_page(browser, w, drop_first=True)
@@ -226,7 +226,7 @@ def test_retry_is_not_offered_while_the_next_signature_is_on_its_way(
         solana_world, browser, monkeypatch):
     """Second trigger of the same race: statuses served before the game has the second
     signature still carry the first send's tx_not_landed."""
-    monkeypatch.setattr("cryptopay_core.backends.solana.SOLANA_HINT_TIMEOUT_S", 3)
+    monkeypatch.setattr("scfg_core.backends.solana.SOLANA_HINT_TIMEOUT_S", 3)
     w = solana_world
     ctl, url = open_checkout(w)
     page, sent = new_page(browser, w, drop_first=True)
@@ -281,7 +281,7 @@ def test_pay_is_hidden_while_a_payment_made_elsewhere_confirms(solana_world, bro
 def test_retry_after_a_reload_offers_the_wallets(solana_world, browser, monkeypatch):
     """A reloaded page knows the send only from the game's status and has no connected
     account, so the retry must show the wallet list, not an empty Pay button."""
-    monkeypatch.setattr("cryptopay_core.backends.solana.SOLANA_HINT_TIMEOUT_S", 3)
+    monkeypatch.setattr("scfg_core.backends.solana.SOLANA_HINT_TIMEOUT_S", 3)
     w = solana_world
     ctl, url = open_checkout(w)
     page, sent = new_page(browser, w, drop_first=True)

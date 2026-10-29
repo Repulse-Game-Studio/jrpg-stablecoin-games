@@ -1,11 +1,11 @@
-"""Generate the white, tintable UI images used by the cryptopay screens.
+"""Generate the white, tintable UI images used by the Stablecoin for Games screens.
 
 The screens tint these at runtime (TintMatrix), so one set of images serves every
 accent color. Drawn at 2x and anti-aliased by 4x4 supersampling. Stdlib only.
 
-    plugin/game/cryptopay/ui/fill.png   rounded rectangle, filled
-    plugin/game/cryptopay/ui/line.png   rounded rectangle, outline
-    plugin/game/cryptopay/ui/dot.png    circle
+    plugin/game/scfg/ui/fill.png   rounded rectangle, filled
+    plugin/game/scfg/ui/line.png   rounded rectangle, outline
+    plugin/game/scfg/ui/dot.png    circle
 
 Usage: uv run python tools/make_ui_assets.py
 """
@@ -16,7 +16,7 @@ import struct
 import zlib
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parent.parent / "plugin" / "game" / "cryptopay" / "ui"
+OUT = Path(__file__).resolve().parent.parent / "plugin" / "game" / "scfg" / "ui"
 SIZE = 64        # 2x: the screens show these at half size on a 1280x720 game
 RADIUS = 20
 LINE = 3

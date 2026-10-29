@@ -1,11 +1,11 @@
 import pytest
 from solders.keypair import Keypair
 
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.config import add_item, build_config
-from cryptopay_core.engine import Engine
-from cryptopay_core.solana.base58 import b58encode
-from cryptopay_core.solana.pda import associated_token_address
+from scfg_core.chains import MAINNET
+from scfg_core.config import add_item, build_config
+from scfg_core.engine import Engine
+from scfg_core.solana.base58 import b58encode
+from scfg_core.solana.pda import associated_token_address
 
 from fakes import FakeChain, FakeClock, FakeSolanaChain
 
@@ -95,7 +95,7 @@ def test_session_without_a_wallet_for_its_chain_does_not_stall_the_others():
 
 
 def test_session_on_an_unwatchable_chain_is_closed_after_the_horizon():
-    from cryptopay_core.sessions import SCAN_HORIZON_S
+    from scfg_core.sessions import SCAN_HORIZON_S
 
     e, _, stale, clock, _ = _evm_session_in_solana_only_game()
     e.pending[stale["id"]]["chain"] = "removed_custom_chain"   # gone from the registry too

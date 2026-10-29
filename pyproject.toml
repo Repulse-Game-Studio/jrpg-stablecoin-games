@@ -1,5 +1,5 @@
 [project]
-name = "cryptopay-renpy"
+name = "scfg-renpy"
 version = "0.1.0"
 description = "Client-side USDC/USDT tips and unlocks for Ren'Py games"
 readme = "README.md"
@@ -33,8 +33,8 @@ target-version = "py39"
 line-length = 100
 src = ["plugin/game/python-packages", "tests"]
 extend-exclude = [  # vendored third-party code, kept identical to upstream
-    "plugin/game/python-packages/cryptopay_core/_xkcp.py",
-    "plugin/game/python-packages/cryptopay_core/_qrcodegen.py",
+    "plugin/game/python-packages/scfg_core/_xkcp.py",
+    "plugin/game/python-packages/scfg_core/_qrcodegen.py",
 ]
 
 [tool.ruff.lint]
@@ -44,5 +44,5 @@ select = ["E", "F", "W", "I", "B", "UP"]
 "tests/**" = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["cryptopay_core"]
+known-first-party = ["scfg_core"]
 known-local-folder = ["fakes", "mock_token", "conftest", "solana_local", "browser_mocks"]

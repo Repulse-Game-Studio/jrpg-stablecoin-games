@@ -1,10 +1,10 @@
 from decimal import Decimal
 
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.models import Item
-from cryptopay_core.receipts import receipt_key
-from cryptopay_core.sessions import create_session
-from cryptopay_core.watcher import advance
+from scfg_core.chains import MAINNET
+from scfg_core.models import Item
+from scfg_core.receipts import receipt_key
+from scfg_core.sessions import create_session
+from scfg_core.watcher import advance
 
 from fakes import FakeChain, drive, transfer_log
 

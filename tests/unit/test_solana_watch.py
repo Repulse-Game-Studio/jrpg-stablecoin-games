@@ -3,13 +3,13 @@ from decimal import Decimal
 import pytest
 from solders.keypair import Keypair
 
-from cryptopay_core.backends import backend_for_family
-from cryptopay_core.backends.solana import FINAL_CONFIRMATIONS, SolanaBackend, transfer_to
-from cryptopay_core.chains import MAINNET, Chain, Token
-from cryptopay_core.models import Item
-from cryptopay_core.receipts import receipt_key
-from cryptopay_core.sessions import HINT_TIMEOUT_S, SCAN_HORIZON_S, create_session, set_hint
-from cryptopay_core.solana.base58 import b58encode, normalize_signature
+from scfg_core.backends import backend_for_family
+from scfg_core.backends.solana import FINAL_CONFIRMATIONS, SolanaBackend, transfer_to
+from scfg_core.chains import MAINNET, Chain, Token
+from scfg_core.models import Item
+from scfg_core.receipts import receipt_key
+from scfg_core.sessions import HINT_TIMEOUT_S, SCAN_HORIZON_S, create_session, set_hint
+from scfg_core.solana.base58 import b58encode, normalize_signature
 
 from fakes import FakeSolanaChain, drive
 
@@ -250,8 +250,8 @@ def test_scan_crosses_a_backlog_longer_than_one_walk():
 
 @pytest.mark.parametrize("payment_at", [0, 40, 80, 104, 105])
 def test_scan_never_skips_signatures_when_it_falls_far_behind(monkeypatch, payment_at):
-    monkeypatch.setattr("cryptopay_core.backends.solana.SIG_PAGE", 10)
-    monkeypatch.setattr("cryptopay_core.backends.solana.MAX_SIG_PAGES", 3)
+    monkeypatch.setattr("scfg_core.backends.solana.SIG_PAGE", 10)
+    monkeypatch.setattr("scfg_core.backends.solana.MAX_SIG_PAGES", 3)
     pending, receipts, chain, rec = setup()
     _busy_account(chain, 105, payment_at)       # 106+ signatures: several walks deep
     rec["scan_cursor"] = sig(1)
@@ -261,8 +261,8 @@ def test_scan_never_skips_signatures_when_it_falls_far_behind(monkeypatch, payme
 
 
 def test_scan_walk_resumes_where_it_stopped_after_new_traffic(monkeypatch):
-    monkeypatch.setattr("cryptopay_core.backends.solana.SIG_PAGE", 10)
-    monkeypatch.setattr("cryptopay_core.backends.solana.MAX_SIG_PAGES", 3)
+    monkeypatch.setattr("scfg_core.backends.solana.SIG_PAGE", 10)
+    monkeypatch.setattr("scfg_core.backends.solana.MAX_SIG_PAGES", 3)
     pending, receipts, chain, rec = setup()
     _busy_account(chain, 70, 35)
     rec["scan_cursor"] = sig(1)
@@ -278,10 +278,10 @@ def test_scan_walk_resumes_where_it_stopped_after_new_traffic(monkeypatch):
 def test_outage_during_a_scan_walk_leaves_the_cursors_unchanged(monkeypatch):
     import copy
 
-    from cryptopay_core.rpc import RpcUnavailable
+    from scfg_core.rpc import RpcUnavailable
 
-    monkeypatch.setattr("cryptopay_core.backends.solana.SIG_PAGE", 10)
-    monkeypatch.setattr("cryptopay_core.backends.solana.MAX_SIG_PAGES", 3)
+    monkeypatch.setattr("scfg_core.backends.solana.SIG_PAGE", 10)
+    monkeypatch.setattr("scfg_core.backends.solana.MAX_SIG_PAGES", 3)
     pending, receipts, chain, rec = setup()
     _busy_account(chain, 105, 50)
     rec["scan_cursor"] = sig(1)
@@ -304,7 +304,7 @@ def test_outage_during_a_scan_walk_leaves_the_cursors_unchanged(monkeypatch):
 
 def test_hint_that_never_lands_expires_after_the_solana_timeout():
     """A wallet returns the signature before the transaction lands; dropped ones are routine."""
-    from cryptopay_core.backends.solana import SOLANA_HINT_TIMEOUT_S
+    from scfg_core.backends.solana import SOLANA_HINT_TIMEOUT_S
 
     assert SOLANA_HINT_TIMEOUT_S == 180
     pending, receipts, chain, rec = setup()
@@ -328,8 +328,8 @@ def test_reference_payment_matches_while_a_hint_is_pending():
 
 
 def test_hint_whose_lookup_keeps_failing_still_expires(monkeypatch):
-    from cryptopay_core.backends.solana import SOLANA_HINT_TIMEOUT_S
-    from cryptopay_core.rpc import RpcError
+    from scfg_core.backends.solana import SOLANA_HINT_TIMEOUT_S
+    from scfg_core.rpc import RpcError
 
     pending, receipts, chain, rec = setup()
     set_hint(pending, rec["id"], sig(1), 0.0, normalize=B.normalize_tx)
@@ -349,8 +349,8 @@ def test_hint_whose_lookup_keeps_failing_still_expires(monkeypatch):
 @pytest.mark.parametrize("failure", ["unavailable", "rpc_error"])
 def test_hint_expiry_is_reported_even_if_the_reference_lookup_fails(monkeypatch, failure):
     """Later ticks are plain "waiting" (not forwarded), so the expiry tick must say it."""
-    from cryptopay_core.backends.solana import SOLANA_HINT_TIMEOUT_S
-    from cryptopay_core.rpc import RpcError, RpcUnavailable
+    from scfg_core.backends.solana import SOLANA_HINT_TIMEOUT_S
+    from scfg_core.rpc import RpcError, RpcUnavailable
 
     pending, receipts, chain, rec = setup()
     set_hint(pending, rec["id"], sig(1), 0.0, normalize=B.normalize_tx)

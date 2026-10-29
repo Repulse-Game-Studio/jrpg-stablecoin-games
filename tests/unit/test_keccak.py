@@ -1,6 +1,6 @@
 import pytest
 
-from cryptopay_core.keccak import keccak256
+from scfg_core.keccak import keccak256
 
 
 @pytest.mark.parametrize(

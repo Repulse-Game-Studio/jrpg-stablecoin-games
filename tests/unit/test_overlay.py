@@ -1,6 +1,6 @@
 from concurrent.futures import Future
 
-from cryptopay_core.overlay import OverlayCheckout
+from scfg_core.overlay import OverlayCheckout
 
 from fakes import FakeClock
 

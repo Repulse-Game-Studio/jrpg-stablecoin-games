@@ -28,8 +28,8 @@ GAME = ROOT / "tests" / "renpy_e2e"
 sys.path.insert(0, str(ROOT / "plugin" / "game" / "python-packages"))
 sys.path.insert(0, str(ROOT / "tests" / "integration"))
 
-from cryptopay_core.coio import Sync  # noqa: E402
-from cryptopay_core.rpc import RpcClient, UrllibTransport  # noqa: E402
+from scfg_core.coio import Sync  # noqa: E402
+from scfg_core.rpc import RpcClient, UrllibTransport  # noqa: E402
 
 from mock_token import BYTECODE, MINT_SELECTOR  # noqa: E402
 
@@ -78,8 +78,8 @@ def setup_evm(anvil: str, workdir: Path):
     except BaseException:
         cleanup()
         raise
-    return {"CRYPTOPAY_E2E_FAMILY": "evm", "CRYPTOPAY_E2E_RPC": url, "CRYPTOPAY_E2E_USDC": token,
-            "CRYPTOPAY_E2E_DEV": dev, "CRYPTOPAY_E2E_PAYER": payer}, cleanup
+    return {"SCFG_E2E_FAMILY": "evm", "SCFG_E2E_RPC": url, "SCFG_E2E_USDC": token,
+            "SCFG_E2E_DEV": dev, "SCFG_E2E_PAYER": payer}, cleanup
 
 
 def setup_solana(validator: str, workdir: Path):
@@ -131,9 +131,9 @@ def setup_solana(validator: str, workdir: Path):
     except BaseException:
         cleanup()
         raise
-    return {"CRYPTOPAY_E2E_FAMILY": "solana", "CRYPTOPAY_E2E_RPC": cluster.url,
-            "CRYPTOPAY_E2E_USDC": mint, "CRYPTOPAY_E2E_DEV": str(dev.pubkey()),
-            "CRYPTOPAY_E2E_PAYREQ": str(payreq)}, cleanup
+    return {"SCFG_E2E_FAMILY": "solana", "SCFG_E2E_RPC": cluster.url,
+            "SCFG_E2E_USDC": mint, "SCFG_E2E_DEV": str(dev.pubkey()),
+            "SCFG_E2E_PAYREQ": str(payreq)}, cleanup
 
 
 FAMILIES = {
@@ -157,7 +157,7 @@ def main() -> int:
         print(missing)
         return 2
 
-    for name in ("cryptopay", "python-packages"):
+    for name in ("scfg", "python-packages"):
         target = GAME / "game" / name
         if target.exists():
             shutil.rmtree(target)
@@ -169,23 +169,23 @@ def main() -> int:
     shutil.copy(GAME / "testcases" / f"{dialect}.rpy", GAME / "game" / "e2e_testcase.rpy")
     print(f"Ren'Py test dialect: {dialect}, chain family: {args.family}")
 
-    savedir = tempfile.mkdtemp(prefix="cryptopay-e2e-saves-")
-    out = Path(tempfile.mkdtemp(prefix="cryptopay-e2e-")) / "result.json"
+    savedir = tempfile.mkdtemp(prefix="scfg-e2e-saves-")
+    out = Path(tempfile.mkdtemp(prefix="scfg-e2e-")) / "result.json"
     cleanup = None
     try:
         env_updates, cleanup = setup(exe, out.parent)
         env = dict(os.environ)
         env.update(env_updates)
         env.update({
-            "CRYPTOPAY_E2E_OUT": str(out),
+            "SCFG_E2E_OUT": str(out),
             "SDL_AUDIODRIVER": "dummy",
             # Render offscreen: never open a window on the developer's desktop.
-            "SDL_VIDEODRIVER": os.environ.get("CRYPTOPAY_E2E_VIDEODRIVER", "offscreen"),
+            "SDL_VIDEODRIVER": os.environ.get("SCFG_E2E_VIDEODRIVER", "offscreen"),
         })
         renpy_sh = Path(args.sdk) / "renpy.sh"
         shutil.rmtree(GAME / "game" / "saves", ignore_errors=True)  # fresh persistent data
         debug = out.with_name("debug.txt")
-        env["CRYPTOPAY_E2E_DEBUG"] = str(debug)
+        env["SCFG_E2E_DEBUG"] = str(debug)
         try:
             result = subprocess.run([str(renpy_sh), "--savedir", savedir, str(GAME), "test"],
                                     env=env, timeout=args.timeout, capture_output=True, text=True)

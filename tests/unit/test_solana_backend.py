@@ -1,16 +1,16 @@
 import pytest
 from solders.keypair import Keypair
 
-from cryptopay_core.backends.solana import START_SLOT_MARGIN, SolanaBackend
-from cryptopay_core.chains import MAINNET
-from cryptopay_core.config import add_item, build_config
-from cryptopay_core.receipts import make_receipt, receipt_key
-from cryptopay_core.restore import RestoreError, lookup
-from cryptopay_core.rpc import RpcClient
-from cryptopay_core.solana.base58 import b58decode, b58encode
-from cryptopay_core.solana.pda import associated_token_address
-from cryptopay_core.solana.rpc import SolanaRpc
-from cryptopay_core.transfers import Transfer
+from scfg_core.backends.solana import START_SLOT_MARGIN, SolanaBackend
+from scfg_core.chains import MAINNET
+from scfg_core.config import add_item, build_config
+from scfg_core.receipts import make_receipt, receipt_key
+from scfg_core.restore import RestoreError, lookup
+from scfg_core.rpc import RpcClient
+from scfg_core.solana.base58 import b58decode, b58encode
+from scfg_core.solana.pda import associated_token_address
+from scfg_core.solana.rpc import SolanaRpc
+from scfg_core.transfers import Transfer
 
 from fakes import FakeChain, FakeSolanaChain, drive
 

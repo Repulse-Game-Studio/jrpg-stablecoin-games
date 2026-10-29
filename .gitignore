@@ -31,14 +31,19 @@ Thumbs.db
 .vscode/
 
 # Plugin copies made by tools/sync_demo.py
-examples/demo_game/game/cryptopay/
+examples/demo_game/game/scfg/
 examples/demo_game/game/python-packages/
-tests/renpy_e2e/game/cryptopay/
+tests/renpy_e2e/game/scfg/
 tests/renpy_e2e/game/python-packages/
 tests/renpy_e2e/*.txt
 dist/
 tests/renpy_e2e/game/e2e_testcase.rpy
-tests/renpy_web_e2e/game/cryptopay/
+tests/renpy_web_e2e/game/scfg/
 tests/renpy_web_e2e/game/python-packages/
 tests/renpy_web_e2e/game/e2e_web_config.json
 tests/renpy_web_e2e/progressive_download.txt
+
+# Docusaurus (website/)
+website/node_modules/
+website/build/
+website/.docusaurus/

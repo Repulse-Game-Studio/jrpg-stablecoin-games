@@ -1,4 +1,4 @@
-from cryptopay_core.solana.paylinks import solana_pay_uri
+from scfg_core.solana.paylinks import solana_pay_uri
 
 WALLET = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
 MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"

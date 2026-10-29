@@ -3,14 +3,14 @@ the browser go through fetch(), and owns() reads receipts already on the device.
 import subprocess
 import sys
 
-# Every cryptopay_core module that cryptopay_api.rpy imports at init time.
+# Every scfg_core module that scfg_api.rpy imports at init time.
 INIT_MODULES = [
-    "cryptopay_core", "cryptopay_core.config", "cryptopay_core.errors", "cryptopay_core.models",
-    "cryptopay_core.payments", "cryptopay_core.receipts", "cryptopay_core.engine",
-    "cryptopay_core.worker", "cryptopay_core.rpc", "cryptopay_core.checkout",
-    "cryptopay_core.restore_flow", "cryptopay_core.paylinks", "cryptopay_core.coio",
-    "cryptopay_core.pump_worker", "cryptopay_core.overlay", "cryptopay_core.web_page",
-    "cryptopay_core.page_messages",
+    "scfg_core", "scfg_core.config", "scfg_core.errors", "scfg_core.models",
+    "scfg_core.payments", "scfg_core.receipts", "scfg_core.engine",
+    "scfg_core.worker", "scfg_core.rpc", "scfg_core.checkout",
+    "scfg_core.restore_flow", "scfg_core.paylinks", "scfg_core.coio",
+    "scfg_core.pump_worker", "scfg_core.overlay", "scfg_core.web_page",
+    "scfg_core.page_messages",
 ]
 
 
