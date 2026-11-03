@@ -18,7 +18,9 @@ label end_of_chapter1:
 
 ## Using it in your game
 
-1. Download `scfg-renpy-<version>.zip` from the [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest).
+1. From your Ren'Py project folder, run `uvx scfg-renpy install .` (or `pipx run scfg-renpy install .`),
+   and `uvx scfg-renpy update .` later for new versions. Or download `scfg-renpy-<version>.zip`
+   from the [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest).
    To build it yourself instead, clone the repo and run `python tools/package.py` (Python 3.9+,
    no dependencies), which writes the same zip to `dist/`. Don't copy the repo itself into your
    game: only `plugin/game/` ships, and the zip holds exactly that.
@@ -85,7 +87,9 @@ cd website && npm ci && npm start         # live preview at http://localhost:300
 
 `.github/workflows/release.yml` then runs the lint and unit tests, checks that the tag matches
 `__version__`, builds the zip with `tools/package.py` and publishes it as a GitHub release with
-generated notes. A version with letters in it, such as `0.2.0rc1`, is published as a
+generated notes. A second job builds the `scfg-renpy` package (`uv build`: the installer in
+`installer/` with the plugin files inside it) and uploads it to PyPI through trusted publishing,
+from the `pypi` environment. A version with letters in it, such as `0.2.0rc1`, is published as a
 prerelease and does not become "latest".
 
 ## License

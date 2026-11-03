@@ -1,12 +1,47 @@
 [project]
 name = "scfg-renpy"
-version = "0.1.0"
-description = "Client-side USDC/USDT tips and unlocks for Ren'Py games"
-readme = "README.md"
+dynamic = ["version"]   # scfg_core.__version__, the single source
+description = "USDC/USDT tips and unlocks for Ren'Py games, paid wallet to wallet. Installs the plugin into your project."
+readme = "installer/README.md"
 license = "MIT"
+license-files = ["LICENSE"]
 # Ren'Py 8.2/8.3 embed Python 3.9: all plugin code must stay 3.9-compatible.
 requires-python = ">=3.9"
 dependencies = []
+keywords = ["renpy", "visual-novel", "usdc", "usdt", "stablecoin", "payments", "solana", "ethereum"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Games/Entertainment",
+    "Environment :: Console",
+]
+
+[project.urls]
+Homepage = "https://jrpg.com/stablecoinforgames/"
+Documentation = "https://jrpg.com/stablecoinforgames/docs/"
+Source = "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games"
+Changelog = "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases"
+
+[project.scripts]
+scfg-renpy = "scfg_renpy.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "plugin/game/python-packages/scfg_core/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["installer/scfg_renpy"]
+exclude = ["**/__pycache__", "**/*.pyc", "**/*.rpyc", "**/*.rpymc"]
+
+# The plugin ships inside the package; `scfg-renpy install` copies it into a game.
+[tool.hatch.build.targets.wheel.force-include]
+"plugin/game" = "scfg_renpy/plugin/game"
+
+[tool.hatch.build.targets.sdist]
+include = ["installer/", "plugin/game/", "LICENSE", "README.md", "pyproject.toml"]
+exclude = ["**/__pycache__", "**/*.pyc", "**/*.rpyc", "**/*.rpymc"]
 
 [dependency-groups]
 dev = [
@@ -21,7 +56,7 @@ dev = [
 package = false
 
 [tool.pytest.ini_options]
-pythonpath = ["plugin/game/python-packages"]
+pythonpath = ["plugin/game/python-packages", "installer"]
 testpaths = ["tests"]
 markers = [
     "integration: needs a local Anvil node (Foundry); run with -m integration",
@@ -31,7 +66,7 @@ addopts = "-m 'not integration'"
 [tool.ruff]
 target-version = "py39"
 line-length = 100
-src = ["plugin/game/python-packages", "tests"]
+src = ["plugin/game/python-packages", "installer", "tests"]
 extend-exclude = [  # vendored third-party code, kept identical to upstream
     "plugin/game/python-packages/scfg_core/_xkcp.py",
     "plugin/game/python-packages/scfg_core/_qrcodegen.py",
