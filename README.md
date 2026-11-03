@@ -18,9 +18,12 @@ label end_of_chapter1:
 
 ## Using it in your game
 
-1. Build the drop-in zip with `uv run python tools/package.py`, which writes `dist/scfg-renpy-<version>.zip`.
-2. Unzip it into your Ren'Py project folder. You get `game/scfg/` and
-   `game/python-packages/scfg_core/`.
+1. Download `scfg-renpy-<version>.zip` from the [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest).
+   To build it yourself instead, clone the repo and run `python tools/package.py` (Python 3.9+,
+   no dependencies), which writes the same zip to `dist/`. Don't copy the repo itself into your
+   game: only `plugin/game/` ships, and the zip holds exactly that.
+2. Unzip it into your Ren'Py project folder, the one that contains `game/`. You get `game/scfg/` and
+   `game/python-packages/scfg_core/`. See [Install](docs/developers/install.md) for the layout and for updating.
 3. Follow the [developer guide](docs/developers/README.md). It covers configuration, the
    API, testing on testnets, customizing the look, web builds and the security model.
 
@@ -70,6 +73,20 @@ uv run python tools/package.py            # build dist/scfg-renpy-<version>.zip
 # docs site (Node 20+)
 cd website && npm ci && npm start         # live preview at http://localhost:3000/stablecoinforgames/docs/
 ```
+
+## Releasing
+
+1. Set the new version in `plugin/game/python-packages/scfg_core/__init__.py` (`__version__`) and
+   merge it to `main`.
+2. Tag that commit and push the tag:
+   ```bash
+   git tag v0.2.0 && git push origin v0.2.0
+   ```
+
+`.github/workflows/release.yml` then runs the lint and unit tests, checks that the tag matches
+`__version__`, builds the zip with `tools/package.py` and publishes it as a GitHub release with
+generated notes. A version with letters in it, such as `0.2.0rc1`, is published as a
+prerelease and does not become "latest".
 
 ## License
 
