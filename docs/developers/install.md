@@ -22,6 +22,20 @@
 
 The plugin has no dependencies beyond Ren'Py 8.2 or newer.
 
+## Building the zip yourself
+
+To build from source instead, for example to use unreleased changes from `main`, clone the
+repository and run the packaging script. It needs Python 3.9 or newer and nothing else:
+
+```bash
+git clone https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games.git
+cd jrpg-stablecoin-games
+python tools/package.py
+```
+
+It writes `dist/scfg-renpy-<version>.zip`, the same zip a release contains. Install it as above.
+Don't copy the whole repository into your game: only the contents of `plugin/game/` ship.
+
 ## Updating
 
 Delete `game/scfg/` and `game/python-packages/scfg_core/`, then unzip the new release the

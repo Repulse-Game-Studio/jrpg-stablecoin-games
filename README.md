@@ -19,7 +19,9 @@ label end_of_chapter1:
 ## Using it in your game
 
 1. Download `scfg-renpy-<version>.zip` from the [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest).
-   Don't clone the repo into your game: only `plugin/game/` ships, and the zip holds exactly that.
+   To build it yourself instead, clone the repo and run `python tools/package.py` (Python 3.9+,
+   no dependencies), which writes the same zip to `dist/`. Don't copy the repo itself into your
+   game: only `plugin/game/` ships, and the zip holds exactly that.
 2. Unzip it into your Ren'Py project folder, the one that contains `game/`. You get `game/scfg/` and
    `game/python-packages/scfg_core/`. See [Install](docs/developers/install.md) for the layout and for updating.
 3. Follow the [developer guide](docs/developers/README.md). It covers configuration, the
