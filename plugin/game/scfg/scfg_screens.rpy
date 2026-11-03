@@ -63,8 +63,12 @@ init -10 python in scfg:
         return _sheet_width() - 2 * _px(44)
 
     def _content_width():
-        """Width inside the scrolling body (leaves room for the scrollbar and its gap)."""
-        return _inner_width() - _px(6) - _px(14)
+        """Width of the scrolling body: the full inner width, so it lines up with the footer."""
+        return _inner_width()
+
+    def _scroll_width():
+        """The scrolling body plus its scrollbar, which hangs in the sheet's right padding."""
+        return _inner_width() + _px(14) + _px(6)
 
     def _cell(n, total=None, max_cols=4):
         """Width of one of n equal buttons in a row (wrapping after max_cols)."""
@@ -149,8 +153,11 @@ init -10 python in scfg:
     # ---------------------------------------------------------------- text
 
     def _status_text(ctl):
-        """Status line in the footer. The waiting and done steps say it in their heading."""
+        """Status line in the footer. The waiting and done steps say it in their heading.
+        Before the player has paid there is nothing to report but a session starting."""
         if ctl.step in ("amount", "waiting", "done") or ctl.state == "choose":
+            return ""
+        if ctl.state == "waiting" and not ctl.hint_tx:
             return ""
         return _progress_text(ctl)
 
@@ -186,8 +193,15 @@ init -10 python in scfg:
     def _status_color(ctl):
         return {"paid": OK, "underpaid": ERROR, "expired": WARN}.get(ctl.state, accent())
 
-    def _amount_line(ctl):
-        return "%s %s" % (ctl.pay_amount_text, ctl.spec.token)
+    def _amount_line(ctl, exact=False):
+        return "%s %s" % (ctl.pay_amount_text if exact else ctl.price_text, ctl.spec.token)
+
+    def _exact_note(ctl):
+        """Under the price once a session exists: the wallet asks for slightly more, because
+        the last digits identify the payment (always under one cent)."""
+        if not ctl.session or ctl.step in ("manual", "done") or ctl.state == "closed":
+            return ""
+        return _("Your wallet will ask for %s. The last digits identify your payment and add less than 1 cent.") % _amount_line(ctl, exact=True)
 
     def _receipt_line(r):
         what = _item_title(r.get("item")) if r.get("kind") == "unlock" else _("Tip")
@@ -283,10 +297,21 @@ style scfg_amount_token is scfg_text:
     color scfg.MUTED
     yalign 0.8
 
+style scfg_amount_note is scfg_text:
+    size scfg._px(14)
+    color scfg.MUTED
+
 style scfg_label is scfg_text:
     size scfg._px(15)
     color scfg.MUTED
     top_margin scfg._px(8)
+
+## Label right above the value it names (manual transfer rows).
+style scfg_field_label is scfg_label:
+    top_margin 0
+
+style scfg_qr_step is scfg_text:
+    size scfg._px(16)
 
 style scfg_muted is scfg_text:
     size scfg._px(16)
@@ -310,7 +335,7 @@ style scfg_status is scfg_text:
     size scfg._px(16)
 
 style scfg_mono is scfg_text:
-    size scfg._px(15)
+    size scfg._px(14)
     language "anywhere"
 
 ## Segmented options (network, method, tip amount, restore choices).
@@ -342,6 +367,7 @@ style scfg_button_text is scfg_text:
     size scfg._px(17)
     bold True
     xalign 0.5
+    yalign 0.5
     text_align 0.5
     insensitive_color scfg.FAINT
 
@@ -399,11 +425,18 @@ style scfg_qr_frame is default:
 
 style scfg_input is scfg_text:
     size scfg._px(17)
+    yalign 0.5
 
 style scfg_inputbox is default:
     background scfg._frame("line", scfg.LINE)
     hover_background scfg._frame("line", scfg.MUTED)
     padding (scfg._px(12), scfg._px(9))
+    yfill True
+
+## A text input with its buttons beside it: one fixed height, so they line up.
+style scfg_input_row is scfg_hbox:
+    ysize scfg._px(42)
+    box_wrap False
 
 
 ## One segmented option. `sub` is a smaller second line (e.g. "low fees").
@@ -502,6 +535,7 @@ screen scfg_payment(cid):
 screen scfg_step_view(direction, next_label=None, next_action=None):
     side "c b":
         style "scfg_step"
+        xsize scfg._scroll_width()
         at scfg_step_in(direction)
 
         viewport:
@@ -555,8 +589,11 @@ screen scfg_payment_header(ctl, cid):
             text ctl.spec.title style "scfg_title" substitute False
             hbox:
                 spacing scfg._px(8)
-                text ctl.pay_amount_text style "scfg_amount" substitute False
+                text ctl.price_text style "scfg_amount" substitute False
                 text ctl.spec.token style "scfg_amount_token" substitute False
+            $ note = scfg._exact_note(ctl)
+            if note:
+                text note style "scfg_amount_note" substitute False
 
 
 screen scfg_payment_footer(ctl, cid):
@@ -590,12 +627,13 @@ screen scfg_step_amount(ctl, cid):
     text _("Or enter your own") style "scfg_label"
     default amount_value = FieldInputValue(ctl, "custom_amount", default=False)
     hbox:
+        style "scfg_input_row"
         button:
             style "scfg_inputbox"
             xsize scfg._content_width() - scfg._px(98)
             action amount_value.Toggle()
             input value amount_value length 8 allow "0123456789." style "scfg_input"
-        textbutton _("Set") style "scfg_small_button" xsize scfg._px(90) yalign 0.5 action Function(scfg._apply_custom_tip, cid)
+        textbutton _("Set") style "scfg_small_button" xsize scfg._px(90) yfill True action Function(scfg._apply_custom_tip, cid)
 
 
 screen scfg_step_network(ctl, cid):
@@ -641,11 +679,11 @@ screen scfg_step_qr(ctl, cid):
             add scfg.QR(ctl.payment_uri(), scfg._px(176))
         vbox:
             yalign 0.5
-            spacing scfg._px(6)
+            spacing scfg._px(8)
             xmaximum scfg._content_width() - scfg._px(176 + 16 + 20)
-            text _("1. Open your wallet app")
-            text _("2. Scan the code")
-            text (_("3. Approve %s on %s") % (scfg._amount_line(ctl), ctl.chain.name)) substitute False
+            text _("1. Open your wallet app") style "scfg_qr_step"
+            text _("2. Scan the code") style "scfg_qr_step"
+            text (_("3. Approve %s") % scfg._amount_line(ctl)) style "scfg_qr_step" substitute False
     if renpy.mobile and ctl.config.methods["qr"]["wallet_button"]:
         textbutton _("Open wallet app") xsize scfg._content_width() action Function(scfg._open_wallet_app, cid)
     if ctl.family == "solana":
@@ -655,29 +693,32 @@ screen scfg_step_qr(ctl, cid):
 
 
 screen scfg_step_manual(ctl, cid):
-    text _("Manual transfer") style "scfg_label"
+    # No step label: the warning below says what this step is, and the space keeps the
+    # paste field in view on a 16:9 screen.
     if ctl.family == "solana":
         text _("Send exactly this amount on Solana (SPL) only. Withdrawing on another network may lose your funds.") style "scfg_warning"
     else:
         text (_("Send exactly this amount on %s only. Sending on another network may lose your funds.") % ctl.chain.name) style "scfg_warning" substitute False
-    for label, value in ((_("Amount"), scfg._amount_line(ctl)), (_("To address"), ctl.recipient), ((_("Token mint") if ctl.family == "solana" else _("Token contract")), ctl.token_address)):
-        text label style "scfg_label"
-        hbox:
-            text value style "scfg_mono" min_width scfg._content_width() - scfg._px(98) xmaximum scfg._content_width() - scfg._px(98) yalign 0.5 substitute False
-            textbutton _("Copy") style "scfg_small_button" xsize scfg._px(90) yalign 0.5 action scfg.Copy(value.split(" ")[0])
+    for label, value in ((_("Amount"), scfg._amount_line(ctl, exact=True)), (_("To address"), ctl.recipient), ((_("Token mint") if ctl.family == "solana" else _("Token contract")), ctl.token_address)):
+        vbox:
+            spacing 0
+            text label style "scfg_field_label"
+            hbox:
+                text value style "scfg_mono" min_width scfg._content_width() - scfg._px(80) xmaximum scfg._content_width() - scfg._px(80) yalign 0.5 substitute False
+                textbutton _("Copy") style "scfg_small_button" xsize scfg._px(72) yalign 0.5 action scfg.Copy(value.split(" ")[0])
     if ctl.config.methods["manual"]["allow_tx_paste"]:
-        null height scfg._px(4)
-        text (_("Paid from an exchange or another wallet? Paste the %s:") % scfg._tx_word(ctl)) style "scfg_muted" substitute False
+        text (_("Sent from an exchange? Paste the %s:") % scfg._tx_word(ctl)) style "scfg_field_label" substitute False
         default tx_value = FieldInputValue(ctl, "tx_input", default=False)
         hbox:
+            style "scfg_input_row"
             button:
                 style "scfg_inputbox"
                 xsize scfg._content_width() - scfg._px(196 if scfg.WEB else 98)
                 action tx_value.Toggle()
                 input value tx_value length 90 copypaste True allow scfg.TX_CHARS style "scfg_input"
             if scfg.WEB:
-                textbutton _("Paste") style "scfg_small_button" xsize scfg._px(90) yalign 0.5 action Function(scfg._paste_hash, cid)
-            textbutton _("Check") style "scfg_small_button" xsize scfg._px(90) yalign 0.5 action Function(scfg._submit_hash, cid)
+                textbutton _("Paste") style "scfg_small_button" xsize scfg._px(90) yfill True action Function(scfg._paste_hash, cid)
+            textbutton _("Check") style "scfg_small_button" xsize scfg._px(90) yfill True action Function(scfg._submit_hash, cid)
 
 
 screen scfg_step_waiting(ctl, cid):
@@ -730,6 +771,7 @@ screen scfg_restore(rid):
         at scfg_sheet_in
 
         side "c b":
+          xsize scfg._scroll_width()
           viewport:
             mousewheel True
             draggable True
@@ -750,13 +792,14 @@ screen scfg_restore(rid):
                   text _("Paste the transaction hash or signature of your payment. You can find it in your wallet's activity, or in your exchange's withdrawal history.") style "scfg_muted"
                   default hash_value = FieldInputValue(ctl, "tx_input", default=True)
                   hbox:
+                      style "scfg_input_row"
                       button:
                           style "scfg_inputbox"
                           xsize scfg._content_width() - (scfg._px(98) if scfg.WEB else 0)
                           action hash_value.Toggle()
                           input value hash_value length 90 copypaste True allow scfg.TX_CHARS style "scfg_input"
                       if scfg.WEB:
-                          textbutton _("Paste") style "scfg_small_button" xsize scfg._px(90) yalign 0.5 action Function(scfg._paste_hash, rid) sensitive ctl.state == "input"
+                          textbutton _("Paste") style "scfg_small_button" xsize scfg._px(90) yfill True action Function(scfg._paste_hash, rid) sensitive ctl.state == "input"
                   textbutton _("Check"):
                       style "scfg_accent_button"
                       text_color scfg.on_accent()

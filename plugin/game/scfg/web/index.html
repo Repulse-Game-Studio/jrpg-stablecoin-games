@@ -21,6 +21,7 @@
               font-variant-numeric: tabular-nums; }
     .amount .token { font-size: 20px; font-weight: 400; color: var(--muted); margin-left: 4px; }
     .meta { color: var(--muted); font-size: 15px; margin: 0; }
+    .exact { color: var(--muted); font-size: 13px; margin: 0 0 6px; }
     .testnet { display: inline-block; margin-top: 8px; padding: 2px 8px; border-radius: 6px;
                background: #fdf1d8; color: var(--warn); font-size: 13px; font-weight: 600; }
     #wallets { display: grid; gap: 9px; margin: 20px 0 0; }
@@ -52,6 +53,7 @@
     <img id="logo" class="hidden" alt="">
     <h1 id="title">Loading…</h1>
     <div class="amount" id="amount"></div>
+    <p class="exact hidden" id="exact"></p>
     <p class="meta"><span id="subtitle"></span> <span id="network"></span></p>
     <div id="testnet" class="testnet hidden">Testnet: no real money</div>
 

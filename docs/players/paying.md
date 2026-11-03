@@ -71,13 +71,16 @@ signature). Copy it and keep it. It is your receipt, and you need it to
 
 ## Why the amount has extra digits
 
-A 4.99 USDC item asks for something like **4.993742 USDC**. The last four digits tell
-the game which item you bought and which payment is yours. Send that exact amount. The
-extra cost is less than a cent.
+The sheet shows the price, for example **4.99 USDC**. Once you pick a network, a line under
+it says your wallet will ask for something like **4.993742 USDC**. The last four digits
+tell the game which item you bought and which payment is yours. They add less than a cent.
+
+The QR code and the browser wallet fill in that exact amount for you. On the Manual
+transfer step, send exactly the amount shown there.
 
 On Solana the game finds your payment even if your wallet or exchange changes the
 amount. On the other networks it may not. Then, on the Manual transfer step, paste the
-transaction hash into "Paid from an exchange or another wallet?" and press **Check**. Any amount at or above the price counts.
+transaction hash into "Sent from an exchange?" and press **Check**. Any amount at or above the price counts.
 
 ## You don't have to wait
 

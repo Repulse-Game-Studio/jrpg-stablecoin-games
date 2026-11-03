@@ -114,7 +114,7 @@ def test_overlay_pays_with_the_page_wallet_on_anvil(world, browser):
     page.get_by_role("button", name="Pay with Mock Wallet").click()
     pay_button = page.get_by_role("button", name=re.compile(r"^Pay \d"))
     pay_button.wait_for()
-    assert ctl.pay_amount_text in pay_button.inner_text()
+    assert ctl.price_text in pay_button.inner_text()
     pay_button.click()
     frames(page, worker, ctl, lambda: ctl.hint_tx is not None)
     mine(world["rpc"], 3)
