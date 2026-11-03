@@ -115,7 +115,7 @@ def test_pays_through_the_page(solana_world, browser):
     assert page.locator("#title").inner_text() == "Chapter 2"
     pay_button = connect_wallet(page)
     assert re.match(r"^Pay \d", pay_button.inner_text())
-    assert ctl.pay_amount_text in pay_button.inner_text()
+    assert ctl.price_text in pay_button.inner_text()
     pay_button.click()
 
     pump_until_page_says(page, "Payment confirmed", w["engine"], ctl)

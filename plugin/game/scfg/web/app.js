@@ -194,7 +194,12 @@
       const token = document.createElement("span");
       token.className = "token";
       token.textContent = session.token;
-      $("amount").replaceChildren(document.createTextNode(session.amount_text), token);
+      $("amount").replaceChildren(document.createTextNode(session.price_text || session.amount_text), token);
+      if (session.price_text && session.price_text !== session.amount_text) {
+        $("exact").textContent = "Your wallet will ask for " + session.amount_text + " " + session.token +
+          ". The last digits identify your payment and add less than 1 cent.";
+        $("exact").classList.remove("hidden");
+      }
       $("network").textContent = "on " + session.chain_name;
       if (session.testnet) $("testnet").classList.remove("hidden");
 

@@ -103,7 +103,7 @@
       if (ctx.isSent()) return;   // the payment was found while the wallet was answering
       const pay = $("pay");
       pay.classList.remove("hidden");
-      pay.textContent = "Pay " + session.amount_text + " " + session.token;
+      pay.textContent = "Pay " + (session.price_text || session.amount_text) + " " + session.token;
       if (bal < need) {
         setStatus("This wallet has " + ctx.formatUnits(bal, session.decimals) + " " + session.token +
           " on " + session.chain_name + ". You need " + session.amount_text + ".", "bad");

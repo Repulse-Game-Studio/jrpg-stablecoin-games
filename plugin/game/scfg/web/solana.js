@@ -86,7 +86,7 @@
         const pay = $("pay");
         pay.classList.remove("hidden");
         pay.disabled = false;
-        pay.textContent = "Pay " + session.amount_text + " " + session.token;
+        pay.textContent = "Pay " + (session.price_text || session.amount_text) + " " + session.token;
         setStatus("Ready. Your wallet will ask you to confirm.");
       } catch (err) {
         if (!ctx.isSent()) setStatus(walletError(err), "bad");
@@ -154,7 +154,7 @@
       if (account) {
         pay.classList.remove("hidden");
         pay.disabled = false;
-        pay.textContent = "Pay " + session.amount_text + " " + session.token;
+        pay.textContent = "Pay " + (session.price_text || session.amount_text) + " " + session.token;
       } else {
         pay.classList.add("hidden");
         pay.disabled = true;

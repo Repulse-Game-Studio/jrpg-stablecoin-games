@@ -132,7 +132,13 @@ class CheckoutController:
 
     @property
     def pay_amount_text(self) -> str:
+        """The exact amount to send, with the item code and nonce: '4.993742'."""
         return format_units(self.session["units"]) if self.session else f"{self.amount}"
+
+    @property
+    def price_text(self) -> str:
+        """The price as the player thinks of it: '4.99'."""
+        return f"{self.amount}"
 
     @property
     def token_address(self) -> str | None:
@@ -322,6 +328,7 @@ class CheckoutController:
                 "title": self.spec.title, "kind": self.spec.kind, "token": self.spec.token,
                 "family": chain.family, "decimals": 6,
                 "amount_units": str(self.session["units"]), "amount_text": self.pay_amount_text,
+                "price_text": self.price_text,
                 "recipient": self.recipient, "chain_name": chain.name,
                 "native_symbol": chain.native_symbol,
                 "explorer_tx": chain.explorer_tx, "testnet": self.config.testnet,

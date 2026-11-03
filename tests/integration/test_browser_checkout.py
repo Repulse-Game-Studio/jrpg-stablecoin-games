@@ -85,7 +85,7 @@ def test_browser_wallet_pays_and_page_shows_confirmation(world, browser):
     page.get_by_role("button", name="Pay with Mock Wallet").click()
     pay_button = page.get_by_role("button", name=re.compile(r"^Pay \d"))
     pay_button.wait_for()
-    assert ctl.pay_amount_text in pay_button.inner_text()
+    assert ctl.price_text in pay_button.inner_text()
     pay_button.click()
 
     # The page posts the tx hash to the game's local server.

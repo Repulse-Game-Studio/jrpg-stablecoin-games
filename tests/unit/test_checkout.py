@@ -77,6 +77,7 @@ def test_select_chain_starts_session():
     assert ctl.method == "browser"
     assert ctl.required == 20
     assert ctl.pay_amount_text.startswith("4.9937")
+    assert ctl.price_text == "4.99"
 
 
 def test_select_unknown_chain_raises():
