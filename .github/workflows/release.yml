@@ -1,0 +1,46 @@
+name: release
+
+# Push a tag like v0.1.0 to publish dist/scfg-renpy-<version>.zip as a GitHub release.
+# The tag must match scfg_core.__version__.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run pytest
+
+      - name: Tag matches the plugin version
+        run: |
+          version=$(uv run python -c "import sys; sys.path.insert(0, 'plugin/game/python-packages'); from scfg_core import __version__; print(__version__)")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match scfg_core.__version__ ($version)"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - run: uv run python tools/package.py
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Only versions like 0.2.0rc1 are prereleases; GitHub's "latest" (and the jrpg.com page) skips those.
+          prerelease=""
+          case "$VERSION" in *[a-z]*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" "dist/scfg-renpy-$VERSION.zip" \
+            --title "Stablecoin for Games $VERSION" \
+            --generate-notes $prerelease
