@@ -6,7 +6,8 @@ there is no account to create.
 
 You need USDC or USDT on one of the networks the game offers, plus a little of that
 network's own coin for the fee: ETH on Ethereum, Arbitrum and Base, POL on Polygon, SOL on
-Solana.
+Solana. On Arc the fee is paid in USDC itself, so USDC is all you need; keep a cent or so
+spare for it.
 
 ## The steps
 
@@ -15,7 +16,7 @@ Esc or a right-click goes back one step.
 
 The screenshots come from [Ruby Dreams](https://github.com/Repulse-Game-Studio/RubyDreams-Renpy)
 on test networks, so the network names end in Sepolia or Amoy. A real game lists
-Ethereum, Arbitrum, Polygon, Base or Solana.
+Ethereum, Arbitrum, Polygon, Base, Arc or Solana.
 
 ### 1. Amount (tips only)
 

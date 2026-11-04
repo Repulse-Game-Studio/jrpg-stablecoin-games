@@ -340,7 +340,10 @@ class CheckoutController:
                              "reference": self.session["reference"]})
             else:
                 info.update({"chain_id": chain.chain_id, "chain_id_hex": hex(chain.chain_id),
-                             "rpc_url": chain.rpc[-1], "token_address": self.token_address})
+                             "rpc_url": chain.rpc[-1], "token_address": self.token_address,
+                             # Arc: the token is also the gas coin, with a fee floor.
+                             "gas_is_token": chain.native_token == self.spec.token,
+                             "min_fee_wei": str(chain.min_fee_wei)})
             kwargs = dict(session_info=info, on_tx=self._report_hint, get_status=self.status_info)
             if chain.family == "solana":
                 kwargs["build_tx"] = self._submit_build

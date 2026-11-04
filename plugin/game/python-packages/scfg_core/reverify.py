@@ -72,19 +72,28 @@ def check_evm_receipt(r: dict, *, rpc, chain: Chain, wallets: Sequence[str]) -> 
     tx_hash, log_index, block = r["tx_hash"].lower(), int(r["log_index"]), int(r["block"])
     units = decimal_to_units(Decimal(r["amount"]))
     token = chain.tokens[r["token"]]
+    topics = [TRANSFER_TOPIC, None, [address_topic(w) for w in wallets]]
+
+    def matches(transfers) -> bool:
+        return any(
+            t is not None and t.tx_hash == tx_hash and t.log_index == log_index
+            and t.value == units and t.recipient in wallets and t.token == token.address
+            for t in transfers)
+
     try:
         head = yield from rpc.block_number()
         if block > head:
             # probably a lagging endpoint: keep, unless the block is impossibly far ahead
             return "drop" if block > head + FUTURE_TOLERANCE_BLOCKS else "keep"
-        logs = yield from rpc.get_logs(
-            token.address, [TRANSFER_TOPIC, None, [address_topic(w) for w in wallets]],
-            block, block)
+        logs = yield from rpc.get_logs(token.log_source, topics, block, block)
+        if matches(chain.parse_transfer(lg) for lg in logs):
+            return "keep"
+        if not token.log_address:
+            return "drop"
+        # A receipt stored by a game that added this chain itself before it was built in
+        # (add_chain("arc", ...)) points at the token contract's own log. That log is still
+        # a genuine transfer, so it keeps the purchase.
+        logs = yield from rpc.get_logs(token.address, topics, block, block)
     except (RpcUnavailable, RpcError):
         return "keep"
-    genuine = any(
-        t is not None and t.tx_hash == tx_hash and t.log_index == log_index
-        and t.value == units and t.recipient in wallets and t.token == token.address
-        for t in (parse_transfer_log(lg) for lg in logs)
-    )
-    return "keep" if genuine else "drop"
+    return "keep" if matches(parse_transfer_log(lg) for lg in logs) else "drop"

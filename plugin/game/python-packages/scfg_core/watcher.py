@@ -20,7 +20,7 @@ from decimal import Decimal
 
 from .amounts import units_to_decimal
 from .chains import Chain
-from .evm import TRANSFER_TOPIC, TransferLog, address_topic, parse_transfer_log
+from .evm import TRANSFER_TOPIC, TransferLog, address_topic
 from .models import Item, PaymentResult
 from .receipts import add_receipt, make_receipt, receipt_key
 from .rpc import RpcError, RpcUnavailable
@@ -88,7 +88,7 @@ def _verify_hint(rec, rpc, chain, wallet, items, receipts, now, out) -> str | No
         clear_hint(rec)
         out.error = "tx_reverted"
         return None
-    candidates = [t for t in (parse_transfer_log(lg) for lg in receipt.get("logs") or [])
+    candidates = [t for t in (chain.parse_transfer(lg) for lg in receipt.get("logs") or [])
                   if _qualifies(t, rec, chain, wallet, receipts) and t.value > 0]
     if not candidates:
         out.hint_tx = rec["hint_tx"]  # the verdict is about this hint
@@ -109,11 +109,11 @@ def _scan(rec, rpc, chain, wallet, receipts, head: int) -> bool:
     span = getattr(rpc, "log_range", None)
     step = min(SCAN_STEP_BLOCKS, span * MAX_SCAN_CALLS) if span else SCAN_STEP_BLOCKS
     to = min(head, rec["cursor"] + step - 1)
-    token = chain.tokens[rec["token"]].address
-    logs = yield from rpc.get_logs(token, [TRANSFER_TOPIC, None, address_topic(wallet)],
+    source = chain.tokens[rec["token"]].log_source
+    logs = yield from rpc.get_logs(source, [TRANSFER_TOPIC, None, address_topic(wallet)],
                                    rec["cursor"], to)
     found = sorted(
-        (t for t in (parse_transfer_log(lg) for lg in logs)
+        (t for t in (chain.parse_transfer(lg) for lg in logs)
          if _qualifies(t, rec, chain, wallet, receipts) and t.value == rec["units"]),
         key=lambda t: (t.block_number, t.log_index))
     rec["cursor"] = to + 1

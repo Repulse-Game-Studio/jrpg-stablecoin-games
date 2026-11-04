@@ -61,7 +61,7 @@ def open_checkout(world):
     ctl = CheckoutController(
         config=cfg, spec=spec, submit=immediate(engine), mobile=False,
         server_factory=lambda **kw: CheckoutServer(load_asset=lambda n: (WEB / n).read_bytes(), **kw))
-    ctl.select_chain("arbitrum")
+    ctl.select_chain(world.get("chain", "arbitrum"))
     ctl.poll()
     assert ctl.state == "waiting"
     return ctl, ctl.start_browser()

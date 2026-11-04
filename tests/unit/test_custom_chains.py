@@ -74,7 +74,7 @@ def test_build_chain_rejects(kw):
 
 def test_custom_chain_is_enabled_by_default_after_built_ins():
     cfg = build_config(DEV, custom_chains=[avalanche()])
-    assert cfg.chains == ("arbitrum", "base", "polygon", "ethereum", "avalanche")
+    assert cfg.chains == ("arbitrum", "base", "arc", "polygon", "ethereum", "avalanche")
     assert list(enabled_chains(cfg))[-1] == "avalanche"
     assert cfg.registry["avalanche"].chain_id == 43114
 
@@ -170,3 +170,9 @@ def test_receipts_from_a_removed_custom_chain_are_kept():
     e = Engine(cfg, receipts={"avalanche:" + TX + ":0": receipt},
                rpc_factory=lambda chain: FakeChain())
     assert e.reverify() == []
+
+
+def test_add_chain_rejects_builtin_arc_key():
+    # Games that added Arc themselves before it was built in must drop that call.
+    with pytest.raises(ConfigError, match="built in"):
+        build_config(DEV, custom_chains=[avalanche(key="arc", chain_id=5042)])

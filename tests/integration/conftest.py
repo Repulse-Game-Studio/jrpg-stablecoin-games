@@ -16,7 +16,14 @@ from scfg_core.config import add_item, build_config
 from scfg_core.engine import Engine
 from scfg_core.rpc import RpcClient, UrllibTransport
 
-from mock_token import BYTECODE, MINT_SELECTOR, TRANSFER_SELECTOR
+from mock_token import (
+    ARC_EMITTER_RUNTIME,
+    ARC_USDC_RUNTIME,
+    BYTECODE,
+    MINT_SELECTOR,
+    NATIVE_SEND_SELECTOR,
+    TRANSFER_SELECTOR,
+)
 from solana_local import LocalSolana
 
 
@@ -64,6 +71,10 @@ def send(rpc, frm, to=None, data="0x"):
     tx = {"from": frm, "data": data, "gas": hex(3_000_000)}
     if to:
         tx["to"] = to
+    return send_tx(rpc, tx)
+
+
+def send_tx(rpc, tx):
     tx_hash = rpc.call("eth_sendTransaction", [tx])
     deadline = time.time() + 5
     receipt = None
@@ -97,6 +108,33 @@ def world(anvil, monkeypatch):
     engine = Engine(cfg, transport=UrllibTransport())
     return {"rpc": rpc, "engine": engine, "dev": dev, "payer": payer, "usdc": usdc,
             "url": url, "config": cfg}
+
+
+@pytest.fixture
+def arc_world(anvil, monkeypatch):
+    """Anvil dressed as Arc: USDC's ERC-20 interface and the system emitter at their real
+    addresses, so the real registry entry (tokens, log source) is used unchanged."""
+    url, rpc = anvil
+    deployer, dev, payer = rpc.call("eth_accounts", [])[:3]
+    rpc.call("anvil_setCode", [chains_module.ARC_SYSTEM_EMITTER, ARC_EMITTER_RUNTIME])
+    rpc.call("anvil_setCode", [chains_module.ARC_USDC, ARC_USDC_RUNTIME])
+    usdc = chains_module.ARC_USDC
+    send(rpc, deployer, usdc, "0x" + MINT_SELECTOR + addr_word(payer) + word(100_000_000))
+    local = replace(chains_module.MAINNET["arc"], rpc=(url,))
+    monkeypatch.setitem(chains_module.MAINNET, "arc", local)
+    cfg = build_config(dev, chains=["arc"])
+    add_item(cfg, "chapter2", code=37, price="4.99", token="USDC", title="Chapter 2")
+    engine = Engine(cfg, transport=UrllibTransport())
+    return {"rpc": rpc, "engine": engine, "dev": dev, "payer": payer, "usdc": usdc,
+            "url": url, "config": cfg, "chain": "arc"}
+
+
+def native_send(w, units):
+    """A wallet "Send" of native USDC on Arc: only the system emitter logs it."""
+    tx = {"from": w["payer"], "to": chains_module.ARC_SYSTEM_EMITTER,
+          "data": "0x" + NATIVE_SEND_SELECTOR + addr_word(w["dev"]),
+          "value": hex(units * 10**12), "gas": hex(200_000)}
+    return send_tx(w["rpc"], tx)[0]
 
 
 def pay(w, units):

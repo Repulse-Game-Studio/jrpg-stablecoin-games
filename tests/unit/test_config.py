@@ -49,7 +49,7 @@ def test_accepted_wallets_include_previous():
 def test_defaults():
     c = cfg()
     assert c.testnet is False
-    assert c.chains == ("arbitrum", "base", "polygon", "ethereum")
+    assert c.chains == ("arbitrum", "base", "arc", "polygon", "ethereum")
     assert c.tokens == ("USDC", "USDT")
     assert c.methods == DEFAULT_METHODS
     assert c.rpc_urls == {} and c.confirmations == {} and c.items == {}
@@ -244,3 +244,15 @@ def test_bad_accent(value):
 ])
 def test_text_on_accent_stays_readable(accent, text):
     assert text_on(accent) == text
+
+
+def test_default_chains_include_arc():
+    # An existing game that never passed chains= gets Arc on its next plugin update.
+    assert "arc" in build_config(DEV).chains
+    assert "arc" in enabled_chains(build_config(DEV))
+
+
+def test_arc_drops_out_when_usdc_is_disabled():
+    assert "arc" not in enabled_chains(build_config(DEV, tokens=["USDT"]))
+    with pytest.raises(ConfigError):
+        build_config(DEV, chains=["arc"], tokens=["USDT"])

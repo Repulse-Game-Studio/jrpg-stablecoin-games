@@ -72,6 +72,10 @@ jobs:
         run: >
           SCFG_E2E_VIDEODRIVER=x11 xvfb-run -a
           uv run python tools/run_renpy_e2e.py --sdk /tmp/renpy-${{ matrix.renpy }}-sdk
+      - name: Ren'Py end-to-end payment (Arc, native USDC send)
+        run: >
+          SCFG_E2E_VIDEODRIVER=x11 xvfb-run -a
+          uv run python tools/run_renpy_e2e.py --sdk /tmp/renpy-${{ matrix.renpy }}-sdk --family arc
       - name: Ren'Py end-to-end payment (Solana)
         run: >
           SCFG_E2E_VIDEODRIVER=x11 xvfb-run -a
@@ -94,6 +98,8 @@ jobs:
           unzip -q /tmp/renpy-web.zip -d "/tmp/renpy-${RENPY}-sdk"
       - name: Ren'Py web build end-to-end payment
         run: xvfb-run -a uv run python tools/run_renpy_web_e2e.py --sdk "/tmp/renpy-${RENPY}-sdk"
+      - name: Ren'Py web build end-to-end payment (Arc)
+        run: xvfb-run -a uv run python tools/run_renpy_web_e2e.py --sdk "/tmp/renpy-${RENPY}-sdk" --family arc
 
   public-rpcs:
     if: github.event_name == 'schedule'
@@ -103,3 +109,5 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv run python tools/check_rpcs.py
       - run: uv run python tools/check_rpcs.py --testnet
+      - run: uv sync
+      - run: uv run pytest -m live   # pinned Arc mainnet payments, read through the plugin

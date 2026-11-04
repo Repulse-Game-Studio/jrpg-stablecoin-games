@@ -1,8 +1,9 @@
 # Test before release
 
 1. Use `testnet=True` and **your own wallet**.
-2. Get test USDC from Circle's faucet, plus a little test ETH (or POL on Amoy) for network fees.
-3. Buy something with each method you enabled: browser wallet, QR and manual.
+2. Get test USDC from Circle's faucet, plus a little test ETH (or POL on Amoy) for network fees. On Arc Testnet the faucet's USDC is all you need: it also pays the fee.
+3. Buy something with each method you enabled: browser wallet, QR and manual. On Arc, make
+   the manual transfer with your wallet's own Send button: it arrives as a native send.
 4. Restart the game mid-payment and check the purchase still completes.
 5. Run `scfg.clear_local_data()` from the developer console (Shift+O), then use **Restore purchases** with the transaction hash.
 6. In developer mode the payment screen shows **DEV MODE: paying to 0x5290...9EE7**. Check that the start and end match your address. The Manual transfer step shows the full address.
