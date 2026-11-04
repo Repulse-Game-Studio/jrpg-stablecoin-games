@@ -25,6 +25,11 @@ init python:
             tokens=python_dict(USDC=_E2EToken(E2E["SCFG_E2E_USDC"])))
         scfg.configure(solana_wallet=E2E["SCFG_E2E_DEV"], testnet=True,
                             chains=["solana"], tokens=["USDC"])
+    elif E2E_FAMILY == "arc":
+        # The real Arc entry (USDC read from the system emitter), pointed at the local chain.
+        _e2e_chains.MAINNET["arc"] = _e2e_replace(
+            _e2e_chains.MAINNET["arc"], rpc=(E2E["SCFG_E2E_RPC"],))
+        scfg.configure(wallet=E2E["SCFG_E2E_DEV"], chains=["arc"], tokens=["USDC"])
     else:
         _e2e_chains.MAINNET["arbitrum"] = _e2e_replace(
             _e2e_chains.MAINNET["arbitrum"], rpc=(E2E["SCFG_E2E_RPC"],), confirmations=2,
@@ -59,11 +64,17 @@ init python:
         units = units or ctl.session["units"]
         if E2E_FAMILY == "solana":
             return _e2e_pay_solana(units, ctl.session["reference"])
-        data = ("0xa9059cbb" + "0" * 24 + E2E["SCFG_E2E_DEV"][2:].lower()
-                + format(units, "064x"))
+        dev_word = "0" * 24 + E2E["SCFG_E2E_DEV"][2:].lower()
         rpc = e2e_rpc()
-        tx = rpc.call("eth_sendTransaction", [python_dict(
-            {"from": E2E["SCFG_E2E_PAYER"], "to": E2E["SCFG_E2E_USDC"], "data": data})])
+        if E2E_FAMILY == "arc":
+            # A wallet "Send" of native USDC: 18 decimals, logged only by the system emitter.
+            tx = rpc.call("eth_sendTransaction", [python_dict(
+                {"from": E2E["SCFG_E2E_PAYER"], "to": _e2e_chains.ARC_SYSTEM_EMITTER,
+                 "data": "0x1bc79f03" + dev_word, "value": hex(units * 10**12)})])
+        else:
+            tx = rpc.call("eth_sendTransaction", [python_dict(
+                {"from": E2E["SCFG_E2E_PAYER"], "to": E2E["SCFG_E2E_USDC"],
+                 "data": "0xa9059cbb" + dev_word + format(units, "064x")})])
         rpc.call("anvil_mine", ["0x3"])
         store.e2e_last_tx = tx
         return tx

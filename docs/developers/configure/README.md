@@ -19,12 +19,12 @@ init python:
 |---|---|---|
 | `wallet` | required unless `solana_wallet` is given | Your EVM payout address. A wrong-case checksum raises an error, which catches typos |
 | `solana_wallet` | none | Your Solana payout address (base58) to accept USDC/USDT on Solana. See [Solana](solana.md) |
-| `testnet` | `False` | `True` uses Sepolia, Arbitrum Sepolia, Polygon Amoy, Base Sepolia and Solana Devnet (USDC only) |
-| `chains` | all built-ins + yours | Which networks players may pay on, in display order: `["arbitrum", "base", "polygon", "ethereum", "solana"]`. Chains you added with `add_chain()` can be listed too. By default the EVM chains (built-in, then yours) are offered if `wallet` is set, followed by `"solana"` if `solana_wallet` is set |
+| `testnet` | `False` | `True` uses Sepolia, Arbitrum Sepolia, Polygon Amoy, Base Sepolia, Arc Testnet and Solana Devnet (USDC only) |
+| `chains` | all built-ins + yours | Which networks players may pay on, in display order: `["arbitrum", "base", "arc", "polygon", "ethereum", "solana"]`. Chains you added with `add_chain()` can be listed too. By default the EVM chains (built-in, then yours) are offered if `wallet` is set, followed by `"solana"` if `solana_wallet` is set |
 | `tokens` | both | `["USDC"]`, `["USDT"]` or both |
 | `methods` | all on | Per-method options, see below |
 | `rpc_urls` | none | Your own RPC endpoints per chain, tried before the built-in public ones, e.g. `{"arbitrum": ["https://arb-mainnet.g.alchemy.com/v2/KEY"]}`. See below |
-| `confirmations` | per chain | Override blocks to wait on EVM chains, e.g. `{"ethereum": 12}`. Refused for `"solana"`, which has no block count (see [Solana](solana.md)) |
+| `confirmations` | per chain | Override blocks to wait on EVM chains, e.g. `{"ethereum": 12}`. Arc's default is 1: its blocks are final. Refused for `"solana"`, which has no block count (see [Solana](solana.md)) |
 | `previous_wallets` | none | Wallets used by earlier versions of your game, EVM (`0x…`) and Solana addresses can be mixed. Keeps old purchases valid after you change wallets |
 | `logo` | none | An image in your game folder, e.g. `"images/logo.png"` (`.png`, `.jpg` or `.webp`). Shown at the top of the payment screens and the browser checkout page, fitted into 240 × 64 (at 1280 × 720). A wide wordmark works best |
 | `accent` | `"#0e7c74"` | Color of selected options and the main browser button, e.g. `accent=gui.accent_color`. Text on it switches between white and dark automatically |
@@ -100,7 +100,7 @@ init python:
 
 | `add_chain()` argument | Meaning |
 |---|---|
-| `key` | Your name for the chain: lowercase letters, digits, `_`, `-`. It is stored in players' receipts, so **never change it after release**. It can't reuse a built-in key |
+| `key` | Your name for the chain: lowercase letters, digits, `_`, `-`. It is stored in players' receipts, so **never change it after release**. It can't reuse a built-in key (`"arc"` is built in now: if your game added Arc itself, delete that `add_chain()` call; purchases it recorded stay valid, see [Arc](arc.md#upgrading-to-the-version-with-arc-built-in)) |
 | `name` | Shown to players on the network button (at most 32 characters) |
 | `chain_id` | The EVM chain id (see [chainlist.org](https://chainlist.org)). Wallets use it to switch networks, and QR codes carry it |
 | `rpc` | One URL or a list, tried in order. `https://` only, except `http://127.0.0.1` / `http://localhost` for a local test node. The **last** one is also handed to the player's browser wallet if it needs to add the network, so put a public endpoint last |
@@ -117,6 +117,9 @@ Rules your chain must follow (checked when the game starts where possible):
 - **EVM only.** The plugin finds payments through ERC-20 `Transfer` events over Ethereum
   JSON-RPC (`eth_getLogs`, `eth_getTransactionReceipt`, …). Tron, Bitcoin and other non-EVM
   chains can't be added this way. Solana is built in: see [Solana](solana.md).
+- **The token must not be the chain's gas coin.** On chains like Arc, where USDC *is* the
+  gas coin, a plain wallet send logs no ERC-20 event at the token contract, so `add_chain()`
+  would miss it. Arc is built in for that reason (see [Arc](arc.md)).
 - **6-decimal tokens only.** The item code lives in the last four of six decimals. This
   rules out BNB Chain's USDC/USDT (18 decimals). The plugin can't check this offline, so
   confirm `decimals()` on the explorer before you ship.

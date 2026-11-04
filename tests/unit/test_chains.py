@@ -1,6 +1,13 @@
 import pytest
 
-from scfg_core.chains import DISPLAY_ORDER, MAINNET, TESTNET, get_chains
+from scfg_core.chains import (
+    ARC_SYSTEM_EMITTER,
+    ARC_USDC,
+    DISPLAY_ORDER,
+    MAINNET,
+    TESTNET,
+    get_chains,
+)
 from scfg_core.evm import is_checksum_address
 
 # Pinned from Circle's and Tether's official contract pages. If one of these
@@ -13,6 +20,8 @@ PINNED = {
     ("polygon", "USDC"): "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
     ("polygon", "USDT"): "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
     ("base", "USDC"): "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    # Arc: USDC is the native gas coin; this is its ERC-20 interface (docs.arc.io).
+    ("arc", "USDC"): "0x3600000000000000000000000000000000000000",
 }
 
 
@@ -23,12 +32,13 @@ EVM_TEST = {k: c for k, c in TESTNET.items() if c.family == "evm"}
 
 def test_mainnet_chain_ids():
     assert {k: c.chain_id for k, c in EVM.items()} == {
-        "ethereum": 1, "arbitrum": 42161, "polygon": 137, "base": 8453}
+        "ethereum": 1, "arbitrum": 42161, "polygon": 137, "base": 8453, "arc": 5042}
 
 
 def test_testnet_chain_ids_use_same_keys():
     assert {k: c.chain_id for k, c in EVM_TEST.items()} == {
-        "ethereum": 11155111, "arbitrum": 421614, "polygon": 80002, "base": 84532}
+        "ethereum": 11155111, "arbitrum": 421614, "polygon": 80002, "base": 84532,
+        "arc": 5042002}
 
 
 @pytest.mark.parametrize("key_token, address", PINNED.items())
@@ -59,6 +69,52 @@ def test_chain_invariants(chain):
 
 def test_display_order_covers_all_chains():
     assert sorted(DISPLAY_ORDER) == sorted(EVM)
+
+
+def test_display_order_puts_arc_after_the_familiar_l2s():
+    assert DISPLAY_ORDER == ("arbitrum", "base", "arc", "polygon", "ethereum")
+
+
+@pytest.mark.parametrize("testnet", [False, True])
+def test_arc_usdc_logs_come_from_system_emitter(testnet):
+    usdc = get_chains(testnet)["arc"].tokens["USDC"]
+    assert usdc.address == ARC_USDC
+    assert usdc.log_source == ARC_SYSTEM_EMITTER == "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE"
+    assert (usdc.decimals, usdc.log_decimals) == (6, 18)
+
+
+@pytest.mark.parametrize("testnet", [False, True])
+def test_arc_has_only_usdc(testnet):
+    assert set(get_chains(testnet)["arc"].tokens) == {"USDC"}
+
+
+@pytest.mark.parametrize("testnet", [False, True])
+def test_arc_fee_floor_and_native_token(testnet):
+    c = get_chains(testnet)["arc"]
+    assert (c.native_token, c.min_fee_wei, c.native_symbol, c.fee_hint, c.confirmations) == (
+        "USDC", 20_000_000_000, "USDC", "lowest", 1)
+    assert c.max_log_range == 9_999
+    host = "explorer.testnet.arc.io" if testnet else "explorer.arc.io"
+    assert c.explorer_url("0xab") == f"https://{host}/tx/0xab"
+    # Measured with tools/check_rpcs.py on 2026-11-03: dRPC caps getLogs near 78 blocks;
+    # Blockdaemon's testnet answers gzip unasked, which urllib can't read.
+    # The last endpoint is the one the checkout page gives a wallet that must add the
+    # network, so it stays a healthy one, never dRPC.
+    if testnet:
+        assert c.rpc == ("https://rpc.testnet.arc.io", "https://rpc.drpc.testnet.arc.io",
+                         "https://rpc.quicknode.testnet.arc.io")
+    else:
+        assert c.rpc == ("https://rpc.mainnet.arc.io", "https://rpc.quicknode.mainnet.arc.io",
+                         "https://rpc.drpc.mainnet.arc.io", "https://rpc.blockdaemon.mainnet.arc.io")
+    assert "drpc" not in c.rpc[-1]
+
+
+def test_other_chains_have_no_log_source_or_fee_floor():
+    for c in list(EVM.values()) + list(EVM_TEST.values()):
+        if c.key == "arc":
+            continue
+        assert (c.native_token, c.min_fee_wei) == ("", 0)
+        assert all(t.log_source == t.address for t in c.tokens.values())
 
 
 def test_get_chains():

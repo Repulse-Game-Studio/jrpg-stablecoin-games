@@ -1,7 +1,7 @@
 # Stablecoin for Games
 
 Take tips and sell unlocks in **USDC** and **USDT** inside your Ren'Py game, on Ethereum,
-Arbitrum, Polygon, Base or Solana. The player's wallet pays yours directly. There is no
+Arbitrum, Polygon, Base, Arc or Solana. The player's wallet pays yours directly. There is no
 store, account or server in between: the game watches the blockchain itself.
 
 This package installs the plugin into your Ren'Py project. Ren'Py only loads code from a

@@ -8,10 +8,13 @@ payment sheet through Ren'Py's renpy_exec() page hook:
   2. manual transfer: a tip sent straight from Anvil is found by the frame-pumped watcher;
   3. reload: after the tab reloads, receipts and an unpaid pending session are still there.
 
+--family arc runs the same steps on Anvil dressed as Arc; its manual payments are native
+USDC sends, which only Arc's system emitter logs.
+
 Needs anvil (Foundry), Playwright with Chromium, and a Ren'Py SDK with web support (its
 web/ directory). Usage:
 
-    uv run python tools/run_renpy_web_e2e.py --sdk /path/to/renpy-sdk
+    uv run python tools/run_renpy_web_e2e.py --sdk /path/to/renpy-sdk [--family arc]
 """
 
 from __future__ import annotations
@@ -36,8 +39,9 @@ sys.path.insert(0, str(ROOT / "plugin" / "game" / "python-packages"))
 sys.path.insert(0, str(ROOT / "tests" / "integration"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from run_renpy_e2e import setup_evm, wait_receipt  # noqa: E402
+from run_renpy_e2e import setup_arc, setup_evm, wait_receipt  # noqa: E402
 
+from scfg_core.chains import ARC_SYSTEM_EMITTER  # noqa: E402
 from scfg_core.coio import Sync  # noqa: E402
 from scfg_core.rpc import RpcClient, UrllibTransport  # noqa: E402
 
@@ -146,6 +150,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sdk", required=True, type=Path, help="Ren'Py SDK directory")
     ap.add_argument("--headed", action="store_true", help="show the browser window")
+    ap.add_argument("--family", choices=("evm", "arc"), default="evm",
+                    help="EVM chain to emulate on Anvil (default: evm)")
     args = ap.parse_args()
     anvil = shutil.which("anvil")
     if not anvil:
@@ -163,19 +169,31 @@ def main() -> int:
         shutil.copytree(ROOT / "plugin" / "game" / name, target,
                         ignore=shutil.ignore_patterns("__pycache__", "*.rpyc"))
     work = Path(tempfile.mkdtemp(prefix="scfg-web-e2e-"))
-    env, cleanup = setup_evm(anvil, work)
+    env, cleanup = (setup_arc if args.family == "arc" else setup_evm)(anvil, work)
     httpd = None
     console: list = []   # the page's console: the game's Python output and errors
     try:
         (GAME / "game" / "e2e_web_config.json").write_text(json.dumps({
             "rpc": env["SCFG_E2E_RPC"], "usdc": env["SCFG_E2E_USDC"],
-            "dev": env["SCFG_E2E_DEV"]}))
+            "dev": env["SCFG_E2E_DEV"], "family": args.family}))
         print("building the web game (this takes a minute)…")
         build(args.sdk, work / "web")
         url, httpd = serve(work / "web")
         rpc = Sync(RpcClient([env["SCFG_E2E_RPC"]]), UrllibTransport())
         payer, usdc, dev = (env["SCFG_E2E_PAYER"], env["SCFG_E2E_USDC"],
                             env["SCFG_E2E_DEV"])
+
+        def pay_manually(units):
+            """Pay `units` from the player, as a manual transfer would: an ERC-20 transfer,
+            or on Arc a native USDC send (18 decimals, logged by the system emitter)."""
+            dev_word = "0" * 24 + dev[2:].lower()
+            if args.family == "arc":
+                tx = {"from": payer, "to": ARC_SYSTEM_EMITTER, "data": "0x1bc79f03" + dev_word,
+                      "value": hex(units * 10**12)}
+            else:
+                tx = {"from": payer, "to": usdc,
+                      "data": "0xa9059cbb" + dev_word + format(units, "064x")}
+            wait_receipt(rpc, rpc.call("eth_sendTransaction", [tx]))
 
         with sync_playwright() as p:
             options = dict(headless=not args.headed, args=[
@@ -221,9 +239,7 @@ def main() -> int:
             py(page, f"scfg._next_step({cid!r})")
             s = wait_for(page, lambda s: s["step"] == "method" and s["units"], "the tip session")
             py(page, f"scfg._choose_method({cid!r}, 'manual')")
-            data = ("0xa9059cbb" + "0" * 24 + dev[2:].lower() + format(s["units"], "064x"))
-            wait_receipt(rpc, rpc.call("eth_sendTransaction",
-                                       [{"from": payer, "to": usdc, "data": data}]))
+            pay_manually(s["units"])
             rpc.call("anvil_mine", ["0x3"])
             s = wait_for(page, lambda s: s["receipts"] == 2, "the tip's receipt")
             # The second receipt is the tip: the session's amount (2 USDC plus its
@@ -245,16 +261,13 @@ def main() -> int:
                                           and s["pending_units"]),
                          "state after reload")
             # Watching resumed: pay the restored session from Anvil and wait for its receipt.
-            data = ("0xa9059cbb" + "0" * 24 + dev[2:].lower()
-                    + format(s["pending_units"], "064x"))
-            wait_receipt(rpc, rpc.call("eth_sendTransaction",
-                                       [{"from": payer, "to": usdc, "data": data}]))
+            pay_manually(s["pending_units"])
             rpc.call("anvil_mine", ["0x3"])
             s = wait_for(page, lambda s: s["receipts"] == 3, "the restored session's receipt")
             print("3. reload: receipts and the pending session kept, watching resumed "
                   "(paid after reload, receipts=3)")
             browser.close()
-        print("Ren'Py web e2e PASSED")
+        print(f"Ren'Py web e2e PASSED ({args.family})")
         return 0
     except Exception as e:
         print("\n".join(console[-60:]))

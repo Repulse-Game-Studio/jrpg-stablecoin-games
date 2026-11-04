@@ -11,20 +11,35 @@ scfg.add_chain); those never enter these dicts, they live on the Config.
 
 RPC lists and max_log_range values were measured against the live public
 endpoints (tools/check_rpcs.py). The first endpoint should be the most generous.
+
+Log sources: on most chains a token's Transfer events come from its own contract. On
+Arc, USDC is the native gas coin: a plain native send logs a Transfer only at a system
+emitter address (18 decimals), while an ERC-20 transfer() logs there *and* at the 0x3600
+interface (6 decimals). Such a token names the emitter as its log_address, and
+Chain.parse_transfer reads only that stream, floored to 6-decimal units, so every
+payment is seen exactly once however the player sent it.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
-from .evm import to_checksum_address
+from .evm import TransferLog, parse_transfer_log, to_checksum_address
 from .solana.base58 import normalize_pubkey
+
+ARC_USDC = "0x3600000000000000000000000000000000000000"
+ARC_SYSTEM_EMITTER = "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE"
+ARC_MIN_FEE_WEI = 20_000_000_000  # Arc's mempool silently drops anything below 20 gwei
 
 
 @dataclass(frozen=True)
 class Token:
     address: str
     decimals: int = 6
+    # Where this token's Transfer events are logged, when that is not its own contract
+    # (Arc's system emitter), and the decimals of the values logged there.
+    log_address: str = ""
+    log_decimals: int = 0
 
     def __post_init__(self):
         # EVM addresses are always EIP-55 checksummed, so comparisons with parsed logs never
@@ -33,6 +48,15 @@ class Token:
             object.__setattr__(self, "address", to_checksum_address(self.address))
         else:
             object.__setattr__(self, "address", normalize_pubkey(self.address))
+        if self.log_address:
+            object.__setattr__(self, "log_address", to_checksum_address(self.log_address))
+            if self.log_decimals < self.decimals:
+                raise ValueError("log_decimals must be at least decimals")
+
+    @property
+    def log_source(self) -> str:
+        """The contract address whose Transfer events record this token's payments."""
+        return self.log_address or self.address
 
 
 @dataclass(frozen=True)
@@ -50,9 +74,31 @@ class Chain:
     testnet: bool = False
     family: str = "evm"
     wallet_chain: str = ""
+    native_token: str = ""  # the token in `tokens` that is also the gas coin (Arc: "USDC")
+    min_fee_wei: int = 0  # maxFeePerGas floor the checkout page enforces (0: none)
 
     def explorer_url(self, tx_hash: str) -> str:
         return self.explorer_tx.format(tx_hash)
+
+    def parse_transfer(self, log: dict) -> TransferLog | None:
+        """A raw log as a payment in one of this chain's tokens, or None.
+
+        Only logs from a token's log source count. Values logged with more decimals than
+        the token has are floored to its units; a log that floors to 0 is not a payment.
+        The result always carries the token's canonical address.
+        """
+        t = parse_transfer_log(log)
+        if t is None:
+            return None
+        token = next((tk for tk in self.tokens.values() if tk.log_source == t.token), None)
+        if token is None:
+            return None
+        if not token.log_address:
+            return t
+        value = t.value // 10 ** (token.log_decimals - token.decimals)
+        if value <= 0:
+            return None
+        return replace(t, token=token.address, value=value)
 
 
 MAINNET: dict[str, Chain] = {
@@ -96,6 +142,17 @@ MAINNET: dict[str, Chain] = {
         confirmations=10, max_log_range=125,
         explorer_tx="https://basescan.org/tx/{}", native_symbol="ETH", fee_hint="low",
         tokens={"USDC": Token("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")},
+    ),
+    "arc": Chain(
+        key="arc", chain_id=5042, name="Arc",
+        # dRPC caps getLogs at a few dozen blocks, so it is never first, and never last
+        # either: the last endpoint is the one handed to a wallet that adds the network.
+        rpc=("https://rpc.mainnet.arc.io", "https://rpc.quicknode.mainnet.arc.io",
+             "https://rpc.drpc.mainnet.arc.io", "https://rpc.blockdaemon.mainnet.arc.io"),
+        confirmations=1, max_log_range=9_999,  # BFT finality: one block is final
+        explorer_tx="https://explorer.arc.io/tx/{}", native_symbol="USDC", fee_hint="lowest",
+        native_token="USDC", min_fee_wei=ARC_MIN_FEE_WEI,
+        tokens={"USDC": Token(ARC_USDC, log_address=ARC_SYSTEM_EMITTER, log_decimals=18)},
     ),
     "solana": Chain(
         key="solana", chain_id=0, name="Solana",
@@ -144,6 +201,16 @@ TESTNET: dict[str, Chain] = {
         testnet=True,
         tokens={"USDC": Token("0x036CbD53842c5426634e7929541eC2318f3dCF7e")},
     ),
+    "arc": Chain(
+        key="arc", chain_id=5042002, name="Arc Testnet",
+        # Blockdaemon's testnet endpoint answers gzip unasked (urllib can't read it): left out.
+        rpc=("https://rpc.testnet.arc.io", "https://rpc.drpc.testnet.arc.io",
+             "https://rpc.quicknode.testnet.arc.io"),
+        confirmations=1, max_log_range=9_999,
+        explorer_tx="https://explorer.testnet.arc.io/tx/{}", native_symbol="USDC",
+        fee_hint="lowest", testnet=True, native_token="USDC", min_fee_wei=ARC_MIN_FEE_WEI,
+        tokens={"USDC": Token(ARC_USDC, log_address=ARC_SYSTEM_EMITTER, log_decimals=18)},
+    ),
     "solana": Chain(
         key="solana", chain_id=0, name="Solana Devnet",
         rpc=("https://api.devnet.solana.com",),
@@ -154,7 +221,7 @@ TESTNET: dict[str, Chain] = {
     ),
 }
 
-DISPLAY_ORDER: tuple[str, ...] = ("arbitrum", "base", "polygon", "ethereum")
+DISPLAY_ORDER: tuple[str, ...] = ("arbitrum", "base", "arc", "polygon", "ethereum")
 
 
 def get_chains(testnet: bool) -> dict[str, Chain]:

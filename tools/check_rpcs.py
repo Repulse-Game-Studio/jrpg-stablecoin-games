@@ -52,7 +52,7 @@ def check(url: str, chain) -> tuple[str, str]:
         if chain_id != chain.chain_id:
             return "FAIL", f"wrong chain id {chain_id}"
         head = rpc.block_number()
-        token = next(iter(chain.tokens.values())).address
+        token = next(iter(chain.tokens.values())).log_source
         wallet = "0x52908400098527886E0F7030069857D2E4169EE7"  # any address works for the probe
         rpc.get_logs(token, [TRANSFER_TOPIC, None, address_topic(wallet)],
                      head - chain.max_log_range + 1, head)

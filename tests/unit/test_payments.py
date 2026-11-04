@@ -18,7 +18,7 @@ def cfg(**kw):
 def test_unlock_defaults_from_item():
     spec = prepare_payment(cfg(), "unlock", item="chapter2")
     assert spec == PaymentSpec("unlock", "chapter2", Decimal("4.99"), "USDC", 37, "Chapter 2",
-                               ("arbitrum", "base", "polygon", "ethereum"))
+                               ("arbitrum", "base", "arc", "polygon", "ethereum"))
 
 
 def test_unlock_sale_price_allowed_down_to_min_price():

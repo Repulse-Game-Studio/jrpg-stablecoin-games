@@ -102,7 +102,9 @@ init -10 python in scfg:
         """Add an EVM chain that isn't built in (e.g. Avalanche, Optimism, your own L2).
         Call before configure(); the key can then be used in configure(chains=...,
         rpc_urls=..., confirmations=...). tokens: {"USDC": "0x..."}, 6-decimal tokens only.
-        testnet=True adds it for configure(testnet=True) games instead of mainnet ones."""
+        testnet=True adds it for configure(testnet=True) games instead of mainnet ones.
+        Chains whose gas coin is the stablecoin itself (like Arc, built in) can't be added
+        this way: their wallet sends emit no ERC-20 event at the token contract."""
         if _state.config is not None:
             raise ConfigError("call scfg.add_chain() before scfg.configure()")
         chain = _build_chain(key, name=name, chain_id=chain_id, rpc=rpc, tokens=tokens,

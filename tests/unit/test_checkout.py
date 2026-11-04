@@ -66,7 +66,7 @@ def started(**kw):
 def test_initial_state_and_chain_options():
     ctl, *_ = setup()
     assert ctl.state == "choose" and ctl.session is None
-    assert [k for k, _, _ in ctl.chain_options()] == ["arbitrum", "base", "polygon", "ethereum"]
+    assert [k for k, _, _ in ctl.chain_options()] == ["arbitrum", "base", "arc", "polygon", "ethereum"]
     assert ctl.pay_amount_text == "4.99"
 
 
@@ -237,3 +237,19 @@ def test_browser_session_info_carries_appearance():
     info = servers[0].session_info
     assert info["logo"] is True
     assert info["accent"] == "#ffcc00" and info["on_accent"] == "#17202e"
+
+
+@pytest.mark.parametrize("chain, gas_is_token, min_fee, native", [
+    ("arc", True, "20000000000", "USDC"),       # USDC is Arc's gas coin; 20 gwei mempool floor
+    ("base", False, "0", "ETH"),
+])
+def test_browser_info_tells_the_page_how_gas_is_paid(chain, gas_is_token, min_fee, native):
+    ctl, *_, servers = setup()
+    ctl.select_chain(chain)
+    ctl.poll()
+    ctl.start_browser()
+    info = servers[0].session_info
+    assert info["gas_is_token"] is gas_is_token
+    assert info["min_fee_wei"] == min_fee
+    assert info["native_symbol"] == native
+    assert info["chain_id"] == MAINNET[chain].chain_id

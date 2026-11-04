@@ -5,6 +5,8 @@
 (function () {
   function start(ctx) {
     const { session, $, setStatus } = ctx;
+    // Kept free for the network fee when the token is also the gas coin: 0.01 token.
+    const FEE_MARGIN_UNITS = 10000n;
     let provider = null;
     let account = null;
     const discovered = new Map();
@@ -111,7 +113,16 @@
         return;
       }
       pay.disabled = false;
-      if (gas === 0n) {
+      if (session.gas_is_token) {
+        // The fee is paid in the token itself (Arc: USDC), from the same balance.
+        if (bal < need + FEE_MARGIN_UNITS) {
+          setStatus("Warning: after this payment less than 0.01 " + session.token +
+            " would be left for the network fee, which " + session.chain_name +
+            " charges in " + session.token + ". The transaction may fail.", "warn");
+        } else {
+          setStatus("Ready. Your wallet will ask you to confirm.");
+        }
+      } else if (gas === 0n) {
         setStatus("Warning: you have no " + session.native_symbol + " on " + session.chain_name +
           " to pay the network fee. The transaction will probably fail.", "warn");
       } else {
@@ -128,16 +139,22 @@
         // The player may have switched networks in the wallet since connecting.
         await ensureChain(provider);
         if (ctx.isSent()) return;
+        const tx = {
+          from: account,
+          to: session.token_address,
+          value: "0x0",
+          data: transferData(session.recipient, session.amount_units),
+        };
+        const minFee = BigInt(session.min_fee_wei || "0");
+        if (minFee > 0n) {
+          // Arc's mempool silently drops transactions priced under its floor.
+          const price = BigInt(await provider.request({ method: "eth_gasPrice" }));
+          const fee = 2n * price > minFee ? 2n * price : minFee;
+          tx.maxFeePerGas = "0x" + fee.toString(16);
+        }
+        if (ctx.isSent()) return;
         setStatus("Confirm the payment in your wallet…");
-        txHash = await provider.request({
-          method: "eth_sendTransaction",
-          params: [{
-            from: account,
-            to: session.token_address,
-            value: "0x0",
-            data: transferData(session.recipient, session.amount_units),
-          }],
-        });
+        txHash = await provider.request({ method: "eth_sendTransaction", params: [tx] });
       } catch (err) {
         if (ctx.isSent()) return;
         button.disabled = false;

@@ -17,7 +17,7 @@ from .amounts import decode, units_to_decimal
 from .backends import backend_for
 from .chains import Chain
 from .config import Config
-from .evm import TransferLog, parse_transfer_log
+from .evm import TransferLog
 from .receipts import add_receipt, make_receipt, receipt_key
 from .rpc import RpcError, RpcUnavailable
 from .transfers import Transfer
@@ -72,7 +72,7 @@ def lookup_evm(tx_hash: str, *, config: Config, chain: Chain, rpc,
     by_address = {t.address: name for name, t in chain.tokens.items()}
     out = []
     for log in receipt.get("logs") or []:
-        t = parse_transfer_log(log)
+        t = chain.parse_transfer(log)
         if (t is None or t.token not in by_address or t.value <= 0
                 or t.recipient not in config.accepted_wallets):
             continue

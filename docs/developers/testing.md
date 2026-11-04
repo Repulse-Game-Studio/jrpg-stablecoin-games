@@ -1,8 +1,9 @@
 # Test before release
 
 1. Use `testnet=True` and **your own wallet**.
-2. Get test USDC from Circle's faucet, plus a little test ETH (or POL on Amoy) for network fees.
-3. Buy something with each method you enabled: browser wallet, QR and manual.
+2. Get test USDC from Circle's faucet, plus a little test ETH (or POL on Amoy) for network fees. On Arc Testnet the faucet's USDC is all you need: it also pays the fee.
+3. Buy something with each method you enabled: browser wallet, QR and manual. On Arc, make
+   the manual transfer with your wallet's own Send button: it arrives as a native send.
 4. Restart the game mid-payment and check the purchase still completes.
 5. Run `scfg.clear_local_data()` from the developer console (Shift+O), then use **Restore purchases** with the transaction hash.
 6. In developer mode the payment screen shows **DEV MODE: paying to 0x5290...9EE7**. Check that the start and end match your address. The Manual transfer step shows the full address.
@@ -14,3 +15,11 @@
 3. Receive devnet USDC on your developer wallet once, so its token account exists, then restart the game. Until then the console warns and Solana isn't offered.
 4. Pay by browser extension, by phone QR, and by a manual transfer from a second wallet.
 5. Run `scfg.clear_local_data()`, then restore with each signature.
+
+**Arc Testnet checklist** (`testnet=True` with `wallet`):
+
+1. Get testnet USDC from faucet.circle.com (choose Arc Testnet). It also pays the fee: no second coin is needed.
+2. Pay once through the browser checkout. If your wallet doesn't know Arc Testnet (chain id 5042002), the page adds it.
+3. Pay once with your wallet's own **Send** button on the Manual transfer step. This is a native USDC send, which reaches the game differently from the checkout's ERC-20 transfer.
+4. If your payout `wallet` is a smart-contract wallet (a Safe, a smart account), check it is deployed on Arc before you leave Arc on (see [Arc](configure/arc.md)).
+5. Run `scfg.clear_local_data()`, then restore with both transaction hashes.

@@ -18,7 +18,7 @@
           "type": "category",
           "label": "Configure",
           "link": {"type": "doc", "id": "developers/configure/README"},
-          "items": ["developers/configure/solana"]
+          "items": ["developers/configure/solana", "developers/configure/arc"]
         },
         {
           "type": "category",

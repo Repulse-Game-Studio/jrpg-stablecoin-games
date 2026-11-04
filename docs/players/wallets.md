@@ -9,14 +9,16 @@ payment sheet only lists what that game accepts.
 | Arbitrum | USDC, USDT | ETH |
 | Polygon | USDC, USDT | POL |
 | Base | USDC | ETH |
+| Arc | USDC | USDC (no second coin needed) |
 | Solana | USDC, USDT | SOL |
 
 Some games also add other networks.
 
 ## Browser wallet
 
-- **Ethereum, Arbitrum, Polygon, Base:** MetaMask, Rabby, Coinbase Wallet or another
-  wallet extension.
+- **Ethereum, Arbitrum, Polygon, Base, Arc:** MetaMask, Rabby, Coinbase Wallet or another
+  wallet extension. If your wallet doesn't know Arc yet, the checkout page offers to add it.
+  Some wallets label the Arc balance "ETH": on Arc it is USDC.
 - **Solana:** Phantom, Solflare, Backpack or another wallet extension.
 
 In a downloaded game, the checkout page opens in your default web browser, so the

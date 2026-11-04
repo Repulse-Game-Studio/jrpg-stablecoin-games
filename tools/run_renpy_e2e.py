@@ -1,12 +1,14 @@
 """Run the Ren'Py end-to-end test: real screens, real worker thread, local chain.
 
 --family evm (default) pays USDC on a local Anvil chain: needs `anvil` (Foundry) on PATH.
+--family arc pays native USDC on Anvil dressed as Arc (USDC interface and system emitter
+emulated at their real addresses), the way a wallet's "Send" button pays: needs `anvil`.
 --family solana pays USDC on a local Solana validator: needs `solana-test-validator`
 (Agave) on PATH and `solders` (a dev dependency, so run it with `uv run`).
 
 Both need a Ren'Py SDK. Usage:
 
-    uv run python tools/run_renpy_e2e.py --sdk /path/to/renpy-8.3.x-sdk [--family solana]
+    uv run python tools/run_renpy_e2e.py --sdk /path/to/renpy-8.3.x-sdk [--family arc|solana]
 """
 
 from __future__ import annotations
@@ -28,10 +30,16 @@ GAME = ROOT / "tests" / "renpy_e2e"
 sys.path.insert(0, str(ROOT / "plugin" / "game" / "python-packages"))
 sys.path.insert(0, str(ROOT / "tests" / "integration"))
 
+from scfg_core.chains import ARC_SYSTEM_EMITTER, ARC_USDC  # noqa: E402
 from scfg_core.coio import Sync  # noqa: E402
 from scfg_core.rpc import RpcClient, UrllibTransport  # noqa: E402
 
-from mock_token import BYTECODE, MINT_SELECTOR  # noqa: E402
+from mock_token import (  # noqa: E402
+    ARC_EMITTER_RUNTIME,
+    ARC_USDC_RUNTIME,
+    BYTECODE,
+    MINT_SELECTOR,
+)
 
 
 def free_port() -> int:
@@ -49,8 +57,8 @@ def wait_receipt(rpc, tx):
     raise RuntimeError("transaction not mined")
 
 
-def setup_evm(anvil: str, workdir: Path):
-    """Start Anvil, deploy a mock USDC and fund the payer. Returns (env_updates, cleanup)."""
+def start_anvil(anvil: str):
+    """Start Anvil; returns (url, rpc, accounts, cleanup)."""
     port = free_port()
     url = f"http://127.0.0.1:{port}"
     proc = subprocess.Popen([anvil, "--port", str(port), "--silent"],
@@ -69,16 +77,45 @@ def setup_evm(anvil: str, workdir: Path):
                 break
             except Exception:
                 time.sleep(0.1)
-        deployer, dev, payer = rpc.call("eth_accounts", [])[:3]
+        accounts = rpc.call("eth_accounts", [])[:3]
+    except BaseException:
+        cleanup()
+        raise
+    return url, rpc, accounts, cleanup
+
+
+def mint(rpc, deployer, token, to):
+    wait_receipt(rpc, rpc.call("eth_sendTransaction", [{
+        "from": deployer, "to": token,
+        "data": "0x" + MINT_SELECTOR + "0" * 24 + to[2:].lower() + format(10**9, "064x")}]))
+
+
+def setup_evm(anvil: str, workdir: Path):
+    """Start Anvil, deploy a mock USDC and fund the payer. Returns (env_updates, cleanup)."""
+    url, rpc, (deployer, dev, payer), cleanup = start_anvil(anvil)
+    try:
         token = wait_receipt(rpc, rpc.call("eth_sendTransaction", [
             {"from": deployer, "data": BYTECODE, "gas": hex(3_000_000)}]))["contractAddress"]
-        wait_receipt(rpc, rpc.call("eth_sendTransaction", [{
-            "from": deployer, "to": token,
-            "data": "0x" + MINT_SELECTOR + "0" * 24 + payer[2:].lower() + format(10**9, "064x")}]))
+        mint(rpc, deployer, token, payer)
     except BaseException:
         cleanup()
         raise
     return {"SCFG_E2E_FAMILY": "evm", "SCFG_E2E_RPC": url, "SCFG_E2E_USDC": token,
+            "SCFG_E2E_DEV": dev, "SCFG_E2E_PAYER": payer}, cleanup
+
+
+def setup_arc(anvil: str, workdir: Path):
+    """Start Anvil dressed as Arc: the USDC interface and the system emitter at their real
+    addresses. Returns (env_updates, cleanup)."""
+    url, rpc, (deployer, dev, payer), cleanup = start_anvil(anvil)
+    try:
+        rpc.call("anvil_setCode", [ARC_SYSTEM_EMITTER, ARC_EMITTER_RUNTIME])
+        rpc.call("anvil_setCode", [ARC_USDC, ARC_USDC_RUNTIME])
+        mint(rpc, deployer, ARC_USDC, payer)
+    except BaseException:
+        cleanup()
+        raise
+    return {"SCFG_E2E_FAMILY": "arc", "SCFG_E2E_RPC": url, "SCFG_E2E_USDC": ARC_USDC,
             "SCFG_E2E_DEV": dev, "SCFG_E2E_PAYER": payer}, cleanup
 
 
@@ -138,6 +175,7 @@ def setup_solana(validator: str, workdir: Path):
 
 FAMILIES = {
     "evm": ("anvil", setup_evm, "anvil not found on PATH (install Foundry: https://getfoundry.sh)"),
+    "arc": ("anvil", setup_arc, "anvil not found on PATH (install Foundry: https://getfoundry.sh)"),
     "solana": ("solana-test-validator", setup_solana,
                "solana-test-validator not found on PATH (install an Agave release: https://github.com/anza-xyz/agave/releases)"),
 }
