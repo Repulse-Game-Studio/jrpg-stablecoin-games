@@ -15,3 +15,11 @@
 3. Receive devnet USDC on your developer wallet once, so its token account exists, then restart the game. Until then the console warns and Solana isn't offered.
 4. Pay by browser extension, by phone QR, and by a manual transfer from a second wallet.
 5. Run `scfg.clear_local_data()`, then restore with each signature.
+
+**Arc Testnet checklist** (`testnet=True` with `wallet`):
+
+1. Get testnet USDC from faucet.circle.com (choose Arc Testnet). It also pays the fee: no second coin is needed.
+2. Pay once through the browser checkout. If your wallet doesn't know Arc Testnet (chain id 5042002), the page adds it.
+3. Pay once with your wallet's own **Send** button on the Manual transfer step. This is a native USDC send, which reaches the game differently from the checkout's ERC-20 transfer.
+4. If your payout `wallet` is a smart-contract wallet (a Safe, a smart account), check it is deployed on Arc before you leave Arc on (see [Arc](configure/arc.md)).
+5. Run `scfg.clear_local_data()`, then restore with both transaction hashes.

@@ -97,6 +97,8 @@ the payment is confirmed.
 | "Payment too small" | Less than the price arrived. Contact the developer with your transaction hash. |
 | "The payment window has closed" | The game stopped waiting. If you already paid, it keeps checking for 24 hours and unlocks the item when the payment arrives. You can also [restore](restore.md) it with the transaction hash. |
 | The checkout page warns that you have no ETH or almost no SOL "for the network fee" | Add a little of that network's coin to your wallet first, or the transaction will fail. |
+| On Arc, the checkout page warns that "less than 0.01 USDC would be left for the network fee" | Arc takes its fee in USDC. Pay with a little more USDC in your wallet than the price, or the transaction may fail. |
+| An Arc payment stays "pending" in your wallet | Arc ignores transactions with a fee that is too low. Use your wallet's "speed up" option, or send again with a higher fee. |
 | You paid on the wrong network | The game can't see it. Contact the developer. They can look up the transaction and refund it or unlock the item by hand. |
 
 The game can't issue refunds. The money is already in the developer's wallet, so refunds
