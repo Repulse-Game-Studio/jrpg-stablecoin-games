@@ -5,6 +5,8 @@ developer's wallet, on Ethereum, Arbitrum, Polygon, Base, **Arc** and **Solana**
 accounts, no middleman: the game watches the blockchain itself. Works in desktop builds and
 in Ren'Py's web (HTML5) build.
 
+![A player tips 3 USDC on Arc in Ruby Dreams: pick an amount, pick a network, scan the QR code, payment confirmed](.github/media/tip-arc.gif)
+
 ```renpy
 init python:
     scfg.configure(wallet="0xYourWallet", testnet=True)

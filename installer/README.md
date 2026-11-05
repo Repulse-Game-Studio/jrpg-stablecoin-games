@@ -2,7 +2,10 @@
 
 Take tips and sell unlocks in **USDC** and **USDT** inside your Ren'Py game, on Ethereum,
 Arbitrum, Polygon, Base, Arc or Solana. The player's wallet pays yours directly. There is no
-store, account or server in between: the game watches the blockchain itself.
+store, account or server in between: the game watches the blockchain itself. Prices are in
+dollars. There are no tokens to buy and no NFTs.
+
+![A player tips 3 USDC on Arc in Ruby Dreams: pick an amount, pick a network, scan the QR code, payment confirmed](https://raw.githubusercontent.com/Repulse-Game-Studio/jrpg-stablecoin-games/main/.github/media/tip-arc.gif)
 
 This package installs the plugin into your Ren'Py project. Ren'Py only loads code from a
 game's own `game/` folder, so the plugin is copied there rather than installed into Python.
