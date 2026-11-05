@@ -18,7 +18,7 @@ label end_of_chapter1:
 
 ## Using it in your game
 
-1. From your Ren'Py project folder, run `uvx scfg-renpy install .` (or `pipx run scfg-renpy install .`),
+1. From your Ren'Py project folder, run `uvx scfg-renpy install .` (or `pipx run scfg-renpy install .`, or `npx scfg-renpy install .`),
    and `uvx scfg-renpy update .` later for new versions. Or download `scfg-renpy-<version>.zip`
    from the [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest).
    To build it yourself instead, clone the repo and run `python tools/package.py` (Python 3.9+,

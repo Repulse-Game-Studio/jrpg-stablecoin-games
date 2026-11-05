@@ -47,3 +47,8 @@ tests/renpy_web_e2e/progressive_download.txt
 website/node_modules/
 website/build/
 website/.docusaurus/
+
+# npm installer: filled in by npm/scripts/bundle.js at pack time
+npm/plugin/
+npm/LICENSE
+npm/*.tgz

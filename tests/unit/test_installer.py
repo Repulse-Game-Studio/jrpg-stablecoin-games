@@ -82,3 +82,10 @@ def test_main_install_and_version(project, capsys):
     with pytest.raises(SystemExit):
         cli.main(["--version"])
     assert VERSION in capsys.readouterr().out
+
+
+def test_npm_package_version_matches_the_plugin():
+    # npm/scripts/bundle.js refuses to pack a mismatch; catch it at bump time instead.
+    import json
+    pkg = json.loads((SOURCE.parents[1] / "npm" / "package.json").read_text())
+    assert pkg["version"] == VERSION
