@@ -1,0 +1,23 @@
+{
+  "name": "scfg-renpy",
+  "version": "0.1.1",
+  "description": "USDC/USDT tips and unlocks for Ren'Py games, paid wallet to wallet. Installs the plugin into your project.",
+  "keywords": ["renpy", "visual-novel", "usdc", "usdt", "stablecoin", "payments", "tips",
+               "game-monetization", "solana", "ethereum", "base", "arbitrum", "polygon", "arc"],
+  "homepage": "https://jrpg.com/stablecoinforgames/",
+  "bugs": "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games.git",
+    "directory": "npm"
+  },
+  "license": "MIT",
+  "bin": { "scfg-renpy": "bin/scfg-renpy.js" },
+  "main": "lib/install.js",
+  "files": ["bin/", "lib/", "plugin/"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "prepack": "node scripts/bundle.js",
+    "test": "node --test"
+  }
+}

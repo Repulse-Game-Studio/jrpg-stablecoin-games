@@ -1,9 +1,9 @@
 name: release
 
 # Push a tag like v0.1.0 to publish dist/scfg-renpy-<version>.zip as a GitHub release and
-# the scfg-renpy installer to PyPI. The tag must match scfg_core.__version__.
-# PyPI uses trusted publishing: no token is stored here. The PyPI project trusts this
-# repository, this workflow file and the "pypi" environment.
+# the scfg-renpy installer to PyPI and npm. The tag must match scfg_core.__version__.
+# PyPI and npm use trusted publishing: no token is stored here. Each registry's scfg-renpy
+# package trusts this repository, this workflow file and its environment ("pypi", "npm").
 
 on:
   push:
@@ -64,3 +64,24 @@ jobs:
           unzip -l dist/*.whl | grep -q "scfg_renpy/plugin/game/python-packages/scfg_core/__init__.py"
           ! unzip -l dist/*.whl | grep -E "__pycache__|\.rpyc$"
       - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+
+  npm:
+    needs: release
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write   # trusted publishing and provenance
+    defaults:
+      run:
+        working-directory: npm
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24   # npm 11.5+ for trusted publishing
+          registry-url: https://registry.npmjs.org
+      - run: npm test
+      - name: Version from the tag
+        run: npm pkg set version="${GITHUB_REF_NAME#v}"
+      - run: npm publish --provenance --access public

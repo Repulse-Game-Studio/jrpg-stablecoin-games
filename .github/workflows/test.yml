@@ -28,6 +28,25 @@ jobs:
       - name: Release zip builds
         run: uv run python tools/package.py
 
+  npm-installer:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: npm
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 18   # the oldest Node package.json allows
+      - run: npm test
+      - name: Package carries the plugin
+        run: |
+          npm pkg set version="$(sed -nE 's/^__version__ = "(.*)"/\1/p' ../plugin/game/python-packages/scfg_core/__init__.py)"
+          npm pack --dry-run --json > pack.json
+          grep -q '"plugin/game/scfg/scfg_api.rpy"' pack.json
+          grep -q '"plugin/game/python-packages/scfg_core/__init__.py"' pack.json
+          ! grep -E '__pycache__|\.rpyc"' pack.json
+
   integration:
     runs-on: ubuntu-latest
     steps:

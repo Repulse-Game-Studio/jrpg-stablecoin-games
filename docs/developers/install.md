@@ -13,6 +13,17 @@ nothing stays installed: the command fetches the
 [scfg-renpy](https://pypi.org/project/scfg-renpy/) package, copies the plugin into your
 game and exits. It needs Python 3.9 or newer on your computer; your game doesn't.
 
+## With npx
+
+If you have Node 18 or newer but not Python:
+
+```bash
+npx scfg-renpy install .
+```
+
+The [scfg-renpy](https://www.npmjs.com/package/scfg-renpy) npm package carries the same plugin
+files and copies them the same way.
+
 ## From the release zip
 
 1. Download `scfg-renpy-<version>.zip` from the
@@ -63,7 +74,7 @@ Don't copy the whole repository into your game: only the contents of `plugin/gam
 uvx scfg-renpy update .
 ```
 
-It replaces `game/scfg/` and `game/python-packages/scfg_core/` with the latest version and
+or `npx scfg-renpy@latest update .`. It replaces `game/scfg/` and `game/python-packages/scfg_core/` with the latest version and
 prints the old and new version numbers. By hand: delete those two folders, then unzip the new
 release the same way. Deleting first makes sure files removed in the new version don't linger. Your
 configuration lives in your own `.rpy` files, and players' purchases live in their save
