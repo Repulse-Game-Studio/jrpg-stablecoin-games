@@ -59,6 +59,7 @@ module.exports = {
       items: [
         {to: "/players/paying", label: "Players", position: "left"},
         {to: "/developers", label: "Developers", position: "left"},
+        {href: "https://jrpg.com/stablecoinforgames/", label: "Website", position: "right"},
         {
           href: "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games",
           label: "GitHub",
@@ -79,14 +80,18 @@ module.exports = {
         {
           title: "JRPG",
           items: [
+            {label: "Stablecoin for Games", href: "https://jrpg.com/stablecoinforgames/"},
             {label: "jrpg.com", href: "https://jrpg.com/"},
             {label: "Crypto games", href: "https://jrpg.com/games/"},
           ],
         },
         {
-          title: "Code",
+          title: "Get it",
           items: [
             {label: "GitHub", href: "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games"},
+            {label: "itch.io", href: "https://repulse-games.itch.io/stablecoin-for-games"},
+            {label: "npm", href: "https://www.npmjs.com/package/scfg-renpy"},
+            {label: "PyPI", href: "https://pypi.org/project/scfg-renpy/"},
             {label: "MIT license", href: "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/blob/main/LICENSE"},
           ],
         },

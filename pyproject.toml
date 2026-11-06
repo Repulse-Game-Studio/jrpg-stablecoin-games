@@ -1,7 +1,7 @@
 [project]
 name = "scfg-renpy"
 dynamic = ["version"]   # scfg_core.__version__, the single source
-description = "USDC/USDT tips and unlocks for Ren'Py games, paid wallet to wallet. Installs the plugin into your project."
+description = "USDC/USDT tips and unlocks for Ren'Py games, paid straight to your wallet. No server, no tokens, no NFTs. Installs the plugin into your project."
 readme = "installer/README.md"
 license = "MIT"
 license-files = ["LICENSE"]

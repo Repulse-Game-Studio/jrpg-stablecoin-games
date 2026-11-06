@@ -27,7 +27,8 @@ files and copies them the same way.
 ## From the release zip
 
 1. Download `scfg-renpy-<version>.zip` from the
-   [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest).
+   [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest)
+   or the [itch.io page](https://repulse-games.itch.io/stablecoin-for-games).
 2. Unzip it into your Ren'Py project folder, the one that contains `game/`.
 
 ## What you get

@@ -53,7 +53,9 @@ Requires Ren'Py 8.2 or newer. Read the
 [security notes](https://jrpg.com/stablecoinforgames/docs/developers/security) before you
 sell anything: without a server, unlocks are honour-grade.
 
+- Website: https://jrpg.com/stablecoinforgames/
 - Docs: https://jrpg.com/stablecoinforgames/docs/
 - Source and release zips: https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games
-- Also on PyPI: `uvx scfg-renpy install .`
+- itch.io: https://repulse-games.itch.io/stablecoin-for-games
+- PyPI: https://pypi.org/project/scfg-renpy/ (`uvx scfg-renpy install .`)
 - License: MIT

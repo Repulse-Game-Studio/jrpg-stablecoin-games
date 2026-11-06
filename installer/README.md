@@ -18,7 +18,7 @@ From your Ren'Py project folder (the one that contains `game/`):
 uvx scfg-renpy install .
 ```
 
-or, with pipx: `pipx run scfg-renpy install .`
+or, with pipx: `pipx run scfg-renpy install .`, or with Node: `npx scfg-renpy install .`
 
 That adds:
 
@@ -54,6 +54,9 @@ Requires Ren'Py 8.2 or newer. Read the
 [security notes](https://jrpg.com/stablecoinforgames/docs/developers/security) before you
 sell anything: without a server, unlocks are honour-grade.
 
+- Website: https://jrpg.com/stablecoinforgames/
 - Docs: https://jrpg.com/stablecoinforgames/docs/
 - Source and release zips: https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games
+- itch.io: https://repulse-games.itch.io/stablecoin-for-games
+- npm: https://www.npmjs.com/package/scfg-renpy
 - License: MIT
