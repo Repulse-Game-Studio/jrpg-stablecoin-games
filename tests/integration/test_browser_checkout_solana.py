@@ -100,6 +100,14 @@ def pump_until_page_says(page, text, engine, ctl, timeout=90):
                          f"status is {status_text(page)!r}")
 
 
+def wait_for_hint(page, ctl, timeout=10):
+    """The page hides Pay before its POST of the signature reaches the game, so wait for it."""
+    deadline = time.time() + timeout
+    while ctl.hint_tx is None and time.time() < deadline:
+        page.wait_for_timeout(50)
+    return ctl.hint_tx
+
+
 def connect_wallet(page):
     page.get_by_role("button", name="Pay with Mock Solana Wallet").click()
     pay_button = page.locator("#pay")
@@ -139,7 +147,7 @@ def test_dropped_transaction_lets_the_player_pay_again(solana_world, browser, mo
     pay_button.click()
     page.wait_for_function("document.getElementById('pay').classList.contains('hidden')",
                            timeout=10_000)
-    assert sent == [] and ctl.hint_tx is not None       # the page reported the signature
+    assert wait_for_hint(page, ctl) is not None and sent == []   # the page reported the signature
 
     pump_until_page_says(page, "didn't reach the network", w["engine"], ctl, timeout=30)
     assert "Click Pay to try again" in status_text(page)
@@ -290,7 +298,7 @@ def test_retry_after_a_reload_offers_the_wallets(solana_world, browser, monkeypa
     pay_button.click()
     page.wait_for_function("document.getElementById('pay').classList.contains('hidden')",
                            timeout=10_000)
-    assert ctl.hint_tx is not None
+    assert wait_for_hint(page, ctl) is not None
     page.reload()
     page.wait_for_timeout(1_500)
     assert pay_hidden(page)                             # sent, as told by the game's status
