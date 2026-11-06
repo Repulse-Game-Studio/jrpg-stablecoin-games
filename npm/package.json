@@ -1,7 +1,7 @@
 {
   "name": "scfg-renpy",
   "version": "0.1.2",
-  "description": "USDC/USDT tips and unlocks for Ren'Py games, paid wallet to wallet. Installs the plugin into your project.",
+  "description": "USDC/USDT tips and unlocks for Ren'Py games, paid straight to your wallet. No server, no tokens, no NFTs. Installs the plugin into your project.",
   "keywords": ["renpy", "visual-novel", "usdc", "usdt", "stablecoin", "payments", "tips",
                "game-monetization", "solana", "ethereum", "base", "arbitrum", "polygon", "arc"],
   "homepage": "https://jrpg.com/stablecoinforgames/",

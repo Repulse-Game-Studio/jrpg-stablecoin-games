@@ -1,5 +1,11 @@
 # Stablecoin for Games
 
+**[Website](https://jrpg.com/stablecoinforgames/)** ·
+[Docs](https://jrpg.com/stablecoinforgames/docs/) ·
+[itch.io](https://repulse-games.itch.io/stablecoin-for-games) ·
+[npm](https://www.npmjs.com/package/scfg-renpy) ·
+[PyPI](https://pypi.org/project/scfg-renpy/)
+
 Accept **USDC/USDT tips and unlock purchases** in Ren'Py games, paid straight to the
 developer's wallet, on Ethereum, Arbitrum, Polygon, Base, **Arc** and **Solana**. No server, no
 accounts, no middleman: the game watches the blockchain itself. Works in desktop builds and
@@ -22,7 +28,8 @@ label end_of_chapter1:
 
 1. From your Ren'Py project folder, run `uvx scfg-renpy install .` (or `pipx run scfg-renpy install .`, or `npx scfg-renpy install .`),
    and `uvx scfg-renpy update .` later for new versions. Or download `scfg-renpy-<version>.zip`
-   from the [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest).
+   from the [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest)
+   or [itch.io](https://repulse-games.itch.io/stablecoin-for-games).
    To build it yourself instead, clone the repo and run `python tools/package.py` (Python 3.9+,
    no dependencies), which writes the same zip to `dist/`. Don't copy the repo itself into your
    game: only `plugin/game/` ships, and the zip holds exactly that.
