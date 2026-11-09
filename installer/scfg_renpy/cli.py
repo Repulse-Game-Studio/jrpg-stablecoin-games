@@ -36,7 +36,8 @@ def bundled_game_dir() -> Path:
     for candidate in (here / "plugin" / "game", here.parents[1] / "plugin" / "game"):
         if (candidate / "scfg").is_dir():
             return candidate
-    raise InstallError("the plugin files are missing from this installation; reinstall scfg-renpy")
+    raise InstallError("the plugin files are missing from this installation; "
+                       "reinstall stablecoin-games-renpy")
 
 
 def read_version(game_dir: Path) -> str | None:
@@ -91,7 +92,7 @@ def install(project: Path, source_game: Path | None = None) -> str:
         current = read_version(game_dir) or "unknown version"
         raise InstallError(
             f"the plugin is already in {game_dir} ({current}). "
-            "Use `scfg-renpy update` to replace it.")
+            "Use `stablecoin-games-renpy update` to replace it.")
     copy_plugin(source_game, game_dir)
     return f"Installed Stablecoin for Games {read_version(game_dir)} into {game_dir}"
 
@@ -109,12 +110,15 @@ def update(project: Path, source_game: Path | None = None) -> str:
     return f"Updated Stablecoin for Games {old} -> {new} in {game_dir}"
 
 
+PROG = "stablecoin-games-renpy"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="scfg-renpy",
+        prog=PROG,
         description="Add the Stablecoin for Games plugin to a Ren'Py project, or update it.")
     parser.add_argument("--version", action="version",
-                        version=f"scfg-renpy {read_version(_safe_bundled()) or 'unknown'}")
+                        version=f"{PROG} {read_version(_safe_bundled()) or 'unknown'}")
     sub = parser.add_subparsers(dest="command", required=True)
     for name, text in (("install", "copy the plugin into a project"),
                        ("update", "replace the plugin in a project with this version")):
@@ -127,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
         action = install if args.command == "install" else update
         print(action(Path(args.project)))
     except InstallError as e:
-        print(f"scfg-renpy: {e}", file=sys.stderr)
+        print(f"{PROG}: {e}", file=sys.stderr)
         return 1
     if args.command == "install":
         print(f"Next: add scfg.configure(...) in any .rpy file. Guide: {DOCS_URL}")

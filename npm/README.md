@@ -16,7 +16,7 @@ your players never need Node.
 From your Ren'Py project folder (the one that contains `game/`):
 
 ```bash
-npx scfg-renpy install .
+npx stablecoin-games-renpy install .
 ```
 
 That adds:
@@ -29,7 +29,7 @@ game/python-packages/scfg_core/   (the engine; plain Python)
 ## Update
 
 ```bash
-npx scfg-renpy@latest update .
+npx stablecoin-games-renpy@latest update .
 ```
 
 It replaces those two folders with the latest version. Your own files, your configuration
@@ -57,5 +57,5 @@ sell anything: without a server, unlocks are honour-grade.
 - Docs: https://jrpg.com/stablecoinforgames/docs/
 - Source and release zips: https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games
 - itch.io: https://repulse-games.itch.io/stablecoin-for-games
-- PyPI: https://pypi.org/project/scfg-renpy/ (`uvx scfg-renpy install .`)
+- PyPI: https://pypi.org/project/stablecoin-games-renpy/ (`uvx stablecoin-games-renpy install .`)
 - License: MIT

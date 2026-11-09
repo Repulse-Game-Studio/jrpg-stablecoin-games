@@ -41,7 +41,7 @@ def test_install_refuses_a_folder_that_is_not_a_renpy_project(tmp_path):
 
 def test_install_refuses_when_already_installed(project):
     cli.install(project, SOURCE)
-    with pytest.raises(cli.InstallError, match="scfg-renpy update"):
+    with pytest.raises(cli.InstallError, match="stablecoin-games-renpy update"):
         cli.install(project, SOURCE)
 
 
@@ -73,7 +73,7 @@ def test_update_installs_when_missing(project):
 
 def test_main_reports_errors_without_a_traceback(tmp_path, capsys):
     assert cli.main(["install", str(tmp_path)]) == 1
-    assert "scfg-renpy:" in capsys.readouterr().err
+    assert "stablecoin-games-renpy:" in capsys.readouterr().err
 
 
 def test_main_install_and_version(project, capsys):

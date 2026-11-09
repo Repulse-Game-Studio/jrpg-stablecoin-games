@@ -1,9 +1,10 @@
 {
-  "name": "scfg-renpy",
+  "name": "stablecoin-games-renpy",
   "version": "0.1.3",
-  "description": "USDC/USDT tips and unlocks for Ren'Py games, paid straight to your wallet. No server, no tokens, no NFTs. Installs the plugin into your project.",
-  "keywords": ["renpy", "visual-novel", "usdc", "usdt", "stablecoin", "payments", "tips",
-               "game-monetization", "solana", "ethereum", "base", "arbitrum", "polygon", "arc"],
+  "description": "Stablecoin for Games (SCFG): USDC/USDT tips and unlocks for Ren'Py games, paid straight to your wallet. No server, no tokens, no NFTs. Installs the plugin into your project.",
+  "keywords": ["stablecoin-for-games", "stablecoin-games", "stablecoinforgames", "scfg", "renpy", "visual-novel", "usdc", "usdt", "stablecoin", "payments", "tips",
+               "game-monetization", "solana", "ethereum", "base", "arbitrum", "polygon", "arc",
+               "crypto", "web3", "donations", "monetization", "wallet"],
   "homepage": "https://jrpg.com/stablecoinforgames/",
   "bugs": "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/issues",
   "repository": {
@@ -12,7 +13,10 @@
     "directory": "npm"
   },
   "license": "MIT",
-  "bin": { "scfg-renpy": "bin/scfg-renpy.js" },
+  "bin": {
+    "stablecoin-games-renpy": "bin/stablecoin-games-renpy.js",
+    "scfg-renpy": "bin/stablecoin-games-renpy.js"
+  },
   "main": "lib/install.js",
   "files": ["bin/", "lib/", "plugin/"],
   "engines": { "node": ">=18" },

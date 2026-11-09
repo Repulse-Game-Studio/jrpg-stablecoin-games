@@ -27,7 +27,7 @@ function bundledGameDir() {
                            path.join(here, "..", "plugin", "game")]) {
     if (isDir(path.join(candidate, "scfg"))) return candidate;
   }
-  throw new InstallError("the plugin files are missing from this installation; reinstall scfg-renpy");
+  throw new InstallError("the plugin files are missing from this installation; reinstall stablecoin-games-renpy");
 }
 
 function readVersion(gameDir) {
@@ -80,7 +80,7 @@ function install(project, sourceGame = bundledGameDir()) {
   if (isInstalled(gameDir)) {
     const current = readVersion(gameDir) || "unknown version";
     throw new InstallError(`the plugin is already in ${gameDir} (${current}). ` +
-                           "Use `scfg-renpy update` to replace it.");
+                           "Use `stablecoin-games-renpy update` to replace it.");
   }
   copyPlugin(sourceGame, gameDir);
   return `Installed Stablecoin for Games ${readVersion(gameDir)} into ${gameDir}`;
@@ -97,7 +97,7 @@ function update(project, sourceGame = bundledGameDir()) {
   return `Updated Stablecoin for Games ${old} -> ${now} in ${gameDir}`;
 }
 
-const USAGE = `usage: scfg-renpy {install,update} [project]
+const USAGE = `usage: stablecoin-games-renpy {install,update} [project]
 
 Add the Stablecoin for Games plugin to a Ren'Py project, or update it.
 
@@ -112,7 +112,7 @@ function main(argv, out = console.log, err = console.error) {
   if (command === "--version" || command === "-V") {
     let version = null;
     try { version = readVersion(bundledGameDir()); } catch { /* reported as unknown */ }
-    out(`scfg-renpy ${version || "unknown"}`);
+    out(`stablecoin-games-renpy ${version || "unknown"}`);
     return 0;
   }
   if (command === "--help" || command === "-h") {
@@ -127,7 +127,7 @@ function main(argv, out = console.log, err = console.error) {
     out((command === "install" ? install : update)(project));
   } catch (e) {
     if (!(e instanceof InstallError)) throw e;
-    err(`scfg-renpy: ${e.message}`);
+    err(`stablecoin-games-renpy: ${e.message}`);
     return 1;
   }
   if (command === "install") out(`Next: add scfg.configure(...) in any .rpy file. Guide: ${DOCS_URL}`);

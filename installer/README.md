@@ -15,10 +15,10 @@ game's own `game/` folder, so the plugin is copied there rather than installed i
 From your Ren'Py project folder (the one that contains `game/`):
 
 ```bash
-uvx scfg-renpy install .
+uvx stablecoin-games-renpy install .
 ```
 
-or, with pipx: `pipx run scfg-renpy install .`, or with Node: `npx scfg-renpy install .`
+or, with pipx: `pipx run stablecoin-games-renpy install .`, or with Node: `npx stablecoin-games-renpy install .`
 
 That adds:
 
@@ -30,7 +30,7 @@ game/python-packages/scfg_core/   (the engine; plain Python)
 ## Update
 
 ```bash
-uvx scfg-renpy update .
+uvx stablecoin-games-renpy update .
 ```
 
 It replaces those two folders with the latest version. Your own files, your configuration
@@ -58,5 +58,5 @@ sell anything: without a server, unlocks are honour-grade.
 - Docs: https://jrpg.com/stablecoinforgames/docs/
 - Source and release zips: https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games
 - itch.io: https://repulse-games.itch.io/stablecoin-for-games
-- npm: https://www.npmjs.com/package/scfg-renpy
+- npm: https://www.npmjs.com/package/stablecoin-games-renpy
 - License: MIT

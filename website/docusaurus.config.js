@@ -90,8 +90,8 @@ module.exports = {
           items: [
             {label: "GitHub", href: "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games"},
             {label: "itch.io", href: "https://repulse-games.itch.io/stablecoin-for-games"},
-            {label: "npm", href: "https://www.npmjs.com/package/scfg-renpy"},
-            {label: "PyPI", href: "https://pypi.org/project/scfg-renpy/"},
+            {label: "npm", href: "https://www.npmjs.com/package/stablecoin-games-renpy"},
+            {label: "PyPI", href: "https://pypi.org/project/stablecoin-games-renpy/"},
             {label: "MIT license", href: "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/blob/main/LICENSE"},
           ],
         },

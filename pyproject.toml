@@ -1,15 +1,16 @@
 [project]
-name = "scfg-renpy"
+name = "stablecoin-games-renpy"
 dynamic = ["version"]   # scfg_core.__version__, the single source
-description = "USDC/USDT tips and unlocks for Ren'Py games, paid straight to your wallet. No server, no tokens, no NFTs. Installs the plugin into your project."
+description = "Stablecoin for Games (SCFG): USDC/USDT tips and unlocks for Ren'Py games, paid straight to your wallet. No server, no tokens, no NFTs. Installs the plugin into your project."
 readme = "installer/README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 # Ren'Py 8.2/8.3 embed Python 3.9: all plugin code must stay 3.9-compatible.
 requires-python = ">=3.9"
 dependencies = []
-keywords = ["renpy", "ren'py", "visual-novel", "usdc", "usdt", "stablecoin", "payments", "tips",
-            "game-monetization", "solana", "ethereum", "base", "arbitrum", "polygon", "arc"]
+keywords = ["stablecoin-for-games", "stablecoin-games", "stablecoinforgames", "scfg", "renpy", "ren'py", "visual-novel", "usdc", "usdt", "stablecoin", "payments", "tips",
+            "game-monetization", "solana", "ethereum", "base", "arbitrum", "polygon", "arc",
+            "crypto", "web3", "donations", "monetization", "wallet"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -34,7 +35,8 @@ Source = "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games"
 Changelog = "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases"
 
 [project.scripts]
-scfg-renpy = "scfg_renpy.cli:main"
+stablecoin-games-renpy = "scfg_renpy.cli:main"
+scfg-renpy = "scfg_renpy.cli:main"   # the package's old name, kept so old instructions work
 
 [build-system]
 requires = ["hatchling>=1.26"]
@@ -47,7 +49,7 @@ path = "plugin/game/python-packages/scfg_core/__init__.py"
 packages = ["installer/scfg_renpy"]
 exclude = ["**/__pycache__", "**/*.pyc", "**/*.rpyc", "**/*.rpymc"]
 
-# The plugin ships inside the package; `scfg-renpy install` copies it into a game.
+# The plugin ships inside the package; `stablecoin-games-renpy install` copies it into a game.
 [tool.hatch.build.targets.wheel.force-include]
 "plugin/game" = "scfg_renpy/plugin/game"
 
