@@ -1,6 +1,6 @@
 {
   "name": "stablecoin-games-renpy",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Stablecoin for Games (SCFG): USDC/USDT tips and unlocks for Ren'Py games, paid straight to your wallet. No server, no tokens, no NFTs. Installs the plugin into your project.",
   "keywords": ["stablecoin-for-games", "stablecoin-games", "stablecoinforgames", "scfg", "renpy", "visual-novel", "usdc", "usdt", "stablecoin", "payments", "tips",
                "game-monetization", "solana", "ethereum", "base", "arbitrum", "polygon", "arc",
