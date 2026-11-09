@@ -58,7 +58,7 @@ test("install refuses a folder that is not a Ren'Py project", () => {
 
 test("install refuses when already installed", () => {
   cli.install(project, SOURCE);
-  assert.throws(() => cli.install(project, SOURCE), /scfg-renpy update/);
+  assert.throws(() => cli.install(project, SOURCE), /stablecoin-games-renpy update/);
 });
 
 test("update replaces the plugin and drops stale files", () => {
@@ -90,7 +90,7 @@ test("update installs when the plugin is missing", () => {
 test("main reports errors without a stack trace", () => {
   const errs = [];
   assert.equal(cli.main(["install", tmp], () => {}, (l) => errs.push(l)), 1);
-  assert.ok(errs.join("\n").startsWith("scfg-renpy:"));
+  assert.ok(errs.join("\n").startsWith("stablecoin-games-renpy:"));
 });
 
 test("main install, version and usage", () => {

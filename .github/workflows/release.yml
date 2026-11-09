@@ -1,8 +1,8 @@
 name: release
 
 # Push a tag like v0.1.0 to publish dist/scfg-renpy-<version>.zip as a GitHub release and
-# the scfg-renpy installer to PyPI and npm. The tag must match scfg_core.__version__.
-# PyPI and npm use trusted publishing: no token is stored here. Each registry's scfg-renpy
+# the stablecoin-games-renpy installer to PyPI and npm. The tag must match scfg_core.__version__.
+# PyPI and npm use trusted publishing: no token is stored here. Each registry's stablecoin-games-renpy
 # package trusts this repository, this workflow file and its environment ("pypi", "npm").
 
 on:

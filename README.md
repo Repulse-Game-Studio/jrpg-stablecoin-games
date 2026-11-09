@@ -3,8 +3,8 @@
 **[Website](https://jrpg.com/stablecoinforgames/)** ·
 [Docs](https://jrpg.com/stablecoinforgames/docs/) ·
 [itch.io](https://repulse-games.itch.io/stablecoin-for-games) ·
-[npm](https://www.npmjs.com/package/scfg-renpy) ·
-[PyPI](https://pypi.org/project/scfg-renpy/)
+[npm](https://www.npmjs.com/package/stablecoin-games-renpy) ·
+[PyPI](https://pypi.org/project/stablecoin-games-renpy/)
 
 Accept **USDC/USDT tips and unlock purchases** in Ren'Py games, paid straight to the
 developer's wallet, on Ethereum, Arbitrum, Polygon, Base, **Arc** and **Solana**. No server, no
@@ -26,8 +26,8 @@ label end_of_chapter1:
 
 ## Using it in your game
 
-1. From your Ren'Py project folder, run `uvx scfg-renpy install .` (or `pipx run scfg-renpy install .`, or `npx scfg-renpy install .`),
-   and `uvx scfg-renpy update .` later for new versions. Or download `scfg-renpy-<version>.zip`
+1. From your Ren'Py project folder, run `uvx stablecoin-games-renpy install .` (or `pipx run stablecoin-games-renpy install .`, or `npx stablecoin-games-renpy install .`),
+   and `uvx stablecoin-games-renpy update .` later for new versions. Or download `scfg-renpy-<version>.zip`
    from the [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest)
    or [itch.io](https://repulse-games.itch.io/stablecoin-for-games).
    To build it yourself instead, clone the repo and run `python tools/package.py` (Python 3.9+,
@@ -128,7 +128,7 @@ The desktop e2e defaults to SDL's offscreen video driver. Where that isn't avail
 
 `.github/workflows/release.yml` then runs the lint and unit tests, checks that the tag matches
 `__version__`, builds the zip with `tools/package.py` and publishes it as a GitHub release with
-generated notes. A second job builds the `scfg-renpy` package (`uv build`: the installer in
+generated notes. A second job builds the `stablecoin-games-renpy` package (`uv build`: the installer in
 `installer/` with the plugin files inside it) and uploads it to PyPI through trusted publishing,
 from the `pypi` environment. A version with letters in it, such as `0.2.0rc1`, is published as a
 prerelease and does not become "latest".
