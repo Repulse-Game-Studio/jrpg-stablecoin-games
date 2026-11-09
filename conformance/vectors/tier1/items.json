@@ -1,0 +1,1087 @@
+{
+ "cases": [
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "chapter-2",
+    "min_price": "4.99",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": 5,
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "chapter-2",
+    "min_price": "5.00",
+    "price": "5.00",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 99,
+     "item_id": "chapter-2",
+     "price": "0.5",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 99,
+    "item_id": "chapter-2",
+    "min_price": "0.50",
+    "price": "0.50",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "min_price": "1.00",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "chapter-2",
+    "min_price": "1.00",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "min_price": 10,
+     "price": "10",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "chapter-2",
+    "min_price": "10.00",
+    "price": "10.00",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDT"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "chapter-2",
+    "min_price": "4.99",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDT"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "a",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "a",
+    "min_price": "4.99",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "under_score-9",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "under_score-9",
+    "min_price": "4.99",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "min_price": "4.99",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "chapter-2",
+    "min_price": "4.99",
+    "price": "4.99",
+    "title": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Kapitel Zwei — über",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "chapter-2",
+    "min_price": "4.99",
+    "price": "4.99",
+    "title": "Kapitel Zwei — über",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "existing": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "item": {
+     "code": 2,
+     "item_id": "second",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 2,
+    "item_id": "second",
+    "min_price": "4.99",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "chapter-2",
+    "min_price": "4.99",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "1000000",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "chapter-2",
+    "min_price": "1000000.00",
+    "price": "1000000.00",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "0.01",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "chapter-2",
+    "min_price": "0.01",
+    "price": "0.01",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": " 4.99 ",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "chapter-2",
+    "min_price": "4.99",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "chains": [
+      "avalanche"
+     ],
+     "custom_chains": [
+      {
+       "chain_id": 43114,
+       "confirmations": 5,
+       "explorer_tx": "https://snowtrace.io/tx/{}",
+       "key": "avalanche",
+       "name": "Avalanche",
+       "rpc": "https://api.avax.network/ext/bc/C/rpc",
+       "tokens": {
+        "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+       }
+      }
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   },
+   "out": {
+    "code": 1,
+    "item_id": "chapter-2",
+    "min_price": "4.99",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "error": "item.invalid_id",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_id",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "Chapter",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_id",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "has space",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_id",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_id",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": 5,
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_id",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": null,
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.duplicate_id",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "existing": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "item": {
+     "code": 2,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_code",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 0,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_code",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 100,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_code",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": -1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_code",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": "1",
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_code",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": true,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_code",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": {
+      "float": "1.5"
+     },
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.duplicate_code",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "existing": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "item": {
+     "code": 1,
+     "item_id": "two",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_price",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "abc",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_price",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_price",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": 0,
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_price",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "-1",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_price",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "0.001",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_price",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "1000000.01",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_price",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": {
+      "float": "4.99"
+     },
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_price",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": true,
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_price",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": null,
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_price",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "min_price": "abc",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_price",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "min_price": 0,
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.min_price_above_price",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "min_price": "3",
+     "price": "2",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_price",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "min_price": {
+      "float": "1.5"
+     },
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "token.unavailable",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "DAI"
+    }
+   }
+  },
+  {
+   "error": "token.unavailable",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": null
+    }
+   }
+  },
+  {
+   "error": "token.unavailable",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "tokens": [
+      "USDC"
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDT"
+    }
+   }
+  },
+  {
+   "error": "token.unavailable",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "chains": [
+      "base"
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDT"
+    }
+   }
+  },
+  {
+   "error": "token.unavailable",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "tokens": [
+      "USDT"
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "token.unavailable",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "chains": [
+      "avalanche"
+     ],
+     "custom_chains": [
+      {
+       "chain_id": 43114,
+       "confirmations": 5,
+       "explorer_tx": "https://snowtrace.io/tx/{}",
+       "key": "avalanche",
+       "name": "Avalanche",
+       "rpc": "https://api.avax.network/ext/bc/C/rpc",
+       "tokens": {
+        "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+       }
+      }
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDT"
+    }
+   }
+  },
+  {
+   "error": "token.unavailable",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "testnet": true
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDT"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_title",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_title",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "   ",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_title",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_title",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
+     "item_id": "chapter-2",
+     "price": "4.99",
+     "title": 5,
+     "token": "USDC"
+    }
+   }
+  }
+ ],
+ "tier": 1,
+ "topic": "items"
+}

@@ -1,0 +1,351 @@
+{
+ "covers": [
+  "tests/unit/test_restore.py::test_lookup_network_trouble_is_reported_when_not_found"
+ ],
+ "id": "restore/network_unavailable",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "chains": [
+    "arbitrum",
+    "base"
+   ],
+   "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+  },
+  "custom_chains": [],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   },
+   {
+    "code": 2,
+    "item_id": "ost",
+    "price": "2.00",
+    "title": "OST",
+    "token": "USDT"
+   }
+  ],
+  "pending": {},
+  "receipts": {}
+ },
+ "steps": [
+  {
+   "action": "restore_lookup",
+   "args": {
+    "tx": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     ],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": null}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://mainnet.base.org"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://base-rpc.publicnode.com"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://base.drpc.org"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://1rpc.io/base"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     ],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": null}",
+     "url": "https://ethereum-rpc.publicnode.com"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     ],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": null}",
+     "url": "https://polygon-bor-rpc.publicnode.com"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     ],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": null}",
+     "url": "https://rpc.mainnet.arc.io"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": {
+    "code": "network_unavailable",
+    "type": "RestoreError"
+   },
+   "returns": null,
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "restore_lookup",
+   "args": {
+    "tx": "0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e"
+     ],
+     "response_text": "{\"id\": 2, \"jsonrpc\": \"2.0\", \"result\": {\"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000032\", \"blockNumber\": \"0x32\", \"logs\": [{\"address\": \"0xaf88d065e77c8cc2239327c5edb3a432268e5831\", \"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000032\", \"blockNumber\": \"0x32\", \"data\": \"0x00000000000000000000000000000000000000000000000000000000004c32ce\", \"logIndex\": \"0x0\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed\"], \"transactionHash\": \"0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e\"}], \"status\": \"0x1\", \"transactionHash\": \"0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e\"}}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "already_restored": false,
+     "chain": "arbitrum",
+     "choices": [],
+     "item": "chapter2",
+     "kind": "unlock",
+     "token": "USDC",
+     "transfer": {
+      "block_hash": "0x0000000000000000000000000000000000000000000000000000000000000032",
+      "block_number": 50,
+      "class": "TransferLog",
+      "log_index": 0,
+      "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "sender": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "token": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "tx_hash": "0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e",
+      "value": 4993742
+     }
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "restore_lookup",
+   "args": {
+    "tx": "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://arbitrum.drpc.org"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://1rpc.io/arb"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://arbitrum-one-rpc.publicnode.com"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://ethereum-rpc.publicnode.com"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://eth.drpc.org"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://polygon-bor-rpc.publicnode.com"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://polygon.drpc.org"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://1rpc.io/matic"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://rpc.mainnet.arc.io"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://rpc.quicknode.mainnet.arc.io"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://rpc.drpc.mainnet.arc.io"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://rpc.blockdaemon.mainnet.arc.io"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": {
+    "code": "network_unavailable",
+    "type": "RestoreError"
+   },
+   "returns": null,
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

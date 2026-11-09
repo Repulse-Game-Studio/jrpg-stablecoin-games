@@ -1,0 +1,300 @@
+{
+ "covers": [],
+ "id": "smoke/solana_unlock_paid",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+   "testnet": true
+  },
+  "custom_chains": [],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {}
+ },
+ "steps": [
+  {
+   "action": "start_session",
+   "args": {
+    "chain": "solana",
+    "item": "chapter2",
+    "kind": "unlock"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "getSlot",
+     "params": [
+      {
+       "commitment": "confirmed"
+      }
+     ],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": 1000}",
+     "url": "https://api.devnet.solana.com"
+    },
+    {
+     "method": "getSignaturesForAddress",
+     "params": [
+      "EVADx2QYJwSufAQ5Ps5RHRrxKbA5AbTYd28kUwcPcRnm",
+      {
+       "commitment": "confirmed",
+       "limit": 1
+      }
+     ],
+     "response_text": "{\"id\": 2, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://api.devnet.solana.com"
+    }
+   ],
+   "entropy": [
+    {
+     "fn": "token_bytes",
+     "n": 32,
+     "value": "7caacb73d4618fb9db88380495058a622a95e330a639f4ebd0d21197be576796"
+    },
+    {
+     "fn": "randbelow",
+     "n": 100,
+     "value": 61
+    },
+    {
+     "fn": "token_hex",
+     "n": 8,
+     "value": "4293aa9d5215afca"
+    }
+   ],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": {
+    "chain": "solana",
+    "code": 37,
+    "created_at": 1700000000,
+    "cursor": 850,
+    "dest": "EVADx2QYJwSufAQ5Ps5RHRrxKbA5AbTYd28kUwcPcRnm",
+    "hint_at": null,
+    "hint_tx": null,
+    "id": "ps_4293aa9d5215afca",
+    "item": "chapter2",
+    "kind": "unlock",
+    "match": null,
+    "nonce": 61,
+    "price": "4.99",
+    "reference": "9PecASDNFJg8trHxZNd4fherXK4nkqkbFk73d5RivzMs",
+    "scan_before": null,
+    "scan_cursor": null,
+    "start_block": 850,
+    "state": "awaiting",
+    "title": "Chapter 2",
+    "token": "USDC",
+    "ui_status": "open",
+    "units": 4993761
+   },
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_4293aa9d5215afca": {
+      "chain": "solana",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 850,
+      "dest": "EVADx2QYJwSufAQ5Ps5RHRrxKbA5AbTYd28kUwcPcRnm",
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_4293aa9d5215afca",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 61,
+      "price": "4.99",
+      "reference": "9PecASDNFJg8trHxZNd4fherXK4nkqkbFk73d5RivzMs",
+      "scan_before": null,
+      "scan_cursor": null,
+      "start_block": 850,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993761
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000005,
+   "calls": [
+    {
+     "method": "getSignaturesForAddress",
+     "params": [
+      "9PecASDNFJg8trHxZNd4fherXK4nkqkbFk73d5RivzMs",
+      {
+       "commitment": "confirmed",
+       "limit": 100
+      }
+     ],
+     "response_text": "{\"id\": 3, \"jsonrpc\": \"2.0\", \"result\": [{\"err\": null, \"signature\": \"5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn\", \"slot\": 1010}]}",
+     "url": "https://api.devnet.solana.com"
+    },
+    {
+     "method": "getTransaction",
+     "params": [
+      "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn",
+      {
+       "commitment": "confirmed",
+       "encoding": "json",
+       "maxSupportedTransactionVersion": 1
+      }
+     ],
+     "response_text": "{\"id\": 4, \"jsonrpc\": \"2.0\", \"result\": {\"meta\": {\"err\": null, \"postTokenBalances\": [{\"accountIndex\": 1, \"mint\": \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\", \"owner\": \"AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe\", \"uiTokenAmount\": {\"amount\": \"995006239\", \"decimals\": 6}}, {\"accountIndex\": 2, \"mint\": \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\", \"owner\": \"7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU\", \"uiTokenAmount\": {\"amount\": \"4993761\", \"decimals\": 6}}], \"preTokenBalances\": [{\"accountIndex\": 1, \"mint\": \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\", \"owner\": \"AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe\", \"uiTokenAmount\": {\"amount\": \"1000000000\", \"decimals\": 6}}, {\"accountIndex\": 2, \"mint\": \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\", \"owner\": \"7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU\", \"uiTokenAmount\": {\"amount\": \"0\", \"decimals\": 6}}]}, \"slot\": 1010, \"transaction\": {\"message\": {\"accountKeys\": [\"AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe\", \"yoKuJrLHyiHJPqBhbgJkcyWsxW4boDZKqk9nxgUfAqF\", \"EVADx2QYJwSufAQ5Ps5RHRrxKbA5AbTYd28kUwcPcRnm\", \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\"]}, \"signatures\": [\"5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn\"]}, \"version\": 0}}",
+     "url": "https://api.devnet.solana.com"
+    },
+    {
+     "method": "getSignatureStatuses",
+     "params": [
+      [
+       "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn"
+      ],
+      {
+       "searchTransactionHistory": true
+      }
+     ],
+     "response_text": "{\"id\": 5, \"jsonrpc\": \"2.0\", \"result\": {\"context\": {\"slot\": 1010}, \"value\": [{\"confirmationStatus\": \"confirmed\", \"confirmations\": 1, \"err\": null, \"slot\": 1010}]}}",
+     "url": "https://api.devnet.solana.com"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 1,
+     "error": null,
+     "hint_tx": null,
+     "required": 32,
+     "result": null,
+     "session_id": "ps_4293aa9d5215afca",
+     "status": "confirming"
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_4293aa9d5215afca": {
+      "chain": "solana",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 850,
+      "dest": "EVADx2QYJwSufAQ5Ps5RHRrxKbA5AbTYd28kUwcPcRnm",
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_4293aa9d5215afca",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": {
+       "block": 1010,
+       "log_index": 2,
+       "payer": "AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe",
+       "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+       "tx_hash": "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn",
+       "value": 4993761
+      },
+      "nonce": 61,
+      "price": "4.99",
+      "reference": "9PecASDNFJg8trHxZNd4fherXK4nkqkbFk73d5RivzMs",
+      "scan_before": null,
+      "scan_cursor": null,
+      "start_block": 850,
+      "state": "confirming",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993761
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000018,
+   "calls": [
+    {
+     "method": "getSignatureStatuses",
+     "params": [
+      [
+       "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn"
+      ],
+      {
+       "searchTransactionHistory": true
+      }
+     ],
+     "response_text": "{\"id\": 6, \"jsonrpc\": \"2.0\", \"result\": {\"context\": {\"slot\": 1042}, \"value\": [{\"confirmationStatus\": \"finalized\", \"confirmations\": null, \"err\": null, \"slot\": 1010}]}}",
+     "url": "https://api.devnet.solana.com"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 32,
+     "error": null,
+     "hint_tx": null,
+     "required": 32,
+     "result": {
+      "amount": "4.993761",
+      "chain": "solana",
+      "error": null,
+      "item": "chapter2",
+      "kind": "unlock",
+      "payer": "AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe",
+      "session_id": "ps_4293aa9d5215afca",
+      "status": "paid",
+      "token": "USDC",
+      "tx_hash": "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn"
+     },
+     "session_id": "ps_4293aa9d5215afca",
+     "status": "paid"
+    }
+   ],
+   "snapshot": {
+    "owned": [
+     "chapter2"
+    ],
+    "pending": {},
+    "receipts": {
+     "solana:5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn:2": {
+      "amount": "4.993761",
+      "block": 1010,
+      "chain": "solana",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 2,
+      "payer": "AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe",
+      "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn"
+     }
+    },
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

@@ -1,0 +1,155 @@
+{
+ "covers": [
+  "tests/unit/test_solana_backend.py::test_old_receipt_on_a_pruned_endpoint_is_kept",
+  "tests/unit/test_solana_rpc.py::test_null_only_from_pruned_endpoints_is_not_authoritative"
+ ],
+ "id": "solana/history_pruned_endpoints_keep",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+  },
+  "custom_chains": [],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {
+   "solana:5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn:2": {
+    "amount": "4.993742",
+    "block": 950,
+    "chain": "solana",
+    "item": null,
+    "kind": "tip",
+    "log_index": 2,
+    "payer": "AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn"
+   }
+  }
+ },
+ "steps": [
+  {
+   "action": "reverify",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "getSlot",
+     "params": [
+      {
+       "commitment": "finalized"
+      }
+     ],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": 1000}",
+     "url": "https://solana-rpc.publicnode.com"
+    },
+    {
+     "method": "getTransaction",
+     "params": [
+      "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn",
+      {
+       "commitment": "finalized",
+       "encoding": "json",
+       "maxSupportedTransactionVersion": 1
+      }
+     ],
+     "response_text": "{\"id\": 2, \"jsonrpc\": \"2.0\", \"result\": null}",
+     "url": "https://solana-rpc.publicnode.com"
+    },
+    {
+     "method": "getFirstAvailableBlock",
+     "params": [],
+     "response_text": "{\"id\": 3, \"jsonrpc\": \"2.0\", \"result\": 1000000000}",
+     "url": "https://solana-rpc.publicnode.com"
+    },
+    {
+     "method": "getTransaction",
+     "params": [
+      "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn",
+      {
+       "commitment": "finalized",
+       "encoding": "json",
+       "maxSupportedTransactionVersion": 1
+      }
+     ],
+     "response_text": "{\"id\": 4, \"jsonrpc\": \"2.0\", \"result\": null}",
+     "url": "https://api.mainnet-beta.solana.com"
+    },
+    {
+     "method": "getFirstAvailableBlock",
+     "params": [],
+     "response_text": "{\"id\": 5, \"jsonrpc\": \"2.0\", \"result\": 1000000000}",
+     "url": "https://api.mainnet-beta.solana.com"
+    },
+    {
+     "method": "getAccountInfo",
+     "params": [
+      "C4PRXFV6Gf5mytVZb6RoeLsG8CjcFWzR2EJ3dvwPTUJH",
+      {
+       "commitment": "confirmed",
+       "encoding": "base64"
+      }
+     ],
+     "response_text": "{\"id\": 6, \"jsonrpc\": \"2.0\", \"result\": {\"context\": {\"slot\": 1000}, \"value\": null}}",
+     "url": "https://solana-rpc.publicnode.com"
+    },
+    {
+     "method": "getAccountInfo",
+     "params": [
+      "CQJX9L5ynSm4TatteRXuTaRcHe88CSM5vaQNQXcHNYuo",
+      {
+       "commitment": "confirmed",
+       "encoding": "base64"
+      }
+     ],
+     "response_text": "{\"id\": 7, \"jsonrpc\": \"2.0\", \"result\": {\"context\": {\"slot\": 1000}, \"value\": null}}",
+     "url": "https://solana-rpc.publicnode.com"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [],
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {
+     "solana:5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn:2": {
+      "amount": "4.993742",
+      "block": 950,
+      "chain": "solana",
+      "item": null,
+      "kind": "tip",
+      "log_index": 2,
+      "payer": "AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe",
+      "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn"
+     }
+    },
+    "tip_total": "4.993742",
+    "unready": [
+     [
+      "solana",
+      "USDC"
+     ],
+     [
+      "solana",
+      "USDT"
+     ]
+    ]
+   }
+  }
+ ],
+ "tier": 2
+}

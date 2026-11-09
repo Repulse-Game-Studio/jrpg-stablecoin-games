@@ -1,0 +1,2070 @@
+{
+ "cases": [
+  {
+   "fn": "receipt_key",
+   "in": {
+    "chain": "ethereum",
+    "log_index": 7,
+    "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+   },
+   "out": "ethereum:0xabababababababababababababababababababababababababababababababab:7"
+  },
+  {
+   "fn": "receipt_key",
+   "in": {
+    "chain": "ethereum",
+    "log_index": 7,
+    "tx_hash": "0xABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB"
+   },
+   "out": "ethereum:0xabababababababababababababababababababababababababababababababab:7"
+  },
+  {
+   "fn": "receipt_key",
+   "in": {
+    "chain": "ethereum",
+    "log_index": 0,
+    "tx_hash": "0XABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB"
+   },
+   "out": "ethereum:0XABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB:0"
+  },
+  {
+   "fn": "receipt_key",
+   "in": {
+    "chain": "arc",
+    "log_index": 12,
+    "tx_hash": "0xAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAb"
+   },
+   "out": "arc:0xabababababababababababababababababababababababababababababababab:12"
+  },
+  {
+   "fn": "receipt_key",
+   "in": {
+    "chain": "polygon",
+    "log_index": 1,
+    "tx_hash": "0xABCDEF"
+   },
+   "out": "polygon:0xabcdef:1"
+  },
+  {
+   "fn": "receipt_key",
+   "in": {
+    "chain": "solana",
+    "log_index": 3,
+    "tx_hash": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+   },
+   "out": "solana:1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS:3"
+  },
+  {
+   "fn": "receipt_key",
+   "in": {
+    "chain": "solana",
+    "log_index": 3,
+    "tx_hash": "1gmkh3brnxinns1tifzhu4yzsrrzjwxi5wb9bhftminfcxnnr1adh8vo8nthek4evneedh4qmvjeqcbbnaefgs"
+   },
+   "out": "solana:1gmkh3brnxinns1tifzhu4yzsrrzjwxi5wb9bhftminfcxnnr1adh8vo8nthek4evneedh4qmvjeqcbbnaefgs:3"
+  },
+  {
+   "fn": "receipt_key",
+   "in": {
+    "chain": "solana",
+    "log_index": 3,
+    "tx_hash": "1GMKH3BRNXINNS1TIFZHU4YZSRRZJWXI5WB9BHFTMINFCXNNR1ADH8VO8NTHEK4EVNEEDH4QMVJEQCBBNAEFGS"
+   },
+   "out": "solana:1GMKH3BRNXINNS1TIFZHU4YZSRRZJWXI5WB9BHFTMINFCXNNR1ADH8VO8NTHEK4EVNEEDH4QMVJEQCBBNAEFGS:3"
+  },
+  {
+   "fn": "receipt_key",
+   "in": {
+    "chain": "solana-devnet",
+    "log_index": 0,
+    "tx_hash": "2Ana1pUpv2ZbMVkwF5FXapYeBEjdxDatLn7nvJkhgTSXbs59SyZSx866bXirPgj8QQVB57uxHJBG1YFvkRbFj4T"
+   },
+   "out": "solana-devnet:2Ana1pUpv2ZbMVkwF5FXapYeBEjdxDatLn7nvJkhgTSXbs59SyZSx866bXirPgj8QQVB57uxHJBG1YFvkRbFj4T:0"
+  },
+  {
+   "fn": "receipt_key",
+   "in": {
+    "chain": "base",
+    "log_index": 0,
+    "tx_hash": ""
+   },
+   "out": "base::0"
+  },
+  {
+   "fn": "make_receipt",
+   "in": {
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "source": "payment",
+    "token": "USDC",
+    "transfer": {
+     "block_number": 1234567,
+     "class": "Transfer",
+     "log_index": 7,
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "sender": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+     "value": "4990000"
+    }
+   },
+   "out": {
+    "amount": "4.990000",
+    "block": 1234567,
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 7,
+    "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "fn": "make_receipt",
+   "in": {
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "source": "restore",
+    "token": "USDC",
+    "transfer": {
+     "block_hash": "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+     "block_number": 1234567,
+     "class": "TransferLog",
+     "log_index": 7,
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "sender": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+     "value": "4990000"
+    }
+   },
+   "out": {
+    "amount": "4.990000",
+    "block": 1234567,
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 7,
+    "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "source": "restore",
+    "token": "USDC",
+    "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "fn": "make_receipt",
+   "in": {
+    "chain": "solana",
+    "item": "chapter2",
+    "kind": "unlock",
+    "source": "payment",
+    "token": "USDC",
+    "transfer": {
+     "block_number": 287654321,
+     "class": "Transfer",
+     "log_index": 3,
+     "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "sender": "CejwupnRUhnYHb72dZ8rqnWsvFw49MDYKZ2SvurkX4K3",
+     "token": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+     "tx_hash": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS",
+     "value": "4993742"
+    }
+   },
+   "out": {
+    "amount": "4.993742",
+    "block": 287654321,
+    "chain": "solana",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 3,
+    "payer": "CejwupnRUhnYHb72dZ8rqnWsvFw49MDYKZ2SvurkX4K3",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+   }
+  },
+  {
+   "fn": "make_receipt",
+   "in": {
+    "chain": "solana",
+    "item": null,
+    "kind": "tip",
+    "source": "payment",
+    "token": "USDC",
+    "transfer": {
+     "block_number": 287654321,
+     "class": "Transfer",
+     "log_index": 3,
+     "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "sender": "CejwupnRUhnYHb72dZ8rqnWsvFw49MDYKZ2SvurkX4K3",
+     "token": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+     "tx_hash": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS",
+     "value": "5000000"
+    }
+   },
+   "out": {
+    "amount": "5.000000",
+    "block": 287654321,
+    "chain": "solana",
+    "item": null,
+    "kind": "tip",
+    "log_index": 3,
+    "payer": "CejwupnRUhnYHb72dZ8rqnWsvFw49MDYKZ2SvurkX4K3",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+   }
+  },
+  {
+   "fn": "make_receipt",
+   "in": {
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "source": "payment",
+    "token": "USDC",
+    "transfer": {
+     "block_number": 1234567,
+     "class": "Transfer",
+     "log_index": 7,
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "sender": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+     "value": "0"
+    }
+   },
+   "out": {
+    "amount": "0.000000",
+    "block": 1234567,
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 7,
+    "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "fn": "make_receipt",
+   "in": {
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "source": "payment",
+    "token": "USDC",
+    "transfer": {
+     "block_number": 1234567,
+     "class": "Transfer",
+     "log_index": 7,
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "sender": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+     "value": "1"
+    }
+   },
+   "out": {
+    "amount": "0.000001",
+    "block": 1234567,
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 7,
+    "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "fn": "make_receipt",
+   "in": {
+    "chain": "ethereum",
+    "item": null,
+    "kind": "tip",
+    "source": "payment",
+    "token": "USDC",
+    "transfer": {
+     "block_number": 1234567,
+     "class": "Transfer",
+     "log_index": 7,
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "sender": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+     "value": "1000000000000"
+    }
+   },
+   "out": {
+    "amount": "1000000.000000",
+    "block": 1234567,
+    "chain": "ethereum",
+    "item": null,
+    "kind": "tip",
+    "log_index": 7,
+    "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "fn": "make_receipt",
+   "in": {
+    "chain": "arc",
+    "item": "chapter2",
+    "kind": "unlock",
+    "source": "payment",
+    "token": "USDC",
+    "transfer": {
+     "block_number": 1234567,
+     "class": "Transfer",
+     "log_index": 7,
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "sender": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+     "value": "1000000"
+    }
+   },
+   "out": {
+    "amount": "1.000000",
+    "block": 1234567,
+    "chain": "arc",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 7,
+    "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "fn": "make_receipt",
+   "in": {
+    "chain": "ethereum",
+    "item": null,
+    "kind": "tip",
+    "source": "restore",
+    "token": "USDC",
+    "transfer": {
+     "block_number": 1234567,
+     "class": "Transfer",
+     "log_index": 7,
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "sender": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+     "value": "1230017"
+    }
+   },
+   "out": {
+    "amount": "1.230017",
+    "block": 1234567,
+    "chain": "ethereum",
+    "item": null,
+    "kind": "tip",
+    "log_index": 7,
+    "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "source": "restore",
+    "token": "USDC",
+    "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "fn": "make_receipt",
+   "in": {
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "source": "payment",
+    "token": "USDC",
+    "transfer": {
+     "block_hash": "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+     "block_number": 0,
+     "class": "TransferLog",
+     "log_index": 0,
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "sender": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+     "value": "4990000"
+    }
+   },
+   "out": {
+    "amount": "4.990000",
+    "block": 0,
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 0,
+    "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "make_receipt",
+   "in": {
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "refund",
+    "source": "payment",
+    "token": "USDC",
+    "transfer": {
+     "block_number": 1234567,
+     "class": "Transfer",
+     "log_index": 7,
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "sender": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+     "value": "4990000"
+    }
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "make_receipt",
+   "in": {
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "",
+    "source": "payment",
+    "token": "USDC",
+    "transfer": {
+     "block_number": 1234567,
+     "class": "Transfer",
+     "log_index": 7,
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "sender": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+     "value": "4990000"
+    }
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "make_receipt",
+   "in": {
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "Unlock",
+    "source": "payment",
+    "token": "USDC",
+    "transfer": {
+     "block_number": 1234567,
+     "class": "Transfer",
+     "log_index": 7,
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "sender": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+     "value": "4990000"
+    }
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "make_receipt",
+   "in": {
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "source": "manual",
+    "token": "USDC",
+    "transfer": {
+     "block_number": 1234567,
+     "class": "Transfer",
+     "log_index": 7,
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "sender": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+     "value": "4990000"
+    }
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "make_receipt",
+   "in": {
+    "chain": "ethereum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "source": null,
+    "token": "USDC",
+    "transfer": {
+     "block_number": 1234567,
+     "class": "Transfer",
+     "log_index": 7,
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "sender": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+     "value": "4990000"
+    }
+   }
+  },
+  {
+   "fn": "add_receipt",
+   "in": {
+    "receipt": {
+     "amount": "4.990000",
+     "block": 1,
+     "chain": "ethereum",
+     "item": "chapter2",
+     "kind": "unlock",
+     "log_index": 7,
+     "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "source": "payment",
+     "token": "USDC",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+    },
+    "store": {}
+   },
+   "out": {
+    "added": true,
+    "store": {
+     "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   }
+  },
+  {
+   "fn": "add_receipt",
+   "in": {
+    "receipt": {
+     "amount": "4.990000",
+     "block": 1,
+     "chain": "ethereum",
+     "item": "chapter2",
+     "kind": "unlock",
+     "log_index": 7,
+     "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "source": "payment",
+     "token": "USDC",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+    },
+    "store": {
+     "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "added": false,
+    "store": {
+     "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   }
+  },
+  {
+   "fn": "add_receipt",
+   "in": {
+    "receipt": {
+     "amount": "9.000000",
+     "block": 1,
+     "chain": "ethereum",
+     "item": "chapter2",
+     "kind": "unlock",
+     "log_index": 7,
+     "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "source": "payment",
+     "token": "USDC",
+     "tx_hash": "0xABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB"
+    },
+    "store": {
+     "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "added": false,
+    "store": {
+     "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   }
+  },
+  {
+   "fn": "add_receipt",
+   "in": {
+    "receipt": {
+     "amount": "3.000000",
+     "block": 1,
+     "chain": "ethereum",
+     "item": null,
+     "kind": "tip",
+     "log_index": 2,
+     "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "source": "payment",
+     "token": "USDC",
+     "tx_hash": "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "store": {
+     "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "added": true,
+    "store": {
+     "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     },
+     "ethereum:0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:2": {
+      "amount": "3.000000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 2,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+     }
+    }
+   }
+  },
+  {
+   "fn": "add_receipt",
+   "in": {
+    "receipt": {
+     "amount": "4.990000",
+     "block": 1,
+     "chain": "ethereum",
+     "item": "chapter2",
+     "kind": "unlock",
+     "log_index": 8,
+     "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "source": "payment",
+     "token": "USDC",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+    },
+    "store": {
+     "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "added": true,
+    "store": {
+     "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     },
+     "ethereum:0xabababababababababababababababababababababababababababababababab:8": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 8,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   }
+  },
+  {
+   "fn": "add_receipt",
+   "in": {
+    "receipt": {
+     "amount": "4.990000",
+     "block": 1,
+     "chain": "solana",
+     "item": "chapter2",
+     "kind": "unlock",
+     "log_index": 3,
+     "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "source": "payment",
+     "token": "USDC",
+     "tx_hash": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+    },
+    "store": {}
+   },
+   "out": {
+    "added": true,
+    "store": {
+     "solana:1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS:3": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "solana",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 3,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+     }
+    }
+   }
+  },
+  {
+   "fn": "add_receipt",
+   "in": {
+    "receipt": {
+     "amount": "4.990000",
+     "block": 1,
+     "chain": "solana",
+     "item": "chapter2",
+     "kind": "unlock",
+     "log_index": 3,
+     "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "source": "payment",
+     "token": "USDC",
+     "tx_hash": "1gmkh3brnxinns1tifzhu4yzsrrzjwxi5wb9bhftminfcxnnr1adh8vo8nthek4evneedh4qmvjeqcbbnaefgs"
+    },
+    "store": {
+     "solana:1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS:3": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "added": true,
+    "store": {
+     "solana:1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS:3": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     },
+     "solana:1gmkh3brnxinns1tifzhu4yzsrrzjwxi5wb9bhftminfcxnnr1adh8vo8nthek4evneedh4qmvjeqcbbnaefgs:3": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "solana",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 3,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "1gmkh3brnxinns1tifzhu4yzsrrzjwxi5wb9bhftminfcxnnr1adh8vo8nthek4evneedh4qmvjeqcbbnaefgs"
+     }
+    }
+   }
+  },
+  {
+   "fn": "remove_receipt",
+   "in": {
+    "key": "ethereum:0xabababababababababababababababababababababababababababababababab:7",
+    "store": {
+     "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     },
+     "ethereum:0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:2": {
+      "amount": "3.000000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 2,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+     }
+    }
+   },
+   "out": {
+    "ethereum:0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:2": {
+     "amount": "3.000000",
+     "block": 1,
+     "chain": "ethereum",
+     "item": null,
+     "kind": "tip",
+     "log_index": 2,
+     "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "source": "payment",
+     "token": "USDC",
+     "tx_hash": "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    }
+   }
+  },
+  {
+   "fn": "remove_receipt",
+   "in": {
+    "key": "ethereum:nothing:1",
+    "store": {
+     "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+     "amount": "4.990000",
+     "block": 1,
+     "chain": "ethereum",
+     "item": "chapter2",
+     "kind": "unlock",
+     "log_index": 7,
+     "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "source": "payment",
+     "token": "USDC",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+    }
+   }
+  },
+  {
+   "fn": "remove_receipt",
+   "in": {
+    "key": "",
+    "store": {}
+   },
+   "out": {}
+  },
+  {
+   "fn": "remove_receipt",
+   "in": {
+    "key": "0xabababababababababababababababababababababababababababababababab",
+    "store": {
+     "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+     "amount": "4.990000",
+     "block": 1,
+     "chain": "ethereum",
+     "item": "chapter2",
+     "kind": "unlock",
+     "log_index": 7,
+     "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "source": "payment",
+     "token": "USDC",
+     "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+    }
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {}
+   },
+   "out": {
+    "owned": [],
+    "tip_total": "0"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [
+     "chapter2"
+    ],
+    "tip_total": "0"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "4.980000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [],
+    "tip_total": "0"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "2.000000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "pwyw",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [
+     "pwyw"
+    ],
+    "tip_total": "0"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "3.500000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "pwyw",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [
+     "pwyw"
+    ],
+    "tip_total": "0"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "1.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "pwyw",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [],
+    "tip_total": "0"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "25.000000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "pwyw",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [
+     "pwyw"
+    ],
+    "tip_total": "0"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "ghost",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [],
+    "tip_total": "0"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [],
+    "tip_total": "0"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "1.000000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [],
+    "tip_total": "1.000000"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "0.500000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     },
+     "k1": {
+      "amount": "3.000000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x1111111111111111111111111111111111111111111111111111111111111111"
+     },
+     "k2": {
+      "amount": "10.250000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x2222222222222222222222222222222222222222222222222222222222222222"
+     }
+    }
+   },
+   "out": {
+    "owned": [],
+    "tip_total": "13.750000"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     },
+     "k1": {
+      "amount": "2.500000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "pwyw",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x3333333333333333333333333333333333333333333333333333333333333333"
+     },
+     "k2": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "ghost",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x4444444444444444444444444444444444444444444444444444444444444444"
+     },
+     "k3": {
+      "amount": "5.000000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x5555555555555555555555555555555555555555555555555555555555555555"
+     },
+     "k4": {
+      "amount": "9.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "dlc",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x6666666666666666666666666666666666666666666666666666666666666666"
+     }
+    }
+   },
+   "out": {
+    "owned": [
+     "chapter2",
+     "dlc",
+     "pwyw"
+    ],
+    "tip_total": "5.000000"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     },
+     "k1": {
+      "amount": "5.000000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [
+     "chapter2"
+    ],
+    "tip_total": "0"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "ethereum:0XABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB:7": {
+      "amount": "1.000000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     },
+     "ethereum:0xabababababababababababababababababababababababababababababababab:7": {
+      "amount": "1.000000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [],
+    "tip_total": "2.000000"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "a": null,
+     "b": "text",
+     "c": [],
+     "d": 5,
+     "e": {},
+     "f": {
+      "kind": "unlock"
+     },
+     "g": {
+      "kind": "tip"
+     },
+     "h": {
+      "amount": "abc",
+      "kind": "tip"
+     },
+     "i": {
+      "amount": null,
+      "kind": "tip"
+     },
+     "j": {
+      "amount": "NaN",
+      "kind": "tip"
+     },
+     "k": {
+      "amount": "Infinity",
+      "kind": "tip"
+     },
+     "l": {
+      "amount": "-Infinity",
+      "item": "chapter2",
+      "kind": "unlock"
+     },
+     "m": {
+      "amount": "5.00",
+      "kind": "refund"
+     },
+     "n": {
+      "amount": "5.00"
+     },
+     "o": {
+      "amount": "sNaN",
+      "item": "chapter2",
+      "kind": "unlock"
+     },
+     "p": {
+      "amount": "2.000000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     },
+     "q": {
+      "amount": 4,
+      "kind": "tip"
+     },
+     "r": {
+      "amount": true,
+      "kind": "tip"
+     },
+     "s": {
+      "amount": "",
+      "kind": "tip"
+     },
+     "t": {
+      "amount": "1",
+      "kind": [
+       "tip"
+      ]
+     }
+    }
+   },
+   "out": {
+    "owned": [],
+    "tip_total": "7.000000"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [],
+    "store": {
+     "k0": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [],
+    "tip_total": "0"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "1.5",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     },
+     "k1": {
+      "amount": "0",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x7777777777777777777777777777777777777777777777777777777777777777"
+     }
+    }
+   },
+   "out": {
+    "owned": [],
+    "tip_total": "1.5"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "4.99",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [
+     "chapter2"
+    ],
+    "tip_total": "0"
+   }
+  }
+ ],
+ "tier": 1,
+ "topic": "receipts"
+}

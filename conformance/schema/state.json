@@ -1,0 +1,74 @@
+{
+ "match": {
+  "block": "int",
+  "log_index": "int",
+  "payer": "str",
+  "recipient": "str",
+  "tx_hash": "str",
+  "value": "int"
+ },
+ "match_optional": {
+  "block_hash": "str"
+ },
+ "pending": {
+  "chain": "str",
+  "code": "int",
+  "created_at": "number",
+  "cursor": "int",
+  "hint_at": "number|null",
+  "hint_tx": "str|null",
+  "id": "str",
+  "item": "str|null",
+  "kind": [
+   "enum",
+   "unlock",
+   "tip"
+  ],
+  "match": "match|null",
+  "nonce": "int",
+  "price": "str",
+  "start_block": "int",
+  "state": [
+   "enum",
+   "awaiting",
+   "confirming"
+  ],
+  "title": "str",
+  "token": "str",
+  "ui_status": [
+   "enum",
+   "open",
+   "pending",
+   "cancelled",
+   "expired"
+  ],
+  "units": "int"
+ },
+ "pending_optional": {
+  "dest": "str",
+  "reference": "str",
+  "scan_before": "str|null",
+  "scan_cursor": "str|null"
+ },
+ "receipt": {
+  "amount": "str",
+  "block": "int",
+  "chain": "str",
+  "item": "str|null",
+  "kind": [
+   "enum",
+   "unlock",
+   "tip"
+  ],
+  "log_index": "int",
+  "payer": "str",
+  "recipient": "str",
+  "source": [
+   "enum",
+   "payment",
+   "restore"
+  ],
+  "token": "str",
+  "tx_hash": "str"
+ }
+}

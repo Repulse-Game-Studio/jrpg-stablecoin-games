@@ -1,0 +1,125 @@
+{
+ "covers": [
+  "tests/unit/test_rpc_client.py::test_call_sends_jsonrpc_and_returns_result",
+  "tests/unit/test_rpc_client.py::test_block_number_parses_hex"
+ ],
+ "id": "rpc/healthy_endpoint",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "chains": [
+    "avalanche"
+   ],
+   "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+  },
+  "custom_chains": [
+   {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "https://snowtrace.io/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "native_symbol": "AVAX",
+    "rpc": [
+     "https://rpc-a.example"
+    ],
+    "tokens": {
+     "USDC": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+    }
+   }
+  ],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {}
+ },
+ "steps": [
+  {
+   "action": "start_session",
+   "args": {
+    "chain": "avalanche",
+    "item": "chapter2",
+    "kind": "unlock"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": \"0x1b4\"}",
+     "url": "https://rpc-a.example"
+    }
+   ],
+   "entropy": [
+    {
+     "fn": "randbelow",
+     "n": 100,
+     "value": 18
+    },
+    {
+     "fn": "token_hex",
+     "n": 8,
+     "value": "9c700bc9140f6063"
+    }
+   ],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": {
+    "chain": "avalanche",
+    "code": 37,
+    "created_at": 1700000000,
+    "cursor": 431,
+    "hint_at": null,
+    "hint_tx": null,
+    "id": "ps_9c700bc9140f6063",
+    "item": "chapter2",
+    "kind": "unlock",
+    "match": null,
+    "nonce": 18,
+    "price": "4.99",
+    "start_block": 431,
+    "state": "awaiting",
+    "title": "Chapter 2",
+    "token": "USDC",
+    "ui_status": "open",
+    "units": 4993718
+   },
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_9c700bc9140f6063": {
+      "chain": "avalanche",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 431,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_9c700bc9140f6063",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 18,
+      "price": "4.99",
+      "start_block": 431,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993718
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

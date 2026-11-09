@@ -113,7 +113,8 @@ class Engine:
         spec = prepare_payment(self.config, kind, item=item, amount=amount, token=token,
                                title=title)
         if chain not in spec.chains:
-            raise ConfigError(f"{spec.token} is not available on chain {chain!r}")
+            raise ConfigError(f"{spec.token} is not available on chain {chain!r}",
+                              code="chain.token_unavailable")
         chain_obj = self.chain(chain)
         fields = yield from backend_for(chain_obj).start(
             rpc=self.rpc(chain), chain=chain_obj, wallet=self.config.wallet_for(chain_obj),

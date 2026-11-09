@@ -1,0 +1,1128 @@
+{
+ "cases": [
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "code": 1,
+    "item": "chapter-2",
+    "kind": "unlock",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "3.25",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "code": 1,
+    "item": "chapter-2",
+    "kind": "unlock",
+    "price": "3.25",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "2",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "code": 1,
+    "item": "chapter-2",
+    "kind": "unlock",
+    "price": "2.00",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "amount": 7,
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "code": 1,
+    "item": "chapter-2",
+    "kind": "unlock",
+    "price": "7.00",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock",
+    "token": "USDT"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "polygon",
+     "ethereum"
+    ],
+    "code": 1,
+    "item": "chapter-2",
+    "kind": "unlock",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDT"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock",
+    "title": "A better title"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "code": 1,
+    "item": "chapter-2",
+    "kind": "unlock",
+    "price": "4.99",
+    "title": "A better title",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-3",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "chapter-3",
+      "price": "3.50",
+      "title": "Chapter 2",
+      "token": "USDT"
+     }
+    ],
+    "kind": "unlock"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "polygon",
+     "ethereum"
+    ],
+    "code": 3,
+    "item": "chapter-3",
+    "kind": "unlock",
+    "price": "3.50",
+    "title": "Chapter 2",
+    "token": "USDT"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "config": {
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum",
+     "solana"
+    ],
+    "code": 1,
+    "item": "chapter-2",
+    "kind": "unlock",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "config": {
+     "chains": [
+      "base",
+      "polygon"
+     ],
+     "tokens": [
+      "USDC"
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   },
+   "out": {
+    "chains": [
+     "base",
+     "polygon"
+    ],
+    "code": 1,
+    "item": "chapter-2",
+    "kind": "unlock",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "config": {
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   },
+   "out": {
+    "chains": [
+     "solana"
+    ],
+    "code": 1,
+    "item": "chapter-2",
+    "kind": "unlock",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "1.00",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "token": "USDC"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "code": 0,
+    "item": null,
+    "kind": "tip",
+    "price": "1.00",
+    "title": "Tip",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "0.50",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "token": "USDC"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "code": 0,
+    "item": null,
+    "kind": "tip",
+    "price": "0.50",
+    "title": "Tip",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "amount": 5,
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "token": "USDT"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "polygon",
+     "ethereum"
+    ],
+    "code": 0,
+    "item": null,
+    "kind": "tip",
+    "price": "5.00",
+    "title": "Tip",
+    "token": "USDT"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "2.5",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "title": "Thanks!",
+    "token": "USDC"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "code": 0,
+    "item": null,
+    "kind": "tip",
+    "price": "2.50",
+    "title": "Thanks!",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "1.00",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "ignored",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "token": "USDC"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "code": 0,
+    "item": "ignored",
+    "kind": "tip",
+    "price": "1.00",
+    "title": "Tip",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "3",
+    "config": {
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "token": "USDC"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum",
+     "solana"
+    ],
+    "code": 0,
+    "item": null,
+    "kind": "tip",
+    "price": "3.00",
+    "title": "Tip",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "1",
+    "config": {
+     "chains": [
+      "arc",
+      "base"
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [],
+    "kind": "tip",
+    "token": "USDC"
+   },
+   "out": {
+    "chains": [
+     "arc",
+     "base"
+    ],
+    "code": 0,
+    "item": null,
+    "kind": "tip",
+    "price": "1.00",
+    "title": "Tip",
+    "token": "USDC"
+   }
+  },
+  {
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "1",
+    "config": {
+     "testnet": true,
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [],
+    "kind": "tip",
+    "token": "USDC"
+   },
+   "out": {
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "code": 0,
+    "item": null,
+    "kind": "tip",
+    "price": "1.00",
+    "title": "Tip",
+    "token": "USDC"
+   }
+  },
+  {
+   "error": "item.unknown",
+   "fn": "prepare_payment",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "missing",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   }
+  },
+  {
+   "error": "item.unknown",
+   "fn": "prepare_payment",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   }
+  },
+  {
+   "error": "payment.below_min_price",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "1.99",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": {
+     "float": "4.99"
+    },
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "abc",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": true,
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": 0,
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock"
+   }
+  },
+  {
+   "error": "token.not_enabled",
+   "fn": "prepare_payment",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "unlock",
+    "token": "DAI"
+   }
+  },
+  {
+   "error": "item.unknown",
+   "fn": "prepare_payment",
+   "in": {
+    "config": {
+     "tokens": [
+      "USDT"
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": "chapter-2",
+    "items": [
+     {
+      "code": 3,
+      "item_id": "chapter-3",
+      "price": "3.50",
+      "title": "Chapter 2",
+      "token": "USDT"
+     }
+    ],
+    "kind": "unlock"
+   }
+  },
+  {
+   "error": "tip.below_minimum",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "0.49",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "token": "USDC"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": 0,
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "token": "USDC"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": {
+     "float": "2.5"
+    },
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "token": "USDC"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "abc",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "token": "USDC"
+   }
+  },
+  {
+   "error": "token.not_enabled",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "1",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "token": "DAI"
+   }
+  },
+  {
+   "error": "token.not_enabled",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "1",
+    "config": {
+     "tokens": [
+      "USDC"
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "token": "USDT"
+   }
+  },
+  {
+   "error": "token.unavailable",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "1",
+    "config": {
+     "chains": [
+      "base"
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "token": "USDT"
+   }
+  },
+  {
+   "error": "tip.needs_amount_and_token",
+   "fn": "prepare_payment",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip",
+    "token": "USDC"
+   }
+  },
+  {
+   "error": "tip.needs_amount_and_token",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "1",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip"
+   }
+  },
+  {
+   "error": "tip.needs_amount_and_token",
+   "fn": "prepare_payment",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "tip"
+   }
+  },
+  {
+   "error": "payment.bad_kind",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "1",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "donate",
+    "token": "USDC"
+   }
+  },
+  {
+   "error": "payment.bad_kind",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "1",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": "",
+    "token": "USDC"
+   }
+  },
+  {
+   "error": "payment.bad_kind",
+   "fn": "prepare_payment",
+   "in": {
+    "amount": "1",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "items": [
+     {
+      "code": 1,
+      "item_id": "chapter-2",
+      "min_price": "2.00",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     }
+    ],
+    "kind": null,
+    "token": "USDC"
+   }
+  }
+ ],
+ "tier": 1,
+ "topic": "payments"
+}

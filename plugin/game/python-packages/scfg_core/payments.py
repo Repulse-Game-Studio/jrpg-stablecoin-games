@@ -32,26 +32,29 @@ def prepare_payment(config: Config, kind: str, *, item: str | None = None, amoun
                     token: str | None = None, title: str | None = None) -> PaymentSpec:
     if kind == "unlock":
         if item not in config.items:
-            raise ConfigError(f"unknown item {item!r}; declare it with scfg.add_item()")
+            raise ConfigError(f"unknown item {item!r}; declare it with scfg.add_item()",
+                              code="item.unknown")
         it = config.items[item]
         price = it.price if amount is None else parse_amount(amount)
         if price < it.min_price:
-            raise ConfigError(f"amount {price} is below the item's min_price {it.min_price}")
+            raise ConfigError(f"amount {price} is below the item's min_price {it.min_price}",
+                              code="payment.below_min_price")
         token = token or it.token
         code, title = it.code, title or it.title
     elif kind == "tip":
         if amount is None or token is None:
-            raise ConfigError("tips need an amount and a token")
+            raise ConfigError("tips need an amount and a token", code="tip.needs_amount_and_token")
         price = parse_amount(amount)
         if price < MIN_TIP:
-            raise ConfigError(f"tips must be at least {MIN_TIP}")
+            raise ConfigError(f"tips must be at least {MIN_TIP}", code="tip.below_minimum")
         code, title = 0, title or "Tip"
     else:
-        raise ConfigError(f"kind must be 'unlock' or 'tip', not {kind!r}")
+        raise ConfigError(f"kind must be 'unlock' or 'tip', not {kind!r}", code="payment.bad_kind")
     if token not in config.tokens:
-        raise ConfigError(f"token {token!r} is not enabled")
+        raise ConfigError(f"token {token!r} is not enabled", code="token.not_enabled")
     chains = tuple(chains_for_token(config, token))
     if not chains:
-        raise ConfigError(f"{token} is not available on any enabled chain")
+        raise ConfigError(f"{token} is not available on any enabled chain",
+                          code="token.unavailable")
     return PaymentSpec(kind=kind, item=item, price=price, token=token, code=code,
                        title=title, chains=chains)

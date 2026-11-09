@@ -1,0 +1,187 @@
+{
+ "covers": [
+  "tests/unit/test_arc_logs.py::test_arc_restore_returns_one_candidate"
+ ],
+ "id": "evm/arc_large_restore",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "chains": [
+    "arc"
+   ],
+   "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+  },
+  "custom_chains": [],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter9",
+    "price": "19.99",
+    "title": "Chapter 9",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {}
+ },
+ "steps": [
+  {
+   "action": "restore_lookup",
+   "args": {
+    "tx": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     ],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": {\"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000384\", \"blockNumber\": \"0x384\", \"logs\": [{\"address\": \"0xfffffffffffffffffffffffffffffffffffffffe\", \"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000384\", \"blockNumber\": \"0x384\", \"data\": \"0x00000000000000000000000000000000000000000000000115780a6ae8cee000\", \"logIndex\": \"0x5\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed\"], \"transactionHash\": \"0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d\"}, {\"address\": \"0x3600000000000000000000000000000000000000\", \"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000384\", \"blockNumber\": \"0x384\", \"data\": \"0x000000000000000000000000000000000000000000000000000000000131148e\", \"logIndex\": \"0x6\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed\"], \"transactionHash\": \"0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d\"}], \"status\": \"0x1\", \"transactionHash\": \"0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d\"}}",
+     "url": "https://rpc.mainnet.arc.io"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "already_restored": false,
+     "chain": "arc",
+     "choices": [],
+     "item": "chapter9",
+     "kind": "unlock",
+     "token": "USDC",
+     "transfer": {
+      "block_hash": "0x0000000000000000000000000000000000000000000000000000000000000384",
+      "block_number": 900,
+      "class": "TransferLog",
+      "log_index": 5,
+      "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "sender": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "token": "0x3600000000000000000000000000000000000000",
+      "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d",
+      "value": 19993742
+     }
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "restore_apply",
+   "args": {
+    "choices": {},
+    "from_step": 0
+   },
+   "at": 1700000000,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "amount": "19.993742",
+     "block": 900,
+     "chain": "arc",
+     "item": "chapter9",
+     "kind": "unlock",
+     "log_index": 5,
+     "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+     "source": "restore",
+     "token": "USDC",
+     "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+    }
+   ],
+   "snapshot": {
+    "owned": [
+     "chapter9"
+    ],
+    "pending": {},
+    "receipts": {
+     "arc:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:5": {
+      "amount": "19.993742",
+      "block": 900,
+      "chain": "arc",
+      "item": "chapter9",
+      "kind": "unlock",
+      "log_index": 5,
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "source": "restore",
+      "token": "USDC",
+      "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     }
+    },
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "reverify",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 2, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://rpc.mainnet.arc.io"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE",
+       "fromBlock": "0x384",
+       "toBlock": "0x384",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        [
+         "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+        ]
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 3, \"jsonrpc\": \"2.0\", \"result\": [{\"address\": \"0xfffffffffffffffffffffffffffffffffffffffe\", \"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000384\", \"blockNumber\": \"0x384\", \"data\": \"0x00000000000000000000000000000000000000000000000115780a6ae8cee000\", \"logIndex\": \"0x5\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed\"], \"transactionHash\": \"0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d\"}]}",
+     "url": "https://rpc.mainnet.arc.io"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [],
+   "snapshot": {
+    "owned": [
+     "chapter9"
+    ],
+    "pending": {},
+    "receipts": {
+     "arc:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:5": {
+      "amount": "19.993742",
+      "block": 900,
+      "chain": "arc",
+      "item": "chapter9",
+      "kind": "unlock",
+      "log_index": 5,
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "source": "restore",
+      "token": "USDC",
+      "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     }
+    },
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

@@ -106,7 +106,8 @@ init -10 python in scfg:
         Chains whose gas coin is the stablecoin itself (like Arc, built in) can't be added
         this way: their wallet sends emit no ERC-20 event at the token contract."""
         if _state.config is not None:
-            raise ConfigError("call scfg.add_chain() before scfg.configure()")
+            raise ConfigError("call scfg.add_chain() before scfg.configure()",
+                              code="configure.after_add_chain")
         chain = _build_chain(key, name=name, chain_id=chain_id, rpc=rpc, tokens=tokens,
                              confirmations=confirmations, explorer_tx=explorer_tx,
                              native_symbol=native_symbol, fee_hint=fee_hint,
@@ -129,7 +130,8 @@ init -10 python in scfg:
             logo=logo, accent=accent, custom_chains=_state.custom_chains,
             solana_wallet=solana_wallet)
         if config.logo is not None and not renpy.loadable(config.logo):
-            raise ConfigError("logo file not found in the game folder: %r" % (config.logo,))
+            raise ConfigError("logo file not found in the game folder: %r" % (config.logo,),
+                              code="logo.file_missing")
         _state.config = config
 
     def add_item(item_id, code, price, token, title, min_price=None):
@@ -139,7 +141,8 @@ init -10 python in scfg:
 
     def _require_config():
         if _state.config is None:
-            raise ConfigError("call scfg.configure(...) in an init python block first")
+            raise ConfigError("call scfg.configure(...) in an init python block first",
+                              code="configure.not_called")
         return _state.config
 
     # ------------------------------------------------------------------ platform support
@@ -388,7 +391,8 @@ init -10 python in scfg:
     def owns(item_id):
         """True if a verified receipt unlocks `item_id`. Instant and offline."""
         if item_id not in _require_config().items:
-            raise ConfigError("unknown item %r; declare it with scfg.add_item()" % (item_id,))
+            raise ConfigError("unknown item %r; declare it with scfg.add_item()" % (item_id,),
+                              code="item.unknown")
         return item_id in _snapshot_ownership()[0]
 
     def has_tipped():

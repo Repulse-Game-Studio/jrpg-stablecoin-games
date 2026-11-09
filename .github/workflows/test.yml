@@ -2,7 +2,7 @@ name: test
 
 on:
   push:
-    branches: [main]      # branches are tested through their PR, tags by release.yml
+    branches: [main, multi-engine]   # other branches are tested through their PR, tags by release.yml
   pull_request:
   schedule:
     - cron: "0 6 * * 1"   # weekly: also checks the built-in public RPC endpoints
@@ -27,8 +27,25 @@ jobs:
       - run: uv sync
       - run: uv run ruff check .
       - run: uv run pytest
+      - run: uv run python tools/gen_vectors.py --check   # committed conformance vectors are current
       - name: Release zip builds
         run: uv run python tools/package.py
+
+  godot-core:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        godot: ["4.3-stable", "4.7.2-stable"]   # the supported floor and the latest stable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Download Godot
+        run: uv run --no-project python tools/fetch_godot.py --version ${{ matrix.godot }} --dest /tmp/godot
+      - name: Import the project (registers the class_name globals, needed once per checkout)
+        run: /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64 --headless --path godot --import
+      - name: GDScript tests against the conformance vectors
+        run: /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64 --headless --path godot --script res://tests/run.gd -- --vectors="$PWD/conformance/vectors"
 
   npm-installer:
     runs-on: ubuntu-latest

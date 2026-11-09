@@ -1,0 +1,1120 @@
+{
+ "files": [
+  "tests/unit/test_keccak.py",
+  "tests/unit/test_evm_addresses.py",
+  "tests/unit/test_solana_base58.py",
+  "tests/unit/test_solana_pda.py",
+  "tests/unit/test_solana_tx.py",
+  "tests/unit/test_amounts.py",
+  "tests/unit/test_paylinks.py",
+  "tests/unit/test_solana_paylinks.py",
+  "tests/unit/test_page_messages.py",
+  "tests/unit/test_transfers.py",
+  "tests/unit/test_config.py",
+  "tests/unit/test_config_solana.py",
+  "tests/unit/test_custom_chains.py",
+  "tests/unit/test_chains.py",
+  "tests/unit/test_engine.py",
+  "tests/unit/test_watcher_awaiting.py",
+  "tests/unit/test_watcher_confirming.py",
+  "tests/unit/test_evm_logs.py",
+  "tests/unit/test_arc_logs.py",
+  "tests/unit/test_backends.py",
+  "tests/unit/test_receipts.py",
+  "tests/unit/test_sessions.py",
+  "tests/unit/test_payments.py",
+  "tests/unit/test_engine_solana.py",
+  "tests/unit/test_solana_backend.py",
+  "tests/unit/test_solana_watch.py",
+  "tests/unit/test_solana_build.py",
+  "tests/unit/test_solana_rpc.py",
+  "tests/unit/test_restore.py",
+  "tests/unit/test_reverify.py",
+  "tests/unit/test_rpc_client.py"
+ ],
+ "tests": {
+  "tests/unit/test_amounts.py::test_decimal_to_units_rejects_sub_unit_precision": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_decode_spec_example": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_encode_decode_round_trip": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_encode_rejects_bad_fields": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_encode_spec_example": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_encode_tip_uses_code_zero": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_encode_validates_price": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_encoded_amount_never_exceeds_price_by_a_cent": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_parse_amount_accepts": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_parse_amount_rejects_types": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_parse_amount_rejects_values": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_units_conversions": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_arc_logs.py::test_arc_hint_underpaid_uses_floored_value": [
+   "tier2/evm/arc_hint",
+   "tier2/evm/arc_large_hint"
+  ],
+  "tests/unit/test_arc_logs.py::test_arc_hint_verifies_from_emitter_log": [
+   "tier2/evm/arc_hint",
+   "tier2/evm/arc_large_hint"
+  ],
+  "tests/unit/test_arc_logs.py::test_arc_hint_with_only_interface_log_is_not_a_payment": [
+   "tier2/evm/arc_hint"
+  ],
+  "tests/unit/test_arc_logs.py::test_arc_interface_log_alone_is_not_seen_by_scan": [
+   "tier2/evm/arc_erc20_transfer_counts_once"
+  ],
+  "tests/unit/test_arc_logs.py::test_arc_native_send_detected_by_scan": [
+   "tier2/evm/arc_large_scan",
+   "tier2/evm/arc_native_send"
+  ],
+  "tests/unit/test_arc_logs.py::test_arc_native_send_with_dust_matches_session": [
+   "tier2/evm/arc_large_scan",
+   "tier2/evm/arc_native_send"
+  ],
+  "tests/unit/test_arc_logs.py::test_arc_restore_returns_one_candidate": [
+   "tier2/evm/arc_large_restore",
+   "tier2/evm/arc_restore_and_reverify"
+  ],
+  "tests/unit/test_arc_logs.py::test_arc_transfer_counts_once_in_scan": [
+   "tier2/evm/arc_erc20_transfer_counts_once"
+  ],
+  "tests/unit/test_arc_logs.py::test_parse_transfer_floors_native_value": [
+   "tier2/evm/arc_native_send"
+  ],
+  "tests/unit/test_arc_logs.py::test_parse_transfer_ignores_interface_log_on_arc": [
+   "tier2/evm/arc_erc20_transfer_counts_once"
+  ],
+  "tests/unit/test_arc_logs.py::test_parse_transfer_ignores_sub_micro_value": [
+   "tier2/evm/arc_dust_floors_to_zero"
+  ],
+  "tests/unit/test_arc_logs.py::test_parse_transfer_ignores_unknown_contract": [
+   "tier2/evm/arc_ignored_logs"
+  ],
+  "tests/unit/test_arc_logs.py::test_parse_transfer_plain_chain_unchanged": [
+   "tier2/evm/unlock_paid_exact"
+  ],
+  "tests/unit/test_arc_logs.py::test_parse_transfer_skips_non_transfer_logs": [
+   "tier2/evm/arc_ignored_logs"
+  ],
+  "tests/unit/test_arc_logs.py::test_reverify_drops_arc_receipt_with_no_log_at_all": [
+   "tier2/evm/arc_restore_and_reverify"
+  ],
+  "tests/unit/test_arc_logs.py::test_reverify_drops_arc_receipt_with_wrong_amount": [
+   "tier2/evm/arc_restore_and_reverify"
+  ],
+  "tests/unit/test_arc_logs.py::test_reverify_drops_legacy_arc_receipt_with_wrong_amount": [
+   "tier2/evm/arc_restore_and_reverify"
+  ],
+  "tests/unit/test_arc_logs.py::test_reverify_keeps_arc_receipt": [
+   "tier2/evm/arc_restore_and_reverify"
+  ],
+  "tests/unit/test_arc_logs.py::test_reverify_keeps_legacy_custom_arc_receipt": [
+   "tier2/evm/arc_restore_and_reverify"
+  ],
+  "tests/unit/test_backends.py::test_builtin_chains_are_evm": [
+   "tier1/chains",
+   "tier2/evm/unlock_paid_exact"
+  ],
+  "tests/unit/test_backends.py::test_create_session_merges_extra_fields_and_refuses_collisions": {
+   "python_only": "The collision ValueError guards against a backend programming error (a backend returning a field the session record owns); no config, item or action can trigger it. The merge itself shows in the Solana session records of tier2/smoke/solana_unlock_paid"
+  },
+  "tests/unit/test_backends.py::test_engine_report_hint_uses_the_chain_backend": [
+   "tier2/evm/hint_verified"
+  ],
+  "tests/unit/test_backends.py::test_evm_start_notes_block_with_margin": [
+   "tier2/evm/start_block_margin"
+  ],
+  "tests/unit/test_backends.py::test_normalize_any_tx_accepts_evm_and_rejects_garbage": [
+   "tier1/tx_ids"
+  ],
+  "tests/unit/test_backends.py::test_reverify_accepts_wallets_per_family": [
+   "tier2/evm/reverify_accepted_wallets"
+  ],
+  "tests/unit/test_backends.py::test_reverify_keeps_receipts_of_a_family_without_wallets": [
+   "tier2/evm/unwatchable_session_closes_at_horizon"
+  ],
+  "tests/unit/test_backends.py::test_unknown_family_raises": {
+   "python_only": "defensive branch, not reachable through the vector surface (Chain.family is only 'evm' or 'solana'); a port may keep or omit it"
+  },
+  "tests/unit/test_chains.py::test_arc_fee_floor_and_native_token": [
+   "tier1/chains"
+  ],
+  "tests/unit/test_chains.py::test_arc_has_only_usdc": [
+   "tier1/chains"
+  ],
+  "tests/unit/test_chains.py::test_arc_usdc_logs_come_from_system_emitter": [
+   "tier1/chains"
+  ],
+  "tests/unit/test_chains.py::test_base_has_no_usdt": [
+   "tier1/chains"
+  ],
+  "tests/unit/test_chains.py::test_chain_invariants": [
+   "tier1/chains"
+  ],
+  "tests/unit/test_chains.py::test_display_order_covers_all_chains": [
+   "tier1/chains",
+   "tier1/config"
+  ],
+  "tests/unit/test_chains.py::test_display_order_puts_arc_after_the_familiar_l2s": [
+   "tier1/chains",
+   "tier1/config"
+  ],
+  "tests/unit/test_chains.py::test_get_chains": [
+   "tier1/chains"
+  ],
+  "tests/unit/test_chains.py::test_mainnet_chain_ids": [
+   "tier1/chains"
+  ],
+  "tests/unit/test_chains.py::test_mainnet_token_set_is_exactly_pinned": [
+   "tier1/chains"
+  ],
+  "tests/unit/test_chains.py::test_other_chains_have_no_log_source_or_fee_floor": [
+   "tier1/chains"
+  ],
+  "tests/unit/test_chains.py::test_pinned_mainnet_tokens": [
+   "tier1/chains"
+  ],
+  "tests/unit/test_chains.py::test_solana_entries": [
+   "tier1/chains"
+  ],
+  "tests/unit/test_chains.py::test_solana_mints_are_pinned": [
+   "tier1/chains"
+  ],
+  "tests/unit/test_chains.py::test_testnet_chain_ids_use_same_keys": [
+   "tier1/chains"
+  ],
+  "tests/unit/test_chains.py::test_token_address_is_normalized_to_checksum": [
+   "tier1/chains",
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_config.py::test_accent_is_normalized": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_accepted_wallets_include_previous": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_add_item": [
+   "tier1/items"
+  ],
+  "tests/unit/test_config.py::test_add_item_min_price": [
+   "tier1/items"
+  ],
+  "tests/unit/test_config.py::test_add_item_rejects": [
+   "tier1/items"
+  ],
+  "tests/unit/test_config.py::test_add_item_rejects_duplicates": [
+   "tier1/items"
+  ],
+  "tests/unit/test_config.py::test_add_item_token_must_be_enabled": [
+   "tier1/items"
+  ],
+  "tests/unit/test_config.py::test_appearance_defaults": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_arc_drops_out_when_usdc_is_disabled": [
+   "tier1/config",
+   "tier1/payments"
+  ],
+  "tests/unit/test_config.py::test_bad_accent": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_bad_chains": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_bad_confirmations": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_bad_methods": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_bad_rpc_urls": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_bad_tokens": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_bad_wallet_raises_config_error": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_browser_timeout_accepts_a_positive_number": {
+   "python_only": "the accepted value is 7.5 and vectors cannot carry non-integral floats (Global Constraints: they raise); ports must test fractional timeouts natively"
+  },
+  "tests/unit/test_config.py::test_chains_for_token": [
+   "tier1/payments"
+  ],
+  "tests/unit/test_config.py::test_config_error_is_a_value_error": {
+   "python_only": "Python exception hierarchy; vectors compare ConfigError codes, never exception classes, and each language has its own error types"
+  },
+  "tests/unit/test_config.py::test_default_chains_include_arc": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_default_methods_are_not_shared_between_configs": {
+   "python_only": "object aliasing between two build_config() results is invisible to vectors (each case builds one fresh Config); each port needs its own aliasing test"
+  },
+  "tests/unit/test_config.py::test_defaults": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_enabled_chains_respects_order_tokens_and_overrides": [
+   "tier1/payments",
+   "tier2/config/rpc_and_confirmation_overrides"
+  ],
+  "tests/unit/test_config.py::test_logo_accepts_raster_images": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_logo_content_type": {
+   "python_only": "HTTP content type for the local checkout server's logo; checkout/UI is excluded from conformance (D8) and each engine serves its own assets"
+  },
+  "tests/unit/test_config.py::test_logo_rejects_other_values": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_methods_merge_partial_options": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_no_chain_supports_token": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_qr_chains_subset_ok": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_rpc_url_string_is_accepted": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_testnet_has_no_usdt": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_text_on_accent_stays_readable": {
+   "python_only": "text colour for the Ren'Py screens and checkout page; UI is excluded from conformance (D8) and each engine draws its own screens"
+  },
+  "tests/unit/test_config.py::test_wallet_is_normalized_from_lowercase": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config_solana.py::test_a_wallet_is_required": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config_solana.py::test_bad_solana_wallet": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config_solana.py::test_both_families_default_to_evm_then_solana": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config_solana.py::test_custom_evm_chains_come_before_solana": [
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_config_solana.py::test_family_rules": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config_solana.py::test_previous_wallets_are_routed_by_format": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config_solana.py::test_previous_wallets_drop_the_current_wallet_and_repeats": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config_solana.py::test_solana_only_game": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config_solana.py::test_solana_rpc_override_and_testnet_tokens": [
+   "tier1/config",
+   "tier1/items",
+   "tier2/config/rpc_and_confirmation_overrides"
+  ],
+  "tests/unit/test_config_solana.py::test_token_account_instead_of_wallet_is_refused_with_a_hint": [
+   "tier1/config"
+  ],
+  "tests/unit/test_custom_chains.py::test_add_chain_rejects_builtin_arc_key": [
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_custom_chains.py::test_build_chain_accepts_single_rpc_string_and_lowercase_token": [
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_custom_chains.py::test_build_chain_allows_plain_http_on_this_computer": [
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_custom_chains.py::test_build_chain_fields": [
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_custom_chains.py::test_build_chain_rejects": [
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_custom_chains.py::test_build_config_rejects_bad_custom_chains": [
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_custom_chains.py::test_chain_ids_may_repeat_across_networks": [
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_custom_chains.py::test_custom_chain_belongs_to_one_network": [
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_custom_chains.py::test_custom_chain_can_sell_items": [
+   "tier1/items"
+  ],
+  "tests/unit/test_custom_chains.py::test_custom_chain_is_enabled_by_default_after_built_ins": [
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_custom_chains.py::test_custom_chain_only_and_overrides": [
+   "tier1/custom_chains",
+   "tier2/config/rpc_and_confirmation_overrides"
+  ],
+  "tests/unit/test_custom_chains.py::test_engine_pays_restores_and_reverifies_on_custom_chain": [
+   "tier2/custom_chains/pay_restore_reverify"
+  ],
+  "tests/unit/test_custom_chains.py::test_receipts_from_a_removed_custom_chain_are_kept": [
+   "tier2/custom_chains/removed_chain_receipt_kept"
+  ],
+  "tests/unit/test_engine.py::test_cancelled_sessions_do_not_report_expiry": [
+   "tier2/evm/cancelled_session_no_expiry"
+  ],
+  "tests/unit/test_engine.py::test_chain_applies_config_overrides": [
+   "tier2/evm/config_overrides_and_full_registry"
+  ],
+  "tests/unit/test_engine.py::test_discard_session_only_drops_untouched_sessions": [
+   "tier2/evm/session_actions"
+  ],
+  "tests/unit/test_engine.py::test_end_to_end_tick_pays_and_updates_snapshot": [
+   "tier2/evm/unlock_paid_exact"
+  ],
+  "tests/unit/test_engine.py::test_engine_copies_initial_state": {
+   "python_only": "Aliasing of the dicts a caller passes to the constructor: vectors load setup from JSON, so a shared reference cannot exist or be observed; each port tests its own copy semantics"
+  },
+  "tests/unit/test_engine.py::test_report_hint_and_ui_status": [
+   "tier2/evm/hint_verified"
+  ],
+  "tests/unit/test_engine.py::test_restore_through_engine": [
+   "tier2/evm/restore_through_engine"
+  ],
+  "tests/unit/test_engine.py::test_reverify_uses_accepted_wallets": [
+   "tier2/evm/reverify_accepted_wallets"
+  ],
+  "tests/unit/test_engine.py::test_rpc_clients_are_cached_per_chain": [
+   "tier2/evm/config_overrides_and_full_registry"
+  ],
+  "tests/unit/test_engine.py::test_set_ui_status_ignores_finished_sessions": [
+   "tier2/evm/session_actions"
+  ],
+  "tests/unit/test_engine.py::test_snapshot_is_detached_from_engine_state": {
+   "python_only": "Aliasing of a snapshot's nested dicts: vectors compare snapshots as serialised JSON, which cannot reveal shared references; each port tests its own copy semantics"
+  },
+  "tests/unit/test_engine.py::test_start_session_rejects": [
+   "tier2/evm/start_rejections"
+  ],
+  "tests/unit/test_engine.py::test_start_session_rejects_disabled_chain": [
+   "tier2/evm/start_rejections"
+  ],
+  "tests/unit/test_engine.py::test_start_session_rejects_float_amount": [
+   "tier1/payments"
+  ],
+  "tests/unit/test_engine.py::test_start_session_returns_a_copy": {
+   "python_only": "Aliasing of a returned Python dict: vectors record returns as JSON values, so whether a caller's later mutation can reach engine state is not observable; each port tests its own copy semantics"
+  },
+  "tests/unit/test_engine.py::test_start_tip_session": [
+   "tier2/evm/tip_paid_at_preset"
+  ],
+  "tests/unit/test_engine.py::test_start_unlock_session_uses_item_defaults": [
+   "tier2/evm/unlock_paid_exact"
+  ],
+  "tests/unit/test_engine.py::test_tick_survives_any_transport_exception_in_each_session": [
+   "tier2/evm/crash_in_one_session"
+  ],
+  "tests/unit/test_engine.py::test_window_expiry_is_reported_once_and_scanning_continues": [
+   "tier2/evm/window_expiry_reported_once"
+  ],
+  "tests/unit/test_engine_solana.py::test_an_exception_in_one_session_does_not_stop_the_others": [
+   "tier2/solana/crash_in_one_session"
+  ],
+  "tests/unit/test_engine_solana.py::test_default_error_hook_prints_the_traceback": {
+   "python_only": "The default on_error hook prints the traceback to Python's stderr; where an embedding runtime reports a swallowed crash is its own choice, and the count of such crashes is pinned as internal_errors in tier2/solana/crash_in_one_session. A port cannot share a stderr format"
+  },
+  "tests/unit/test_engine_solana.py::test_hint_on_solana_session_must_be_a_signature": [
+   "tier2/solana/paid_by_hint"
+  ],
+  "tests/unit/test_engine_solana.py::test_missing_token_account_marks_token_unready": [
+   "tier2/solana/readiness"
+  ],
+  "tests/unit/test_engine_solana.py::test_readiness_check_crash_assumes_ready_and_is_reported": [
+   "tier2/solana/readiness_crash"
+  ],
+  "tests/unit/test_engine_solana.py::test_readiness_check_failure_assumes_ready": [
+   "tier2/solana/readiness"
+  ],
+  "tests/unit/test_engine_solana.py::test_session_on_an_unwatchable_chain_is_closed_after_the_horizon": [
+   "tier2/solana/unwatchable_sessions"
+  ],
+  "tests/unit/test_engine_solana.py::test_session_without_a_wallet_for_its_chain_does_not_stall_the_others": [
+   "tier2/solana/unwatchable_sessions"
+  ],
+  "tests/unit/test_engine_solana.py::test_solana_payment_end_to_end": [
+   "tier2/solana/paid_by_reference"
+  ],
+  "tests/unit/test_evm_addresses.py::test_address_topic_is_left_padded_lowercase": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_addresses.py::test_checksum_from_lowercase": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_addresses.py::test_checksum_from_uppercase_body": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_addresses.py::test_checksum_rejects_malformed": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_addresses.py::test_is_checksum_address": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_addresses.py::test_normalize_accepts_correct_mixed_case": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_addresses.py::test_normalize_accepts_single_case_input": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_addresses.py::test_normalize_rejects_wrong_mixed_case": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_addresses.py::test_transfer_topic_constant": [
+   "tier1/keccak",
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_logs.py::test_empty_data_means_zero_value": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_logs.py::test_ignores_erc721_transfer_with_four_topics": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_logs.py::test_ignores_other_events": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_logs.py::test_ignores_removed_logs": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_logs.py::test_missing_removed_field_is_fine": [
+   "tier1/evm_address",
+   "tier2/evm/unlock_paid_exact"
+  ],
+  "tests/unit/test_evm_logs.py::test_parses_erc20_transfer": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_evm_logs.py::test_topic0_comparison_is_case_insensitive": [
+   "tier1/evm_address"
+  ],
+  "tests/unit/test_keccak.py::test_keccak256_returns_32_bytes": [
+   "tier1/keccak"
+  ],
+  "tests/unit/test_keccak.py::test_keccak256_vectors": [
+   "tier1/keccak"
+  ],
+  "tests/unit/test_page_messages.py::test_a_bad_sender_is_dropped_not_fatal": [
+   "tier1/page_messages"
+  ],
+  "tests/unit/test_page_messages.py::test_bad_build_messages_raise": [
+   "tier1/page_messages"
+  ],
+  "tests/unit/test_page_messages.py::test_bad_tx_messages_raise": [
+   "tier1/page_messages"
+  ],
+  "tests/unit/test_page_messages.py::test_build_message": [
+   "tier1/page_messages"
+  ],
+  "tests/unit/test_page_messages.py::test_tx_message_with_a_checksummed_sender": [
+   "tier1/page_messages"
+  ],
+  "tests/unit/test_paylinks.py::test_eip681_uri": [
+   "tier1/paylinks"
+  ],
+  "tests/unit/test_paylinks.py::test_qr_matrix_is_square_with_finder_patterns": [
+   "tier1/qr"
+  ],
+  "tests/unit/test_paylinks.py::test_qr_rects_cover_exactly_the_dark_modules": [
+   "tier1/qr"
+  ],
+  "tests/unit/test_payments.py::test_float_amount_is_type_error": [
+   "tier1/payments"
+  ],
+  "tests/unit/test_payments.py::test_rejections": [
+   "tier1/payments"
+  ],
+  "tests/unit/test_payments.py::test_tip_spec": [
+   "tier1/payments"
+  ],
+  "tests/unit/test_payments.py::test_token_not_enabled": [
+   "tier1/payments"
+  ],
+  "tests/unit/test_payments.py::test_unlock_defaults_from_item": [
+   "tier1/payments"
+  ],
+  "tests/unit/test_payments.py::test_unlock_in_other_token_limits_chains": [
+   "tier1/payments"
+  ],
+  "tests/unit/test_payments.py::test_unlock_sale_price_allowed_down_to_min_price": [
+   "tier1/payments",
+   "tier2/evm/min_price_sale"
+  ],
+  "tests/unit/test_receipts.py::test_add_receipt_dedupes_on_key": [
+   "tier1/receipts"
+  ],
+  "tests/unit/test_receipts.py::test_make_receipt_shape": [
+   "tier1/receipts"
+  ],
+  "tests/unit/test_receipts.py::test_make_receipt_validates": [
+   "tier1/receipts"
+  ],
+  "tests/unit/test_receipts.py::test_ownership_ignores_unknown_items": [
+   "tier1/receipts"
+  ],
+  "tests/unit/test_receipts.py::test_ownership_requires_min_price": [
+   "tier1/receipts"
+  ],
+  "tests/unit/test_receipts.py::test_ownership_skips_malformed_entries": [
+   "tier1/receipts"
+  ],
+  "tests/unit/test_receipts.py::test_ownership_unlock_and_tips": [
+   "tier1/receipts"
+  ],
+  "tests/unit/test_receipts.py::test_receipt_key": [
+   "tier1/receipts"
+  ],
+  "tests/unit/test_restore.py::test_apply_auto_and_chosen_candidates": [
+   "tier2/restore/ambiguous_amounts_are_applied_with_choices"
+  ],
+  "tests/unit/test_restore.py::test_apply_skips_unchosen_and_rejects_invalid_choice": [
+   "tier2/restore/apply_without_a_choice_or_with_a_bad_one"
+  ],
+  "tests/unit/test_restore.py::test_classify_item_code": [
+   "tier2/restore/classify_amounts",
+   "tier2/restore/unlock_found"
+  ],
+  "tests/unit/test_restore.py::test_classify_known_code_but_below_min_price_asks": [
+   "tier2/restore/classify_amounts"
+  ],
+  "tests/unit/test_restore.py::test_classify_round_amount_asks_player": [
+   "tier2/restore/classify_amounts"
+  ],
+  "tests/unit/test_restore.py::test_classify_tip_code": [
+   "tier2/restore/classify_amounts",
+   "tier2/restore/tip_to_a_previous_wallet"
+  ],
+  "tests/unit/test_restore.py::test_classify_unknown_code_offers_affordable_items": [
+   "tier2/restore/classify_amounts"
+  ],
+  "tests/unit/test_restore.py::test_lookup_accepts_previous_wallet": [
+   "tier2/restore/tip_to_a_previous_wallet"
+  ],
+  "tests/unit/test_restore.py::test_lookup_errors": [
+   "tier2/restore/reverted",
+   "tier2/restore/not_a_payment"
+  ],
+  "tests/unit/test_restore.py::test_lookup_finds_chain_and_classifies": [
+   "tier2/evm/restore_through_engine",
+   "tier2/restore/unlock_found"
+  ],
+  "tests/unit/test_restore.py::test_lookup_invalid_hash": [
+   "tier2/restore/invalid_hash"
+  ],
+  "tests/unit/test_restore.py::test_lookup_marks_already_restored": [
+   "tier2/restore/already_restored",
+   "tier2/custom_chains/pay_restore_reverify"
+  ],
+  "tests/unit/test_restore.py::test_lookup_network_trouble_is_reported_when_not_found": [
+   "tier2/restore/network_unavailable"
+  ],
+  "tests/unit/test_restore.py::test_lookup_not_found_anywhere": [
+   "tier2/restore/not_found"
+  ],
+  "tests/unit/test_reverify.py::test_block_slightly_ahead_of_lagging_head_is_kept": [
+   "tier2/reverify/blocks_ahead_of_the_node"
+  ],
+  "tests/unit/test_reverify.py::test_genuine_receipt_is_kept": [
+   "tier2/reverify/genuine_receipt_is_kept"
+  ],
+  "tests/unit/test_reverify.py::test_impossible_future_block_is_revoked": [
+   "tier2/reverify/blocks_ahead_of_the_node"
+  ],
+  "tests/unit/test_reverify.py::test_invented_receipt_with_no_log_is_revoked": [
+   "tier2/reverify/contradicted_receipts_are_revoked"
+  ],
+  "tests/unit/test_reverify.py::test_lookup_is_scoped_to_the_receipt_block": [
+   "tier2/reverify/genuine_receipt_is_kept"
+  ],
+  "tests/unit/test_reverify.py::test_malformed_entries_are_removed": [
+   "tier2/reverify/malformed_entries_are_removed"
+  ],
+  "tests/unit/test_reverify.py::test_mismatching_log_revokes": [
+   "tier2/reverify/contradicted_receipts_are_revoked"
+  ],
+  "tests/unit/test_reverify.py::test_outage_keeps_everything": [
+   "tier2/reverify/outage_keeps_everything"
+  ],
+  "tests/unit/test_reverify.py::test_previous_wallet_payments_survive_wallet_change": [
+   "tier2/evm/reverify_accepted_wallets",
+   "tier2/reverify/previous_wallet_dropped_when_unlisted"
+  ],
+  "tests/unit/test_reverify.py::test_token_not_on_chain_is_revoked": [
+   "tier2/reverify/token_or_chain_unknown"
+  ],
+  "tests/unit/test_reverify.py::test_unknown_chain_is_left_alone": [
+   "tier2/reverify/token_or_chain_unknown",
+   "tier2/custom_chains/removed_chain_receipt_kept"
+  ],
+  "tests/unit/test_rpc_client.py::test_all_endpoints_down_raises_unavailable": [
+   "tier2/rpc/all_endpoints_fail"
+  ],
+  "tests/unit/test_rpc_client.py::test_archive_message_counts_as_range_error": [
+   "tier2/rpc/range_error_phrases"
+  ],
+  "tests/unit/test_rpc_client.py::test_block_hash_none_for_unknown_block": [
+   "tier2/rpc/receipt_and_block_hash_requests"
+  ],
+  "tests/unit/test_rpc_client.py::test_block_number_parses_hex": [
+   "tier2/rpc/healthy_endpoint"
+  ],
+  "tests/unit/test_rpc_client.py::test_call_sends_jsonrpc_and_returns_result": [
+   "tier2/rpc/healthy_endpoint"
+  ],
+  "tests/unit/test_rpc_client.py::test_cooldown_doubles_and_caps": [
+   "tier2/rpc/cooldown_doubles_to_the_cap_and_recovers"
+  ],
+  "tests/unit/test_rpc_client.py::test_failed_endpoint_cools_down_then_is_retried": [
+   "tier2/rpc/endpoint_cools_down_then_is_retried"
+  ],
+  "tests/unit/test_rpc_client.py::test_falls_back_to_next_endpoint_on_transport_error": [
+   "tier2/rpc/failover_on_transport_faults"
+  ],
+  "tests/unit/test_rpc_client.py::test_get_logs_chunks_by_log_range": [
+   "tier2/rpc/getlogs_is_chunked_by_the_log_range"
+  ],
+  "tests/unit/test_rpc_client.py::test_get_logs_empty_range_makes_no_calls": {
+   "python_only": "get_logs(10, 9) is not reachable through the vector surface: the watcher returns before asking when its cursor is past the head, and re-verification always asks one block; the cursor-past-head tick is pinned in rpc/getlogs_is_chunked_by_the_log_range"
+  },
+  "tests/unit/test_rpc_client.py::test_get_logs_gives_up_at_minimum_range": [
+   "tier2/rpc/getlogs_gives_up_at_the_minimum_range"
+  ],
+  "tests/unit/test_rpc_client.py::test_get_logs_halves_range_on_range_error_and_remembers": [
+   "tier2/rpc/getlogs_range_halves_without_a_stated_limit"
+  ],
+  "tests/unit/test_rpc_client.py::test_get_logs_sends_filter_shape": [
+   "tier2/rpc/getlogs_is_chunked_by_the_log_range"
+  ],
+  "tests/unit/test_rpc_client.py::test_is_range_error": [
+   "tier2/rpc/range_error_phrases"
+  ],
+  "tests/unit/test_rpc_client.py::test_jsonrpc_error_is_raised_without_rotation": [
+   "tier2/rpc/node_errors_and_junk_answers"
+  ],
+  "tests/unit/test_rpc_client.py::test_log_range_is_remembered_per_endpoint": [
+   "tier2/rpc/log_range_is_remembered_per_endpoint"
+  ],
+  "tests/unit/test_rpc_client.py::test_malformed_error_objects_become_rpc_errors": [
+   "tier2/rpc/malformed_error_objects"
+  ],
+  "tests/unit/test_rpc_client.py::test_malformed_response_counts_as_endpoint_failure": [
+   "tier2/rpc/node_errors_and_junk_answers"
+  ],
+  "tests/unit/test_rpc_client.py::test_rate_limit_jsonrpc_error_rotates": [
+   "tier2/rpc/node_errors_and_junk_answers"
+  ],
+  "tests/unit/test_rpc_client.py::test_receipt_and_block_hash": [
+   "tier2/rpc/receipt_and_block_hash_requests"
+  ],
+  "tests/unit/test_rpc_client.py::test_requires_urls": {
+   "python_only": "RpcClient constructor guard (no URLs): every Engine configuration carries at least one URL (build_chain and the registry reject empty lists), so it is not reachable through the vector surface"
+  },
+  "tests/unit/test_rpc_client.py::test_stated_limit_is_adopted_in_one_step": [
+   "tier2/rpc/getlogs_range_shrinks_to_a_stated_limit"
+  ],
+  "tests/unit/test_rpc_client.py::test_success_resets_cooldown": [
+   "tier2/rpc/cooldown_doubles_to_the_cap_and_recovers"
+  ],
+  "tests/unit/test_rpc_client.py::test_suggested_range_uses_stated_limit_or_halves": [
+   "tier2/rpc/getlogs_range_halves_without_a_stated_limit",
+   "tier2/rpc/getlogs_range_shrinks_to_a_stated_limit",
+   "tier2/rpc/getlogs_gives_up_at_the_minimum_range"
+  ],
+  "tests/unit/test_sessions.py::test_bad_tx_hash": [
+   "tier1/tx_ids",
+   "tier2/evm/hint_verified"
+  ],
+  "tests/unit/test_sessions.py::test_constants": [
+   "tier2/evm/hint_not_mined_then_dropped",
+   "tier2/evm/horizon_closes_session",
+   "tier2/evm/window_expiry_reported_once"
+  ],
+  "tests/unit/test_sessions.py::test_create_rejects_bad_kind_and_price": {
+   "python_only": "create_session's kind and price checks are defensive duplicates: Engine.start_session validates both through prepare_payment first (payment.bad_kind, amount parsing; pinned by tier1/payments and tier2/evm/start_rejections), and hands create_session an already-parsed price, so no Engine action reaches create_session's own ValueError/TypeError; a port may keep or omit them"
+  },
+  "tests/unit/test_sessions.py::test_create_session_record_shape": [
+   "tier2/evm/unlock_paid_exact"
+  ],
+  "tests/unit/test_sessions.py::test_get_remove_list": {
+   "python_only": "get_session and list_sessions are helpers no core path calls (only this test), so their ordering is not observable; remove_session's idempotence shows in tier2/evm/session_actions (a second discard)"
+  },
+  "tests/unit/test_sessions.py::test_hints": [
+   "tier2/evm/hint_verified"
+  ],
+  "tests/unit/test_sessions.py::test_random_nonce_and_unique_ids": [
+   "tier2/evm/session_ids_and_nonces"
+  ],
+  "tests/unit/test_sessions.py::test_record_contains_only_plain_types": {
+   "python_only": "Guards Ren'Py's pickling of persistent data against custom classes; the vectors' snapshots are JSON by construction (checked by the state schema), so a port has no equivalent property to test"
+  },
+  "tests/unit/test_sessions.py::test_set_hint_unknown_session": [
+   "tier2/evm/session_actions"
+  ],
+  "tests/unit/test_sessions.py::test_tip_session_encodes_code_zero": [
+   "tier2/evm/tip_paid_at_preset"
+  ],
+  "tests/unit/test_sessions.py::test_ui_status": [
+   "tier2/evm/session_actions"
+  ],
+  "tests/unit/test_sessions.py::test_window_and_horizon": [
+   "tier2/evm/horizon_closes_session",
+   "tier2/evm/window_expiry_reported_once"
+  ],
+  "tests/unit/test_solana_backend.py::test_check_ready": [
+   "tier2/solana/readiness"
+  ],
+  "tests/unit/test_solana_backend.py::test_invented_signature_is_dropped_when_history_covers_it": [
+   "tier2/solana/history_covering_endpoint_drops"
+  ],
+  "tests/unit/test_solana_backend.py::test_lookup_classifies_by_amount_code": [
+   "tier2/solana/restore_lookup"
+  ],
+  "tests/unit/test_solana_backend.py::test_lookup_outcomes": [
+   "tier2/solana/restore_lookup"
+  ],
+  "tests/unit/test_solana_backend.py::test_make_rpc_wraps_the_failover_client": {
+   "python_only": "Asserts the Python class composition (SolanaRpc wrapping an RpcClient); the URL order it checks shows in the url of every recorded call. A port cannot share its class structure"
+  },
+  "tests/unit/test_solana_backend.py::test_old_receipt_on_a_pruned_endpoint_is_kept": [
+   "tier2/solana/history_pruned_endpoints_keep"
+  ],
+  "tests/unit/test_solana_backend.py::test_outage_keeps_and_far_future_slot_drops": [
+   "tier2/solana/reverify_outage_and_future_slot"
+  ],
+  "tests/unit/test_solana_backend.py::test_restore_routes_signatures_to_solana_and_hashes_to_evm": [
+   "tier2/solana/restore_lookup"
+  ],
+  "tests/unit/test_solana_backend.py::test_reverify_drops_contradicted_receipts": [
+   "tier2/solana/reverify_receipts"
+  ],
+  "tests/unit/test_solana_backend.py::test_reverify_keeps_a_receipt_whose_transaction_it_cannot_read": [
+   "tier2/solana/reverify_unreadable_transactions"
+  ],
+  "tests/unit/test_solana_backend.py::test_reverify_keeps_genuine_and_previous_wallet_receipts": [
+   "tier2/solana/reverify_receipts"
+  ],
+  "tests/unit/test_solana_backend.py::test_start_fields": [
+   "tier2/solana/paid_by_reference"
+  ],
+  "tests/unit/test_solana_base58.py::test_decode_rejects_bad_input": [
+   "tier1/base58"
+  ],
+  "tests/unit/test_solana_base58.py::test_fixed_lengths": [
+   "tier1/base58"
+  ],
+  "tests/unit/test_solana_base58.py::test_known_vectors": [
+   "tier1/base58"
+  ],
+  "tests/unit/test_solana_base58.py::test_matches_solders_for_random_keys_and_signatures": [
+   "tier1/base58"
+  ],
+  "tests/unit/test_solana_build.py::test_build_payment_rejects_a_bad_account": [
+   "tier2/solana/build_payment"
+  ],
+  "tests/unit/test_solana_build.py::test_build_payment_transaction": [
+   "tier2/solana/build_payment"
+  ],
+  "tests/unit/test_solana_build.py::test_build_route": {
+   "python_only": "The local checkout server's POST /build route (status codes, JSON bodies): checkout/UI step logic, excluded by D8; the transaction it serves is pinned in tier2/solana/build_payment"
+  },
+  "tests/unit/test_solana_build.py::test_controller_passes_family_info_and_a_build_callback": {
+   "python_only": "CheckoutController wiring of the local checkout server (session info for the browser page, build callback): checkout/UI step logic, excluded by D8"
+  },
+  "tests/unit/test_solana_build.py::test_engine_builds_only_for_solana_sessions": [
+   "tier2/solana/build_payment"
+  ],
+  "tests/unit/test_solana_paylinks.py::test_transfer_request_uri": [
+   "tier1/paylinks"
+  ],
+  "tests/unit/test_solana_paylinks.py::test_whole_amount_keeps_six_decimals_and_empty_label_is_omitted": [
+   "tier1/paylinks"
+  ],
+  "tests/unit/test_solana_pda.py::test_associated_token_address_matches_solders": [
+   "tier1/pda"
+  ],
+  "tests/unit/test_solana_pda.py::test_find_program_address_matches_solders": [
+   "tier1/pda"
+  ],
+  "tests/unit/test_solana_pda.py::test_on_curve_matches_solders_for_random_bytes": [
+   "tier1/ed25519"
+  ],
+  "tests/unit/test_solana_pda.py::test_seed_limits": [
+   "tier1/pda"
+  ],
+  "tests/unit/test_solana_pda.py::test_token_accounts_are_off_curve": [
+   "tier1/ed25519",
+   "tier1/pda"
+  ],
+  "tests/unit/test_solana_pda.py::test_wallet_keys_are_on_curve": [
+   "tier1/ed25519"
+  ],
+  "tests/unit/test_solana_pda.py::test_wrong_length_is_not_on_curve": [
+   "tier1/ed25519"
+  ],
+  "tests/unit/test_solana_rpc.py::test_get_transaction_any_retries_with_the_named_version": [
+   "tier2/solana/tx_version_named_by_node"
+  ],
+  "tests/unit/test_solana_rpc.py::test_get_transaction_any_returns_first_found": [
+   "tier2/solana/history_found_on_second_endpoint"
+  ],
+  "tests/unit/test_solana_rpc.py::test_get_transaction_any_without_answers_raises": [
+   "tier2/solana/history_endpoints_fail"
+  ],
+  "tests/unit/test_solana_rpc.py::test_get_transaction_asks_for_newest_version_and_json": [
+   "tier2/solana/paid_by_reference"
+  ],
+  "tests/unit/test_solana_rpc.py::test_get_transaction_lowers_version_when_the_node_rejects_the_parameter": [
+   "tier2/solana/tx_version_lowered"
+  ],
+  "tests/unit/test_solana_rpc.py::test_get_transaction_retries_once_with_the_version_the_node_names": [
+   "tier2/solana/tx_version_named_by_node"
+  ],
+  "tests/unit/test_solana_rpc.py::test_null_from_full_history_endpoint_is_authoritative": [
+   "tier2/solana/history_covering_endpoint_drops"
+  ],
+  "tests/unit/test_solana_rpc.py::test_null_only_from_pruned_endpoints_is_not_authoritative": [
+   "tier2/solana/history_pruned_endpoints_keep"
+  ],
+  "tests/unit/test_solana_rpc.py::test_small_helpers": [
+   "tier2/solana/paid_by_reference",
+   "tier2/solana/build_payment",
+   "tier2/solana/readiness"
+  ],
+  "tests/unit/test_solana_rpc.py::test_try_at_each_live_url_reports_per_endpoint_and_dead_ones_cool_down": [
+   "tier2/solana/history_endpoints_fail"
+  ],
+  "tests/unit/test_solana_rpc.py::test_unsupported_version_error_naming_an_older_version_is_raised": [
+   "tier2/solana/tx_version_error_naming_an_older_version"
+  ],
+  "tests/unit/test_solana_tx.py::test_compact_u16": [
+   "tier1/solana_tx"
+  ],
+  "tests/unit/test_solana_tx.py::test_compute_budget_program_id": [
+   "tier1/solana_tx"
+  ],
+  "tests/unit/test_solana_tx.py::test_instruction_data": [
+   "tier1/solana_tx"
+  ],
+  "tests/unit/test_solana_tx.py::test_multi_signer_message_is_byte_identical_to_solders": [
+   "tier1/solana_tx"
+  ],
+  "tests/unit/test_solana_tx.py::test_payment_message_is_byte_identical_to_solders": [
+   "tier1/solana_tx"
+  ],
+  "tests/unit/test_solana_tx.py::test_unsigned_transaction_matches_solders": [
+   "tier1/solana_tx"
+  ],
+  "tests/unit/test_solana_watch.py::test_already_receipted_payment_is_not_matched_again": [
+   "tier2/solana/already_receipted"
+  ],
+  "tests/unit/test_solana_watch.py::test_bad_hints_are_dropped_with_a_reason": [
+   "tier2/solana/hint_verdicts"
+  ],
+  "tests/unit/test_solana_watch.py::test_good_hint_matches_round_amount": [
+   "tier2/solana/paid_by_hint"
+  ],
+  "tests/unit/test_solana_watch.py::test_hint_expiry_is_reported_even_if_the_reference_lookup_fails": [
+   "tier2/solana/hint_expiry_reference_rpc_error",
+   "tier2/solana/hint_expiry_reference_unavailable"
+  ],
+  "tests/unit/test_solana_watch.py::test_hint_not_yet_visible_waits_then_expires": [
+   "tier2/solana/hint_not_landed"
+  ],
+  "tests/unit/test_solana_watch.py::test_hint_that_never_lands_expires_after_the_solana_timeout": [
+   "tier2/solana/hint_not_landed"
+  ],
+  "tests/unit/test_solana_watch.py::test_hint_verdicts_name_the_hint_they_are_about": [
+   "tier2/solana/hint_verdicts"
+  ],
+  "tests/unit/test_solana_watch.py::test_hint_whose_lookup_keeps_failing_still_expires": [
+   "tier2/solana/hint_lookup_keeps_failing"
+  ],
+  "tests/unit/test_solana_watch.py::test_horizon_closes_the_session": [
+   "tier2/solana/horizon_closes_session"
+  ],
+  "tests/unit/test_solana_watch.py::test_network_outage_changes_nothing": [
+   "tier2/solana/outage_changes_nothing"
+  ],
+  "tests/unit/test_solana_watch.py::test_outage_during_a_scan_walk_leaves_the_cursors_unchanged": [
+   "tier2/solana/scan_far_behind"
+  ],
+  "tests/unit/test_solana_watch.py::test_reference_matches_any_amount_and_detects_underpayment": [
+   "tier2/solana/underpaid"
+  ],
+  "tests/unit/test_solana_watch.py::test_reference_payment_confirms_then_finalizes_into_a_receipt": [
+   "tier2/solana/paid_by_reference",
+   "tier2/solana/confirmed_then_finalized"
+  ],
+  "tests/unit/test_solana_watch.py::test_reference_payment_matches_while_a_hint_is_pending": [
+   "tier2/solana/hint_superseded_by_reference"
+  ],
+  "tests/unit/test_solana_watch.py::test_registered_and_normalizes_signatures": [
+   "tier2/solana/paid_by_hint"
+  ],
+  "tests/unit/test_solana_watch.py::test_scan_crosses_a_backlog_longer_than_one_walk": [
+   "tier2/solana/scan_far_behind"
+  ],
+  "tests/unit/test_solana_watch.py::test_scan_matches_exact_amount_only_and_moves_cursor": [
+   "tier2/solana/scan_exact_amount"
+  ],
+  "tests/unit/test_solana_watch.py::test_scan_never_skips_signatures_when_it_falls_far_behind": [
+   "tier2/solana/scan_far_behind"
+  ],
+  "tests/unit/test_solana_watch.py::test_scan_pages_back_past_a_full_page": [
+   "tier2/solana/scan_pages_past_a_full_page"
+  ],
+  "tests/unit/test_solana_watch.py::test_scan_skips_failed_signatures_without_fetching_them": [
+   "tier2/solana/failed_tx"
+  ],
+  "tests/unit/test_solana_watch.py::test_scan_spends_at_most_five_transactions_per_step": [
+   "tier2/solana/scan_budget"
+  ],
+  "tests/unit/test_solana_watch.py::test_scan_walk_resumes_where_it_stopped_after_new_traffic": [
+   "tier2/solana/scan_far_behind"
+  ],
+  "tests/unit/test_solana_watch.py::test_scan_walk_stops_at_signatures_older_than_the_session": [
+   "tier2/solana/scan_stops_before_the_session_no_cursor",
+   "tier2/solana/scan_stops_before_the_session_unknown_cursor"
+  ],
+  "tests/unit/test_solana_watch.py::test_token_accepts_base58_mints_and_keeps_evm_checksums": {
+   "python_only": "Not reachable through the vector surface: Token objects are built only for the built-in registry (fixed mints and checksummed addresses, pinned in tier1/chains) and for EVM custom chains, and no action or config reaches the base58 branch or the rejection of an arbitrary string"
+  },
+  "tests/unit/test_solana_watch.py::test_transfer_to_reads_balance_changes": [
+   "tier2/solana/transfer_reading"
+  ],
+  "tests/unit/test_solana_watch.py::test_vanished_match_becomes_a_hint_and_is_found_again": [
+   "tier2/solana/status_vanishes_then_returns"
+  ],
+  "tests/unit/test_solana_watch.py::test_waits_when_nothing_arrived": [
+   "tier2/solana/paid_by_reference"
+  ],
+  "tests/unit/test_solana_watch.py::test_wrong_mint_on_the_reference_is_ignored": [
+   "tier2/solana/wrong_mint"
+  ],
+  "tests/unit/test_transfers.py::test_evm_hash_is_lowercased": [
+   "tier1/receipts"
+  ],
+  "tests/unit/test_transfers.py::test_make_receipt_accepts_a_solana_transfer": [
+   "tier1/receipts"
+  ],
+  "tests/unit/test_transfers.py::test_solana_signature_keeps_its_case": [
+   "tier1/receipts"
+  ],
+  "tests/unit/test_transfers.py::test_transfer_log_converts_to_transfer": {
+   "python_only": "TransferLog.to_transfer() is a Python convenience that no core path calls (make_receipt and restore take either class), so no vector can observe it"
+  },
+  "tests/unit/test_watcher_awaiting.py::test_hint_accepts_any_amount_at_or_above_min_price": [
+   "tier2/evm/overpaid_above_price"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_hint_dropped_after_timeout_then_scan_resumes": [
+   "tier2/evm/hint_not_mined_then_dropped"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_hint_from_before_session_is_rejected": [
+   "tier2/evm/transfer_before_start_block"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_hint_not_a_payment": [
+   "tier2/evm/hint_not_a_payment"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_hint_not_mined_yet_keeps_waiting_without_scanning": [
+   "tier2/evm/hint_not_mined_then_dropped"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_hint_reverted": [
+   "tier2/evm/hint_reverted"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_hint_tip_accepts_any_positive_amount": [
+   "tier2/evm/hint_picks_largest_transfer"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_hint_underpaid_unlock_is_final": [
+   "tier2/evm/underpaid_hint_is_final"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_hint_with_several_transfers_takes_largest_qualifying": [
+   "tier2/evm/hint_picks_largest_transfer"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_horizon_closes_session": [
+   "tier2/evm/horizon_closes_session"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_missing_session": {
+   "python_only": "defensive branch, not reachable through the vector surface (Engine.tick only advances ids from its own pending map); a port may keep or omit it"
+  },
+  "tests/unit/test_watcher_awaiting.py::test_network_outage_is_reported_and_state_kept": [
+   "tier2/evm/outage_keeps_session_state"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_scan_does_nothing_when_cursor_ahead_of_head": [
+   "tier2/evm/scan_is_bounded"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_scan_ignores_wrong_amount_token_recipient_and_old_blocks": [
+   "tier2/evm/scan_ignores_inexact_amount",
+   "tier2/evm/transfer_before_start_block",
+   "tier2/evm/wrong_recipient",
+   "tier2/evm/wrong_token"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_scan_is_bounded_per_step": [
+   "tier2/evm/scan_is_bounded"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_scan_matches_exact_amount_and_starts_confirming": [
+   "tier2/evm/unlock_paid_exact"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_scan_picks_earliest_match": [
+   "tier2/evm/scan_picks_earliest_and_skips_known_receipts"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_scan_skips_transfer_already_used_as_receipt": [
+   "tier2/evm/scan_picks_earliest_and_skips_known_receipts"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_scan_step_is_bounded_by_calls_when_rpc_reports_its_range": [
+   "tier2/evm/scan_is_bounded"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_scan_without_payment_advances_cursor": [
+   "tier2/evm/unlock_paid_exact"
+  ],
+  "tests/unit/test_watcher_confirming.py::test_cancelled_or_expired_ui_status_does_not_stop_confirmation": [
+   "tier2/evm/cancelled_does_not_stop_confirmation"
+  ],
+  "tests/unit/test_watcher_confirming.py::test_confirmations_override_is_respected": [
+   "tier2/evm/confirmations_override_respected"
+  ],
+  "tests/unit/test_watcher_confirming.py::test_counts_confirmations_until_required": [
+   "tier2/evm/unlock_paid_exact"
+  ],
+  "tests/unit/test_watcher_confirming.py::test_lagging_endpoint_below_match_block_is_not_a_reorg": [
+   "tier2/evm/lagging_endpoint_is_not_a_reorg"
+  ],
+  "tests/unit/test_watcher_confirming.py::test_outage_while_confirming_keeps_match": [
+   "tier2/evm/outage_keeps_session_state"
+  ],
+  "tests/unit/test_watcher_confirming.py::test_paid_writes_receipt_and_removes_session": [
+   "tier2/evm/unlock_paid_exact"
+  ],
+  "tests/unit/test_watcher_confirming.py::test_reorg_returns_to_awaiting_and_rewinds_cursor": [
+   "tier2/evm/reorg_during_confirming"
+  ],
+  "tests/unit/test_watcher_confirming.py::test_reorg_then_transfer_reappears_in_new_block": [
+   "tier2/evm/reorg_during_confirming"
+  ]
+ }
+}

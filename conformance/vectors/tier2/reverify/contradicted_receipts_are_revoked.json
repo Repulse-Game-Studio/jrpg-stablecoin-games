@@ -1,0 +1,297 @@
+{
+ "covers": [
+  "tests/unit/test_reverify.py::test_mismatching_log_revokes",
+  "tests/unit/test_reverify.py::test_invented_receipt_with_no_log_is_revoked"
+ ],
+ "id": "reverify/contradicted_receipts_are_revoked",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+  },
+  "custom_chains": [],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {
+   "arbitrum:0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729:2": {
+    "amount": "4.993742",
+    "block": 903,
+    "chain": "arbitrum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 2,
+    "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729"
+   },
+   "arbitrum:0x4f6f38c550660d612fd829e811b0ad6dbcede307e25336194bf40cf202b6700e:2": {
+    "amount": "4.993742",
+    "block": 904,
+    "chain": "arbitrum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 2,
+    "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0x4f6f38c550660d612fd829e811b0ad6dbcede307e25336194bf40cf202b6700e"
+   },
+   "arbitrum:0x5c555f99e03d7c258b4450a32d7e0e27190ff08d7d6abba56e68c5405ff36247:2": {
+    "amount": "4.993742",
+    "block": 906,
+    "chain": "arbitrum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 2,
+    "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0x5c555f99e03d7c258b4450a32d7e0e27190ff08d7d6abba56e68c5405ff36247"
+   },
+   "arbitrum:0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e:2": {
+    "amount": "4.993742",
+    "block": 902,
+    "chain": "arbitrum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 2,
+    "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e"
+   },
+   "arbitrum:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:2": {
+    "amount": "4.993742",
+    "block": 900,
+    "chain": "arbitrum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 2,
+    "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+   },
+   "arbitrum:0xecf0d51ac5eeba297a73a3036f458a39cdec936ed907213ba08d69157ded0084:2": {
+    "amount": "4.993742",
+    "block": 905,
+    "chain": "arbitrum",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 2,
+    "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0xecf0d51ac5eeba297a73a3036f458a39cdec936ed907213ba08d69157ded0084"
+   }
+  }
+ },
+ "steps": [
+  {
+   "action": "reverify",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+       "fromBlock": "0x387",
+       "toBlock": "0x387",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        [
+         "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+        ]
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 2, \"jsonrpc\": \"2.0\", \"result\": [{\"address\": \"0xaf88d065e77c8cc2239327c5edb3a432268e5831\", \"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000387\", \"blockNumber\": \"0x387\", \"data\": \"0x00000000000000000000000000000000000000000000000000000000004c32ce\", \"logIndex\": \"0x3\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed\"], \"transactionHash\": \"0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729\"}]}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 3, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+       "fromBlock": "0x388",
+       "toBlock": "0x388",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        [
+         "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+        ]
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 4, \"jsonrpc\": \"2.0\", \"result\": [{\"address\": \"0xaf88d065e77c8cc2239327c5edb3a432268e5831\", \"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000388\", \"blockNumber\": \"0x388\", \"data\": \"0x00000000000000000000000000000000000000000000000000000000004c32ce\", \"logIndex\": \"0x2\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed\"], \"transactionHash\": \"0xa9bbd86c339d649066f0c4cbe7f8456431bfa39b755f8fab83df25a4fb83e807\"}]}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 5, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+       "fromBlock": "0x38a",
+       "toBlock": "0x38a",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        [
+         "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+        ]
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 6, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 7, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+       "fromBlock": "0x386",
+       "toBlock": "0x386",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        [
+         "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+        ]
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 8, \"jsonrpc\": \"2.0\", \"result\": [{\"address\": \"0xaf88d065e77c8cc2239327c5edb3a432268e5831\", \"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000386\", \"blockNumber\": \"0x386\", \"data\": \"0x00000000000000000000000000000000000000000000000000000000004c32cf\", \"logIndex\": \"0x2\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed\"], \"transactionHash\": \"0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e\"}]}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 9, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+       "fromBlock": "0x384",
+       "toBlock": "0x384",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        [
+         "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+        ]
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 10, \"jsonrpc\": \"2.0\", \"result\": [{\"address\": \"0xaf88d065e77c8cc2239327c5edb3a432268e5831\", \"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000384\", \"blockNumber\": \"0x384\", \"data\": \"0x00000000000000000000000000000000000000000000000000000000004c32ce\", \"logIndex\": \"0x2\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed\"], \"transactionHash\": \"0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d\"}]}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 11, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+       "fromBlock": "0x389",
+       "toBlock": "0x389",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        [
+         "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+        ]
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 12, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    "arbitrum:0x295b8acee98738802113fbea49c6f643f97994b51d37ae60fecfafa4f7e11729:2",
+    "arbitrum:0x4f6f38c550660d612fd829e811b0ad6dbcede307e25336194bf40cf202b6700e:2",
+    "arbitrum:0x5c555f99e03d7c258b4450a32d7e0e27190ff08d7d6abba56e68c5405ff36247:2",
+    "arbitrum:0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e:2",
+    "arbitrum:0xecf0d51ac5eeba297a73a3036f458a39cdec936ed907213ba08d69157ded0084:2"
+   ],
+   "snapshot": {
+    "owned": [
+     "chapter2"
+    ],
+    "pending": {},
+    "receipts": {
+     "arbitrum:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:2": {
+      "amount": "4.993742",
+      "block": 900,
+      "chain": "arbitrum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 2,
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     }
+    },
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

@@ -1,0 +1,5 @@
+# Godot editor/import cache
+.godot/
+
+# Godot 4.4+ writes a .uid file beside every script on import; 4.3 does not use them
+*.uid

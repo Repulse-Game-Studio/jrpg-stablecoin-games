@@ -1,0 +1,8 @@
+; Minimal dev project for the SCFG GDScript core and its headless tests.
+
+config_version=5
+
+[application]
+
+config/name="scfg-dev"
+config/features=PackedStringArray("4.3")

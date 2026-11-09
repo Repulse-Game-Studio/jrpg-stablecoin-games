@@ -1,0 +1,376 @@
+{
+ "cases": [
+  {
+   "fn": "get_chains",
+   "in": {
+    "testnet": false
+   },
+   "out": {
+    "arbitrum": {
+     "chain_id": 42161,
+     "confirmations": 20,
+     "explorer_tx": "https://arbiscan.io/tx/{}",
+     "family": "evm",
+     "fee_hint": "low",
+     "key": "arbitrum",
+     "max_log_range": 2000,
+     "min_fee_wei": 0,
+     "name": "Arbitrum",
+     "native_symbol": "ETH",
+     "native_token": "",
+     "rpc": [
+      "https://arb1.arbitrum.io/rpc",
+      "https://arbitrum.drpc.org",
+      "https://1rpc.io/arb",
+      "https://arbitrum-one-rpc.publicnode.com"
+     ],
+     "testnet": false,
+     "tokens": {
+      "USDC": {
+       "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      },
+      "USDT": {
+       "address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      }
+     },
+     "wallet_chain": ""
+    },
+    "arc": {
+     "chain_id": 5042,
+     "confirmations": 1,
+     "explorer_tx": "https://explorer.arc.io/tx/{}",
+     "family": "evm",
+     "fee_hint": "lowest",
+     "key": "arc",
+     "max_log_range": 9999,
+     "min_fee_wei": 20000000000,
+     "name": "Arc",
+     "native_symbol": "USDC",
+     "native_token": "USDC",
+     "rpc": [
+      "https://rpc.mainnet.arc.io",
+      "https://rpc.quicknode.mainnet.arc.io",
+      "https://rpc.drpc.mainnet.arc.io",
+      "https://rpc.blockdaemon.mainnet.arc.io"
+     ],
+     "testnet": false,
+     "tokens": {
+      "USDC": {
+       "address": "0x3600000000000000000000000000000000000000",
+       "decimals": 6,
+       "log_address": "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE",
+       "log_decimals": 18
+      }
+     },
+     "wallet_chain": ""
+    },
+    "base": {
+     "chain_id": 8453,
+     "confirmations": 10,
+     "explorer_tx": "https://basescan.org/tx/{}",
+     "family": "evm",
+     "fee_hint": "low",
+     "key": "base",
+     "max_log_range": 125,
+     "min_fee_wei": 0,
+     "name": "Base",
+     "native_symbol": "ETH",
+     "native_token": "",
+     "rpc": [
+      "https://mainnet.base.org",
+      "https://base-rpc.publicnode.com",
+      "https://base.drpc.org",
+      "https://1rpc.io/base"
+     ],
+     "testnet": false,
+     "tokens": {
+      "USDC": {
+       "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      }
+     },
+     "wallet_chain": ""
+    },
+    "ethereum": {
+     "chain_id": 1,
+     "confirmations": 12,
+     "explorer_tx": "https://etherscan.io/tx/{}",
+     "family": "evm",
+     "fee_hint": "high",
+     "key": "ethereum",
+     "max_log_range": 125,
+     "min_fee_wei": 0,
+     "name": "Ethereum",
+     "native_symbol": "ETH",
+     "native_token": "",
+     "rpc": [
+      "https://ethereum-rpc.publicnode.com",
+      "https://eth.drpc.org"
+     ],
+     "testnet": false,
+     "tokens": {
+      "USDC": {
+       "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      },
+      "USDT": {
+       "address": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      }
+     },
+     "wallet_chain": ""
+    },
+    "polygon": {
+     "chain_id": 137,
+     "confirmations": 32,
+     "explorer_tx": "https://polygonscan.com/tx/{}",
+     "family": "evm",
+     "fee_hint": "lowest",
+     "key": "polygon",
+     "max_log_range": 500,
+     "min_fee_wei": 0,
+     "name": "Polygon",
+     "native_symbol": "POL",
+     "native_token": "",
+     "rpc": [
+      "https://polygon-bor-rpc.publicnode.com",
+      "https://polygon.drpc.org",
+      "https://1rpc.io/matic"
+     ],
+     "testnet": false,
+     "tokens": {
+      "USDC": {
+       "address": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      },
+      "USDT": {
+       "address": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      }
+     },
+     "wallet_chain": ""
+    },
+    "solana": {
+     "chain_id": 0,
+     "confirmations": 32,
+     "explorer_tx": "https://solscan.io/tx/{}",
+     "family": "solana",
+     "fee_hint": "lowest",
+     "key": "solana",
+     "max_log_range": 0,
+     "min_fee_wei": 0,
+     "name": "Solana",
+     "native_symbol": "SOL",
+     "native_token": "",
+     "rpc": [
+      "https://solana-rpc.publicnode.com",
+      "https://api.mainnet-beta.solana.com"
+     ],
+     "testnet": false,
+     "tokens": {
+      "USDC": {
+       "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      },
+      "USDT": {
+       "address": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      }
+     },
+     "wallet_chain": "solana:mainnet"
+    }
+   }
+  },
+  {
+   "fn": "get_chains",
+   "in": {
+    "testnet": true
+   },
+   "out": {
+    "arbitrum": {
+     "chain_id": 421614,
+     "confirmations": 3,
+     "explorer_tx": "https://sepolia.arbiscan.io/tx/{}",
+     "family": "evm",
+     "fee_hint": "low",
+     "key": "arbitrum",
+     "max_log_range": 2000,
+     "min_fee_wei": 0,
+     "name": "Arbitrum Sepolia",
+     "native_symbol": "ETH",
+     "native_token": "",
+     "rpc": [
+      "https://sepolia-rollup.arbitrum.io/rpc",
+      "https://arbitrum-sepolia-rpc.publicnode.com"
+     ],
+     "testnet": true,
+     "tokens": {
+      "USDC": {
+       "address": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      }
+     },
+     "wallet_chain": ""
+    },
+    "arc": {
+     "chain_id": 5042002,
+     "confirmations": 1,
+     "explorer_tx": "https://explorer.testnet.arc.io/tx/{}",
+     "family": "evm",
+     "fee_hint": "lowest",
+     "key": "arc",
+     "max_log_range": 9999,
+     "min_fee_wei": 20000000000,
+     "name": "Arc Testnet",
+     "native_symbol": "USDC",
+     "native_token": "USDC",
+     "rpc": [
+      "https://rpc.testnet.arc.io",
+      "https://rpc.drpc.testnet.arc.io",
+      "https://rpc.quicknode.testnet.arc.io"
+     ],
+     "testnet": true,
+     "tokens": {
+      "USDC": {
+       "address": "0x3600000000000000000000000000000000000000",
+       "decimals": 6,
+       "log_address": "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE",
+       "log_decimals": 18
+      }
+     },
+     "wallet_chain": ""
+    },
+    "base": {
+     "chain_id": 84532,
+     "confirmations": 3,
+     "explorer_tx": "https://sepolia.basescan.org/tx/{}",
+     "family": "evm",
+     "fee_hint": "low",
+     "key": "base",
+     "max_log_range": 2000,
+     "min_fee_wei": 0,
+     "name": "Base Sepolia",
+     "native_symbol": "ETH",
+     "native_token": "",
+     "rpc": [
+      "https://base-sepolia-rpc.publicnode.com",
+      "https://sepolia.base.org"
+     ],
+     "testnet": true,
+     "tokens": {
+      "USDC": {
+       "address": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      }
+     },
+     "wallet_chain": ""
+    },
+    "ethereum": {
+     "chain_id": 11155111,
+     "confirmations": 3,
+     "explorer_tx": "https://sepolia.etherscan.io/tx/{}",
+     "family": "evm",
+     "fee_hint": "high",
+     "key": "ethereum",
+     "max_log_range": 2000,
+     "min_fee_wei": 0,
+     "name": "Sepolia",
+     "native_symbol": "ETH",
+     "native_token": "",
+     "rpc": [
+      "https://ethereum-sepolia-rpc.publicnode.com",
+      "https://1rpc.io/sepolia"
+     ],
+     "testnet": true,
+     "tokens": {
+      "USDC": {
+       "address": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      }
+     },
+     "wallet_chain": ""
+    },
+    "polygon": {
+     "chain_id": 80002,
+     "confirmations": 3,
+     "explorer_tx": "https://amoy.polygonscan.com/tx/{}",
+     "family": "evm",
+     "fee_hint": "lowest",
+     "key": "polygon",
+     "max_log_range": 2000,
+     "min_fee_wei": 0,
+     "name": "Polygon Amoy",
+     "native_symbol": "POL",
+     "native_token": "",
+     "rpc": [
+      "https://polygon-amoy-bor-rpc.publicnode.com"
+     ],
+     "testnet": true,
+     "tokens": {
+      "USDC": {
+       "address": "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      }
+     },
+     "wallet_chain": ""
+    },
+    "solana": {
+     "chain_id": 0,
+     "confirmations": 32,
+     "explorer_tx": "https://solscan.io/tx/{}?cluster=devnet",
+     "family": "solana",
+     "fee_hint": "lowest",
+     "key": "solana",
+     "max_log_range": 0,
+     "min_fee_wei": 0,
+     "name": "Solana Devnet",
+     "native_symbol": "SOL",
+     "native_token": "",
+     "rpc": [
+      "https://api.devnet.solana.com"
+     ],
+     "testnet": true,
+     "tokens": {
+      "USDC": {
+       "address": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+       "decimals": 6,
+       "log_address": "",
+       "log_decimals": 0
+      }
+     },
+     "wallet_chain": "solana:devnet"
+    }
+   }
+  }
+ ],
+ "tier": 1,
+ "topic": "chains"
+}

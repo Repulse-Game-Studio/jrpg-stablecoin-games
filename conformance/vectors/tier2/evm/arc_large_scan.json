@@ -1,0 +1,361 @@
+{
+ "covers": [
+  "tests/unit/test_arc_logs.py::test_arc_native_send_detected_by_scan",
+  "tests/unit/test_arc_logs.py::test_arc_native_send_with_dust_matches_session"
+ ],
+ "id": "evm/arc_large_scan",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "chains": [
+    "arc"
+   ],
+   "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+  },
+  "custom_chains": [],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter9",
+    "price": "19.99",
+    "title": "Chapter 9",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {}
+ },
+ "steps": [
+  {
+   "action": "start_session",
+   "args": {
+    "chain": "arc",
+    "item": "chapter9",
+    "kind": "unlock"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://rpc.mainnet.arc.io"
+    }
+   ],
+   "entropy": [
+    {
+     "fn": "randbelow",
+     "n": 100,
+     "value": 54
+    },
+    {
+     "fn": "token_hex",
+     "n": 8,
+     "value": "7e74a01cc2c0e184"
+    }
+   ],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": {
+    "chain": "arc",
+    "code": 37,
+    "created_at": 1700000000,
+    "cursor": 995,
+    "hint_at": null,
+    "hint_tx": null,
+    "id": "ps_7e74a01cc2c0e184",
+    "item": "chapter9",
+    "kind": "unlock",
+    "match": null,
+    "nonce": 54,
+    "price": "19.99",
+    "start_block": 995,
+    "state": "awaiting",
+    "title": "Chapter 9",
+    "token": "USDC",
+    "ui_status": "open",
+    "units": 19993754
+   },
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_7e74a01cc2c0e184": {
+      "chain": "arc",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 995,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_7e74a01cc2c0e184",
+      "item": "chapter9",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 54,
+      "price": "19.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 9",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 19993754
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "start_session",
+   "args": {
+    "chain": "arc",
+    "item": "chapter9",
+    "kind": "unlock"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 2, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://rpc.mainnet.arc.io"
+    }
+   ],
+   "entropy": [
+    {
+     "fn": "randbelow",
+     "n": 100,
+     "value": 27
+    },
+    {
+     "fn": "token_hex",
+     "n": 8,
+     "value": "a9e5d887a518e4f3"
+    }
+   ],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": {
+    "chain": "arc",
+    "code": 37,
+    "created_at": 1700000000,
+    "cursor": 995,
+    "hint_at": null,
+    "hint_tx": null,
+    "id": "ps_a9e5d887a518e4f3",
+    "item": "chapter9",
+    "kind": "unlock",
+    "match": null,
+    "nonce": 27,
+    "price": "19.99",
+    "start_block": 995,
+    "state": "awaiting",
+    "title": "Chapter 9",
+    "token": "USDC",
+    "ui_status": "open",
+    "units": 19993727
+   },
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_7e74a01cc2c0e184": {
+      "chain": "arc",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 995,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_7e74a01cc2c0e184",
+      "item": "chapter9",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 54,
+      "price": "19.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 9",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 19993754
+     },
+     "ps_a9e5d887a518e4f3": {
+      "chain": "arc",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 995,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_a9e5d887a518e4f3",
+      "item": "chapter9",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 27,
+      "price": "19.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 9",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 19993727
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 3, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://rpc.mainnet.arc.io"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE",
+       "fromBlock": "0x3e3",
+       "toBlock": "0x3e8",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 4, \"jsonrpc\": \"2.0\", \"result\": [{\"address\": \"0xfffffffffffffffffffffffffffffffffffffffe\", \"blockHash\": \"0x00000000000000000000000000000000000000000000000000000000000003e6\", \"blockNumber\": \"0x3e6\", \"data\": \"0x00000000000000000000000000000000000000000000000115781554e08ba000\", \"logIndex\": \"0x3\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed\"], \"transactionHash\": \"0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d\"}, {\"address\": \"0xfffffffffffffffffffffffffffffffffffffffe\", \"blockHash\": \"0x00000000000000000000000000000000000000000000000000000000000003e7\", \"blockNumber\": \"0x3e7\", \"data\": \"0x0000000000000000000000000000000000000000000000011577fdaf47c7ffff\", \"logIndex\": \"0x0\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed\"], \"transactionHash\": \"0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e\"}]}",
+     "url": "https://rpc.mainnet.arc.io"
+    },
+    {
+     "method": "eth_getBlockByNumber",
+     "params": [
+      "0x3e6",
+      false
+     ],
+     "response_text": "{\"id\": 5, \"jsonrpc\": \"2.0\", \"result\": {\"hash\": \"0x00000000000000000000000000000000000000000000000000000000000003e6\", \"number\": \"0x3e6\", \"parentHash\": \"0x00000000000000000000000000000000000000000000000000000000000003e5\"}}",
+     "url": "https://rpc.mainnet.arc.io"
+    },
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 6, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://rpc.mainnet.arc.io"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE",
+       "fromBlock": "0x3e3",
+       "toBlock": "0x3e8",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 7, \"jsonrpc\": \"2.0\", \"result\": [{\"address\": \"0xfffffffffffffffffffffffffffffffffffffffe\", \"blockHash\": \"0x00000000000000000000000000000000000000000000000000000000000003e6\", \"blockNumber\": \"0x3e6\", \"data\": \"0x00000000000000000000000000000000000000000000000115781554e08ba000\", \"logIndex\": \"0x3\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed\"], \"transactionHash\": \"0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d\"}, {\"address\": \"0xfffffffffffffffffffffffffffffffffffffffe\", \"blockHash\": \"0x00000000000000000000000000000000000000000000000000000000000003e7\", \"blockNumber\": \"0x3e7\", \"data\": \"0x0000000000000000000000000000000000000000000000011577fdaf47c7ffff\", \"logIndex\": \"0x0\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed\"], \"transactionHash\": \"0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e\"}]}",
+     "url": "https://rpc.mainnet.arc.io"
+    },
+    {
+     "method": "eth_getBlockByNumber",
+     "params": [
+      "0x3e7",
+      false
+     ],
+     "response_text": "{\"id\": 8, \"jsonrpc\": \"2.0\", \"result\": {\"hash\": \"0x00000000000000000000000000000000000000000000000000000000000003e7\", \"number\": \"0x3e7\", \"parentHash\": \"0x00000000000000000000000000000000000000000000000000000000000003e6\"}}",
+     "url": "https://rpc.mainnet.arc.io"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 3,
+     "error": null,
+     "hint_tx": null,
+     "required": 1,
+     "result": {
+      "amount": "19.993754",
+      "chain": "arc",
+      "error": null,
+      "item": "chapter9",
+      "kind": "unlock",
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "session_id": "ps_7e74a01cc2c0e184",
+      "status": "paid",
+      "token": "USDC",
+      "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     },
+     "session_id": "ps_7e74a01cc2c0e184",
+     "status": "paid"
+    },
+    {
+     "confirmations": 2,
+     "error": null,
+     "hint_tx": null,
+     "required": 1,
+     "result": {
+      "amount": "19.993727",
+      "chain": "arc",
+      "error": null,
+      "item": "chapter9",
+      "kind": "unlock",
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "session_id": "ps_a9e5d887a518e4f3",
+      "status": "paid",
+      "token": "USDC",
+      "tx_hash": "0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e"
+     },
+     "session_id": "ps_a9e5d887a518e4f3",
+     "status": "paid"
+    }
+   ],
+   "snapshot": {
+    "owned": [
+     "chapter9"
+    ],
+    "pending": {},
+    "receipts": {
+     "arc:0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e:0": {
+      "amount": "19.993727",
+      "block": 999,
+      "chain": "arc",
+      "item": "chapter9",
+      "kind": "unlock",
+      "log_index": 0,
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e"
+     },
+     "arc:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:3": {
+      "amount": "19.993754",
+      "block": 998,
+      "chain": "arc",
+      "item": "chapter9",
+      "kind": "unlock",
+      "log_index": 3,
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     }
+    },
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}
