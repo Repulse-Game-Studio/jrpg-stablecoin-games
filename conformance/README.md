@@ -120,6 +120,12 @@ Scenario authors: an Engine crash the Engine swallowed (`internal_errors > 0`) o
 one action with `s.expect("internal_error")` / `s.expect("other")`. The declaration is authoring metadata
 and is not written to the vector.
 
+## Runners
+
+- **Python:** `uv run pytest conformance/tests` (`python/scfg_conformance/replay.py`, `tier1.run_case`).
+- **GDScript:** `godot/tests/run.gd` (see "Notes for port authors").
+- **JavaScript:** `cd rpgmaker && npm test` runs `conformance/js/` under `node --test` (Node 22.18 or newer; the TypeScript runs directly, no build). `tier1.ts` replays Tier 1: `FUNCS` maps each Python `fn` to a JS adapter, and a topic only counts once it is listed in `IMPLEMENTED`; cases of other topics are reported as skipped, never as passed. A case expecting `"invalid"` passes only if the adapter throws `ValueError` or `TypeError`, and any other throw fails it. `json.ts` is the JSON equality used for outputs and call params (key order ignored, `true` is not `1`). `tier2.ts` replays every Tier 2 vector (`ReplayTransport`, `ScriptedEntropy`, `replay`) and exports the `returns` / `snapshot` encoders that `rpgmaker/test/integration/engine_driver.ts` reuses. The same Engine also runs against Anvil and solana-test-validator through that driver (`tests/integration/test_js_core.py`, see `rpgmaker/README.md`).
+
 ## Adding a scenario
 
 1. Write a function in `python/scfg_conformance/scenarios/<group>.py` decorated with

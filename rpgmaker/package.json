@@ -1,0 +1,16 @@
+{
+  "name": "scfg-rpgmaker",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "test": "node --test \"src/**/*.test.ts\" \"test/**/*.test.ts\" \"../conformance/js/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
+  }
+}

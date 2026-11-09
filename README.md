@@ -64,6 +64,7 @@ Players can read how paying works, which wallets work and how to restore a purch
 | `tests/live/` | Read-only checks of pinned real Arc mainnet payments (`-m live`, needs internet) |
 | `tests/renpy_e2e/`, `tests/renpy_web_e2e/` | Real Ren'Py runs (desktop and web build) driving a payment through the screens |
 | `conformance/` | Language-neutral JSON vectors recorded from `scfg_core` (the reference for the JS and GDScript ports), the generator, a Python replay runner and the receipt schema. See [its README](conformance/README.md) |
+| `rpgmaker/` | TypeScript port of the payment core for RPG Maker MZ (`src/core/`, dependency-free, Node 22.18+), its unit tests and the JSON-lines driver for the integration tests. See [its README](rpgmaker/README.md) |
 | `godot/` | Godot 4.3+ dev project: GDScript core spike (`ScfgBigInt`, Keccak-256, ed25519) and its test runner |
 | `tools/` | `package.py` (release zip), `sync_demo.py`, `check_rpcs.py`, `run_renpy_e2e.py`, `run_renpy_web_e2e.py`, `make_ui_assets.py` (screen corner images), `gen_vectors.py` (conformance vectors), `fetch_godot.py` (download a verified Godot binary) |
 | `contracts/` | `MockToken.sol` (6-decimal mock token) and the Arc stand-ins `ArcMockUsdc.sol` / `ArcSystemEmitter.sol`, used by integration tests |
@@ -88,6 +89,10 @@ uv run python tools/run_renpy_e2e.py --sdk /path/to/renpy-8.5.3-sdk --family arc
 uv run python tools/run_renpy_web_e2e.py --sdk /path/to/renpy-8.5.3-sdk [--family arc]
 
 uv run pytest -m live                     # pinned real Arc payments, read-only
+
+# JS core (Node 22.18+): types, unit tests and the conformance vectors; its local-chain twins
+# (tests/integration/test_js_core.py) run with the integration tests above after `npm ci`
+(cd rpgmaker && npm ci && npm run typecheck && npm test)
 
 uv run python tools/gen_vectors.py        # regenerate conformance/vectors/ (--check: fail if stale)
 uv run python tools/fetch_godot.py --version 4.3-stable --dest /tmp/godot   # prints the binary path
