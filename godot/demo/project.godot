@@ -1,0 +1,23 @@
+; Demo game for the SCFG Godot addon. Run `uv run python tools/sync_demo.py --engine godot` first:
+; it copies godot/addons/scfg/ into this project's addons/ folder.
+
+config_version=5
+
+[application]
+
+config/name="SCFG Demo"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.3")
+
+[autoload]
+
+Scfg="*res://addons/scfg/scfg.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/scfg/plugin.cfg")

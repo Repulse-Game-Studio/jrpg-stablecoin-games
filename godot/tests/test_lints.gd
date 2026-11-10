@@ -1,4 +1,5 @@
-## Source lints over res://addons/scfg/core/ (every .gd file, recursively).
+## Source lints over the whole addon, res://addons/scfg/ (every .gd file, recursively: the core in
+## core/ and the Godot glue around it).
 ##
 ## ERROR PROPAGATION (`test_err_propagation_lint`, Review Focus 1). GDScript has no exceptions:
 ## a fallible function returns its value or an ScfgErr, and an unchecked ScfgErr flows on as if
@@ -66,7 +67,7 @@
 ##       block of the function, at any distance (`if X is ScfgErr:` ... `return X`);
 ##     - a ternary `return ... if ... else ...` that tests anything against ScfgErr.
 ##
-##   Known limits (what the lint cannot see): triple-quoted strings are not understood (core code
+##   Known limits (what the lint cannot see): triple-quoted strings are not understood (addon code
 ##   does not use them); on a receiver of unknown type, an instance method name shared by a
 ##   fallible and an infallible function flags both (type the receiver, or waive); a static
 ##   function called through an instance, and a lambda's parameters, are not resolved; types are
@@ -80,12 +81,12 @@
 ##   name in an enclosing block also counts; `match` patterns are not tests; and a check that is
 ##   not in an `if`/`elif` line (`assert`, `and`/`or` chains in a `return`, `while`) is not seen.
 ##
-## NO ASSERTS (`test_no_asserts_in_core`): `assert(` never appears in core code, because export
+## NO ASSERTS (`test_no_asserts_in_addon`): `assert(` never appears in addon code, because export
 ## builds strip it (a caller-triggered precondition must return an ScfgErr instead).
 extends RefCounted
 
 const T := preload("res://tests/t.gd")
-const CORE_DIR := "res://addons/scfg/core"
+const ADDON_DIR := "res://addons/scfg"
 
 const _FUNC_RE := "^(\\s*)(?:static\\s+)?func\\s+([A-Za-z_]\\w*)\\s*\\((.*)$"
 const _ASSIGN_RE := "^\\s*(?:var\\s+)?([A-Za-z_]\\w*)\\s*(?::\\s*([A-Za-z_][\\w.]*)?\\s*)?=(?!=)\\s*(?:await\\s+)?"
@@ -95,8 +96,8 @@ const _MEMBER_RE := "^\\s*(?:@\\w+(?:\\([^)]*\\))?\\s+)*(?:static\\s+)?(?:var|co
 const _LOCAL_RE := "^\\s*var\\s+([A-Za-z_]\\w*)\\s*(?::(?!=)\\s*([A-Za-z_][\\w.]*(?:\\[[\\w.]+\\])?)?\\s*)?(?:(:?=)\\s*(.*))?$"
 
 
-func test_no_asserts_in_core() -> bool:
-	var sources := core_sources()
+func test_no_asserts_in_addon() -> bool:
+	var sources := addon_sources()
 	T.ok(sources.size() >= 3, "found the core sources (%d)" % sources.size())
 	for path: String in sources:
 		var lines: PackedStringArray = (sources[path] as String).split("\n")
@@ -105,12 +106,12 @@ func test_no_asserts_in_core() -> bool:
 			var code: String = _split_comment(lines[n])[0]
 			if _regex("\\bassert\\s*\\(").search(code) != null:
 				found.append("%s:%d: %s" % [path, n + 1, lines[n].strip_edges()])
-		T.ok(found.is_empty(), "assert() in core code (exports strip it): %s" % "; ".join(PackedStringArray(found)))
+		T.ok(found.is_empty(), "assert() in addon code (exports strip it): %s" % "; ".join(PackedStringArray(found)))
 	return T.done()
 
 
 func test_err_propagation_lint() -> bool:
-	var sources := core_sources()
+	var sources := addon_sources()
 	T.ok(sources.size() >= 3, "found the core sources (%d)" % sources.size())
 	var fallible := collect_fallible(sources)
 	T.ok(fallible.size() > 0, "the core marks some functions @fallible")
@@ -393,9 +394,8 @@ func test_err_propagation_lint_resolution() -> bool:
 # --- the lint ---------------------------------------------------------------------------------
 
 
-## {res path: text} of every .gd file under CORE_DIR, recursively.
 func test_no_unawaited_coroutines() -> bool:
-	var sources := core_sources()
+	var sources := addon_sources()
 	var idx := index_sources(sources, [])
 	var cos := mark_coroutines(idx, sources)
 	T.ok(cos.size() > 10, "the core has coroutines (%d)" % cos.size())
@@ -567,7 +567,7 @@ static func missing_engine_methods(sources: Dictionary) -> Array[String]:
 
 
 func test_engine_methods_dispatched_by_name_exist() -> bool:
-	var sources := core_sources()
+	var sources := addon_sources()
 	var seen := 0
 	for path: String in sources:
 		for line in (sources[path] as String).split("\n"):
@@ -596,7 +596,7 @@ func test_engine_methods_dispatched_by_name_exist() -> bool:
 ##   (c) it overrides a coroutine of a core base class (same name). A `## @coroutine` tag whose doc
 ##   block is not directly above a func is a violation (a stray tag).
 ##
-##   Calls. Every `NAME(` in core code that resolves to a coroutine (the Resolution rules of the
+##   Calls. Every `NAME(` in addon code that resolves to a coroutine (the Resolution rules of the
 ##   error lint: bare and `self.` in the class and its bases, `ScfgX.` exactly, typed receivers in
 ##   their class; an untyped receiver matches the coroutine INSTANCE methods by name) must have the
 ##   keyword `await` directly before its callee (`await NAME(`, `await x.y.NAME(`,
@@ -782,9 +782,10 @@ static func lint_unawaited(sources: Dictionary) -> Array[String]:
 	return errors
 
 
-static func core_sources() -> Dictionary:
+## {res path: text} of every .gd file under ADDON_DIR, recursively.
+static func addon_sources() -> Dictionary:
 	var out := {}
-	_collect(CORE_DIR, out)
+	_collect(ADDON_DIR, out)
 	return out
 
 

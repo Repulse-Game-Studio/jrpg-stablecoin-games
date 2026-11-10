@@ -242,12 +242,117 @@ func test_connection_refused_is_a_transport_error() -> bool:
 	return T.done()
 
 
-func test_host_outside_the_tree_is_a_transport_error() -> bool:
+func test_host_outside_the_tree_is_host_gone() -> bool:
+	# not an endpoint failure (no cooldown), and no add_child on a host outside the tree
 	var orphan := Node.new()
 	var got: Variant = await ScfgHttpTransport.new(orphan).post_json("http://127.0.0.1:9/", {}, 1.0)
-	T.is_err(got, "TransportError", "no tree")
+	T.is_err(got, "HostGone", "no tree")
+	T.ok(not (got is ScfgErr and (got as ScfgErr).is_a("TransportError")), "not a TransportError")
+	T.eq(orphan.get_child_count(), 0, "nothing was added to it")
 	orphan.free()
+	var none: Variant = await ScfgHttpTransport.new(null).post_json("http://127.0.0.1:9/", {}, 1.0)
+	T.is_err(none, "HostGone", "no host at all")
 	return T.done()
+
+
+## Starts `client.block_number()` without waiting for it; `box["got"]` holds its result once
+## `box["done"]` is true.
+func _start_block_number(client: ScfgRpcClient, box: Dictionary) -> void:
+	var run := func() -> void:
+		box["got"] = await client.block_number()
+		box["done"] = true
+	run.call()
+
+
+func _wait_for(responder: Responder, box: Dictionary, what: String) -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	for i in 300:
+		if (what == "request" and responder.requests.size() > 0) or (what == "done" and box.get("done", false)):
+			return
+		await tree.process_frame
+
+
+func test_host_freed_mid_request_is_host_gone_not_a_cooldown() -> bool:
+	# M3's carried fix: the waiting coroutine used to resume inside the exit-tree notification,
+	# fail over to the next endpoint with add_child on the dying host (engine errors) and put
+	# the healthy endpoints in cooldown.
+	var env := await _setup()
+	var host: Node = env[0]
+	var responder: Responder = env[1]
+	var client := ScfgRpcClient.new([responder.url("/slow"), responder.url("/ok")], {"transport": env[2]})
+	var box := {}
+	_start_block_number(client, box)
+	await _wait_for(responder, box, "request")
+	T.eq(responder.requests.size(), 1, "the request is in flight")
+	responder.host = null
+	host.free()
+	T.eq(box.get("done", false), false, "the caller does not resume inside the exit-tree notification")
+	await _wait_for(responder, box, "done")
+	T.eq(box.get("done"), true, "the call finished")
+	var got: Variant = box.get("got")
+	T.is_err(got, "HostGone", "the host is gone")
+	T.ok(not (got is ScfgErr and (got as ScfgErr).is_a("TransportError")), "not a TransportError")
+	T.eq(client.live_urls(), [responder.url("/slow"), responder.url("/ok")], "no endpoint cooled down")
+	T.eq(responder.requests.size(), 1, "no failover request was started")
+	await _teardown_without_host(responder)
+	return T.done()
+
+
+func test_host_removed_mid_request_is_host_gone() -> bool:
+	var env := await _setup()
+	var host: Node = env[0]
+	var responder: Responder = env[1]
+	var box := {}
+	var client := ScfgRpcClient.new([responder.url("/slow"), responder.url("/ok")], {"transport": env[2]})
+	_start_block_number(client, box)
+	await _wait_for(responder, box, "request")
+	responder.host = null
+	host.get_parent().remove_child(host)
+	await _wait_for(responder, box, "done")
+	T.is_err(box.get("got"), "HostGone", "the host left the tree")
+	T.eq(client.live_urls(), [responder.url("/slow"), responder.url("/ok")], "no endpoint cooled down")
+	T.eq(responder.requests.size(), 1, "no failover request was started")
+	await (Engine.get_main_loop() as SceneTree).process_frame
+	T.eq(host.get_child_count(), 0, "the abandoned HTTPRequest is freed")
+	host.free()
+	await _teardown_without_host(responder)
+	return T.done()
+
+
+func test_close_ends_requests_in_flight_with_host_gone() -> bool:
+	# At a real quit the tree is torn down with no further frame, so the deferred tree_exiting
+	# never resumes a waiting caller: its suspended coroutines leaked ("ObjectDB instances leaked
+	# at exit", found by the Godot e2e). close() ends them at once.
+	var env := await _setup()
+	var host: Node = env[0]
+	var responder: Responder = env[1]
+	var transport: ScfgHttpTransport = env[2]
+	var client := ScfgRpcClient.new([responder.url("/slow"), responder.url("/ok")], {"transport": transport})
+	var box := {}
+	_start_block_number(client, box)
+	await _wait_for(responder, box, "request")
+	T.eq(responder.requests.size(), 1, "the request is in flight")
+	transport.close()
+	T.eq(box.get("done", false), true, "the caller resumed inside close()")
+	var got: Variant = box.get("got")
+	T.is_err(got, "HostGone", "the request ended")
+	T.ok(not (got is ScfgErr and (got as ScfgErr).is_a("TransportError")), "not a TransportError")
+	T.eq(client.live_urls(), [responder.url("/slow"), responder.url("/ok")], "no endpoint cooled down")
+	var later: Variant = await transport.post_json(responder.url("/ok"), _payload(), 5.0)
+	T.is_err(later, "HostGone", "a closed transport sends nothing more")
+	await (Engine.get_main_loop() as SceneTree).process_frame
+	T.eq(responder.requests.size(), 1, "no failover or later request reached the network")
+	T.eq(host.get_child_count(), 0, "the abandoned HTTPRequest is freed")
+	await _teardown(env)
+	return T.done()
+
+
+func _teardown_without_host(responder: Responder) -> void:
+	for c in responder.conns:
+		(c["peer"] as StreamPeerTCP).disconnect_from_host()
+	responder.server.stop()
+	responder.queue_free()
+	await (Engine.get_main_loop() as SceneTree).process_frame
 
 
 ## The whole path: ScfgRpcClient over the real transport, with failover and a JSON-RPC error.

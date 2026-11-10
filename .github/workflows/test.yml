@@ -28,8 +28,12 @@ jobs:
       - run: uv run ruff check .
       - run: uv run pytest
       - run: uv run python tools/gen_vectors.py --check   # committed conformance vectors are current
-      - name: Release zip builds
-        run: uv run python tools/package.py
+      - run: uv run python tools/sync_web_page.py --check   # Godot addon copy of the checkout page matches plugin/game/scfg/web
+      - run: uv run python tools/make_pot.py --check   # the Godot translation template is current
+      - name: Release zips build
+        run: |
+          uv run python tools/package.py
+          uv run python tools/package.py --engine godot
 
   godot-core:
     runs-on: ubuntu-latest
@@ -49,6 +53,11 @@ jobs:
         # the wrapper also requires the runner's "<n> passed, 0 failed" summary with n > 0:
         # Godot can exit 0 when run.gd itself fails to compile
         run: uv run --no-project python tools/run_godot_tests.py --godot /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64
+      - name: Localhost checkout server security suite (the Python and the GDScript server)
+        env:
+          SCFG_REQUIRE_GD: "1"   # the Godot half fails, rather than skips, without a binary
+          SCFG_GODOT: /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64
+        run: uv run pytest tests/server_security
 
   js-core:
     runs-on: ubuntu-latest
@@ -171,6 +180,60 @@ jobs:
         run: xvfb-run -a uv run python tools/run_renpy_web_e2e.py --sdk "/tmp/renpy-${RENPY}-sdk"
       - name: Ren'Py web build end-to-end payment (Arc)
         run: xvfb-run -a uv run python tools/run_renpy_web_e2e.py --sdk "/tmp/renpy-${RENPY}-sdk" --family arc
+
+  godot-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45   # a hung Godot, chain or browser fails here, not after GitHub's 6 h default
+    env:
+      GODOT: /tmp/godot/Godot_v4.3-stable_linux.x86_64   # the supported floor
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+      - name: Install Agave (solana-test-validator)
+        run: |
+          curl -sSfL -o /tmp/agave.tar.bz2 \
+            "https://github.com/anza-xyz/agave/releases/download/${AGAVE_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          tar xjf /tmp/agave.tar.bz2 -C /tmp
+          echo /tmp/solana-release/bin >> "$GITHUB_PATH"
+      - run: uv sync
+      - name: Download Godot
+        run: uv run --no-project python tools/fetch_godot.py --version 4.3-stable --dest /tmp/godot
+      - name: Import the project (registers the class_name globals)
+        run: $GODOT --headless --path godot --import
+      - name: Godot demo end-to-end payment (EVM)
+        run: >
+          SCFG_E2E_VIDEODRIVER=x11 xvfb-run -a
+          uv run python tools/run_godot_e2e.py --godot "$GODOT"
+      - name: Godot demo end-to-end payment (Arc, native USDC send)
+        run: >
+          SCFG_E2E_VIDEODRIVER=x11 xvfb-run -a
+          uv run python tools/run_godot_e2e.py --godot "$GODOT" --family arc
+      - name: Godot demo end-to-end payment (Solana)
+        run: >
+          SCFG_E2E_VIDEODRIVER=x11 xvfb-run -a
+          uv run python tools/run_godot_e2e.py --godot "$GODOT" --family solana
+
+  godot-web-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45   # the first run downloads about 1 GB of export templates
+    env:
+      GODOT: /tmp/godot/Godot_v4.3-stable_linux.x86_64   # the supported floor
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+      - run: uv sync
+      - name: Download Godot
+        run: uv run --no-project python tools/fetch_godot.py --version 4.3-stable --dest /tmp/godot
+      - name: Import the project (registers the class_name globals)
+        run: $GODOT --headless --path godot --import
+      - name: Download the web export templates (SHA-512 checked against the release's SHA512-SUMS)
+        run: uv run --no-project python tools/fetch_godot.py --version 4.3-stable --templates
+      - name: Godot web build end-to-end payment
+        run: xvfb-run -a uv run python tools/run_godot_web_e2e.py --godot "$GODOT"
+      - name: Godot web build end-to-end payment (Arc)
+        run: xvfb-run -a uv run python tools/run_godot_web_e2e.py --godot "$GODOT" --family arc
 
   public-rpcs:
     if: github.event_name == 'schedule'

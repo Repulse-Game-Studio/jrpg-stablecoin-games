@@ -17,8 +17,9 @@ extends RefCounted
 
 ## Each kind's Python base classes (all the way up). The kinds used by the core: Python
 ## built-ins, the decimal module's signals, the QR generator's DataTooLongError, scfg_core's own (errors.ConfigError, restore.RestoreError, rpc.RpcError,
-## rpc.RpcUnavailable, coio.TransportError) and asyncio's CancelledError (a BaseException, so an
-## `except Exception` around a session step does not swallow a cancellation).
+## rpc.RpcUnavailable, coio.TransportError), asyncio's CancelledError (a BaseException, so an
+## `except Exception` around a session step does not swallow a cancellation) and the Godot-only
+## HostGone (ScfgHttpTransport).
 const BASES := {
 	"BaseException": [],
 	"Exception": ["BaseException"],
@@ -48,6 +49,9 @@ const BASES := {
 	"RpcError": ["Exception", "BaseException"],
 	"RpcUnavailable": ["Exception", "BaseException"],
 	"TransportError": ["Exception", "BaseException"],
+	# Godot only (no Python twin): ScfgHttpTransport's host Node left the tree or was freed.
+	# Not a TransportError, so ScfgRpcClient lets it propagate and cools no endpoint down.
+	"HostGone": ["Exception", "BaseException"],
 	"CancelledError": ["BaseException"],
 }
 

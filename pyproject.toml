@@ -71,6 +71,8 @@ package = false
 
 [tool.pytest.ini_options]
 pythonpath = ["plugin/game/python-packages", "installer", "conformance/python"]
+# tests/server_security runs in the default run: its Python half always, its Godot half when
+# SCFG_GODOT names a Godot 4.3+ binary (skipped otherwise; SCFG_REQUIRE_GD=1 makes that a failure)
 testpaths = ["tests", "conformance/tests"]
 markers = [
     "integration: needs a local Anvil node (Foundry); run with -m integration",
@@ -96,4 +98,4 @@ select = ["E", "F", "W", "I", "B", "UP"]
 [tool.ruff.lint.isort]
 known-first-party = ["scfg_core", "scfg_conformance"]
 known-local-folder = ["fakes", "mock_token", "conftest", "solana_local", "browser_mocks",
-                      "test_browser_checkout"]
+                      "test_browser_checkout", "server_handles"]

@@ -518,3 +518,28 @@ class PageWithPump:
 
 	func reopen() -> void:
 		reopens += 1
+
+
+## The page's JavaScript (ScfgWebPage's `js`): records every script it is given in `scripts`.
+## `answers` maps the start of a script (such as "scfgBridge.take(") to the values returned for
+## the scripts that start with it, oldest first; any other script, and one whose answers have run
+## out, returns null, as JavaScriptBridge.eval does for a script with no value.
+class FakeJs:
+	extends RefCounted
+	var scripts: Array[String] = []
+	var answers: Dictionary = {}
+
+	func eval(code: String) -> Variant:
+		scripts.append(code)
+		for prefix: String in answers:
+			if code.begins_with(prefix) and not (answers[prefix] as Array).is_empty():
+				return (answers[prefix] as Array).pop_front()
+		return null
+
+	## The scripts that start with `prefix`.
+	func scripts_for(prefix: String) -> Array[String]:
+		var out: Array[String] = []
+		for s in scripts:
+			if s.begins_with(prefix):
+				out.append(s)
+		return out

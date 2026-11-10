@@ -37,6 +37,12 @@
         "developers/troubleshooting",
         "developers/how-it-works"
       ]
+    },
+    {
+      "type": "category",
+      "label": "For Godot developers",
+      "collapsed": false,
+      "items": ["developers/godot/install", "developers/godot/api"]
     }
   ]
 }
