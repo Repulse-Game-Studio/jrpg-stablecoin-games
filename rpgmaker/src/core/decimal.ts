@@ -6,13 +6,25 @@
  * Differences from CPython, all outside any realistic amount: exponents beyond +-2^53 are a
  * ValueError (Python accepts up to +-999999999999999999), `add` refuses operands whose
  * exponents are more than 100000 apart, and the context's Emin/Emax overflow traps are not
- * modelled.
+ * modelled. `addChecked` is the exception: it is Python's context addition exactly (Emax
+ * overflow, subnormal rounding at Etiny), for sums of stored, untrusted amounts.
  */
-import { ValueError } from "./errors.ts";
+import { Overflow, ValueError } from "./errors.ts";
 import { pyStrip, toAsciiDigits } from "./pystr.ts";
 
 const PREC = 28;
 const MAX_EXP_GAP = 100000;
+// The default context's exponent limits.
+const EMAX = 999999;
+const EMIN = -999999;
+const ETINY = EMIN - PREC + 1; // -1000026
+const ETOP = EMAX - PREC + 1; // 999972
+// libmpdec's limits for a literal: the exponent, and the adjusted exponent.
+const MIN_LITERAL_EXP = -1999999999999999997n;
+const MAX_LITERAL_ADJUSTED = 999999999999999999n;
+// `parse(text, { anyExponent: true })` clamps exponents to +-2^50: every such value is far outside
+// [Etiny, Emax], so comparisons and `addChecked` give Python's results, and exp + digits stays exact.
+const EXP_CLAMP = 2 ** 50;
 
 const pow10 = (n: number): bigint => 10n ** BigInt(n);
 const digitCount = (n: bigint): number => n.toString().length; // 0n has one digit, like Python
@@ -41,8 +53,16 @@ export class Dec {
     this.neg = neg;
   }
 
-  /** Python `Decimal(str)`; non-finite values come back as "nan" / "inf" so callers can reject them. */
-  static parse(text: string): Dec | "nan" | "inf" {
+  /**
+   * Python `Decimal(str)`; non-finite values come back as "nan" / "inf" so callers can reject them.
+   *
+   * `anyExponent`: accept every exponent libmpdec accepts (a literal beyond its limits is Python's
+   * InvalidOperation, a ValueError here, like a malformed literal) instead of refusing those beyond
+   * +-2^53. Exponents beyond +-2^50 are then clamped to +-2^50: the value compares and sums
+   * (`addChecked`) as Python's does, but its `toString`, `quantize`, `scaleb` and
+   * `integralValue` are not Python's. Only for values that are compared or summed.
+   */
+  static parse(text: string, opts: { anyExponent?: boolean } = {}): Dec | "nan" | "inf" {
     if (typeof text !== "string") throw new ValueError("Decimal() needs a string");
     // CPython's C decimal strips whitespace, maps Unicode digits to ASCII and drops every underscore.
     const m = NUMBER.exec(toAsciiDigits(pyStrip(text)).replace(/_/g, ""));
@@ -51,11 +71,19 @@ export class Dec {
     if (m[6] !== undefined) return "inf";
     const intPart = m[2] ?? "";
     const frac = m[2] !== undefined ? m[3]! : m[4]!;
+    const coef = BigInt(intPart + frac);
     let exp = BigInt(m[5] ?? "0") - BigInt(frac.length);
-    if (exp > BigInt(Number.MAX_SAFE_INTEGER) || exp < -BigInt(Number.MAX_SAFE_INTEGER)) {
+    if (opts.anyExponent) {
+      if (exp < MIN_LITERAL_EXP || exp + BigInt(digitCount(coef)) - 1n > MAX_LITERAL_ADJUSTED) {
+        throw new ValueError(`exponent out of range: ${JSON.stringify(text)}`);
+      }
+      const clamp = BigInt(EXP_CLAMP);
+      if (exp > clamp) exp = clamp;
+      if (exp < -clamp) exp = -clamp;
+    } else if (exp > BigInt(Number.MAX_SAFE_INTEGER) || exp < -BigInt(Number.MAX_SAFE_INTEGER)) {
       throw new ValueError("exponent out of range");
     }
-    return new Dec(BigInt(intPart + frac), Number(exp), m[1] === "-");
+    return new Dec(coef, Number(exp), m[1] === "-");
   }
 
   static fromInt(n: bigint | number): Dec {
@@ -147,6 +175,52 @@ export class Dec {
     const b = (other.neg ? -1n : 1n) * other.coef * pow10(other.exp - exp);
     const sum = a + b;
     return new Dec(sum < 0n ? -sum : sum, exp, sum < 0n).fixed();
+  }
+
+  /**
+   * Python `self + other` under the default context, exactly (`_pydecimal.Decimal.__add__`): the
+   * operand normalisation (far-apart exponents cost nothing), 28-digit rounding half even,
+   * subnormal rounding at Etiny, a zero's exponent clamped into [Etiny, Emax], and an Overflow
+   * (Python's trapped decimal.Overflow) for a result above Emax.
+   */
+  addChecked(other: Dec): Dec {
+    const exp = Math.min(this.exp, other.exp);
+    if (this.coef === 0n && other.coef === 0n) return new Dec(0n, exp, this.neg && other.neg).fixContext();
+    if (this.coef === 0n || other.coef === 0n) {
+      const kept = this.coef === 0n ? other : this;
+      const target = Math.max(exp, kept.exp - PREC - 1); // <= kept.exp: padding only, at most 29 digits
+      return new Dec(kept.coef * pow10(kept.exp - target), target, kept.neg).fixContext();
+    }
+    // _normalize: an operand entirely below the other's rounding range becomes a sticky digit.
+    const [big, lower] = this.exp < other.exp ? [other, this] : [this, other];
+    let small = lower;
+    const stickyExp = big.exp + Math.min(-1, digitCount(big.coef) - PREC - 2);
+    if (digitCount(small.coef) + small.exp - 1 < stickyExp) small = new Dec(1n, stickyExp, small.neg);
+    const work = small.exp;
+    const a = (big.neg ? -1n : 1n) * big.coef * pow10(big.exp - work);
+    const b = (small.neg ? -1n : 1n) * small.coef;
+    const sum = a + b;
+    if (sum === 0n) return new Dec(0n, exp, false).fixContext(); // ROUND_HALF_EVEN: +0
+    return new Dec(sum < 0n ? -sum : sum, work, sum < 0n).fixContext();
+  }
+
+  /** `_pydecimal.Decimal._fix` for the default context, raising Overflow as the trapped signal does. */
+  private fixContext(): Dec {
+    if (this.coef === 0n) return new Dec(0n, Math.min(Math.max(this.exp, ETINY), EMAX), this.neg);
+    const digits = digitCount(this.coef);
+    let expMin = digits + this.exp - PREC;
+    if (expMin > ETOP) throw new Overflow("above Emax");
+    if (expMin < ETINY) expMin = ETINY; // subnormal
+    if (this.exp >= expMin) return this;
+    const keep = digits + this.exp - expMin;
+    // keep < 0: the value is below half of the last place and rounds to zero (Python's sticky '1').
+    let coef = keep < 0 ? 0n : roundDrop(this.coef, digits - keep);
+    if (digitCount(coef) > PREC) { // the rounding carried into a 29th digit
+      coef /= 10n;
+      expMin += 1;
+    }
+    if (expMin > ETOP) throw new Overflow("above Emax");
+    return new Dec(coef, expMin, this.neg);
   }
 
   sub(other: Dec): Dec {

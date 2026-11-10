@@ -1,0 +1,26 @@
+<!doctype html>
+<!--
+  Blank-canvas page that runs the built SCFG.js on the MZ shim, in the order a real MZ game does:
+  js/plugins.js ($plugins), the engine (here the shim, which registers the plugin parameters as
+  PluginManager.setup does), the plugin script, then the boot (main.js: SceneManager.run).
+  Serve the rpgmaker/ folder after `npm run build` and open /test/harness/index.html (add ?test
+  for a test play).
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SCFG MZ harness</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+    #gameCanvas { position: absolute; inset: 0; margin: auto; background: #1b2230; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="816" height="624"></canvas>
+  <script src="plugins.js"></script>
+  <script src="../../dist/test/shim.js"></script>
+  <script src="../../dist/js/plugins/SCFG.js"></script>
+  <script src="../../dist/test/harness.js"></script>
+</body>
+</html>

@@ -3,6 +3,6 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "../conformance/js/**/*.ts"],
-  "exclude": []
+  "include": ["src/core/**/*.ts", "test/**/*.ts", "../conformance/js/**/*.ts"],
+  "exclude": ["test/mz_shim/**", "test/harness/**", "test/mz_glue.ts", "test/mz_header_reader.ts", "test/demo_kit.test.ts", "test/e2e/**"]
 }

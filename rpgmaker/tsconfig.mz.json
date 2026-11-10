@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2020", "DOM"]
+  },
+  "include": ["src/mz/**/*.ts", "test/mz_shim/**/*.ts", "test/harness/**/*.ts"],
+  "exclude": ["src/mz/**/*.test.ts", "test/mz_shim/**/*.test.ts", "test/mz_shim/node_storage.ts"]
+}

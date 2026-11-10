@@ -20,7 +20,7 @@ export { MESSAGES as RESTORE_MESSAGES, RestoreController } from "./restore_flow.
 
 // Configuration
 export {
-  addItem, buildChain, buildConfig, enabledChains, logoContentType,
+  DEFAULT_ACCENT, addItem, buildChain, buildConfig, enabledChains, logoContentType, textOn,
   type AddItemOptions, type BuildChainOptions, type BuildConfigOptions, type Config,
 } from "./config.ts";
 export { MIN_TIP, TIP_PRESETS, preparePayment, type PaymentSpec } from "./payments.ts";
@@ -33,11 +33,15 @@ export { FetchTransport, TransportError, type Transport } from "./coio.ts";
 export { RpcError, RpcUnavailable } from "./rpc.ts";
 
 // Errors
-export { ConfigError, IndexError, KeyError, ScfgError, ValueError, isScfgError } from "./errors.ts";
+export {
+  ArithmeticError, ConfigError, DecimalException, IndexError, InvalidOperation, KeyError, Overflow, ScfgError, ValueError,
+  isScfgError,
+} from "./errors.ts";
 export { RestoreError, TIP_CHOICE, type RestoreCandidate } from "./restore.ts";
 
 // What the page tells the game (the M2 server parses with these)
 export { BUILD_TIMEOUT_S, parseBuildMessage, parseTxMessage } from "./page_messages.ts";
+export { OverlayCheckout, type OverlayOptions, type OverlayUi } from "./overlay.ts";
 
 // Values, models and persisted records
 export { Dec } from "./decimal.ts";

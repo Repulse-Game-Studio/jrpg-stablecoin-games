@@ -99,6 +99,31 @@ def test_amount_scan_payment_is_detected_and_confirmed(world, js_world):
     assert js.snapshot()["owned"] == ["chapter2"]
 
 
+def test_node_transport_against_anvil(world):
+    """RPG Maker's desktop transport (NodeHttpsTransport on Node's http, Ruling M2-1) carries a
+    whole payment against Anvil: the twin of test_amount_scan_payment_is_detected_and_confirmed
+    with the Node transport in place of fetch."""
+    chain = world["engine"].chain("arbitrum")
+    override = {"network": "mainnet", "key": "arbitrum", "rpc": list(chain.rpc),
+                "confirmations": chain.confirmations,
+                "tokens": {name: t.address for name, t in chain.tokens.items()}}
+    js = JsEngine(override, {"wallet": world["dev"], "chains": ["arbitrum"]}, [CHAPTER2],
+                  transport="node")
+    try:
+        rpc = world["rpc"]
+        rec = js.start_session("unlock", "arbitrum", item="chapter2")
+        pay(world, rec["units"])
+        assert tick_until(js, "confirming")["confirmations"] == 1
+        mine(rpc, 2)
+        out = tick_until(js, "paid")
+        assert Decimal(out["result"]["amount"]) == units_to_amount(rec["units"])
+        assert js.snapshot()["owned"] == ["chapter2"]
+        stats = js.transport_stats()
+        assert stats["kind"] == "NodeHttpsTransport" and stats["posts"] > 0, stats
+    finally:
+        js.close()
+
+
 def test_hinted_exchange_style_payment(world, js_world):
     js, rpc = js_world, world["rpc"]
     rec = js.start_session("unlock", "arbitrum", item="chapter2")

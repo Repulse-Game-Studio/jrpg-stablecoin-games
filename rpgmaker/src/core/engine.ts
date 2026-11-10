@@ -11,7 +11,7 @@ import type { Transport } from "./coio.ts";
 import { acceptedWalletsFor, enabledChains, registry, walletFor, type Config } from "./config.ts";
 import { deepCopy } from "./copy.ts";
 import type { Dec } from "./decimal.ts";
-import { ConfigError, ValueError } from "./errors.ts";
+import { ConfigError, KeyError, ValueError } from "./errors.ts";
 import { makePaymentResult } from "./models.ts";
 import { MIN_TIP, preparePayment } from "./payments.ts";
 import { computeOwnership } from "./receipts.ts";
@@ -113,7 +113,8 @@ export class Engine {
 
   /** Full registry chain (all tokens, so old receipts stay verifiable) with overrides. */
   chain(key: string): Chain {
-    const base: Chain = pyGet(registry(this.config), key);
+    const base = registry(this.config).get(key);
+    if (base === undefined) throw new KeyError(key); // Python: config.registry[key]
     return {
       ...base,
       rpc: [...(hasOwn(this.config.rpc_urls, key) ? this.config.rpc_urls[key]! : []), ...base.rpc],
@@ -202,7 +203,7 @@ export class Engine {
     try {
       const key = pyGet(rec, "chain");
       if (typeof key === "object" && key !== null) throw new TypeError("unhashable chain key");
-      const known = typeof key === "string" && hasOwn(registry(this.config), key);
+      const known = typeof key === "string" && registry(this.config).has(key);
       if (!known || walletFor(this.config, this.chain(key)) === null) {
         if (!isPastHorizon(rec, now)) return null;
         removeSession(this.pending, sid);
@@ -244,7 +245,7 @@ export class Engine {
    */
   async reverify(): Promise<string[]> {
     const chains: Record<string, Chain> = {};
-    for (const k of Object.keys(registry(this.config))) chains[k] = this.chain(k);
+    for (const k of registry(this.config).keys()) chains[k] = this.chain(k);
     const wallets: Record<string, string[]> = {};
     for (const f of ["evm", "solana"]) wallets[f] = acceptedWalletsFor(this.config, f);
     const removed = await reverifyReceipts(this.receipts, { rpc_for: (k) => this.rpc(k), chains, wallets });
@@ -254,7 +255,7 @@ export class Engine {
 
   private async _checkReady(): Promise<void> {
     const unready = new Set<string>();
-    for (const [key, chain] of Object.entries(enabledChains(this.config))) {
+    for (const [key, chain] of enabledChains(this.config)) {
       const wallet = walletFor(this.config, chain);
       let ready: Record<string, boolean>;
       try {
@@ -285,9 +286,9 @@ export class Engine {
 
   async restoreLookup(tx_hash: string): Promise<RestoreCandidate[]> {
     const reg = registry(this.config);
-    const ordered = [...this.config.chains, ...Object.keys(reg).filter((k) => !this.config.chains.includes(k))];
-    const chains: Record<string, Chain> = {};
-    for (const k of ordered) chains[k] = this.chain(k);
+    const ordered = [...this.config.chains, ...[...reg.keys()].filter((k) => !this.config.chains.includes(k))];
+    const chains = new Map<string, Chain>();
+    for (const k of ordered) chains.set(k, this.chain(k));
     return lookupRestore(tx_hash, { config: this.config, chains, rpc_for: (k) => this.rpc(k), receipts: this.receipts });
   }
 

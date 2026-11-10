@@ -233,7 +233,7 @@ export class SolanaBackend implements Backend {
 
   async advance(
     pending: SessionStore, receipts: SessionStore, sid: string,
-    args: { rpc: SolanaWatchRpc; chain: Chain; wallet: string; items: Record<string, Item>; now: number },
+    args: { rpc: SolanaWatchRpc; chain: Chain; wallet: string; items: ReadonlyMap<string, Item>; now: number },
   ): Promise<StepOutcome> {
     const { rpc, chain, wallet, items, now } = args;
     const rec: SessionRecord | null = hasOwn(pending, sid) ? pending[sid] : null; // pending.get(sid)
@@ -321,13 +321,13 @@ export class SolanaBackend implements Backend {
       && !hasOwn(receipts, receiptKey(chain.key, t.tx_hash, t.log_index));
   }
 
-  private _verdict(t: Transfer, rec: SessionRecord, items: Record<string, Item>): string {
+  private _verdict(t: Transfer, rec: SessionRecord, items: ReadonlyMap<string, Item>): string {
     rec["match"] = matchDict(t);
     return unitsToDecimal(t.value).cmp(minAmount(rec, items)) < 0 ? "underpaid" : "matched";
   }
 
   private async _verifyHint(
-    rec: SessionRecord, rpc: SolanaWatchRpc, chain: Chain, mint: string, wallet: string, items: Record<string, Item>,
+    rec: SessionRecord, rpc: SolanaWatchRpc, chain: Chain, mint: string, wallet: string, items: ReadonlyMap<string, Item>,
     receipts: SessionStore, now: number, out: StepOutcome,
   ): Promise<string | null> {
     const expired = now - numField(rec, "hint_at") >= SOLANA_HINT_TIMEOUT_S;
@@ -363,7 +363,7 @@ export class SolanaBackend implements Backend {
 
   /** The reference ties a transaction to this session, so any amount matches. */
   private async _byReference(
-    rec: SessionRecord, rpc: SolanaWatchRpc, chain: Chain, mint: string, wallet: string, items: Record<string, Item>,
+    rec: SessionRecord, rpc: SolanaWatchRpc, chain: Chain, mint: string, wallet: string, items: ReadonlyMap<string, Item>,
     receipts: SessionStore,
   ): Promise<string | null> {
     const infos = await rpc.getSignaturesForAddress(pyGet(rec, "reference"), { limit: this.sig_page });

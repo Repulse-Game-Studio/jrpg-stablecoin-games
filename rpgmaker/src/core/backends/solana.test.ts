@@ -11,7 +11,7 @@ import { MAINNET, makeToken, type Chain } from "../chains.ts";
 import type { Transport } from "../coio.ts";
 import { addItem, buildConfig } from "../config.ts";
 import { Dec } from "../decimal.ts";
-import { ValueError } from "../errors.ts";
+import { InvalidOperation, ValueError } from "../errors.ts";
 import type { Item } from "../models.ts";
 import { makeReceipt, receiptKey } from "../receipts.ts";
 import { RestoreError, lookup } from "../restore.ts";
@@ -196,6 +196,15 @@ test("test_lookup_classifies_by_amount_code", async () => {
   assert.ok((await B.lookup(sig(1), { config: cfg(), chain: MAIN, rpc: chain, receipts }))![0]!.already_restored);
 });
 
+test("test_lookup_value_decode_cannot_hold_rejects_the_lookup", async () => {
+  // Python: classify -> decode raises decimal.InvalidOperation from 10**32 units; lookup does not catch it.
+  const chain = new FakeSolanaChain();
+  const tx = chain.pay(sig(1), { mint: MAIN_MINT, payer: PAYER, owner: DEV, amount: 1, slot: 950 });
+  tx["meta"]["postTokenBalances"][1]["uiTokenAmount"]["amount"] = String(10n ** 32n);
+  await assert.rejects(B.lookup(sig(1), { config: cfg(), chain: MAIN, rpc: chain, receipts: {} }),
+    (e: unknown) => e instanceof InvalidOperation && !(e instanceof ValueError));
+});
+
 test("test_lookup_offers_previous_wallet_payments_too", async () => {
   const chain = new FakeSolanaChain();
   chain.pay(sig(1), { mint: MAIN_MINT, payer: PAYER, owner: OLD, amount: 4_993_742, slot: 950 });
@@ -218,7 +227,7 @@ test("test_restore_routes_signatures_to_solana_and_hashes_to_evm", async () => {
   const sol = new FakeSolanaChain();
   sol.pay(sig(1), { mint: MAIN_MINT, payer: PAYER, owner: DEV, amount: 4_993_742 });
   const evm = new FakeChain();
-  const chains: Record<string, Chain> = { arbitrum: MAINNET["arbitrum"]!, solana: MAIN };
+  const chains = new Map<string, Chain>([["arbitrum", MAINNET["arbitrum"]!], ["solana", MAIN]]);
   const rpcs: Record<string, unknown> = { arbitrum: evm, solana: sol };
   const out = await lookup(sig(1), { config: cfg(), chains, rpc_for: (k) => rpcs[k], receipts: {} });
   assert.equal(out[0]!.chain, "solana");
@@ -258,12 +267,12 @@ const CHAIN: Chain = {
   ...MAIN, rpc: ["https://x.example"], confirmations: FINAL_CONFIRMATIONS, max_log_range: 0,
   explorer_tx: "https://solscan.io/tx/{}", tokens: { USDC: makeToken(MINT) }, wallet_chain: "", native_token: "",
 };
-const ITEMS: Record<string, Item> = {
-  chapter2: {
+const ITEMS: ReadonlyMap<string, Item> = new Map([[
+  "chapter2", {
     item_id: "chapter2", code: 37, price: Dec.parse("4.99") as Dec, token: "USDC", title: "Chapter 2",
     min_price: Dec.parse("4.99") as Dec,
   } as Item,
-};
+]]);
 
 function setup(kw: Record<string, unknown> = {}) {
   const pending: SessionStore = {};

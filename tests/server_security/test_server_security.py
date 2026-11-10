@@ -1,6 +1,6 @@
-"""The localhost checkout server's behaviour and hardening, over real HTTP, against both the Python
-server and the GDScript one (the `server` / `make_server` fixtures in conftest.py run each test
-twice). Ports every test of tests/unit/test_local_server.py, plus
+"""The localhost checkout server's behaviour and hardening, over real HTTP, against the Python
+server, the GDScript one and the Node one (the `server` / `make_server` fixtures in conftest.py
+run each test three times). Ports every test of tests/unit/test_local_server.py, plus
 test_solana_build.py::test_build_route and test_checkout_solana.py::
 test_local_server_accepts_a_signature_hint, under their own names."""
 import http.client
@@ -14,7 +14,7 @@ from solders.keypair import Keypair
 from scfg_core.local_server import MAX_BODY
 from scfg_core.solana.base58 import b58encode
 
-from server_handles import GodotServer
+from server_handles import PythonServer
 
 TX = "0x" + "ab" * 32
 SIG = b58encode((7).to_bytes(64, "big"))
@@ -228,8 +228,9 @@ def test_every_answer_carries_the_security_headers_and_no_cors(make_server):
     for resp, _ in answers:
         assert not [h for h, _ in resp.getheaders() if h.lower().startswith("access-control-")]
     # Python's 501 comes from BaseHTTPRequestHandler.send_error, which adds none of them (a gap
-    # of scfg_core's server, kept as it is here); the GDScript server sends them on every answer
-    checked = answers if isinstance(srv, GodotServer) else answers[:-1]
+    # of scfg_core's server, kept as it is here); the GDScript and the Node server send them on
+    # every answer
+    checked = answers[:-1] if isinstance(srv, PythonServer) else answers
     for resp, _ in checked:
         for name, value in SECURITY_HEADERS.items():
             assert resp.getheader(name) == value, (resp.status, name)
@@ -324,7 +325,7 @@ def test_bad_request_lines(server, line, status):
         while chunk := s.recv(65536):
             out += chunk
     # http.server answers a request line it cannot read without a status line (as HTTP/0.9),
-    # with only its error page; the GDScript server sends a full response
+    # with only its error page; the GDScript and the Node server send a full response
     if out.startswith(b"HTTP/"):
         assert int(out.split()[1]) == status
     else:

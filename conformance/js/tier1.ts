@@ -179,12 +179,12 @@ FUNCS["remove_receipt"] = (i) => {
   return store;
 };
 FUNCS["compute_ownership"] = (i) => {
-  const items: Record<string, Item> = {};
+  const items = new Map<string, Item>();
   for (const x of field<any[]>(i, "items", "object")) {
-    items[x.item_id] = {
+    items.set(x.item_id, {
       item_id: x.item_id, code: x.code, price: finiteDec(x.price), token: x.token, title: x.title,
       min_price: finiteDec(x.min_price),
-    };
+    });
   }
   const [owned, tips] = computeOwnership(field(i, "store", "object"), items);
   return { owned: [...owned].sort(), tip_total: String(tips) };
@@ -211,7 +211,8 @@ function toJsonable(v: unknown, path = ""): unknown {
   if (Array.isArray(v)) return v.map((x, n) => toJsonable(x, `${path}[${n}]`));
   if (typeof v === "object" && v !== undefined) {
     const out: Record<string, unknown> = {};
-    for (const [k, x] of Object.entries(v)) {
+    // A Map stands for a Python dict (Config.items, custom_chains): its entries, in order.
+    for (const [k, x] of v instanceof Map ? v.entries() : Object.entries(v)) {
       if (x === undefined) throw new ValueError(`undefined at ${path ? path + "." : ""}${k}`);
       Object.defineProperty(out, k, { value: toJsonable(x, path ? `${path}.${k}` : k), enumerable: true, writable: true, configurable: true });
     }

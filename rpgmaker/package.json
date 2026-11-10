@@ -6,11 +6,13 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && tsc -p tsconfig.mz.json && tsc -p tsconfig.mz.test.json",
     "test": "node --test \"src/**/*.test.ts\" \"test/**/*.test.ts\" \"../conformance/js/**/*.test.ts\""
   },
   "devDependencies": {
     "@types/node": "24.19.2",
+    "esbuild": "0.28.2",
     "typescript": "7.0.2"
   }
 }

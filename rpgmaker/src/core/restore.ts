@@ -49,7 +49,7 @@ export interface RestoreCandidate {
 export function classify(config: Config, value: Units): [string | null, string | null, string[]] {
   const [, code, nonce] = decode(value);
   const amount = unitsToDecimal(value);
-  const affordable = Object.values(config.items).filter((i) => i.min_price.cmp(amount) <= 0).map((i) => i.item_id);
+  const affordable = [...config.items.values()].filter((i) => i.min_price.cmp(amount) <= 0).map((i) => i.item_id);
   if (code === 0 && nonce === 0) {
     // A whole-cent amount carries no code at all: could be an exchange-rounded purchase or a plain
     // tip. Let the player say which.
@@ -90,12 +90,12 @@ export async function lookupEvm(
 /** Find the chain that knows `tx_hash` and the candidates in it. */
 export async function lookup(
   tx_hash: string,
-  args: { config: Config; chains: Record<string, Chain>; rpc_for: (key: string) => any; receipts: Record<string, unknown> },
+  args: { config: Config; chains: ReadonlyMap<string, Chain>; rpc_for: (key: string) => any; receipts: Record<string, unknown> },
 ): Promise<RestoreCandidate[]> {
   const { config, chains, rpc_for, receipts } = args;
   let networkTrouble = false;
   let understood = false;
-  for (const [key, chain] of Object.entries(chains)) {
+  for (const [key, chain] of chains) {
     const backend = backendFor(chain);
     let tx: string;
     try {

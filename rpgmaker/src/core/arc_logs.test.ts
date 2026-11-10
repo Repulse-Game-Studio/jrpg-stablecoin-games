@@ -77,9 +77,9 @@ test("test_parse_transfer_skips_non_transfer_logs", () => {
 
 // --- the watcher on Arc -----------------------------------------------------------------
 
-const ITEMS: Record<string, Item> = {
-  chapter2: { item_id: "chapter2", code: 37, price: dec("4.99"), token: "USDC", title: "Chapter 2", min_price: dec("4.99") },
-};
+const ITEMS: ReadonlyMap<string, Item> = new Map([
+  ["chapter2", { item_id: "chapter2", code: 37, price: dec("4.99"), token: "USDC", title: "Chapter 2", min_price: dec("4.99") }],
+]);
 const UNITS = 4_993_742n; // 4.99 + code 37 + nonce 42
 
 /** The two logs one ERC-20 transfer() on Arc produces: emitter first, then 0x3600. */

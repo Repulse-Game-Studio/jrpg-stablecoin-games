@@ -8,7 +8,8 @@ test("test_public_surface_loads_and_exports_the_supported_api", () => {
     "Engine", "Worker", "Job", "CancelledError", "CheckoutController", "RestoreController", "buildConfig", "buildChain",
     "addItem", "preparePayment", "MAINNET", "TESTNET", "getChains", "FetchTransport", "ConfigError", "ScfgError",
     "ValueError", "KeyError", "IndexError", "RestoreError", "RpcError", "RpcUnavailable", "TransportError",
-    "unreadyKey", "parseUnreadyKey", "parseTxMessage", "asUnits", "decimalToUnits", "Dec",
+    "unreadyKey", "parseUnreadyKey", "parseTxMessage", "asUnits", "decimalToUnits", "Dec", "InvalidOperation", "Overflow",
+    "ArithmeticError", "OverlayCheckout",
   ]) {
     assert.ok((core as Record<string, unknown>)[name] !== undefined, name);
   }

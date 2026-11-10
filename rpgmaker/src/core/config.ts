@@ -7,6 +7,11 @@
  *
  * JS has one number type: an integral `number` stands for a Python `int`, a non-integral one for
  * a `float`. Python's integral float (`5.0`) cannot be expressed.
+ *
+ * Item ids and chain keys may be integer-like ("10"), and a JS object lists those keys first, so
+ * every dict keyed by them whose order shows (`items`, `custom_chains`, `registry()`,
+ * `enabledChains()`) is a `Map`, which keeps insertion order as a Python dict does (M1 Ruling 9).
+ * `rpc_urls` and `confirmations` are only looked up, never iterated, and stay plain objects.
  */
 import { parseAmount } from "./amounts.ts";
 import { DISPLAY_ORDER, makeToken, getChains, type Chain, type Token } from "./chains.ts";
@@ -50,13 +55,9 @@ const isDict = (v: unknown): v is Record<string, any> => typeof v === "object" &
 const isInt = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v);
 const cpLength = (s: string): number => [...s].length;
 
-/** Python `key in container` for a dict/set with a key that may be unhashable (list/dict -> TypeError). */
+/** The TypeError Python's `key in container` raises for an unhashable key (a list or dict). */
 function hashable(key: unknown): void {
   if (typeof key === "object" && key !== null) throw new TypeError(`unhashable type: ${Array.isArray(key) ? "list" : "dict"}`);
-}
-function inDict(container: object, key: unknown): boolean {
-  hashable(key);
-  return typeof key === "string" && hasOwn(container, key);
 }
 
 /** Python `tuple(x)` / iteration for the JSON-like values a caller can pass. */
@@ -94,13 +95,13 @@ export interface Config {
   previous_solana_wallets: string[];
   logo: string | null; // image path, shown on the screens and the checkout page
   accent: string; // #rrggbb used for selected options
-  custom_chains: Record<string, Chain>; // addChain(), this network
-  items: Record<string, Item>;
+  custom_chains: Map<string, Chain>; // addChain(), this network, in the order added
+  items: Map<string, Item>; // in the order added
 }
 
 /** Every chain this game knows on its network: built-in, then the developer's own. */
-export function registry(config: Config): Record<string, Chain> {
-  return { ...getChains(config.testnet), ...config.custom_chains };
+export function registry(config: Config): Map<string, Chain> {
+  return new Map([...Object.entries(getChains(config.testnet)), ...config.custom_chains]);
 }
 
 /** EVM: current wallet first, then wallets used by earlier versions of the game. */
@@ -120,7 +121,7 @@ export function walletFor(config: Config, chain: Pick<Chain, "family">): string 
 }
 
 export function itemByCode(config: Config, code: number): Item | null {
-  for (const item of Object.values(config.items)) {
+  for (const item of config.items.values()) {
     if (item.code === code) return item;
   }
   return null;
@@ -265,9 +266,9 @@ function isChain(x: unknown): x is Chain {
 }
 
 /** [chains for this network keyed by key, keys only defined for the other network]. */
-function customChainsFor(custom: unknown, testnet: boolean): [Record<string, Chain>, Set<string>] {
+function customChainsFor(custom: unknown, testnet: boolean): [Map<string, Chain>, Set<string>] {
   const builtin = getChains(testnet);
-  const mine: Record<string, Chain> = {};
+  const mine = new Map<string, Chain>();
   const other = new Set<string>();
   for (const chain of noneish(custom) || !pyTruthy(custom) ? [] : iterate(custom, "custom_chains")) {
     if (!isChain(chain)) {
@@ -282,18 +283,18 @@ function customChainsFor(custom: unknown, testnet: boolean): [Record<string, Cha
       other.add(chain.key);
       continue;
     }
-    if (hasOwn(mine, chain.key)) {
+    if (mine.has(chain.key)) {
       throw new ConfigError(`chain '${chain.key}' added twice`, { code: "chain.duplicate" });
     }
-    for (const c of [...Object.values(builtin), ...Object.values(mine)]) {
+    for (const c of [...Object.values(builtin), ...mine.values()]) {
       if (c.chain_id === chain.chain_id) {
         throw new ConfigError(`chain '${chain.key}' has the same chain_id (${chain.chain_id}) as '${c.key}'`,
           { code: "chain.duplicate_chain_id" });
       }
     }
-    put(mine, chain.key, chain);
+    mine.set(chain.key, chain);
   }
-  for (const k of Object.keys(mine)) other.delete(k);
+  for (const k of mine.keys()) other.delete(k);
   return [mine, other];
 }
 
@@ -414,7 +415,7 @@ export function buildConfig(options: BuildConfigOptions = {}): Config {
     "previous_wallets", "logo", "accent", "custom_chains", "solana_wallet"], [], "build_config");
   const testnet = pyTruthy(o["testnet"]);
   const [custom, otherNetwork] = customChainsFor(o["custom_chains"], testnet);
-  const reg: Record<string, Chain> = { ...getChains(testnet), ...custom };
+  const reg = new Map<string, Chain>([...Object.entries(getChains(testnet)), ...custom]);
   if (noneish(o["wallet"]) && noneish(o["solana_wallet"])) {
     throw new ConfigError("configure() needs wallet= (an EVM 0x address) and/or solana_wallet=", { code: "wallet.missing" });
   }
@@ -428,9 +429,9 @@ export function buildConfig(options: BuildConfigOptions = {}): Config {
     if (addr !== current && !seen.includes(addr)) seen.push(addr);
   }
 
-  const solanaKeys = Object.entries(reg).filter(([, c]) => c.family === "solana").map(([k]) => k);
+  const solanaKeys = [...reg].filter(([, c]) => c.family === "solana").map(([k]) => k);
   const chains: string[] = noneish(o["chains"])
-    ? [...(wallet ? [...DISPLAY_ORDER, ...Object.keys(custom)] : []), ...(sol ? solanaKeys : [])]
+    ? [...(wallet ? [...DISPLAY_ORDER, ...custom.keys()] : []), ...(sol ? solanaKeys : [])]
     : (iterate(o["chains"], "chains") as string[]);
   if (chains.length === 0) throw new ConfigError("chains must not be empty", { code: "chains.empty" });
   for (const c of chains) {
@@ -441,8 +442,8 @@ export function buildConfig(options: BuildConfigOptions = {}): Config {
         `chain '${c}' was only added for ${net}; add it again with testnet=${testnet ? "True" : "False"} to use it here`,
         { code: "chains.wrong_network" });
     }
-    if (!inDict(reg, c)) throw new ConfigError(`unknown chain: ${JSON.stringify(c)}`, { code: "chains.unknown" });
-    const family = reg[c]!.family;
+    if (typeof c !== "string" || !reg.has(c)) throw new ConfigError(`unknown chain: ${JSON.stringify(c)}`, { code: "chains.unknown" });
+    const family = reg.get(c)!.family;
     if (family === "solana" && sol === null) {
       throw new ConfigError(`chain '${c}' needs solana_wallet=`, { code: "chain.needs_solana_wallet" });
     }
@@ -475,7 +476,7 @@ export function buildConfig(options: BuildConfigOptions = {}): Config {
     if (!chains.includes(c)) {
       throw new ConfigError(`confirmations for unknown or disabled chain '${c}'`, { code: "confirmations.unknown_chain" });
     }
-    if (reg[c]!.family === "solana") {
+    if (reg.get(c)!.family === "solana") {
       throw new ConfigError(`Solana payments wait for finalization; confirmations can't be set for '${c}'`,
         { code: "confirmations.solana_fixed" });
     }
@@ -486,9 +487,9 @@ export function buildConfig(options: BuildConfigOptions = {}): Config {
   const cfg: Config = {
     wallet, testnet, chains, tokens, methods: merged, rpc_urls: urls, confirmations: confs, previous_wallets: prev,
     solana_wallet: sol, previous_solana_wallets: prevSol, logo: logoArg(o["logo"]), accent: accentArg(o["accent"]),
-    custom_chains: custom, items: {},
+    custom_chains: custom, items: new Map(),
   };
-  if (Object.keys(enabledChains(cfg)).length === 0) {
+  if (enabledChains(cfg).size === 0) {
     throw new ConfigError("no enabled chain supports any enabled token", { code: "config.no_usable_token" });
   }
   return cfg;
@@ -503,17 +504,17 @@ function dictItems(value: unknown, what: string): [string, any][] {
  * Chains the player may pay on, in display order, filtered to enabled tokens, with developer RPC
  * URLs tried first and confirmation overrides applied.
  */
-export function enabledChains(config: Config): Record<string, Chain> {
+export function enabledChains(config: Config): Map<string, Chain> {
   const reg = registry(config);
-  const out: Record<string, Chain> = {};
+  const out = new Map<string, Chain>();
   for (const key of config.chains) {
-    const base = reg[key]!;
+    const base = reg.get(key)!;
     const tokens: Record<string, Token> = {};
     for (const [t, v] of Object.entries(base.tokens)) {
       if (config.tokens.includes(t)) put(tokens, t, v);
     }
     if (Object.keys(tokens).length === 0) continue;
-    put(out, key, {
+    out.set(key, {
       ...base,
       tokens,
       rpc: [...(hasOwn(config.rpc_urls, key) ? config.rpc_urls[key]! : []), ...base.rpc],
@@ -524,7 +525,7 @@ export function enabledChains(config: Config): Record<string, Chain> {
 }
 
 export function chainsForToken(config: Config, token: string): string[] {
-  return Object.entries(enabledChains(config)).filter(([, c]) => hasOwn(c.tokens, token)).map(([k]) => k);
+  return [...enabledChains(config)].filter(([, c]) => hasOwn(c.tokens, token)).map(([k]) => k);
 }
 
 export interface AddItemOptions {
@@ -541,7 +542,7 @@ export function addItem(config: Config, item_id: unknown, opts: AddItemOptions):
   if (typeof item_id !== "string" || !ITEM_ID.test(item_id)) {
     throw new ConfigError(`invalid item id ${JSON.stringify(item_id)} (use a-z, 0-9, _ and -)`, { code: "item.invalid_id" });
   }
-  if (hasOwn(config.items, item_id)) {
+  if (config.items.has(item_id)) {
     throw new ConfigError(`duplicate item id '${item_id}'`, { code: "item.duplicate_id" });
   }
   if (!isInt(code) || code < 1 || code > 99) {
@@ -569,6 +570,6 @@ export function addItem(config: Config, item_id: unknown, opts: AddItemOptions):
     throw new ConfigError("title must be a non-empty string of at most 80 characters", { code: "item.invalid_title" });
   }
   const item: Item = { item_id, code, price: p, token, title, min_price: mp };
-  put(config.items, item_id, item);
+  config.items.set(item_id, item);
   return item;
 }

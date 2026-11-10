@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Dec } from "./decimal.ts";
-import { ValueError } from "./errors.ts";
+import { ArithmeticError, Overflow, ValueError } from "./errors.ts";
 import { asUnits, unitsToDecimal } from "./amounts.ts";
 
 const d = (s: string): Dec => {
@@ -118,4 +118,33 @@ test("test_integral_value", () => {
   assert.equal(d("-12.0").integralValue(), -12n);
   assert.equal(d("5.5").integralValue(), null);
   assert.equal(d("-0").integralValue(), 0n);
+});
+
+// `Decimal(a) + Decimal(b)` under the default context, as CPython prints it (`uv run python`).
+test("test_add_checked_matches_python_context_addition", () => {
+  const cases: [string, string, string][] = [
+    ["0", "-1E-1000030", "-0E-1000026"],
+    ["-0", "1E-1000030", "0E-1000026"],
+    ["0", "-0E-5", "0.00000"],
+    ["1.0", "-1.0", "0.0"],
+    ["0E+5", "0E+3", "0E+3"],
+    ["0", "12345678901234567890123456789", "1.234567890123456789012345679E+28"],
+    ["0", "0E+1000005", "0"],
+    ["9.999999999999999999999999999E+999999", "0.0000000000000000000000000004E+999999", "9.999999999999999999999999999E+999999"],
+    ["0", "5E-1000027", "0E-1000026"],
+    ["0", "5.1E-1000027", "1E-1000026"],
+    ["0", "15E-1000027", "2E-1000026"],
+    ["0", "25E-1000027", "2E-1000026"],
+    ["1E-1000026", "-1E-1000026", "0E-1000026"],
+    ["1E+200000", "1", "1.000000000000000000000000000E+200000"],
+    ["1", "1E+200000", "1.000000000000000000000000000E+200000"],
+    ["1.5", "0", "1.5"],
+    ["4.25", "0.000001", "4.250001"],
+    ["-7", "2.5", "-4.5"],
+  ];
+  for (const [a, b, want] of cases) assert.equal(String(d(a).addChecked(d(b))), want, `${a} + ${b}`);
+  const isOverflow = (e: unknown) => e instanceof Overflow && e instanceof ArithmeticError && !(e instanceof ValueError);
+  assert.throws(() => d("1E+999999").addChecked(d("9E+999999")), isOverflow);
+  assert.throws(() => d("9.999999999999999999999999999E+999999").addChecked(d("0.0000000000000000000000000005E+999999")), isOverflow);
+  assert.throws(() => d("0").addChecked(d("1E+1000000")), isOverflow);
 });

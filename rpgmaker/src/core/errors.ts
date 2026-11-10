@@ -20,6 +20,41 @@ export class KeyError extends Error {
   }
 }
 
+/** Python `ArithmeticError`: the base of the `decimal` signals below, and not a `ValueError`. */
+export class ArithmeticError extends Error {
+  constructor(message?: string) {
+    super(message);
+    this.name = "ArithmeticError";
+  }
+}
+
+/** Python `decimal.DecimalException`. */
+export class DecimalException extends ArithmeticError {
+  constructor(message?: string) {
+    super(message);
+    this.name = "DecimalException";
+  }
+}
+
+/** Python `decimal.InvalidOperation` (a DecimalException, so `instanceof ValueError` is false, as in Python). */
+export class InvalidOperation extends DecimalException {
+  constructor(message?: string) {
+    super(message);
+    this.name = "InvalidOperation";
+  }
+}
+
+/**
+ * Python `decimal.Overflow`: a context operation whose result is above Emax. (Python's Overflow
+ * also subclasses Inexact and Rounded, which the port does not model.)
+ */
+export class Overflow extends DecimalException {
+  constructor(message?: string) {
+    super(message);
+    this.name = "Overflow";
+  }
+}
+
 /** Python `IndexError`: `seq[i]` out of range. */
 export class IndexError extends Error {
   constructor(message = "list index out of range") {

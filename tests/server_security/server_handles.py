@@ -1,7 +1,7 @@
-"""The two localhost checkout servers behind one test interface, for test_server_security.py.
+"""The three localhost checkout servers behind one test interface, for test_server_security.py.
 
-A server is described by a plain, JSON-able config (so the GDScript one can get it over the
-driver channel) and wrapped in a handle with the same members for both implementations:
+A server is described by a plain, JSON-able config (so the GDScript and the Node one can get it
+over a driver channel) and wrapped in a handle with the same members for every implementation:
 
     port, secret, url        what the page URL is built from
     calls()                  the callbacks the server made, in order: [["on_tx", [tx, sender]],
@@ -22,13 +22,17 @@ Config keys (all optional):
 PythonServer runs scfg_core.local_server.CheckoutServer in-process. GodotDriver runs
 godot/tests/integration/server_driver.gd in one headless Godot per test session; each
 GodotServer is a fresh ScfgCheckoutServer in it (the driver stops the previous one first).
+NodeDriver runs rpgmaker/test/integration/server_driver.ts in one Node per test session, with the
+same protocol; each NodeServer is a fresh CheckoutServer of rpgmaker/src/mz/local_server.ts.
 """
 from __future__ import annotations
 
 import base64
 import json
 import os
+import re
 import select
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -44,6 +48,9 @@ from scfg_core import local_server
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT / "godot"
 DRIVER = "res://tests/integration/server_driver.gd"
+RPGMAKER = ROOT / "rpgmaker"
+NODE_DRIVER = RPGMAKER / "test" / "integration" / "server_driver.ts"
+MIN_NODE = (22, 18)  # runs .ts directly (type stripping), as tests/integration/js_driver.py
 REPLY_PREFIX = b"SCFG-REPLY "
 REPLY_TIMEOUT = 60
 
@@ -67,6 +74,29 @@ def godot_binary():
     if not (os.path.isfile(exe) and os.access(exe, os.X_OK)):
         give_up(f"SCFG_GODOT={exe} is not an executable file")
     return exe
+
+
+def node_binary():
+    """`node` on PATH when it can run the TypeScript server (Node 22.18+, rpgmaker/node_modules
+    installed). Skip otherwise; with SCFG_REQUIRE_JS=1 (CI) fail instead. (The same rule as
+    tests/integration/js_driver.py.)"""
+    give_up = pytest.fail if os.environ.get("SCFG_REQUIRE_JS") == "1" else pytest.skip
+    need = "the Node server needs Node {}.{} or newer".format(*MIN_NODE)
+    node = shutil.which("node")
+    if node is None:
+        give_up(f"node not installed ({need})")
+    try:
+        out = subprocess.run([node, "--version"], capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.SubprocessError):
+        out = ""
+    m = re.match(r"v(\d+)\.(\d+)", out.strip())
+    version = (int(m.group(1)), int(m.group(2))) if m else None
+    if version is None or version < MIN_NODE:
+        found = "unknown" if version is None else "{}.{}".format(*version)
+        give_up(f"node {found} is too old or unreadable ({need})")
+    if not (RPGMAKER / "node_modules").is_dir():
+        give_up("rpgmaker/node_modules missing (cd rpgmaker && npm ci)")
+    return node
 
 
 class PythonServer:
@@ -130,17 +160,18 @@ class PythonServer:
         self._srv.stop()
 
 
-class GodotDriver:
-    """One headless Godot running server_driver.gd: JSON commands on stdin, replies on stdout
-    as lines starting with REPLY_PREFIX (Godot prints its own banner there too)."""
+class LineDriver:
+    """A driver process: JSON commands on stdin, replies on stdout as lines starting with
+    REPLY_PREFIX (anything else there is kept as noise, e.g. Godot's banner)."""
 
-    def __init__(self, exe):
+    hint = ""  # added to the "no reply" failure
+
+    def __init__(self, argv, cwd):
         self._stderr = tempfile.TemporaryFile()
         self._noise = []
         self._out = b""
-        self._proc = subprocess.Popen(
-            [exe, "--headless", "--path", str(PROJECT), "--script", DRIVER], cwd=ROOT,
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self._stderr)
+        self._proc = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                      stderr=self._stderr)
 
     def call(self, op, **args):
         line = json.dumps({"op": op, **args}).encode()  # ASCII: Godot 4.3 reads stdin as Latin-1
@@ -151,8 +182,7 @@ class GodotDriver:
             out = self._read_line(deadline)
             if out is None:
                 raise AssertionError(
-                    f"server driver gave no reply to {op} (has the project been imported? "
-                    f"`$SCFG_GODOT --headless --path godot --import`); stdout:\n"
+                    f"server driver gave no reply to {op}{self.hint}; stdout:\n"
                     + "".join(self._noise) + f"stderr:\n{self.stderr_text()}")
             if out.startswith(REPLY_PREFIX):
                 break
@@ -178,7 +208,7 @@ class GodotDriver:
         return self._proc.poll() is None
 
     def stderr_text(self):
-        """Everything Godot wrote to stderr so far (all of it, once closed)."""
+        """Everything the driver wrote to stderr so far (all of it, once closed)."""
         if self._stderr.closed:
             return self._final_stderr
         self._stderr.seek(0)
@@ -201,11 +231,30 @@ class GodotDriver:
             self._stderr.close()
 
 
+class GodotDriver(LineDriver):
+    """One headless Godot running server_driver.gd."""
+
+    hint = (" (has the project been imported? "
+            "`$SCFG_GODOT --headless --path godot --import`)")
+
+    def __init__(self, exe):
+        super().__init__([exe, "--headless", "--path", str(PROJECT), "--script", DRIVER], ROOT)
+
+
+class NodeDriver(LineDriver):
+    """One Node running rpgmaker/test/integration/server_driver.ts."""
+
+    def __init__(self, node):
+        super().__init__([node, str(NODE_DRIVER)], RPGMAKER)
+
+
 def _b64(data):
     return base64.b64encode(data).decode("ascii")
 
 
-class GodotServer:
+class DriverServer:
+    """A server in a driver process (the GDScript or the Node one)."""
+
     def __init__(self, config, driver):
         self._driver = driver
         logo = config.get("logo")
@@ -237,3 +286,11 @@ class GodotServer:
     def close(self):
         if self._driver.alive:
             self._driver.call("stop")
+
+
+class GodotServer(DriverServer):
+    """addons/scfg/local_server.gd in the Godot driver."""
+
+
+class NodeServer(DriverServer):
+    """rpgmaker/src/mz/local_server.ts in the Node driver."""

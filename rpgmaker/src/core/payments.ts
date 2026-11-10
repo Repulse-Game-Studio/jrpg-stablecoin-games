@@ -8,7 +8,7 @@ import { parseAmount } from "./amounts.ts";
 import { chainsForToken, type Config } from "./config.ts";
 import { Dec } from "./decimal.ts";
 import { ConfigError } from "./errors.ts";
-import { hasOwn, pyTruthy } from "./pystr.ts";
+import { pyTruthy } from "./pystr.ts";
 
 const dec = (s: string): Dec => Dec.parse(s) as Dec;
 
@@ -45,10 +45,10 @@ export function preparePayment(
   let code: number;
   if (kind === "unlock") {
     if (typeof item === "object" && item !== null) throw new TypeError("unhashable item");
-    if (typeof item !== "string" || !hasOwn(config.items, item)) {
+    if (typeof item !== "string" || !config.items.has(item)) {
       throw new ConfigError(`unknown item ${JSON.stringify(item)}; declare it with scfg.add_item()`, { code: "item.unknown" });
     }
-    const it = config.items[item]!;
+    const it = config.items.get(item)!;
     price = none(amount) ? it.price : parseAmount(amount);
     if (price.cmp(it.min_price) < 0) {
       throw new ConfigError(`amount ${price} is below the item's min_price ${it.min_price}`, { code: "payment.below_min_price" });

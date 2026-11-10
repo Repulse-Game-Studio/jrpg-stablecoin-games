@@ -33,19 +33,28 @@ def node_version(node):
     return (int(m.group(1)), int(m.group(2))) if m else None
 
 
-def skip_unless_available():
-    """Skip when the JS core can't run here; with SCFG_REQUIRE_JS=1 (CI) fail instead."""
-    give_up = pytest.fail if os.environ.get("SCFG_REQUIRE_JS") == "1" else pytest.skip
+def find_node():
+    """(path of `node`, None) when it can run the TypeScript here, else (None, why not); also
+    for the RPG Maker e2e runners (tools/run_rpgmaker_*_e2e.py)."""
     need = "the JS core needs Node {}.{} or newer".format(*MIN_NODE)
     node = shutil.which("node")
     if node is None:
-        give_up(f"node not installed ({need})")
+        return None, f"node not installed ({need})"
     version = node_version(node)
     if version is None or version < MIN_NODE:
         found = "unknown" if version is None else "{}.{}".format(*version)
-        give_up(f"node {found} is too old or unreadable ({need})")
+        return None, f"node {found} is too old or unreadable ({need})"
     if not (RPGMAKER / "node_modules").is_dir():
-        give_up("rpgmaker/node_modules missing (cd rpgmaker && npm ci)")
+        return None, "rpgmaker/node_modules missing (cd rpgmaker && npm ci)"
+    return node, None
+
+
+def skip_unless_available():
+    """Skip when the JS core can't run here; with SCFG_REQUIRE_JS=1 (CI) fail instead."""
+    give_up = pytest.fail if os.environ.get("SCFG_REQUIRE_JS") == "1" else pytest.skip
+    node, why = find_node()
+    if node is None:
+        give_up(why)
 
 
 class JsEngineError(Exception):
@@ -55,7 +64,9 @@ class JsEngineError(Exception):
 
 
 class JsEngine:
-    def __init__(self, override, config, items, custom_chains=()):
+    def __init__(self, override, config, items, custom_chains=(), transport="fetch"):
+        """`transport`: "fetch" (the core's FetchTransport) or "node" (RPG Maker's desktop
+        NodeHttpsTransport, src/mz/node_transport.ts)."""
         skip_unless_available()
         self._stderr = tempfile.TemporaryFile()
         self._proc = subprocess.Popen(
@@ -63,7 +74,7 @@ class JsEngine:
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self._stderr)
         try:
             self._call("init", override=override, config=config, items=list(items),
-                       custom_chains=list(custom_chains))
+                       custom_chains=list(custom_chains), transport=transport)
         except BaseException:
             self.close()
             raise
@@ -108,6 +119,10 @@ class JsEngine:
 
     def snapshot(self):
         return self._call("snapshot")
+
+    def transport_stats(self):
+        """{"kind": the transport's class name, "posts": requests made through it}."""
+        return self._call("transport_stats")
 
     # Test-only: the receipt tampering the Python tests do directly on `engine.receipts`.
     def set_receipt(self, key, receipt):

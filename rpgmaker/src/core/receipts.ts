@@ -64,11 +64,14 @@ export function removeReceipt(store: Record<string, ReceiptJson>, key: string): 
   delete store[key];
 }
 
-/** Python `Decimal(x)` for a stored amount, or null where Python raises TypeError/InvalidOperation. */
+/**
+ * Python `Decimal(x)` for a stored amount, or null where Python raises TypeError/InvalidOperation.
+ * A string takes any exponent libmpdec accepts (the amount is only compared and summed).
+ */
 function storedAmount(x: unknown): Dec | null {
   if (typeof x === "string") {
     try {
-      const d = Dec.parse(x);
+      const d = Dec.parse(x, { anyExponent: true });
       return d instanceof Dec ? d : null; // NaN and Infinity: not finite, skipped
     } catch (e) {
       if (e instanceof ValueError) return null;
@@ -83,8 +86,11 @@ function storedAmount(x: unknown): Dec | null {
   return null;
 }
 
-/** (owned item ids, total tipped). Malformed entries are skipped, never fatal. */
-export function computeOwnership(store: Record<string, unknown>, items: Record<string, Item>): [Set<string>, Dec] {
+/**
+ * (owned item ids, total tipped). Malformed entries are skipped, never fatal. As in Python, the tip
+ * total is a default-context Decimal sum, so a stored tip beyond Emax (999999) is an Overflow.
+ */
+export function computeOwnership(store: Record<string, unknown>, items: ReadonlyMap<string, Item>): [Set<string>, Dec] {
   const owned = new Set<string>();
   let tips = Dec.fromInt(0);
   for (const r of Object.values(store)) {
@@ -96,10 +102,13 @@ export function computeOwnership(store: Record<string, unknown>, items: Record<s
     if (amount === null) continue;
     if (kind === "unlock") {
       const key = rec["item"];
-      const item = typeof key === "string" && hasOwn(items, key) ? items[key] : undefined;
+      if (typeof key === "object" && key !== null) { // Python: items.get([...]) is not caught
+        throw new TypeError(`unhashable type: '${Array.isArray(key) ? "list" : "dict"}'`);
+      }
+      const item = typeof key === "string" ? items.get(key) : undefined;
       if (item !== undefined && amount.cmp(item.min_price) >= 0) owned.add(item.item_id);
     } else if (kind === "tip") {
-      tips = tips.add(amount);
+      tips = tips.addChecked(amount); // Python: `tips += amount`, decimal.Overflow not caught
     }
   }
   return [owned, tips];

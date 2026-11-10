@@ -71,8 +71,9 @@ package = false
 
 [tool.pytest.ini_options]
 pythonpath = ["plugin/game/python-packages", "installer", "conformance/python"]
-# tests/server_security runs in the default run: its Python half always, its Godot half when
-# SCFG_GODOT names a Godot 4.3+ binary (skipped otherwise; SCFG_REQUIRE_GD=1 makes that a failure)
+# tests/server_security runs in the default run: its Python third always, its Godot third when
+# SCFG_GODOT names a Godot 4.3+ binary (skipped otherwise; SCFG_REQUIRE_GD=1 makes that a failure),
+# its Node third when Node 22.18+ and rpgmaker/node_modules are there (SCFG_REQUIRE_JS=1 likewise)
 testpaths = ["tests", "conformance/tests"]
 markers = [
     "integration: needs a local Anvil node (Foundry); run with -m integration",

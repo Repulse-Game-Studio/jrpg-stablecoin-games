@@ -5,6 +5,9 @@ import {
   DEFAULT_ACCENT, INK, acceptedWallets, acceptedWalletsFor, addItem, buildChain, buildConfig, chainsForToken,
   enabledChains, itemByCode, logoContentType, registry, textOn, walletFor,
 } from "./config.ts";
+import { preparePayment } from "./payments.ts";
+import { classify } from "./restore.ts";
+import { asUnits } from "./amounts.ts";
 
 const W = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
 const AVAX = {
@@ -62,7 +65,7 @@ test("test_custom_chain_in_default_order", () => {
   assert.equal(chain.max_log_range, 1000);
   const c = buildConfig({ wallet: W, custom_chains: [chain] });
   assert.deepEqual(c.chains, ["arbitrum", "base", "arc", "polygon", "ethereum", "avalanche"]);
-  assert.equal(registry(c)["avalanche"], chain);
+  assert.equal(registry(c).get("avalanche"), chain);
   assert.equal(walletFor(c, chain), W);
 });
 
@@ -79,9 +82,9 @@ test("test_build_chain_errors", () => {
 test("test_enabled_chains_prepend_developer_rpc", () => {
   const c = buildConfig({ wallet: W, chains: ["base"], tokens: ["USDT"].concat(["USDC"]), rpc_urls: { base: "https://mine.example.org" }, confirmations: { base: 2 } });
   const e = enabledChains(c);
-  assert.deepEqual(e["base"]!.rpc[0], "https://mine.example.org");
-  assert.equal(e["base"]!.confirmations, 2);
-  assert.deepEqual(Object.keys(e["base"]!.tokens), ["USDC"]);
+  assert.deepEqual(e.get("base")!.rpc[0], "https://mine.example.org");
+  assert.equal(e.get("base")!.confirmations, 2);
+  assert.deepEqual(Object.keys(e.get("base")!.tokens), ["USDC"]);
   assert.deepEqual(chainsForToken(c, "USDC"), ["base"]);
   assert.deepEqual(chainsForToken(c, "USDT"), []);
 });
@@ -105,4 +108,24 @@ test("test_add_item", () => {
 test("test_qr_chains_entry_that_is_a_list_is_a_disabled_chain_not_a_type_error", () => {
   // Python's `c not in chains` is tuple membership: it never hashes c.
   assert.equal(code(() => buildConfig({ wallet: W, methods: { qr: { chains: [["base"]] } } })), "methods.qr_disabled_chain");
+});
+
+// M1 Ruling 9, carried: item ids and chain keys may be integer-like ("10", "0"). Python dicts keep
+// insertion order; a JS object would list integer-like keys first. Expected orders are CPython's.
+test("test_integer_like_keys_keep_insertion_order", () => {
+  const custom = (key: string, chain_id: number) => buildChain(key, { ...AVAX, name: key.toUpperCase(), chain_id });
+  const c = buildConfig({ wallet: W, custom_chains: [custom("zeta", 9001), custom("10", 9002), custom("2", 9003)] });
+  for (const [id, n] of [["b", 1], ["10", 2], ["a", 3], ["0", 4]] as const) {
+    addItem(c, id, { code: n, price: "1.00", token: "USDC", title: id });
+  }
+  const evm = ["arbitrum", "base", "arc", "polygon", "ethereum", "zeta", "10", "2"];
+  assert.deepEqual(c.chains, evm);
+  assert.deepEqual(preparePayment(c, "unlock", { item: "10" }).chains, evm);
+  assert.deepEqual(chainsForToken(c, "USDC"), evm);
+  assert.deepEqual(classify(c, asUnits(5_000_000n)), [null, null, ["b", "10", "a", "0", "tip"]]);
+  assert.deepEqual([...c.items.keys()], ["b", "10", "a", "0"]);
+  assert.deepEqual([...c.custom_chains.keys()], ["zeta", "10", "2"]);
+  assert.deepEqual([...registry(c).keys()], ["ethereum", "arbitrum", "polygon", "base", "arc", "solana", "zeta", "10", "2"]);
+  assert.deepEqual([...enabledChains(c).keys()], evm);
+  assert.equal(itemByCode(c, 2)!.item_id, "10");
 });

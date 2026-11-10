@@ -132,13 +132,16 @@ IDB_LIST = """async () => {
 
 class Evm(desk.Evm):
     """USDC on Anvil: the mock token's code at the real Arbitrum USDC address, so the built-in
-    arbitrum entry is used with only its RPC (and confirmations) configured."""
+    arbitrum entry is used with only its RPC (and confirmations) configured. `network` is the
+    chain table whose address is used (the RPG Maker web e2e plays on testnet: TESTNET)."""
+
+    network = MAINNET
 
     def __init__(self, exe: str, workdir: Path):
         super().__init__(exe, workdir)  # Anvil with the mock token deployed at self.token
         try:
             code = self.rpc.call("eth_getCode", [self.token, "latest"])
-            self.token = MAINNET["arbitrum"].tokens["USDC"].address
+            self.token = self.network["arbitrum"].tokens["USDC"].address
             self.rpc.call("anvil_setCode", [self.token, code])
             chains.mint(self.rpc, self.payer, self.token, self.payer)  # (anyone may mint)
         except BaseException:

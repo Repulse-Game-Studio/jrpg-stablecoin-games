@@ -17,9 +17,9 @@ const USDT = CHAIN.tokens["USDT"]!.address;
 const DEV = "0x52908400098527886E0F7030069857D2E4169EE7";
 const PAYER = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
 const dec = (s: string): Dec => Dec.parse(s) as Dec;
-const ITEMS: Record<string, Item> = {
-  chapter2: { item_id: "chapter2", code: 37, price: dec("4.99"), token: "USDC", title: "Chapter 2", min_price: dec("4.99") },
-};
+const ITEMS: ReadonlyMap<string, Item> = new Map([
+  ["chapter2", { item_id: "chapter2", code: 37, price: dec("4.99"), token: "USDC", title: "Chapter 2", min_price: dec("4.99") }],
+]);
 const TX = "0x" + "ab".repeat(32);
 const UNITS = 4_993_742;
 const hex64 = (n: number): string => n.toString(16).padStart(64, "0");

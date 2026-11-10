@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { addReceipt, computeOwnership, makeReceipt, receiptKey, removeReceipt, type ReceiptJson } from "./receipts.ts";
 import { asUnits } from "./amounts.ts";
 import { Dec } from "./decimal.ts";
-import { ValueError } from "./errors.ts";
+import { ArithmeticError, Overflow, ValueError } from "./errors.ts";
 import type { Item } from "./models.ts";
 import type { Transfer } from "./transfers.ts";
 
@@ -58,7 +58,7 @@ test("test_add_and_remove_receipt", () => {
 const item = (id: string, price: string, min: string): Item => ({
   item_id: id, code: 1, price: dec(price), token: "USDC", title: id, min_price: dec(min),
 });
-const items = { chapter2: item("chapter2", "4.99", "4.99"), pwyw: item("pwyw", "10.00", "2.00") };
+const items = new Map([["chapter2", item("chapter2", "4.99", "4.99")], ["pwyw", item("pwyw", "10.00", "2.00")]]);
 const rec = (over: Record<string, unknown>) => ({ kind: "unlock", item: "chapter2", amount: "4.990000", ...over });
 
 test("test_compute_ownership_unlocks_and_tips", () => {
@@ -98,4 +98,54 @@ test("test_malformed_entries_are_skipped", () => {
 test("test_item_lookup_ignores_prototype_names", () => {
   const [owned] = computeOwnership({ a: rec({ item: "constructor" }), b: rec({ item: "__proto__" }) }, items);
   assert.equal(owned.size, 0);
+});
+
+// Carried from the M3 review: Python sums tips with `tips += amount` under the default decimal
+// context (28 digits, Emax 999999, Emin -999999) and does not catch decimal.Overflow, while a
+// literal libmpdec cannot hold is an InvalidOperation that compute_ownership skips. Every expected
+// value below is CPython's (`uv run python`, scfg_core.receipts.compute_ownership).
+const isOverflow = (e: unknown) => e instanceof Overflow && e instanceof ArithmeticError && !(e instanceof ValueError);
+
+test("test_tip_total_overflow_matches_python", () => {
+  const tips = (...a: string[]) => String(computeOwnership(Object.fromEntries(a.map((x, i) => [`k${i}`, rec({ kind: "tip", amount: x })])), items)[1]);
+  for (const a of [["1E+1000000"], ["-1E+1000000"], ["1E+1000000", "-1E+1000000"],
+    ["9.999999999999999999999999999E+999999", "9.999999999999999999999999999E+999999"],
+    ["1E+9999999999999999"], ["1E+999999999999999999"]]) {
+    assert.throws(() => tips(...a), isOverflow, a.join(" + "));
+  }
+  const cases: [string[], string][] = [
+    [["1E+999999"], "1.000000000000000000000000000E+999999"],
+    [["1E+200000", "1"], "1.000000000000000000000000000E+200000"],
+    [["1E-1000000"], "1E-1000000"],
+    [["1E-1000030"], "0E-1000026"],
+    [["5E-1000027"], "0E-1000026"],
+    [["1.5E-1000026"], "2E-1000026"],
+    [["2.5E-1000026"], "2E-1000026"],
+    [["1E-9999999999999999"], "0E-1000026"],
+    [["-1E-9999999999999999"], "-0E-1000026"],
+    [["5", "1E-9999999999999999"], "5.000000000000000000000000000"],
+    [["0E+9999999999999999"], "0"],
+    [["0E-9999999999999999"], "0E-1000026"],
+    [["1E-1999999999999999997"], "0E-1000026"],
+    [["1E-1999999999999999998"], "0"], // InvalidOperation: skipped
+    [["1E+1000000000000000000"], "0"], // InvalidOperation: skipped
+    [["12345678901234567890123456789"], "1.234567890123456789012345679E+28"],
+  ];
+  for (const [a, want] of cases) assert.equal(tips(...a), want, a.join(" + "));
+});
+
+test("test_unlock_with_a_huge_amount_owns_without_overflow", () => {
+  // Only the tip sum runs in the context; `amount >= item.min_price` is an exact comparison.
+  for (const amount of ["1E+1000000", "1E+9999999999999999"]) {
+    const [owned] = computeOwnership({ a: rec({ amount }) }, items);
+    assert.deepEqual([...owned], ["chapter2"], amount);
+  }
+  assert.equal(computeOwnership({ a: rec({ amount: "-1E+9999999999999999" }) }, items)[0].size, 0);
+  assert.equal(computeOwnership({ a: rec({ amount: "1E-9999999999999999" }) }, items)[0].size, 0);
+});
+
+test("test_unhashable_item_of_an_unlock_is_a_type_error", () => {
+  // Python: `items.get(r.get("item"))` raises TypeError for a list or dict, outside the try.
+  for (const item of [["chapter2"], { a: 1 }]) assert.throws(() => computeOwnership({ a: rec({ item }) }, items), TypeError);
+  for (const item of [5, null, true]) assert.equal(computeOwnership({ a: rec({ item }) }, items)[0].size, 0);
 });

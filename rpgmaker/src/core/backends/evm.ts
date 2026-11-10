@@ -33,7 +33,7 @@ export class EvmBackend implements Backend {
 
   advance(
     pending: SessionStore, receipts: SessionStore, sid: string,
-    args: { rpc: EvmRpc; chain: Chain; wallet: string; items: Record<string, Item>; now: number },
+    args: { rpc: EvmRpc; chain: Chain; wallet: string; items: ReadonlyMap<string, Item>; now: number },
   ): Promise<StepOutcome> {
     return advance(pending, receipts, sid, args);
   }

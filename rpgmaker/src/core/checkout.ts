@@ -148,8 +148,7 @@ export class CheckoutController {
 
   get chain(): Chain | null {
     if (!this.chain_key) return null;
-    const chains = enabledChains(this.config);
-    return hasOwn(chains, this.chain_key) ? chains[this.chain_key]! : null;
+    return enabledChains(this.config).get(this.chain_key) ?? null;
   }
 
   get family(): string | null {
@@ -162,9 +161,8 @@ export class CheckoutController {
     const blocked = this.unready();
     const out: [string, string, string][] = [];
     for (const k of this.spec.chains) {
-      if (hasOwn(chains, k) && !blocked.has(unreadyKey(k, this.spec.token))) {
-        out.push([k, chains[k]!.name, chains[k]!.fee_hint]);
-      }
+      const chain = chains.get(k);
+      if (chain !== undefined && !blocked.has(unreadyKey(k, this.spec.token))) out.push([k, chain.name, chain.fee_hint]);
     }
     return out;
   }
@@ -252,7 +250,7 @@ export class CheckoutController {
     const reg = registry(this.config);
     return [...this.unready()].sort().flatMap((entry) => {
       const [key, token] = parseUnreadyKey(entry);
-      return hasOwn(reg, key) && reg[key]!.family === "solana"
+      return reg.get(key)?.family === "solana"
         ? [`Your Solana wallet can't receive ${token} yet: receive any amount once.`] : [];
     });
   }

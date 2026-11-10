@@ -5,7 +5,7 @@ import {
   type Units,
 } from "./amounts.ts";
 import { Dec } from "./decimal.ts";
-import { ValueError } from "./errors.ts";
+import { ArithmeticError, InvalidOperation, ValueError } from "./errors.ts";
 import type { RawTransferLog, TransferLog } from "./evm.ts";
 import { eip681TransferUri } from "./paylinks.ts";
 import type { Transfer } from "./transfers.ts";
@@ -93,9 +93,19 @@ test("test_decode_boundary_matches_python_decimal_precision", () => {
   assert.equal(String(price), "99999999999999999999999999.99");
   assert.deepEqual([code, nonce], [99, 99]);
   assert.equal(String(decode(asUnits(10n ** 31n))[0]), "10000000000000000000000000.00");
-  assert.throws(() => decode(asUnits(10n ** 32n)), ValueError);
-  assert.throws(() => decode(asUnits(10n ** 32n + 12_345n)), ValueError);
-  assert.throws(() => decode(asUnits(10n ** 40n)), ValueError);
+  assert.throws(() => decode(asUnits(10n ** 32n)), InvalidOperation);
+  assert.throws(() => decode(asUnits(10n ** 32n + 12_345n)), InvalidOperation);
+  assert.throws(() => decode(asUnits(10n ** 40n)), InvalidOperation);
+});
+
+test("test_decode_past_the_decimal_range_is_invalid_operation", () => {
+  // Carried from the M3 review. Python: decimal.InvalidOperation, whose MRO is DecimalException,
+  // ArithmeticError, Exception: not a ValueError, so `except ValueError` does not catch it.
+  const e = (() => { try { decode(asUnits(10n ** 32n)); } catch (x) { return x; } return null; })();
+  assert.ok(e instanceof InvalidOperation && e instanceof ArithmeticError, String(e));
+  assert.ok(!(e instanceof ValueError));
+  assert.equal(e.name, "InvalidOperation");
+  assert.throws(() => decode(asUnits(-1n)), ValueError); // the sign check stays a ValueError
 });
 
 test("test_units_is_a_brand_the_compiler_enforces", () => {

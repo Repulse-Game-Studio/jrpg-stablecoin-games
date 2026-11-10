@@ -5,7 +5,7 @@ import { FakeChain, transferLog } from "../../test/chain_fakes.ts";
 import { FakeClock } from "../../test/rpc_fakes.ts";
 import { MAINNET, type Chain } from "./chains.ts";
 import type { Transport } from "./coio.ts";
-import { addItem, buildConfig, type BuildConfigOptions } from "./config.ts";
+import { addItem, buildChain, buildConfig, type BuildConfigOptions } from "./config.ts";
 import { Dec } from "./decimal.ts";
 import { MIN_TIP, START_BLOCK_MARGIN, Engine } from "./engine.ts";
 import { ConfigError, ValueError } from "./errors.ts";
@@ -380,4 +380,22 @@ test("test_injected_entropy_supplies_id_and_nonce", async () => {
   assert.deepEqual(draws, ["randbelow(100)", "token_hex(8)"]);
   assert.equal(rec.id, "ps_" + "ab".repeat(8));
   assert.equal(rec.units, 4_993_742);
+});
+
+test("test_restore_lookup_keeps_integer_like_chain_keys_in_order", async () => {
+  // M1 Ruling 9: Python builds `{k: chain for k in ordered}`, so "zeta" is asked before "10".
+  const custom = (key: string, chain_id: number) => buildChain(key, {
+    name: key.toUpperCase(), chain_id, rpc: `https://rpc.${key}.example`, tokens: { USDC: USDC_ARB }, confirmations: 1,
+    explorer_tx: "https://x.example/tx/{}",
+  });
+  const { e, chains } = makeEngine({ chains: ["zeta", "10"], custom_chains: [custom("zeta", 9001), custom("10", 9002)] });
+  const asked: string[] = [];
+  for (const k of [...Object.keys(MAINNET), "zeta", "10"]) {
+    const fake = new FakeChain();
+    const orig = fake.getTransactionReceipt.bind(fake);
+    fake.getTransactionReceipt = async (t) => { asked.push(k); return orig(t); };
+    chains[k] = fake;
+  }
+  await assert.rejects(e.restoreLookup(TX), (x: unknown) => x instanceof RestoreError && x.code === "tx_not_found");
+  assert.deepEqual(asked, ["zeta", "10", "ethereum", "arbitrum", "polygon", "base", "arc"]);
 });

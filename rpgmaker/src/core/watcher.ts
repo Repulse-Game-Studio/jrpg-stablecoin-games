@@ -68,15 +68,15 @@ export interface AdvanceArgs {
   rpc: EvmRpc;
   chain: Chain;
   wallet: string;
-  items: Record<string, Item>;
+  items: ReadonlyMap<string, Item>;
   now: number;
 }
 
 
-export function minAmount(rec: SessionRecord, items: Record<string, Item>): Dec {
+export function minAmount(rec: SessionRecord, items: ReadonlyMap<string, Item>): Dec {
   if (pyGet(rec, "kind") === "unlock") {
     const key = pyGet(rec, "item");
-    const item = typeof key === "string" && hasOwn(items, key) ? items[key] : undefined;
+    const item = typeof key === "string" ? items.get(key) : undefined;
     return item ? item.min_price : pyDecimal(pyGet(rec, "price"));
   }
   return pyDecimal("0.000001");
@@ -140,7 +140,7 @@ export function asList(v: unknown): unknown[] {
  * Returns "matched", "underpaid", or null (keep waiting / hint discarded).
  */
 async function verifyHint(
-  rec: SessionRecord, rpc: EvmRpc, chain: Chain, wallet: string, items: Record<string, Item>,
+  rec: SessionRecord, rpc: EvmRpc, chain: Chain, wallet: string, items: ReadonlyMap<string, Item>,
   receipts: SessionStore, now: number, out: StepOutcome,
 ): Promise<string | null> {
   const receipt = await rpc.getTransactionReceipt(pyGet(rec, "hint_tx"));

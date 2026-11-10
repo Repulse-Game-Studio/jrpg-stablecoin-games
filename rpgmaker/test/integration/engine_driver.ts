@@ -6,8 +6,11 @@
  * Protocol: one JSON command per stdin line, one JSON reply per stdout line, in order:
  *   {"ok": <result>}  or  {"error": {"type", "code", "message"}}
  * Nothing else is ever written to stdout (diagnostics go to stderr). Commands:
- *   init     {override, config, custom_chains?, items}  patch MAINNET/TESTNET[key], build Engine + FetchTransport
+ *   init     {override, config, custom_chains?, items, transport?}  patch MAINNET/TESTNET[key], build the Engine
  *            override = {network: "mainnet"|"testnet", key, rpc: [url], confirmations?, tokens?: {name: address}}
+ *            transport = "fetch" (default: the core's FetchTransport) or "node" (src/mz/node_transport.ts,
+ *            RPG Maker's desktop transport, on Node's https/http)
+ *   transport_stats   {kind, posts}: which transport the Engine has and how many requests went through it
  *   start_session {kind, chain, item?, amount?, token?, title?}   report_hint {sid, tx}
  *   tick   reverify   restore_lookup {tx}   restore_apply {candidates, choices}
  *   build_solana_payment {sid, account}   snapshot
@@ -15,10 +18,13 @@
  *   set_receipt {key, receipt}   clear_receipts
  * Results are encoded exactly like the Tier 2 `returns` / `snapshot` (conformance/js/tier2.ts).
  */
+import http from "node:http";
+import https from "node:https";
 import { createInterface } from "node:readline";
 import { MAINNET, TESTNET, makeToken, type Chain } from "../../src/core/chains.ts";
-import { FetchTransport } from "../../src/core/coio.ts";
+import { FetchTransport, type Transport } from "../../src/core/coio.ts";
 import { Engine } from "../../src/core/engine.ts";
+import { NodeHttpsTransport } from "../../src/mz/node_transport.ts";
 import { buildConfigFrom, candidateFromJson, encodeReturns, snapshotJson } from "../../../conformance/js/tier2.ts";
 
 class DriverError extends Error {
@@ -43,6 +49,23 @@ function applyOverride(o: any): void {
 }
 
 let engine: Engine | null = null;
+const stats = { kind: "", posts: 0 };
+
+/** The Engine's transport, counting the requests made through it. */
+function makeTransport(kind: unknown): Transport {
+  let inner: Transport;
+  if (kind === undefined || kind === null || kind === "fetch") inner = new FetchTransport();
+  else if (kind === "node") inner = new NodeHttpsTransport({ https, http });
+  else throw new DriverError(`unknown transport ${JSON.stringify(kind)}`);
+  stats.kind = inner.constructor.name;
+  stats.posts = 0;
+  return {
+    postJson(url, payload, timeout) {
+      stats.posts++;
+      return inner.postJson(url, payload, timeout);
+    },
+  };
+}
 
 function need(): Engine {
   if (engine === null) throw new DriverError("init first");
@@ -55,13 +78,14 @@ async function run(cmd: any): Promise<unknown> {
     if (cmd.override) applyOverride(cmd.override);
     const config = buildConfigFrom({ config: cmd.config, custom_chains: cmd.custom_chains ?? [], items: cmd.items ?? [] });
     engine = new Engine(config, {
-      transport: new FetchTransport(),
+      transport: makeTransport(cmd.transport),
       // Whole seconds: the Tier 2 encoders (reused below) refuse the fractional timestamps of a wall clock.
       clock: () => Math.floor(Date.now() / 1000),
       on_error: (e) => process.stderr.write(`engine error: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}\n`),
     });
     return null;
   }
+  if (op === "transport_stats") return { ...stats };
   const e = need();
   switch (op) {
     case "start_session": {

@@ -16,7 +16,7 @@
  * function returning `Units`), at the point where it is known to be 6-decimal base units.
  */
 import { Dec } from "./decimal.ts";
-import { ValueError } from "./errors.ts";
+import { InvalidOperation, ValueError } from "./errors.ts";
 import { pyStrip } from "./pystr.ts";
 
 export const TOKEN_DECIMALS = 6;
@@ -91,10 +91,11 @@ export function encode(price: unknown, code: unknown, nonce: unknown): Units {
 /** Inverse of encode: base units -> (price, code, nonce). */
 export function decode(units: Units): [Dec, number, number] {
   if (units < 0n) throw new ValueError("units must be >= 0");
-  // Python: (Decimal(units // 10_000) / 100).quantize(_CENT) raises InvalidOperation once the
-  // result needs more than 28 significant digits, i.e. from units // 10_000 >= 10**28.
+  // Python: (Decimal(units // 10_000) / 100).quantize(_CENT) raises decimal.InvalidOperation (an
+  // ArithmeticError, not a ValueError) once the result needs more than 28 significant digits, i.e.
+  // from units // 10_000 >= 10**28 (units >= 10**32).
   const cents = units / 10000n;
-  if (cents >= 10n ** 28n) throw new ValueError("price needs more than 28 digits");
+  if (cents >= 10n ** 28n) throw new InvalidOperation(`the price of ${units} units needs more than 28 digits`);
   const price = new Dec(cents, CENT_EXP, false);
   return [price, Number((units / 100n) % 100n), Number(units % 100n)];
 }

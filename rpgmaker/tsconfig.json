@@ -12,6 +12,6 @@
     "allowImportingTsExtensions": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts"]
+  "include": ["src/core/**/*.ts"],
+  "exclude": ["src/core/**/*.test.ts"]
 }

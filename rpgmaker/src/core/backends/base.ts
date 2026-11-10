@@ -28,7 +28,7 @@ export interface Backend {
   /** Move one pending session forward. */
   advance(
     pending: SessionStore, receipts: SessionStore, sid: string,
-    args: { rpc: any; chain: Chain; wallet: string; items: Record<string, Item>; now: number },
+    args: { rpc: any; chain: Chain; wallet: string; items: ReadonlyMap<string, Item>; now: number },
   ): Promise<StepOutcome>;
 
   /** "keep" or "drop". Network trouble must answer "keep". */

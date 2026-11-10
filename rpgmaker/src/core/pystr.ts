@@ -27,10 +27,29 @@ export function pyGet(d: unknown, key: string): any {
 
 // Python's str.strip() whitespace set (differs from JS trim at \x1c-\x1f, \x85, and the BOM U+FEFF).
 const PY_WS = "\\t\\n\\v\\f\\r\\x1c-\\x20\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000";
-const STRIP = new RegExp(`^[${PY_WS}]+|[${PY_WS}]+$`, "g");
+const PY_WS_CHAR = new RegExp(`^[${PY_WS}]$`);
+
+/**
+ * `s` without the leading and trailing characters of `ws`: one scan from each end, so linear
+ * (`s.replace(/^[ws]+|[ws]+$/g, "")` retries the end anchor from every start of a whitespace run
+ * inside the string: quadratic on a hostile value).
+ */
+function stripWith(s: string, ws: RegExp): string {
+  let start = 0;
+  let end = s.length;
+  while (start < end && ws.test(s[start]!)) start++;
+  while (end > start && ws.test(s[end - 1]!)) end--;
+  return s.slice(start, end);
+}
 
 /** Exactly Python's `str.strip()` with no argument. */
-export const pyStrip = (s: string): string => s.replace(STRIP, "");
+export const pyStrip = (s: string): string => stripWith(s, PY_WS_CHAR);
+
+// What int() skips around the digits: CPython maps every non-ASCII whitespace character to a space
+// but leaves ASCII ones as they are, then skips only ASCII whitespace (Py_ISSPACE), so the four
+// separators \x1c-\x1f that str.strip() removes make int() fail: int("\x1c5") is a ValueError.
+const INT_WS = "\\t\\n\\v\\f\\r\\x20\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000";
+const INT_WS_CHAR = new RegExp(`^[${INT_WS}]$`);
 
 const ND = /^\p{Nd}$/u;
 
@@ -57,8 +76,8 @@ export function toAsciiDigits(s: string): string {
  * Python `int(x)` for a JSON-like value, as a bigint (u64 token amounts and uint256 values can
  * exceed 2^53):
  *   - bool -> 0/1, bigint as is, a finite number truncated toward zero (`int(1.9) == 1`);
- *   - a string: surrounding whitespace, an optional sign, digits (any script) with single
- *     underscores between digits;
+ *   - a string: surrounding whitespace (int()'s set: str.strip()'s minus \x1c-\x1f), an optional
+ *     sign, digits (any script) with single underscores between digits;
  *   - anything else is a TypeError; a malformed string or a non-finite number is a ValueError.
  * Only ValueError and TypeError are thrown.
  */
@@ -70,7 +89,7 @@ export function pyInt(x: unknown): bigint {
     return BigInt(Math.trunc(x));
   }
   if (typeof x !== "string") throw new TypeError(`int() argument must be a string or a number, not '${pyType(x)}'`);
-  const t = toAsciiDigits(pyStrip(x));
+  const t = toAsciiDigits(stripWith(x, INT_WS_CHAR));
   if (!/^[+-]?[0-9]+(_[0-9]+)*$/.test(t)) throw new ValueError(`invalid literal for int(): ${JSON.stringify(x)}`);
   return BigInt(t.replace(/_/g, "").replace(/^\+/, ""));
 }

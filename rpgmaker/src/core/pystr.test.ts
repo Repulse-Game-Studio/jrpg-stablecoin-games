@@ -69,3 +69,60 @@ test("test_py_format1_raises_what_str_format_raises", () => {
   assert.throws(() => pyFormat1("{", "a"), ValueError);
   assert.throws(() => pyFormat1("}", "a"), ValueError);
 });
+
+// Carried from the M3 review. CPython's int() maps non-ASCII whitespace to a space but leaves ASCII
+// characters as they are, then skips only ASCII whitespace (Py_ISSPACE). So \x1c-\x1f, which
+// str.strip() removes, make int() fail: int("\x1c5") is a ValueError while Decimal("\x1c5") is 5.
+// The table is str.isspace() for every code point (CPython 3.9.25, `uv run python`).
+const PY_ISSPACE = [
+  0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003,
+  0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000,
+];
+
+test("test_py_int_whitespace_matches_python_int", () => {
+  for (const bad of ["\x1c5", "5\x1f", " \x1d 5", "\x1e٥", "﻿5"]) assert.throws(() => pyInt(bad), ValueError, JSON.stringify(bad));
+  assert.equal(pyInt("\x855"), 5n);
+  assert.equal(pyInt("　 5 "), 5n);
+  for (const cp of PY_ISSPACE) {
+    const ws = String.fromCodePoint(cp);
+    const intRejects = cp >= 0x1c && cp <= 0x1f; // python3 -c "int(chr(cp) + '5')"
+    for (const s of [ws + "5", "5" + ws]) {
+      if (intRejects) assert.throws(() => pyInt(s), ValueError, `U+${cp.toString(16)}`);
+      else assert.equal(pyInt(s), 5n, `U+${cp.toString(16)}`);
+    }
+    assert.equal(pyStrip(ws + "5" + ws), "5"); // str.strip() still removes all of them
+  }
+});
+
+test("test_py_int_and_strip_are_linear_on_whitespace_runs", () => {
+  // A hostile RPC answer: a long whitespace run inside a value must not backtrack quadratically.
+  const time = (fn: () => void): number => {
+    let best = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const t0 = performance.now();
+      fn();
+      best = Math.min(best, performance.now() - t0);
+    }
+    return best;
+  };
+  const inside = (n: number) => "1" + " ".repeat(n) + "x";
+  const intOf = (n: number) => () => assert.throws(() => pyInt(inside(n)), ValueError);
+  const stripOf = (n: number) => () => assert.equal(pyStrip(inside(n)), inside(n));
+  for (const [name, make] of [["pyInt", intOf], ["pyStrip", stripOf]] as const) {
+    const small = time(make(16 * 1024));
+    const large = time(make(64 * 1024));
+    assert.ok(large < 200, `${name}: 64 KiB took ${large.toFixed(1)} ms`);
+    // linear is 4x for 4x the input; quadratic is 16x (a 1 ms floor keeps timer noise out)
+    assert.ok(large <= 10 * Math.max(small, 1), `${name}: 16 KiB ${small.toFixed(2)} ms, 64 KiB ${large.toFixed(2)} ms`);
+  }
+});
+
+test("test_py_int_whitespace_edges_are_unchanged", () => {
+  assert.equal(pyInt("\x85\xa0　 12\t\n"), 12n);
+  assert.equal(pyInt(" ".repeat(100000) + "7" + " ".repeat(100000)), 7n);
+  assert.throws(() => pyInt("\x1c5"), ValueError);
+  assert.throws(() => pyInt("5\x1f"), ValueError);
+  assert.throws(() => pyInt("   "), ValueError);
+  assert.throws(() => pyInt("1 2"), ValueError);
+  assert.equal(pyStrip("\x1c\x1d x \x1e\x1f"), "x"); // strip() removes \x1c-\x1f, int() does not
+});

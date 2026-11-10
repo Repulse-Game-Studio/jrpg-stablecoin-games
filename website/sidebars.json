@@ -43,6 +43,12 @@
       "label": "For Godot developers",
       "collapsed": false,
       "items": ["developers/godot/install", "developers/godot/api"]
+    },
+    {
+      "type": "category",
+      "label": "For RPG Maker developers",
+      "collapsed": false,
+      "items": ["developers/rpgmaker/install", "developers/rpgmaker/api"]
     }
   ]
 }

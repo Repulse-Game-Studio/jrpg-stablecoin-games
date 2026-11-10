@@ -1,0 +1,30 @@
+<!doctype html>
+<!--
+  TEST ONLY: the page of the web e2e (tools/run_rpgmaker_web_e2e.py). Like index.html (the built
+  SCFG.js on the MZ shim, in MZ's load order), but with the demo kit's js/plugins.js
+  (rpgmaker/demo/js/plugins.js) and, before the engine registers those parameters, e2e_config.js:
+  it reads the runner's `window.scfgE2EConfig` (set by an init script) and overrides some of the
+  SCFG parameters (the wallet, the chains and their RPC URLs, pointing at a local chain). SCFG.js
+  itself never reads scfgE2EConfig. Serve the rpgmaker/ folder after `npm run build` and open
+  /test/harness/e2e.html?test.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SCFG MZ e2e</title>
+  <link rel="icon" href="data:,">
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+    #gameCanvas { position: absolute; inset: 0; margin: auto; background: #1b2230; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="816" height="624"></canvas>
+  <script src="../../demo/js/plugins.js"></script>
+  <script src="../../dist/test/e2e_config.js"></script>
+  <script src="../../dist/test/shim.js"></script>
+  <script src="../../dist/js/plugins/SCFG.js"></script>
+  <script src="../../dist/test/harness.js"></script>
+</body>
+</html>
