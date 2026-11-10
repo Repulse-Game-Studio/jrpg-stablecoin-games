@@ -86,9 +86,9 @@ func _report(label: String, ms: float, budget: float) -> void:
 ## Base58 (Bitcoin alphabet) to exactly 32 bytes, big-endian. Bench-only helper: the real
 ## decoder is ported with scfg_core/solana/base58.py in M3.
 func _b58decode32(s: String) -> PackedByteArray:
-	var n := ScfgBigInt.from_int(0)
+	var n := ScfgBigInt.new()
 	for ch in s:
-		n = n.mul_small(58).add(ScfgBigInt.from_int(B58.find(ch)))
-	var out := n.to_bytes_le(32)
+		n = n.mul_small(58).add(ScfgBigInt.from_int(B58.find(ch)))  # a valid base58 string
+	var out: PackedByteArray = n.to_bytes_le(32)  # 32-byte keys
 	out.reverse()
 	return out

@@ -123,7 +123,14 @@ and is not written to the vector.
 ## Runners
 
 - **Python:** `uv run pytest conformance/tests` (`python/scfg_conformance/replay.py`, `tier1.run_case`).
-- **GDScript:** `godot/tests/run.gd` (see "Notes for port authors").
+- **GDScript:** `godot/tests/run.gd` on headless Godot 4.3+ (`uv run --no-project python tools/run_godot_tests.py --godot <binary>`
+  after `<binary> --headless --path godot --import`; see `godot/README.md` and "Notes for port authors"). `godot/tests/tier1.gd`
+  replays Tier 1 (`test_tier1.gd`) and `godot/tests/tier2.gd` replays every Tier 2 vector (`test_tier2.gd`); a vector is read as
+  Python's `json.load` reads it (integral numbers are ints) while response bodies go through the real transport's parser (every
+  number a float). `tier2.gd` also exports the `returns` / `snapshot` encoders that `godot/tests/integration/engine_driver.gd`
+  reuses: the same Engine runs against Anvil and solana-test-validator through that driver (`tests/integration/test_gd_core.py`,
+  `SCFG_GODOT=<binary>`). The wrapper fails a run without a `<n> passed, 0 failed` summary (n > 0), since Godot can exit 0 when
+  the runner does not compile.
 - **JavaScript:** `cd rpgmaker && npm test` runs `conformance/js/` under `node --test` (Node 22.18 or newer; the TypeScript runs directly, no build). `tier1.ts` replays Tier 1: `FUNCS` maps each Python `fn` to a JS adapter, and a topic only counts once it is listed in `IMPLEMENTED`; cases of other topics are reported as skipped, never as passed. A case expecting `"invalid"` passes only if the adapter throws `ValueError` or `TypeError`, and any other throw fails it. `json.ts` is the JSON equality used for outputs and call params (key order ignored, `true` is not `1`). `tier2.ts` replays every Tier 2 vector (`ReplayTransport`, `ScriptedEntropy`, `replay`) and exports the `returns` / `snapshot` encoders that `rpgmaker/test/integration/engine_driver.ts` reuses. The same Engine also runs against Anvil and solana-test-validator through that driver (`tests/integration/test_js_core.py`, see `rpgmaker/README.md`).
 
 ## Adding a scenario

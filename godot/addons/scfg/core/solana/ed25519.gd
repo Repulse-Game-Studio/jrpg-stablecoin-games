@@ -18,25 +18,31 @@ static var _p_minus_2: ScfgBigInt
 static var _half: ScfgBigInt  # (p - 1) / 2
 
 
+## True when the 32 bytes decompress to a curve point; any other length is false (Python: the
+## same). Cannot fail, so it is not `## @fallible`: the ScfgBigInt calls inside are waived with
+## `# err-ok:` where their preconditions hold.
 static func is_on_curve(point: PackedByteArray) -> bool:
 	if point.size() != 32:
 		return false
 	_init_constants()
 	var masked := point.duplicate()
 	masked[31] = masked[31] & 0x7f
-	var y := ScfgBigInt.from_bytes_le(masked).mod(_p)
-	var yy := y.mul(y).mod(_p)
-	var u := yy.add(_p).sub(_one).mod(_p)
-	var v := _d.mul(yy).add(_one).mod(_p)  # never 0: d is not a square mod p
-	var x2 := u.mul(v.pow_mod(_p_minus_2, _p)).mod(_p)
-	return x2.is_zero() or x2.pow_mod(_half, _p).cmp(_one) == 0
+	# every modulus below is p != 0 and every difference is non-negative, so the fallible
+	# ScfgBigInt calls cannot fail here
+	var y: ScfgBigInt = ScfgBigInt.from_bytes_le(masked).mod(_p)  # err-ok: p != 0
+	var yy: ScfgBigInt = y.mul(y).mod(_p)  # err-ok: p != 0
+	var u: ScfgBigInt = yy.add(_p).sub(_one).mod(_p)  # err-ok: yy + p >= 1, p != 0
+	var v: ScfgBigInt = _d.mul(yy).add(_one).mod(_p)  # err-ok: p != 0 (v is never 0: d is not a square mod p)
+	var x2: ScfgBigInt = u.mul(v.pow_mod(_p_minus_2, _p)).mod(_p)  # err-ok: p != 0
+	return x2.is_zero() or x2.pow_mod(_half, _p).cmp(_one) == 0  # err-ok: p != 0
 
 
 static func _init_constants() -> void:
 	if _p != null:
 		return
-	_one = ScfgBigInt.from_int(1)
-	_d = ScfgBigInt.from_hex(D_HEX)
-	_p_minus_2 = ScfgBigInt.from_hex(P_HEX).sub(ScfgBigInt.from_int(2))
-	_half = ScfgBigInt.from_hex(P_HEX).sub(_one).divmod(ScfgBigInt.from_int(2))[0]
-	_p = ScfgBigInt.from_hex(P_HEX)
+	# constants: the literals parse and p > 2
+	_one = ScfgBigInt.from_int(1)  # err-ok: literal
+	_d = ScfgBigInt.from_hex(D_HEX)  # err-ok: literal
+	_p_minus_2 = ScfgBigInt.from_hex(P_HEX).sub(ScfgBigInt.from_int(2))  # err-ok: literals, p > 2
+	_half = ScfgBigInt.from_hex(P_HEX).sub(_one).divmod(ScfgBigInt.from_int(2))[0]  # err-ok: literals
+	_p = ScfgBigInt.from_hex(P_HEX)  # err-ok: literal

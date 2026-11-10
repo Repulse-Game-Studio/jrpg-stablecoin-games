@@ -60,13 +60,13 @@ Players can read how paying works, which wallets work and how to restore a purch
 | `docs/` | The docs: `players/` for players, `developers/` for the developer guide (joined into one `scfg-README.md` in the zip) |
 | `website/` | Docusaurus site built from `docs/`, sidebar in `sidebars.json`. `.github/workflows/docs.yml` checks that it builds |
 | `tests/unit/` | Fast unit tests |
-| `tests/integration/` | Local Anvil chain (also dressed as Arc), local Solana validator and headless Chrome tests (`-m integration`) |
+| `tests/integration/` | Local Anvil chain (also dressed as Arc), local Solana validator and headless Chrome tests (`-m integration`), also driving the JS and GDScript cores (`test_js_core.py`, `test_gd_core.py`) |
 | `tests/live/` | Read-only checks of pinned real Arc mainnet payments (`-m live`, needs internet) |
 | `tests/renpy_e2e/`, `tests/renpy_web_e2e/` | Real Ren'Py runs (desktop and web build) driving a payment through the screens |
 | `conformance/` | Language-neutral JSON vectors recorded from `scfg_core` (the reference for the JS and GDScript ports), the generator, a Python replay runner and the receipt schema. See [its README](conformance/README.md) |
 | `rpgmaker/` | TypeScript port of the payment core for RPG Maker MZ (`src/core/`, dependency-free, Node 22.18+), its unit tests and the JSON-lines driver for the integration tests. See [its README](rpgmaker/README.md) |
-| `godot/` | Godot 4.3+ dev project: GDScript core spike (`ScfgBigInt`, Keccak-256, ed25519) and its test runner |
-| `tools/` | `package.py` (release zip), `sync_demo.py`, `check_rpcs.py`, `run_renpy_e2e.py`, `run_renpy_web_e2e.py`, `make_ui_assets.py` (screen corner images), `gen_vectors.py` (conformance vectors), `fetch_godot.py` (download a verified Godot binary) |
+| `godot/` | Godot 4.3+ dev project: pure-GDScript port of the payment core (`addons/scfg/core/`), its headless test runner and the JSON-lines driver for the integration tests. See [its README](godot/README.md) |
+| `tools/` | `package.py` (release zip), `sync_demo.py`, `check_rpcs.py`, `run_renpy_e2e.py`, `run_renpy_web_e2e.py`, `make_ui_assets.py` (screen corner images), `gen_vectors.py` (conformance vectors), `fetch_godot.py` (download a verified Godot binary), `run_godot_tests.py` (the GDScript runner, failing closed) |
 | `contracts/` | `MockToken.sol` (6-decimal mock token) and the Arc stand-ins `ArcMockUsdc.sol` / `ArcSystemEmitter.sol`, used by integration tests |
 
 ## Development
@@ -95,10 +95,12 @@ uv run pytest -m live                     # pinned real Arc payments, read-only
 (cd rpgmaker && npm ci && npm run typecheck && npm test)
 
 uv run python tools/gen_vectors.py        # regenerate conformance/vectors/ (--check: fail if stale)
+# GDScript core (Godot 4.3+): unit tests and the conformance vectors; its local-chain twins
+# (tests/integration/test_gd_core.py) run with the integration tests above when SCFG_GODOT is set
 uv run python tools/fetch_godot.py --version 4.3-stable --dest /tmp/godot   # prints the binary path
 /tmp/godot/Godot_v4.3-stable_linux.x86_64 --headless --path godot --import  # once per checkout
-/tmp/godot/Godot_v4.3-stable_linux.x86_64 --headless --path godot \
-    --script res://tests/run.gd -- --vectors="$PWD/conformance/vectors"     # GDScript tests
+uv run python tools/run_godot_tests.py --godot /tmp/godot/Godot_v4.3-stable_linux.x86_64
+SCFG_GODOT=/tmp/godot/Godot_v4.3-stable_linux.x86_64 uv run pytest -m integration tests/integration/test_gd_core.py
 
 uv run python tools/check_rpcs.py         # are the built-in public RPCs alive?
 uv run python tools/package.py            # build dist/scfg-renpy-<version>.zip

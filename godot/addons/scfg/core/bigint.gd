@@ -3,8 +3,13 @@
 ## GDScript's int is signed 64-bit, which overflows on uint256 values, 18-decimal token amounts
 ## and field elements. ScfgBigInt stores the value as little-endian base-2^24 limbs in a
 ## PackedInt64Array, so a limb product (< 2^48) plus carries always fits in an int.
-## Values are immutable: every operation returns a new ScfgBigInt. Parsers return null for
-## malformed input; violated preconditions (negative results, oversized conversions) assert.
+## Values are immutable: every operation returns a new ScfgBigInt.
+##
+## Errors are values (see ScfgErr; the fallible functions are marked `@fallible`): a malformed
+## string is a ValueError, a result that an unsigned value cannot hold (a negative difference,
+## a negative from_int, a conversion that does not fit) an OverflowError, as Python's
+## int.to_bytes raises, and a zero divisor a ZeroDivisionError (a zero pow_mod modulus is
+## Python's ValueError). Operations that cannot fail return a typed ScfgBigInt.
 class_name ScfgBigInt
 extends RefCounted
 
@@ -33,8 +38,15 @@ static func _of(l: PackedInt64Array) -> ScfgBigInt:
 # --- constructors ---------------------------------------------------------------------------
 
 
-static func from_int(n: int) -> ScfgBigInt:
-	assert(n >= 0, "ScfgBigInt.from_int: negative value")
+## A negative n is an OverflowError.
+## @fallible
+static func from_int(n: int) -> Variant:
+	if n < 0:
+		return ScfgErr.make("OverflowError", "ScfgBigInt.from_int: negative value %d" % n)
+	return _from_nonneg(n)
+
+
+static func _from_nonneg(n: int) -> ScfgBigInt:
 	var l := PackedInt64Array()
 	while n > 0:
 		l.append(n & MASK)
@@ -42,14 +54,17 @@ static func from_int(n: int) -> ScfgBigInt:
 	return _of(l)
 
 
-## Decimal digits only (no sign, spaces or separators); leading zeros are fine.
-static func from_decimal(s: String) -> ScfgBigInt:
-	var digits := s.to_ascii_buffer()
-	if digits.is_empty() or digits.size() != s.length():
-		return null
-	for c in digits:
+## ASCII decimal digits only (no sign, spaces, underscores or other scripts); leading zeros
+## are fine. Anything else is a ValueError (ScfgPy.py_int has Python's int() rules).
+## @fallible
+static func from_decimal(s: String) -> Variant:
+	if s.is_empty():
+		return ScfgErr.make("ValueError", _bad_literal(s, 10))
+	for i in s.length():
+		var c := s.unicode_at(i)
 		if c < 48 or c > 57:
-			return null
+			return ScfgErr.make("ValueError", _bad_literal(s, 10))
+	var digits := s.to_ascii_buffer()
 	var l := PackedInt64Array()
 	var first := digits.size() % _DEC_CHUNK
 	if first == 0:
@@ -68,16 +83,19 @@ static func from_decimal(s: String) -> ScfgBigInt:
 	return _of(l)
 
 
-## Hex digits, either case, with an optional 0x prefix.
-static func from_hex(s: String) -> ScfgBigInt:
+## ASCII hex digits, either case, with an optional 0x or 0X prefix (a call site that must
+## reject `0X` checks that itself). Anything else is a ValueError.
+## @fallible
+static func from_hex(s: String) -> Variant:
+	var text := s
 	if s.begins_with("0x") or s.begins_with("0X"):
 		s = s.substr(2)
-	var chars := s.to_ascii_buffer()
-	if chars.is_empty() or chars.size() != s.length():
-		return null
-	for c in chars:
+	if s.is_empty():
+		return ScfgErr.make("ValueError", _bad_literal(text, 16))
+	for i in s.length():
+		var c := s.unicode_at(i)
 		if not ((c >= 48 and c <= 57) or (c >= 97 and c <= 102) or (c >= 65 and c <= 70)):
-			return null
+			return ScfgErr.make("ValueError", _bad_literal(text, 16))
 	var l := PackedInt64Array()
 	var end := s.length()
 	while end > 0:
@@ -143,9 +161,14 @@ func to_hex() -> String:
 	return out
 
 
-## Exactly `length` bytes, little-endian, zero-padded. Asserts that the value fits.
-func to_bytes_le(length: int) -> PackedByteArray:
-	assert(bit_length() <= length * 8, "ScfgBigInt.to_bytes_le: value does not fit")
+## Exactly `length` bytes, little-endian, zero-padded. A value that does not fit is an
+## OverflowError and a negative length a ValueError, as in Python's int.to_bytes.
+## @fallible
+func to_bytes_le(length: int) -> Variant:
+	if length < 0:
+		return ScfgErr.make("ValueError", "length argument must be non-negative")
+	if bit_length() > length * 8:
+		return ScfgErr.make("OverflowError", "int too big to convert")
 	var out := PackedByteArray()
 	out.resize(length)
 	out.fill(0)
@@ -158,9 +181,11 @@ func to_bytes_le(length: int) -> PackedByteArray:
 	return out
 
 
-## Asserts the value is below 2^63.
-func to_int() -> int:
-	assert(bit_length() <= 63, "ScfgBigInt.to_int: value is 2^63 or more")
+## The value as an int; 2^63 or more is an OverflowError.
+## @fallible
+func to_int() -> Variant:
+	if bit_length() > 63:
+		return ScfgErr.make("OverflowError", "ScfgBigInt.to_int: %s is 2^63 or more" % to_decimal())
 	var v := 0
 	for i in range(limbs.size() - 1, -1, -1):
 		v = (v << BITS) | limbs[i]
@@ -210,9 +235,16 @@ func add(o: ScfgBigInt) -> ScfgBigInt:
 	return _of(out)
 
 
-## Asserts self >= o.
-func sub(o: ScfgBigInt) -> ScfgBigInt:
-	assert(cmp(o) >= 0, "ScfgBigInt.sub: negative result")
+## self - o; a negative result is an OverflowError.
+## @fallible
+func sub(o: ScfgBigInt) -> Variant:
+	if cmp(o) < 0:
+		return ScfgErr.make("OverflowError", "ScfgBigInt.sub: negative result")
+	return _sub(o)
+
+
+## sub() for self >= o.
+func _sub(o: ScfgBigInt) -> ScfgBigInt:
 	var out := limbs.duplicate()
 	var b := o.limbs
 	var borrow := 0
@@ -235,42 +267,63 @@ func mul(o: ScfgBigInt) -> ScfgBigInt:
 	return _of(_mul_limbs(limbs, o.limbs))
 
 
-## k in [0, 2^38): keeps limb * k + carry inside an int.
-func mul_small(k: int) -> ScfgBigInt:
-	assert(k >= 0 and k < (1 << 38), "ScfgBigInt.mul_small: k out of range")
+## self * k for an int k >= 0 (fast below 2^38, where limb * k + carry fits an int); a
+## negative k is an OverflowError.
+## @fallible
+func mul_small(k: int) -> Variant:
+	if k < 0:
+		return ScfgErr.make("OverflowError", "ScfgBigInt.mul_small: negative factor %d" % k)
+	if k >= (1 << 38):
+		return mul(_from_nonneg(k))
 	return _of(_mul_add_small(limbs, k, 0))
 
 
-## [quotient, remainder]. Asserts o != 0.
-func divmod(o: ScfgBigInt) -> Array:
-	assert(not o.is_zero(), "ScfgBigInt.divmod: division by zero")
+## [quotient, remainder]; a zero divisor is a ZeroDivisionError.
+## @fallible
+func divmod(o: ScfgBigInt) -> Variant:
+	if o.is_zero():
+		return ScfgErr.make("ZeroDivisionError", "integer division or modulo by zero")
 	if cmp(o) < 0:
 		return [ScfgBigInt.new(), _of(limbs.duplicate())]
 	var qr := _divmod_limbs(limbs, o.limbs)
 	return [_of(qr[0]), _of(qr[1])]
 
 
-func mod(o: ScfgBigInt) -> ScfgBigInt:
+## self mod o; a zero divisor is a ZeroDivisionError.
+## @fallible
+func mod(o: ScfgBigInt) -> Variant:
+	if o.is_zero():
+		return ScfgErr.make("ZeroDivisionError", "integer division or modulo by zero")
+	return _mod(o)
+
+
+## mod() for o != 0.
+func _mod(o: ScfgBigInt) -> ScfgBigInt:
 	if cmp(o) < 0:
 		return _of(limbs.duplicate())
-	return divmod(o)[1]
+	return _of(_divmod_limbs(limbs, o.limbs)[1])
 
 
-## self^e mod m (left-to-right square and multiply). Asserts m != 0.
-func pow_mod(e: ScfgBigInt, m: ScfgBigInt) -> ScfgBigInt:
-	assert(not m.is_zero(), "ScfgBigInt.pow_mod: zero modulus")
-	var result := ScfgBigInt.from_int(1).mod(m)
-	var base := mod(m)
+## self^e mod m (left-to-right square and multiply); a zero m is a ValueError, as Python's
+## pow(x, e, 0) raises.
+## @fallible
+func pow_mod(e: ScfgBigInt, m: ScfgBigInt) -> Variant:
+	if m.is_zero():
+		return ScfgErr.make("ValueError", "pow() 3rd argument cannot be 0")
+	var result := _from_nonneg(1)._mod(m)
+	var base := _mod(m)
 	for i in range(e.bit_length() - 1, -1, -1):
-		result = result.mul(result).mod(m)
+		result = result.mul(result)._mod(m)
 		if (e.limbs[i / BITS] >> (i % BITS)) & 1:
-			result = result.mul(base).mod(m)
+			result = result.mul(base)._mod(m)
 	return result
 
 
-## self mod 2^n.
-func low_bits(n: int) -> ScfgBigInt:
-	assert(n >= 0, "ScfgBigInt.low_bits: negative n")
+## self mod 2^n; a negative n is a ValueError.
+## @fallible
+func low_bits(n: int) -> Variant:
+	if n < 0:
+		return ScfgErr.make("ValueError", "negative shift count")
 	var full := n / BITS
 	if full >= limbs.size():
 		return _of(limbs.duplicate())
@@ -280,6 +333,10 @@ func low_bits(n: int) -> ScfgBigInt:
 
 
 # --- limb helpers ---------------------------------------------------------------------------
+
+
+static func _bad_literal(s: String, base: int) -> String:
+	return "invalid literal for ScfgBigInt (base %d): %s" % [base, ScfgPy.py_repr(s)]
 
 
 static func _cmp_limbs(a: PackedInt64Array, b: PackedInt64Array) -> int:
