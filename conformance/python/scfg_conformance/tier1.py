@@ -26,6 +26,8 @@ from scfg_core.solana.ed25519 import D, P, is_on_curve
 from scfg_core.solana.rpc import SolanaRpc
 from scfg_core.transfers import Transfer
 
+from .replay import decode_value
+
 SOURCES: dict[str, Callable[[], dict]] = {}
 FUNCS: dict[str, Callable[[dict], Any]] = {}
 
@@ -184,10 +186,7 @@ def _decimal_to_units(i):
 @_fn("stored_amount")
 def _stored_amount(i):
     """`in.value` is the JSON value itself (a float has the {"float": repr} form)."""
-    v = i["value"]
-    if isinstance(v, dict) and set(v) == {"float"}:
-        v = float(v["float"])
-    return str(amounts.stored_amount(v))
+    return str(amounts.stored_amount(decode_value(i["value"])))
 
 
 @_fn("format_units")
@@ -333,13 +332,14 @@ def run_case(case: dict) -> None:
     assert got == want, f"{case['fn']}({case['in']!r}): got {got!r}, vector says {want!r}"
 
 
-def topic(name: str, cases: list[tuple[str, dict]]) -> None:
-    """Register tier1/<name>.json; outputs are computed through FUNCS at generation time."""
+def topic(name: str, cases: list[tuple[str, dict]], sources: dict = SOURCES) -> None:
+    """Register tier1/<name>.json in `sources` (default: this module's SOURCES); outputs are
+    computed through FUNCS at generation time."""
     def build() -> dict:
         return {"tier": 1, "topic": name,
                 "cases": [{"fn": fn, "in": inputs, **_compute(fn, inputs)}
                           for fn, inputs in cases]}
-    SOURCES[f"tier1/{name}.json"] = build
+    sources[f"tier1/{name}.json"] = build
 
 
 # --- shared fixtures ------------------------------------------------------------------------
@@ -1147,7 +1147,7 @@ topic("tx_ids", _tx_id_cases())
 # --- rpc_errors -----------------------------------------------------------------------------
 # Numbers read out of a node's error message: the eth_getLogs range a provider states and the
 # transaction version a Solana node names. \d is any Unicode decimal digit (Python's re), and a
-# run of more than 18 significant digits is no number (Ruling 6).
+# run of more than 18 significant digits is not read as a number.
 
 _V = "Transaction version ({}) is not supported by the requesting client."
 

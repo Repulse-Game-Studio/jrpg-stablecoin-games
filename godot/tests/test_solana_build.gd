@@ -1,8 +1,8 @@
 ## ScfgSolanaBackend.build_payment and ScfgEngine.build_solana_payment: the backend and Engine half
-## of tests/unit/test_solana_build.py, plus M1's checks (rpgmaker/src/core/backends/
+## of tests/unit/test_solana_build.py, plus the JS core's checks (rpgmaker/src/core/backends/
 ## solana.test.ts): the exact layout a wallet signs, padded base64, the account normalized and
 ## refused before any request. (The checkout controller test of that file is here too; the
-## local-server tests belong to M4.) Python signs the transaction with solders to prove
+## local-server tests are in test_local_server.gd.) Python signs the transaction with solders to prove
 ## a wallet can; here a small legacy-transaction parser checks every byte a wallet signs instead.
 extends RefCounted
 

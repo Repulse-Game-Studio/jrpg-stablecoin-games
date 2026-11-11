@@ -1,6 +1,6 @@
 /**
  * The built plugin file: reproducible, ES2020 only, MZ header first, the shared checkout page
- * embedded unchanged (Ruling M2-2), and no string-built code in the glue.
+ * embedded unchanged, and no string-built code in the glue.
  */
 import { before, after, test } from "node:test";
 import assert from "node:assert/strict";

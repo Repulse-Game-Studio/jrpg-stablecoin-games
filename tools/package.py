@@ -207,8 +207,9 @@ def godot_addon_version():
 
 
 def build_godot_zip(dist):
-    if godot_addon_version() != __version__:
-        raise ValueError(f"plugin.cfg version {godot_addon_version()} != scfg_core {__version__}")
+    addon_version = godot_addon_version()
+    if addon_version != __version__:
+        raise ValueError(f"plugin.cfg version {addon_version} != scfg_core {__version__}")
     dist.mkdir(exist_ok=True)
     target = dist / f"scfg-godot-{__version__}.zip"
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -297,8 +298,9 @@ def build_rpgmaker_plugin(outdir):
 
 def build_rpgmaker_zip(dist, plugin=None):
     """dist/scfg-rpgmaker-mz-<version>.zip. `plugin` is a built SCFG.js (default: build one)."""
-    if rpgmaker_plugin_version() != __version__:
-        raise ValueError(f"SCFG.js version {rpgmaker_plugin_version()} != scfg_core {__version__}")
+    plugin_version = rpgmaker_plugin_version()
+    if plugin_version != __version__:
+        raise ValueError(f"SCFG.js version {plugin_version} != scfg_core {__version__}")
     with tempfile.TemporaryDirectory(prefix="scfg-rpgmaker-") as tmp:
         if plugin is None:
             plugin = build_rpgmaker_plugin(tmp)

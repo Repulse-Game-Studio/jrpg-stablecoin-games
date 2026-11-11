@@ -48,7 +48,7 @@ test("headerDeclaresEveryCommandAndParam", async () => {
   assert.deepEqual([p["texts"]!.type, p["texts"]!.default], ["struct<Text>[]", "[]"]);
   for (const json of [PARAM.chains, PARAM.tokens, PARAM.methods, PARAM.rpcUrls, PARAM.confirmations, PARAM.previousWallets,
     PARAM.customChains]) {
-    assert.equal(p[json]!.type, "multiline_string", `${json}: JSON text, as written (carried item a, Ruling 9)`);
+    assert.equal(p[json]!.type, "multiline_string", `${json}: JSON text, as written`);
     assert.equal(p[json]!.default, "", `${json}: empty = the defaults`);
   }
   for (const param of h.params) assert.ok(param.desc, `${param.name} has a @desc`);

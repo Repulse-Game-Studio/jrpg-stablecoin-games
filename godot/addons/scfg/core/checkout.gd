@@ -1,7 +1,7 @@
 ## State behind the payment screen, independent of any engine. Mirrors scfg_core/checkout.py (and
-## M1's rpgmaker/src/core/checkout.ts).
+## the TS core's rpgmaker/src/core/checkout.ts).
 ##
-## The Godot sheet (M4) only displays this object's fields and calls its methods from buttons. All
+## The Godot sheet (ui/sheet.gd) only displays this object's fields and calls its methods from buttons. All
 ## engine work goes through `submit` (the ScfgWorker's `submit`), and results come back through
 ## `poll()` (jobs) and `on_outcome()` (watcher outcomes routed by session id). Nothing here touches
 ## the SceneTree or the network, so the whole flow is unit-testable.

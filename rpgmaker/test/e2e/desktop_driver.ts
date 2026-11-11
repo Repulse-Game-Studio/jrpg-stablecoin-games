@@ -1,5 +1,5 @@
 /**
- * TEST ONLY. The desktop (NW.js) path of the e2e (tools/run_rpgmaker_desktop_e2e.py, Ruling M2-5):
+ * TEST ONLY. The desktop (NW.js) path of the e2e (tools/run_rpgmaker_desktop_e2e.py):
  * NW.js itself cannot run here, so this Node process plays it. It runs the real SCFG glue
  * (`bootPlugin()`, boot.ts, from the same sources SCFG.js bundles) on the MZ shim as a desktop game
  * (`Utils.isNwjs()` true, saves in `<storage>/save/*.rmmzsave` through MZ's StorageManager), with
@@ -143,7 +143,7 @@ function snapshot(): unknown {
   const ids = [1, 2, 3];
   return {
     scene: g.SceneManager._scene?.constructor?.name ?? null,
-    // the Engine's transport (the glue's default on NW.js: Node https, Ruling M2-1)
+    // the Engine's transport (the glue's default on NW.js: Node https)
     transport: need().scfg._engine?.transport?.constructor?.name ?? null,
     eventRunning: g.$gameMap.isEventRunning(),
     switches: Object.fromEntries(ids.map((i) => [i, g.$gameSwitches.value(i)])),

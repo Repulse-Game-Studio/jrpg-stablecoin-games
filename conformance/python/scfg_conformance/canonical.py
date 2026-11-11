@@ -14,10 +14,18 @@ from typing import Any
 MAX_SAFE = 2**53
 
 
+def _where(path: str) -> str:
+    return path or "<root>"
+
+
+def _child(path: str, key: str) -> str:
+    return f"{path}.{key}" if path else key
+
+
 def _check_int(n: int, path: str) -> int:
     if abs(n) >= MAX_SAFE:
         raise ValueError(
-            f"integer {n} at {path or '<root>'} is not safe in JSON (|n| >= 2**53); "
+            f"integer {n} at {_where(path)} is not safe in JSON (|n| >= 2**53); "
             "write it as a string"
         )
     return n
@@ -30,30 +38,30 @@ def _walk(obj: Any, path: str) -> Any:
         return _check_int(int(obj), path)
     if isinstance(obj, float):
         if obj != obj or obj in (float("inf"), float("-inf")) or not obj.is_integer():
-            raise ValueError(f"non-integral float {obj!r} at {path or '<root>'}")
+            raise ValueError(f"non-integral float {obj!r} at {_where(path)}")
         return _check_int(int(obj), path)
     if isinstance(obj, Decimal):
         return str(obj)
     if isinstance(obj, (bytes, bytearray, memoryview)):
-        raise TypeError(f"bytes at {path or '<root>'}: hex-encode into a *_hex field")
+        raise TypeError(f"bytes at {_where(path)}: hex-encode into a *_hex field")
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
         return {
-            f.name: _walk(getattr(obj, f.name), f"{path}.{f.name}" if path else f.name)
+            f.name: _walk(getattr(obj, f.name), _child(path, f.name))
             for f in dataclasses.fields(obj)
         }
     if isinstance(obj, dict):
         out = {}
         for key, value in obj.items():
             if not isinstance(key, str):
-                raise TypeError(f"non-string dict key {key!r} at {path or '<root>'}")
-            out[key] = _walk(value, f"{path}.{key}" if path else key)
+                raise TypeError(f"non-string dict key {key!r} at {_where(path)}")
+            out[key] = _walk(value, _child(path, key))
         return out
     if isinstance(obj, (list, tuple)):
         return [_walk(v, f"{path}[{i}]") for i, v in enumerate(obj)]
     if isinstance(obj, (set, frozenset)):
         items = [_walk(v, f"{path}[]") for v in obj]
         return sorted(items)
-    raise TypeError(f"unsupported type {type(obj).__name__} at {path or '<root>'}")
+    raise TypeError(f"unsupported type {type(obj).__name__} at {_where(path)}")
 
 
 def to_jsonable(obj: Any) -> Any:

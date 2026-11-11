@@ -45,7 +45,6 @@ export interface RestoreCandidate {
   already_restored: boolean;
 }
 
-
 /** Decide what a transfer of `value` base units paid for: [kind, item, choices]. */
 export function classify(config: Config, value: Units): [string | null, string | null, string[]] {
   const [, code, nonce] = decode(value);

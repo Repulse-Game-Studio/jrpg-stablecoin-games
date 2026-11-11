@@ -21,7 +21,7 @@ static func receipt_key(chain: Variant, tx_hash: Variant, log_index: Variant) ->
 	var tx := str(tx_hash)
 	if tx.begins_with("0x"):
 		tx = tx.to_lower()
-	return "%s:%s:%s" % [_py_str(chain), tx, _py_str(log_index)]
+	return "%s:%s:%s" % [ScfgPy.py_str(chain), tx, ScfgPy.py_str(log_index)]
 
 
 ## Python `make_receipt(*, chain, transfer, kind, item, token, source)`; the keyword arguments
@@ -84,13 +84,12 @@ static func remove_receipt(store: Dictionary, key: Variant) -> void:
 ## an ScfgDec (a Python Decimal sum: it keeps the widest exponent of the amounts, and no tips is
 ## `Decimal(0)`). `items` maps item_id to an Item Dictionary (ScfgModels.make_item).
 ##
-## Malformed entries are skipped, never fatal, exactly where Python's
-## `except (KeyError, TypeError, InvalidOperation)` skips them: a record that is not a dict, a
-## missing kind or amount, an amount Decimal() rejects with TypeError or InvalidOperation
-## (None, a dict, "abc"), and a non-finite amount. Two things Python does not catch are errors
-## here too: an amount that is a list (Decimal([...]) is a ValueError), an unhashable item
-## (a list or dict: `items.get(...)` is a TypeError), and a tip total whose exponent passes
-## Emax (a stored "1E+1000000": decimal.Overflow, kind "Overflow").
+## Malformed entries are skipped, never fatal, as Python's
+## `except (KeyError, TypeError, ValueError, AttributeError)` skips them: a record that is not a
+## dict, a missing kind or amount, an amount that is not a number within the stored-amount range
+## (ScfgAmounts.stored_amount, so the tip total stays finite) and an unhashable item (a list or
+## dict). An Item whose min_price is not an ScfgDec is a TypeError, as Python's comparison
+## raises outside that `try`.
 ## @fallible
 static func compute_ownership(store: Dictionary, items: Dictionary) -> Variant:
 	var owned := {}
@@ -124,11 +123,3 @@ static func compute_ownership(store: Dictionary, items: Dictionary) -> Variant:
 	var ids: Array = owned.keys()
 	ids.sort()
 	return [ids, tips]
-
-
-## Python's `str(v)` inside an f-string, for the key parts: a str as it is, anything else as its
-## repr (an int, None, True).
-static func _py_str(v: Variant) -> String:
-	if v is String or v is StringName:
-		return str(v)
-	return ScfgPy.py_repr(v)

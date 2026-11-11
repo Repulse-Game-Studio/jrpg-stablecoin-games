@@ -44,9 +44,7 @@ static func normalize_any_tx(text: Variant) -> Variant:
 	for family: String in loaded:
 		var backend: ScfgBaseBackend = loaded[family]
 		var out: Variant = backend.normalize_tx(text)
-		if out is ScfgErr:
-			if (out as ScfgErr).is_a("ValueError"):
-				continue
-			return out
+		if out is ScfgErr and (out as ScfgErr).is_a("ValueError"):
+			continue
 		return out
 	return ScfgErr.make("ValueError", "not a transaction hash or signature: %s" % ScfgPy.py_repr(text))

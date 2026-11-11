@@ -113,7 +113,7 @@ test("setAsideKeepsWhatWasLoaded", async () => {
   assert.equal(storage.has("save/scfg.rmmzsave"), false);
 });
 
-// --- carried from Task 2 -------------------------------------------------------------------------
+// --- MZ's save backup after a crash, and state that cannot be kept aside -------------------------
 
 test("backupLeftByACrashMidSaveIsRecovered", async () => {
   // MZ's saveToLocalFile renames scfg.rmmzsave to scfg.rmmzsave_ before it writes the new file, and
@@ -174,7 +174,7 @@ test("setAsideThatCannotKeepACopySaysSo", async () => {
   assert.equal(storage.read("save/scfg.rmmzsave"), text, "the original is not removed");
 });
 
-// --- fix round 1 ---------------------------------------------------------------------------------
+// --- a truncated or empty state file beside MZ's backup; two games on one origin -----------------
 
 const PENDING = { ps_1: { id: "ps_1", state: "awaiting", created_at: 100.5 } };
 

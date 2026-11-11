@@ -351,7 +351,7 @@ func test_named_version_matches_like_python_re() -> bool:
 	return T.done()
 
 
-# tests/unit/test_solana_rpc.py::test_named_version_ignores_numbers_beyond_18_digits (Ruling 6)
+# tests/unit/test_solana_rpc.py::test_named_version_ignores_numbers_beyond_18_digits
 func test_named_version_ignores_numbers_beyond_18_digits() -> bool:
 	var rows := [["Transaction version (" + "9".repeat(19) + ") is not supported", null],
 		["Transaction version (" + "9".repeat(4301) + ") is not supported", null],
@@ -379,7 +379,7 @@ func test_an_overlong_named_version_raises_the_node_error() -> bool:
 	return T.done()
 
 
-## Review Focus 2 for the Solana requests: every int parameter is an int (see test_rpc_client).
+## The Solana requests: every int parameter is an int, never a float (see test_rpc_client).
 func test_requests_carry_ints_not_floats() -> bool:
 	var h := func(m: String, p: Array) -> Variant:
 		match m:

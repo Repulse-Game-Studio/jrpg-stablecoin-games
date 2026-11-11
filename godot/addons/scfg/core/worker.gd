@@ -1,7 +1,8 @@
 ## The single writer: one command queue plus a periodic tick loop that owns the ScfgEngine.
 ##
-## Twin of scfg_core.worker.Worker (threads) and scfg_core.pump_worker.PumpWorker, and of M1's
-## rpgmaker/src/core/worker.ts, as one cooperative object (the M4 glue hosts it in an autoload).
+## Twin of scfg_core.worker.Worker (threads) and scfg_core.pump_worker.PumpWorker, and of the TS
+## core's rpgmaker/src/core/worker.ts, as one cooperative object (the Godot glue hosts it in the
+## `Scfg` autoload).
 ## The game loop never touches the Engine directly. It:
 ##   - submits commands with `submit(fn)` and polls the returned ScfgJob every frame (`fn` gets
 ##     the engine, may be a coroutine, and fails its job by returning an ScfgErr),

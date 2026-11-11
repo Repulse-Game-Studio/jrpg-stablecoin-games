@@ -27,7 +27,6 @@ export interface ReceiptJson {
   source: string;
 }
 
-
 export function receiptKey(chain: string, tx_hash: string, log_index: number): string {
   // EVM hashes are hex (case-insensitive); Solana signatures are base58 (case matters).
   const tx = tx_hash.startsWith("0x") ? tx_hash.toLowerCase() : tx_hash;

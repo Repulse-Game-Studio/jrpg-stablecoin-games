@@ -57,7 +57,7 @@ export class SolanaRpc {
   /**
    * The newer version a -32015 "Transaction version (N) is not supported" names. Only meta,
    * slot and accountKeys are read, so any version can be read. A number beyond 18 significant
-   * digits is no match (Ruling 6).
+   * digits (DIGIT_RUN_LIMIT) is no match.
    */
   private _namedVersion(error: RpcError): number | null {
     if (error.code !== UNSUPPORTED_VERSION) return null;

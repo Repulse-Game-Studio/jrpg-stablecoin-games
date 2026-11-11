@@ -119,7 +119,7 @@ test("urlIsEmptyUntilListening", async () => {
   const srv = make();
   assert.equal(srv.url, "", "nothing before start()");
   srv.start();
-  assert.equal(srv.url, "", "start() returns before listen() completes: the URL is \"\" until then (Ruling 1)");
+  assert.equal(srv.url, "", "start() returns before listen() completes: the URL is \"\" until then");
   assert.equal(srv.running, true, "running from start()");
   await srv.ready();
   assert.ok(srv.port > 0);
@@ -409,7 +409,7 @@ test("headAboveTheTotalCapIs431", async () => {
   assert.match(r.out.toString("latin1"), /headers too large$/);
 });
 
-// --- fix round 1 ----------------------------------------------------------------------------
+// --- linear-time parsing, bytes from another realm, errors after listen() -------------------
 
 test("runsOfLineEndsAndSpacesAreParsedInLinearTime", async () => {
   // bytes a client sends before any check (Host, secret) must never meet a backtracking pattern:

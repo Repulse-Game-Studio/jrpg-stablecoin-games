@@ -13,10 +13,15 @@ export function mz(): any {
   return globalThis as any;
 }
 
+/** `Utils[name](...args)` as a boolean; false when MZ's Utils or that method is missing. */
+function askUtils(name: string, ...args: unknown[]): boolean {
+  const utils = mz().Utils;
+  return !!(utils && typeof utils[name] === "function" && utils[name](...args));
+}
+
 /** True on desktop: the game runs in NW.js (`Utils.isNwjs()`). */
 export function isNwjs(): boolean {
-  const utils = mz().Utils;
-  return !!(utils && typeof utils.isNwjs === "function" && utils.isNwjs());
+  return askUtils("isNwjs");
 }
 
 /** True in a browser deployment (anything that is not NW.js). */
@@ -26,14 +31,12 @@ export function isWeb(): boolean {
 
 /** True on a phone or tablet (`Utils.isMobileDevice()`, Ren'Py's renpy.mobile). */
 export function isMobile(): boolean {
-  const utils = mz().Utils;
-  return !!(utils && typeof utils.isMobileDevice === "function" && utils.isMobileDevice());
+  return askUtils("isMobileDevice");
 }
 
 /** True in test play (`Utils.isOptionValid("test")`): the editor's Playtest. Developer warnings show only then. */
 export function isTestPlay(): boolean {
-  const utils = mz().Utils;
-  return !!(utils && typeof utils.isOptionValid === "function" && utils.isOptionValid("test"));
+  return askUtils("isOptionValid", "test");
 }
 
 /** A Node module on NW.js (`require(name)`); an Error anywhere else. */

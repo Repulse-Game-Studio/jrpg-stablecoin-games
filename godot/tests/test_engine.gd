@@ -1,4 +1,4 @@
-## ScfgEngine (engine.gd): tests/unit/test_engine.py (the Solana half: test_engine_solana.gd), plus M1's checks (rpgmaker/src/core/engine.test.ts): the default
+## ScfgEngine (engine.gd): tests/unit/test_engine.py (the Solana half: test_engine_solana.gd), plus the JS core's checks (rpgmaker/src/core/engine.test.ts): the default
 ## RPC factory, the contained crash, sequential ticks and the injected entropy.
 extends RefCounted
 
@@ -659,7 +659,7 @@ func test_readiness_lets_a_cancellation_through_and_rejects_a_non_dict() -> bool
 	return T.done()
 
 
-## JSON.stringify then JSON.parse_string, as M4's user://scfg/state.json save and load do: every
+## JSON.stringify then JSON.parse_string, as the glue's user://scfg/state.json save and load do: every
 ## stored number comes back a float.
 func _json_round_trip(v: Variant) -> Variant:
 	return JSON.parse_string(JSON.stringify(v))

@@ -12,8 +12,7 @@ from decimal import Decimal
 from scfg_core.reverify import FUTURE_TOLERANCE_BLOCKS
 
 from ..scenario import scenario
-from .evm import covers
-from .fixtures import CHAPTER2, DEV_EVM, OLD_DEV_EVM, PAYER_EVM, tx_hash
+from .fixtures import CHAPTER2, DEV_EVM, OLD_DEV_EVM, PAYER_EVM, covers, tx_hash
 
 OST = {"item_id": "ost", "code": 2, "price": "2.00", "token": "USDT", "title": "OST"}
 EVM_CHAINS = ("arbitrum", "base", "arc", "polygon", "ethereum")

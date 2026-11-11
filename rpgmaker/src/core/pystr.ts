@@ -95,6 +95,9 @@ export function toAsciiDigits(s: string): string {
   return out;
 }
 
+/** CPython's default `sys.get_int_max_str_digits()`. */
+export const INT_MAX_STR_DIGITS = 4300;
+
 /**
  * Python `int(x)` for a JSON-like value, as a bigint (u64 token amounts and uint256 values can
  * exceed 2^53):
@@ -104,9 +107,6 @@ export function toAsciiDigits(s: string): string {
  *   - anything else is a TypeError; a malformed string or a non-finite number is a ValueError.
  * Only ValueError and TypeError are thrown.
  */
-/** CPython's default `sys.get_int_max_str_digits()`. */
-export const INT_MAX_STR_DIGITS = 4300;
-
 export function pyInt(x: unknown): bigint {
   if (typeof x === "boolean") return x ? 1n : 0n;
   if (typeof x === "bigint") return x;
@@ -118,7 +118,7 @@ export function pyInt(x: unknown): bigint {
   const t = toAsciiDigits(stripWith(x, INT_WS_CHAR));
   if (!/^[+-]?[0-9]+(_[0-9]+)*$/.test(t)) throw new ValueError(`invalid literal for int(): ${JSON.stringify(x)}`);
   const body = t.replace(/_/g, "").replace(/^\+/, "");
-  // CPython's int(str) limit (sys.get_int_max_str_digits(), 4300): more digits is a ValueError
+  // More digits than CPython's int(str) limit is a ValueError.
   if (body.replace(/^-/, "").length > INT_MAX_STR_DIGITS) {
     throw new ValueError(`Exceeds the limit (${INT_MAX_STR_DIGITS} digits) for integer string conversion`);
   }
@@ -127,7 +127,7 @@ export function pyInt(x: unknown): bigint {
 
 /**
  * A digit run read out of a node's error message is a number only up to this many significant
- * digits (scfg_core/ints.py DIGIT_RUN_LIMIT, Ruling 6): every range or version a request can
+ * digits (scfg_core/ints.py DIGIT_RUN_LIMIT): every range or version a request can
  * carry is below 10**18.
  */
 export const DIGIT_RUN_LIMIT = 18;
@@ -155,7 +155,7 @@ export function digitRunValue(run: string): number | null {
 }
 
 /**
- * Python's `json.loads(text)` as the core calls it (`ints.json_loads`, Ruling 6): an integer
+ * Python's `json.loads(text)` as the core calls it (`ints.json_loads`): an integer
  * literal of more than INT_MAX_STR_DIGITS digits makes the text invalid JSON (a SyntaxError,
  * as JSON.parse throws), where JSON.parse alone would read it as a float (Infinity). Other
  * numbers are JSON.parse's floats, as before. Linear.

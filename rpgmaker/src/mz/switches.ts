@@ -1,5 +1,5 @@
 /**
- * Owned switches (D6, Review Focus 2): each Items entry's "Owned Switch" is kept equal to
+ * Owned switches: each Items entry's "Owned Switch" is kept equal to
  * `SCFG.owns(id)`. The plugin owns those switches and is the only one that should write them: it
  * sets them (ON or OFF, only when they differ):
  *
@@ -39,17 +39,16 @@ export class OwnedSwitches {
     const count = Array.isArray(g.$dataSystem.switches) ? g.$dataSystem.switches.length : Infinity;
     for (const [id, n] of this.pairs) {
       if (n >= count) {
-        this._warnOnce(`switch:${id}`, `item ${id}'s owned switch ${n} is not in the database (it has ${count - 1} switches); it is never set`);
+        if (this._firstTime(`switch:${id}`)) {
+          s._warn(`item ${id}'s owned switch ${n} is not in the database (it has ${count - 1} switches); it is never set`);
+        }
         continue;
       }
       let owned: boolean;
       try {
         owned = s.owns(id);
       } catch (e) {
-        if (!this._warned.has(`owns:${id}`)) {
-          this._warned.add(`owns:${id}`);
-          s._reportError(`cannot set item ${id}'s owned switch:`, e);
-        }
+        if (this._firstTime(`owns:${id}`)) s._reportError(`cannot set item ${id}'s owned switch:`, e);
         continue;
       }
       if (switches.value(n) !== owned) switches.setValue(n, owned);
@@ -83,9 +82,10 @@ export class OwnedSwitches {
     this._scfg.onReceiptsChanged(sync);
   }
 
-  private _warnOnce(key: string, message: string): void {
-    if (this._warned.has(key)) return;
+  /** True the first time `key` is asked about: each problem is reported once. */
+  private _firstTime(key: string): boolean {
+    if (this._warned.has(key)) return false;
     this._warned.add(key);
-    this._scfg._warn(message);
+    return true;
   }
 }

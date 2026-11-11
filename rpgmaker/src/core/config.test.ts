@@ -130,7 +130,7 @@ test("test_qr_chains_entry_that_is_a_list_is_a_disabled_chain_not_a_type_error",
   assert.equal(code(() => buildConfig({ wallet: W, methods: { qr: { chains: [["base"]] } } })), "methods.qr_disabled_chain");
 });
 
-// M1 Ruling 9, carried: item ids and chain keys may be integer-like ("10", "0"). Python dicts keep
+// Item ids and chain keys may be integer-like ("10", "0"). Python dicts keep
 // insertion order; a JS object would list integer-like keys first. Expected orders are CPython's.
 test("test_integer_like_keys_keep_insertion_order", () => {
   const custom = (key: string, chain_id: number) => buildChain(key, { ...AVAX, name: key.toUpperCase(), chain_id });

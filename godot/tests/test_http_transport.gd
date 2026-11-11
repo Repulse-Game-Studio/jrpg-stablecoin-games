@@ -115,7 +115,7 @@ func test_non_json_body_is_invalid_json_response() -> bool:
 	return T.done()
 
 
-# tests/unit/test_urllib_transport.py::test_an_overlong_json_integer_is_invalid_json (Ruling 6)
+# tests/unit/test_urllib_transport.py::test_an_overlong_json_integer_is_invalid_json
 func test_an_overlong_json_integer_is_invalid_json() -> bool:
 	var env := await _setup()
 	var tr: ScfgHttpTransport = env[2]
@@ -198,7 +198,7 @@ func _wait_for(responder: F.Responder, box: Dictionary, what: String) -> void:
 
 
 func test_host_freed_mid_request_is_host_gone_not_a_cooldown() -> bool:
-	# M3's carried fix: the waiting coroutine used to resume inside the exit-tree notification,
+	# A fixed bug: the waiting coroutine used to resume inside the exit-tree notification,
 	# fail over to the next endpoint with add_child on the dying host (engine errors) and put
 	# the healthy endpoints in cooldown.
 	var env := await _setup()

@@ -15,7 +15,7 @@ from . import canonical
 SOURCES: dict[str, Callable[[], dict]] = {}
 
 # Modules that register vector files. Each exposes a module-level `SOURCES` dict with the
-# same shape as above. Later tasks append their module here.
+# same shape as above. A new vector module is added to this list.
 MODULES = ["scfg_conformance.tier1", "scfg_conformance.tier1_config", "scfg_conformance.tier2"]
 
 

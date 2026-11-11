@@ -224,9 +224,8 @@ class Solana:
         self.cleanup = self.cluster.close
         try:
             self.dev = str(dev.pubkey())
-            self.cluster.airdrop(
-                self.player.pubkey(), 2 * 10**9
-            )  # the browser wallet pays its own fee
+            # 2 SOL for the player: the browser wallet pays its own fee
+            self.cluster.airdrop(self.player.pubkey(), 2 * 10**9)
         except BaseException:
             self.cleanup()
             raise
@@ -593,12 +592,26 @@ def still_owned_after_restart(game: Game) -> None:
 # --- the run ---------------------------------------------------------------------------------
 
 
-def launch_chromium(p):
-    """The installed Chrome, else Playwright's Chromium (as the browser integration tests do)."""
+def launch_chromium(p, **options):
+    """The installed Chrome, else Playwright's Chromium (as the browser integration tests do).
+    `options` go to Playwright's launch(); headless unless they say otherwise."""
+    options.setdefault("headless", True)
     try:
-        return p.chromium.launch(channel="chrome", headless=True)
+        return p.chromium.launch(channel="chrome", **options)
     except Exception:
-        return p.chromium.launch(headless=True)
+        return p.chromium.launch(**options)
+
+
+def isolated_env(home: Path) -> dict:
+    """os.environ with HOME and the XDG directories under `home`, so Godot's user data (and the
+    editor settings an --import writes) never touch the developer's."""
+    return {
+        **os.environ,
+        "HOME": str(home),
+        "XDG_DATA_HOME": str(home / "data"),
+        "XDG_CONFIG_HOME": str(home / "config"),
+        "XDG_CACHE_HOME": str(home / "cache"),
+    }
 
 
 def quit_cleanly(game: Game) -> str:
@@ -627,16 +640,7 @@ def run(godot: str, family: str) -> int:
 
     work = Path(tempfile.mkdtemp(prefix="scfg-godot-e2e-"))
     home = work / "home"
-    env = dict(os.environ)
-    # The game's user:// (and the editor settings --import writes) stay in the run's own HOME.
-    env.update(
-        {
-            "HOME": str(home),
-            "XDG_DATA_HOME": str(home / "data"),
-            "XDG_CONFIG_HOME": str(home / "config"),
-            "XDG_CACHE_HOME": str(home / "cache"),
-        }
-    )
+    env = isolated_env(home)
     fam = None
     game = None
     wrote_override = False

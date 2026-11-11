@@ -40,9 +40,11 @@ static func is_on_curve(point: PackedByteArray) -> bool:
 static func _init_constants() -> void:
 	if _p != null:
 		return
-	# constants: the literals parse and p > 2
+	# constants: the literals parse and p > 2; _p is set last, as it marks them all ready
+	var p: ScfgBigInt = ScfgBigInt.from_hex(P_HEX)  # err-ok: literal
+	var two: ScfgBigInt = ScfgBigInt.from_int(2)  # err-ok: literal
 	_one = ScfgBigInt.from_int(1)  # err-ok: literal
 	_d = ScfgBigInt.from_hex(D_HEX)  # err-ok: literal
-	_p_minus_2 = ScfgBigInt.from_hex(P_HEX).sub(ScfgBigInt.from_int(2))  # err-ok: literals, p > 2
-	_half = ScfgBigInt.from_hex(P_HEX).sub(_one).divmod(ScfgBigInt.from_int(2))[0]  # err-ok: literals
-	_p = ScfgBigInt.from_hex(P_HEX)  # err-ok: literal
+	_p_minus_2 = p.sub(two)  # err-ok: p > 2
+	_half = p.sub(_one).divmod(two)[0]  # err-ok: p > 1, a non-zero divisor
+	_p = p

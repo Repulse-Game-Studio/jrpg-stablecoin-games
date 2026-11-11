@@ -1,4 +1,4 @@
-## ScfgSessions (sessions.gd): the twin of tests/unit/test_sessions.py, plus M1's checks
+## ScfgSessions (sessions.gd): the twin of tests/unit/test_sessions.py, plus the JS core's checks
 ## (rpgmaker/src/core/sessions.test.ts): reserved extra fields, the injected normalizer and the
 ## entropy draw order.
 extends RefCounted

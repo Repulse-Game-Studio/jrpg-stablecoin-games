@@ -142,8 +142,9 @@ static func suggested_range(err: ScfgErr, tried: int) -> int:
 	return maxi(MIN_LOG_RANGE, floori(tried / 2.0) if tried < 0 else tried / 2)
 
 
-## The numbers `\d+` finds in `s`. A run beyond 18 significant digits is skipped (Ruling 6): it is
-## above every range a caller can try (a range is an int). Linear (ScfgPy.digit_run).
+## The numbers `\d+` finds in `s`. A run beyond 18 significant digits is skipped
+## (ScfgPy.DIGIT_RUN_LIMIT): it is above every range a caller can try (a range is an int).
+## Linear (ScfgPy.digit_run).
 static func _numbers(s: String) -> Array[int]:
 	var out: Array[int] = []
 	var n := s.length()
@@ -162,9 +163,7 @@ static func _numbers(s: String) -> Array[int]:
 ## Python's `str(v)` for a value read from JSON: an integral number is the int Python's json
 ## made of it (`5`, not `5.0`), a str is itself, anything else its repr.
 static func _json_str(v: Variant) -> String:
-	if v is String or v is StringName:
-		return str(v)
-	return ScfgPy.py_repr(_json_view(v))
+	return ScfgPy.py_str(_json_view(v))
 
 
 static func _json_view(v: Variant) -> Variant:
@@ -413,7 +412,7 @@ func get_logs(address: Variant, topics: Variant, from_block: int, to_block: int)
 		var logs: Variant = res[0]
 		# out.extend(logs or [])
 		if ScfgPy.py_truthy(logs):
-			var items: Variant = _iterate(logs)
+			var items: Variant = ScfgPy.py_iter(logs)
 			if items is ScfgErr:
 				return items
 			out.append_array(items)
@@ -424,22 +423,3 @@ func get_logs(address: Variant, topics: Variant, from_block: int, to_block: int)
 ## Python's `hex(n)`.
 static func _hex(n: int) -> String:
 	return "-0x%x" % -n if n < 0 else "0x%x" % n
-
-
-## Iterating a JSON value as Python does: a list's items, a dict's keys, a str's characters;
-## anything else is a TypeError.
-## @fallible
-static func _iterate(v: Variant) -> Variant:
-	if v is Array:
-		return v
-	if v is Dictionary:
-		return (v as Dictionary).keys()
-	if v is String or v is StringName:
-		var out := []
-		var s := str(v)
-		for i in s.length():
-			out.append(s[i])
-		return out
-	if v is PackedStringArray:
-		return Array(v)
-	return ScfgErr.make("TypeError", "'%s' object is not iterable" % ScfgPy.py_type(v))

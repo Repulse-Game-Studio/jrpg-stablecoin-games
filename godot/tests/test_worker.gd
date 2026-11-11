@@ -1,5 +1,5 @@
 ## ScfgWorker / ScfgJob (worker.gd): the twin of tests/unit/test_worker.py (9 tests), the
-## non-frame-pumping part of test_pump_worker.py, and M1's rpgmaker/src/core/worker.test.ts
+## non-frame-pumping part of test_pump_worker.py, and the JS core's rpgmaker/src/core/worker.test.ts
 ## (re-entrancy, cancelled exception, submit after stop, timer during a wake-triggered run).
 extends RefCounted
 

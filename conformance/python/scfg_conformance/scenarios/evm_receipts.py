@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from ..scenario import scenario
-from .evm import covers
-from .fixtures import CHAPTER2, DEV_EVM, OLD_DEV_EVM, PAYER_EVM, tx_hash
+from .fixtures import CHAPTER2, DEV_EVM, OLD_DEV_EVM, PAYER_EVM, covers, tx_hash
 
 
 @scenario("evm/restore_through_engine", covers=(

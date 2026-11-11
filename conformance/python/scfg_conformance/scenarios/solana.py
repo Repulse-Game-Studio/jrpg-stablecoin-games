@@ -11,8 +11,7 @@ from scfg_core.solana.base58 import b58decode
 from scfg_core.solana.pda import associated_token_address
 
 from ..scenario import EPOCH, scenario
-from .evm import covers
-from .fixtures import CHAPTER2, DEV_EVM, DEV_SOL, PAYER_EVM, PAYER_SOL, signature, tx_hash
+from .fixtures import CHAPTER2, DEV_EVM, DEV_SOL, PAYER_EVM, PAYER_SOL, covers, signature, tx_hash
 
 WSOL = "So11111111111111111111111111111111111111112"
 FAILED = "AccountNotFound"      # a failed transaction's `err`

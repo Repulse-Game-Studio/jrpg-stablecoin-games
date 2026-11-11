@@ -1,5 +1,5 @@
 /**
- * The player's payment state in MZ's storage (D6): global to the install, never inside a save
+ * The player's payment state in MZ's storage: global to the install, never inside a save
  * slot. `StorageManager.saveObject("scfg", ...)` keeps it in `save/scfg.rmmzsave` on desktop
  * (NW.js) and under the localforage key `rmmzsave.<gameId>.scfg` in a browser, beside the global
  * info and the config, as MZ stores its own. The twin of Godot's store.gd and of Ren'Py's

@@ -23,7 +23,7 @@
 ## Record fields are read the way Python indexes them (a missing one is a KeyError), and values
 ## compare with Python's `==` (ScfgPy.py_eq), so a malformed record is an error, never a guess.
 ##
-## Port limit (M1 Ruling 3): `match.value` is persisted as a JSON number, so a hinted transfer of
+## Port limit: `match.value` is persisted as a JSON number, so a hinted transfer of
 ## 2^53 units or more (about 9e9 tokens) cannot be recorded exactly. `_match_dict` returns a
 ## ValueError instead of rounding, before anything is mutated; the Engine contains it as
 ## `internal_error` on every tick until the 24 h horizon closes the session. Python would store
@@ -36,7 +36,6 @@ const SCAN_STEP_BLOCKS := 10_000  # upper bound on blocks scanned per advance()
 const MAX_SCAN_CALLS := 5  # eth_getLogs calls per advance(), to be gentle with public RPCs
 const STEP_OUTCOME_FIELDS: Array[String] = ["session_id", "status", "confirmations", "required", "result", "error",
 	"hint_tx"]
-const _MATCH_FIELDS: Array[String] = ["tx_hash", "log_index", "block", "block_hash", "value", "payer", "recipient"]
 
 
 ## Python `StepOutcome(session_id, status, **fields)` with the dataclass defaults. An unknown
@@ -160,10 +159,7 @@ static func _block_field(rec: Variant, key: String) -> Variant:
 		var f: float = v
 		if is_nan(f) or is_inf(f) or f != floorf(f):
 			return ScfgErr.make("TypeError", "'float' object cannot be interpreted as an integer (%s)" % key)
-		var n: Variant = ScfgPy.json_int(f)
-		if n is ScfgErr:
-			return n
-		return n
+		return ScfgPy.json_int(f)
 	return v
 
 

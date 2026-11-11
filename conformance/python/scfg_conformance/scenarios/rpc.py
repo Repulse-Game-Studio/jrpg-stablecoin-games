@@ -15,8 +15,7 @@ from scfg_core.rpc import COOLDOWN_START as _START
 from scfg_core.rpc import MIN_LOG_RANGE
 
 from ..scenario import scenario
-from .evm import covers
-from .fixtures import AVALANCHE, AVAX_USDC, CHAPTER2, DEV_EVM, PAYER_EVM, tx_hash
+from .fixtures import AVALANCHE, AVAX_USDC, CHAPTER2, DEV_EVM, PAYER_EVM, covers, tx_hash
 
 A, B, C = "https://rpc-a.example", "https://rpc-b.example", "https://rpc-c.example"
 _RANGE_ERROR = "block range too large"

@@ -16,10 +16,14 @@ static func hex_to_bytes(s: Variant) -> Variant:
 	if body.length() % 2 != 0:
 		return ScfgErr.make("ValueError", "odd-length hex: %s" % ScfgPy.py_repr(s))
 	for i in body.length():
-		var c := body.unicode_at(i)
-		if not ((c >= 0x30 and c <= 0x39) or (c >= 0x61 and c <= 0x66) or (c >= 0x41 and c <= 0x46)):
+		if not is_hex_digit(body.unicode_at(i)):
 			return ScfgErr.make("ValueError", "non-hex character in %s" % ScfgPy.py_repr(s))
 	return body.hex_decode()
+
+
+## Whether the code point `c` is an ASCII hex digit (0-9, a-f, A-F).
+static func is_hex_digit(c: int) -> bool:
+	return (c >= 0x30 and c <= 0x39) or (c >= 0x61 and c <= 0x66) or (c >= 0x41 and c <= 0x46)
 
 
 ## Lowercase hex without a prefix (Python `b.hex()`).

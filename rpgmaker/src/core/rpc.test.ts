@@ -234,7 +234,7 @@ test("test_suggested_range_uses_stated_limit_or_halves", () => {
   assert.equal(suggestedRange(new RpcError(-32005, "block range is too large"), 15), MIN_LOG_RANGE);
 });
 
-// Ruling 6 (tests/unit/test_rpc_client.py::test_suggested_range_ignores_numbers_beyond_18_digits):
+// tests/unit/test_rpc_client.py::test_suggested_range_ignores_numbers_beyond_18_digits:
 // a digit run beyond 18 significant digits is no number, and \d is any Unicode decimal digit
 // (Python's re), so the cores agree on every message.
 test("test_suggested_range_ignores_numbers_beyond_18_digits", () => {

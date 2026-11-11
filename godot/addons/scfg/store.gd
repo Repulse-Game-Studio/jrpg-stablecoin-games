@@ -1,4 +1,4 @@
-## The player's payment state on disk: `user://scfg/state.json` (D6), global to the install and
+## The player's payment state on disk: `user://scfg/state.json`, global to the install and
 ## never inside a save slot. The twin of Ren'Py's `persistent.scfg_pending` /
 ## `persistent.scfg_receipts`. In a web export `user://` is backed by IndexedDB.
 ##

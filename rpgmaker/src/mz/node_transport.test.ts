@@ -1,5 +1,5 @@
 /**
- * The desktop RPC transport (node_transport.ts, Ruling M2-1) against local Node HTTP servers:
+ * The desktop RPC transport (node_transport.ts) against local Node HTTP servers:
  * the twin of scfg_core.rpc.UrllibTransport's timeouts and error mapping. The Anvil run is
  * tests/integration/test_js_core.py::test_node_transport_against_anvil.
  */
@@ -122,7 +122,7 @@ test("invalidJsonIsATransportError", async () => {
 });
 
 test("anOverlongJsonIntegerIsInvalidJson", async () => {
-  // tests/unit/test_urllib_transport.py::test_an_overlong_json_integer_is_invalid_json (Ruling 6)
+  // tests/unit/test_urllib_transport.py::test_an_overlong_json_integer_is_invalid_json
   let reply: [number, string] = [200, `{"jsonrpc": "2.0", "id": 1, "result": ${"9".repeat(4301)}}`];
   const { url } = await serve((_req, res) => {
     res.writeHead(reply[0], { "Content-Type": "application/json" });
@@ -191,7 +191,7 @@ test("eachUrlGoesThroughItsSchemesModule", async () => {
   assert.throws(() => new NodeHttpsTransport({ https: {} as any }), TypeError, "a module without request() is refused at once");
 });
 
-// --- fix round 1 ----------------------------------------------------------------------------
+// --- Node module quirks: a string body for Node 14, a module that throws --------------------
 
 /** A fake http/https module: `end` checks its body as `endAccepts` says; `answer` is sent back. */
 function fakeModule(opts: { endAccepts?: (body: unknown) => boolean; throwIn?: "request" | "on" | "setTimeout" | "end" } = {}) {
@@ -254,7 +254,7 @@ test("aModuleThatThrowsIsATransportError", async () => {
   }
 });
 
-// --- Ruling 12: the frozen NW.js CA bundle and OS proxies -------------------------------------
+// --- the fetch fallback for NW.js's frozen CA bundle and OS proxies ---------------------------
 
 /** A module whose request fails like Node does: an "error" with this `code` (or this HTTP status). */
 function failingModule(failure: { code?: string; status?: number }) {

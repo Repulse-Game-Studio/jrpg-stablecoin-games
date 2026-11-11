@@ -569,8 +569,8 @@ func restore_apply(candidates: Variant, choices: Variant = null) -> Variant:
 	return ScfgRestore.apply(receipts, candidates, choices)
 
 
-## What readers see: detached copies (see the header). A stored tip total beyond Decimal's range
-## is an Overflow, as in Python's compute_ownership.
+## What readers see: detached copies (see the header). compute_ownership's error (an Item whose
+## min_price is not an ScfgDec) is returned.
 ## @fallible
 func snapshot() -> Variant:
 	if init_error != null:

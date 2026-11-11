@@ -1,4 +1,4 @@
-## ScfgRestore (restore.gd): tests/unit/test_restore.py, plus M1's edges (rpgmaker/src/core/
+## ScfgRestore (restore.gd): tests/unit/test_restore.py, plus the JS core's edges (rpgmaker/src/core/
 ## restore.test.ts): classify at exactly min_price, the 10**32 refusal, the Solana id ruled out
 ## without touching it, a malformed log failing the whole lookup, the choices keys.
 extends RefCounted
@@ -56,7 +56,7 @@ func test_classify_known_code_but_below_min_price_asks() -> bool:
 	return T.done()
 
 
-## Task 7 review gap of M1: both comparisons are inclusive (Python `amount >= min_price` and
+## Both comparisons are inclusive (Python `amount >= min_price` and
 ## `min_price <= amount`).
 func test_classify_amount_exactly_at_min_price_counts() -> bool:
 	var c := _cfg()
@@ -76,7 +76,7 @@ func test_classify_amount_exactly_at_min_price_counts() -> bool:
 	return T.done()
 
 
-## Ruling 5: decode raises decimal.InvalidOperation from 10**32 units, which is not a ValueError.
+## decode raises decimal.InvalidOperation from 10**32 units, which is not a ValueError.
 func test_classify_refuses_values_decode_cannot_hold() -> bool:
 	T.is_err(_classify(ScfgBigInt.from_decimal("1" + "0".repeat(32))), "InvalidOperation", "10**32 units")
 	var just_below: Variant = ScfgBigInt.from_decimal("99999999999999999999999999990000")

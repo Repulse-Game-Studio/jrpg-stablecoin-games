@@ -2,7 +2,7 @@
  * The Engine composes config, sessions, watcher, receipts and restore (twin of scfg_core/engine.py).
  *
  * It owns all plugin state (deep copies of what the game persists) and is NOT re-entrant: only
- * the single-writer worker (Task 9) calls it, one command at a time. Readers get Snapshots, which
+ * the single-writer Worker (worker.ts) calls it, one command at a time. Readers get Snapshots, which
  * are detached copies. Methods that need the network are async; the others are plain.
  */
 import { backendFor } from "./backends/index.ts";
@@ -69,8 +69,6 @@ export interface StartSessionOptions {
   token?: string | null;
   title?: string | null;
 }
-
-
 
 export class Engine {
   config: Config;

@@ -25,8 +25,8 @@
 ##   indexes, which no node sends. A bool or a fractional index is a TypeError here.
 ## - A slot of 2^63 or more is an OverflowError (Python's int has no bound). Token amounts are
 ##   exact at any size (signed ScfgBigInt arithmetic), so u64 amounts are read exactly.
-## - As on EVM (M1 Ruling 3), a match is persisted with `value` as a JSON number: a transfer of
-##   2^53 units or more is a ValueError (contained by the Engine) instead of a rounded value.
+## - As on EVM (see ScfgWatcher), a match is persisted with `value` as a JSON number: a transfer
+##   of 2^53 units or more is a ValueError (contained by the Engine) instead of a rounded value.
 class_name ScfgSolanaBackend
 extends ScfgBaseBackend
 
@@ -357,17 +357,6 @@ func make_rpc(chain: Dictionary, transport: Variant, clock: Callable) -> Variant
 	return ScfgSolanaRpc.new(client)
 
 
-## Python's `str(n)` for a balance (an int or ScfgBigInt from the node).
-static func _str(v: Variant) -> String:
-	if v is ScfgBigInt:
-		return (v as ScfgBigInt).to_decimal()
-	if v is bool:
-		return "True" if v else "False"
-	if v is int or v is String or v is StringName:
-		return str(v)
-	return ScfgPy.py_repr(v)
-
-
 ## Python's `min(MAX_PRIORITY_FEE, max(MIN_PRIORITY_FEE, fee))`.
 ## @fallible
 static func _clamp_fee(fee: Variant) -> Variant:
@@ -440,7 +429,7 @@ func build_payment(rec: Variant, opts: Dictionary) -> Variant:
 	var tx: Variant = ScfgSolanaTx.unsigned_transaction(message)
 	if tx is ScfgErr:
 		return tx
-	return {"transaction": ScfgBytes.base64(tx), "token_balance": _str(token_balance), "sol_balance": _str(sol_balance)}
+	return {"transaction": ScfgBytes.base64(tx), "token_balance": ScfgPy.py_str(token_balance), "sol_balance": ScfgPy.py_str(sol_balance)}
 
 
 ## Fields for a new session: start_block (START_SLOT_MARGIN before the slot), reference (32 bytes

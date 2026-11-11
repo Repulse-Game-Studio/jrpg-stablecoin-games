@@ -10,8 +10,7 @@ from scfg_core.solana.base58 import b58decode
 from scfg_core.solana.pda import associated_token_address
 
 from ..scenario import scenario
-from .evm import covers
-from .fixtures import CHAPTER2, DEV_EVM, DEV_SOL, OLD_DEV_SOL, PAYER_SOL, signature, tx_hash
+from .fixtures import CHAPTER2, DEV_EVM, DEV_SOL, OLD_DEV_SOL, PAYER_SOL, covers, signature, tx_hash
 from .solana import FAILED, methods, one, pay, pending
 
 

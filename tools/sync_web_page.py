@@ -21,7 +21,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "plugin" / "game" / "scfg" / "web"
-TARGETS = [ROOT / "godot" / "addons" / "scfg" / "web"]  # RPG Maker joins in M2
+# RPG Maker MZ is no target: rpgmaker/build.mjs embeds the page in SCFG.js at build time.
+TARGETS = [ROOT / "godot" / "addons" / "scfg" / "web"]
 
 
 def _files(directory: Path) -> dict:

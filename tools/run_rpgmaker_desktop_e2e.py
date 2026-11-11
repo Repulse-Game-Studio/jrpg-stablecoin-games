@@ -1,7 +1,7 @@
 """Run the RPG Maker MZ desktop end-to-end test: the desktop (NW.js) path of the SCFG plugin,
 paying on a local chain.
 
-NW.js cannot run here (no SDK, no RPG Maker MZ: Ruling M2-5), so the game is
+NW.js cannot run here (no NW.js SDK and no RPG Maker MZ in the test setup), so the game is
 rpgmaker/test/e2e/desktop_driver.ts under Node: the real glue (the sources SCFG.js bundles) on the
 MZ shim as a desktop game, with the demo kit's plugin parameters (rpgmaker/demo/js/plugins.js)
 pointed at the local chain, its saves in a temporary directory through MZ's StorageManager, the
@@ -57,7 +57,7 @@ ITEM = "chapter2"
 CONFIRMED = "Payment confirmed. Thank you!"
 OWNED_SWITCH = "1"  # the demo kit: chapter2's Owned Switch
 STATUS_VARIABLE = "1"  # the demo kit's events store their status here
-PAID = 1  # Ruling M2-4
+PAID = 1  # the status the plugin commands store for a payment (SCFG.STATUS.paid)
 
 
 # --- the chain families (the demo kit plays on testnets) ---------------------------------------
@@ -185,7 +185,8 @@ def check_event_result(snap: dict, what: str) -> None:
 def unlock_by_manual_transfer(game: Driver, fam, save_file: Path) -> None:
     snap = desk.wait_for(game, "the payment engine", lambda s: s["transport"] is not None)
     if snap["transport"] != "NodeHttpsTransport":
-        raise E2EError(f"the RPC goes through {snap['transport']}, not Node's https (Ruling M2-1)")
+        # On NW.js the RPC goes through Node's https first (fetch() depends on CORS headers)
+        raise E2EError(f"the RPC goes through {snap['transport']}, not Node's https")
     if snap["switches"][OWNED_SWITCH] or game.call("owns", item=ITEM):
         raise E2EError(f"Chapter 2 is owned before the purchase: {snap}")
     game.call("event", name="Merchant")

@@ -61,13 +61,16 @@ export function pendingKey(pending: Record<string, any>): Record<string, unknown
   return key;
 }
 
+/** The keep-aside reason for a state the core refused with `e`. */
+const unusable = (e: unknown): string => `cannot be used (${e instanceof Error ? `${e.name}: ${e.message}` : String(e)})`;
+
 /** Why the core cannot start from these stores, or null. */
 function refusal(doc: StateDoc): string | null {
   try {
     computeOwnership(doc.receipts, new Map()); // what Engine.snapshot() runs; items do not change whether it throws
     return null;
   } catch (e) {
-    return `cannot be used (${e instanceof Error ? `${e.name}: ${e.message}` : String(e)})`;
+    return unusable(e);
   }
 }
 
@@ -121,9 +124,7 @@ export class StateMirror {
       got = { error: "unreadable", detail: `cannot read ${this.store.where()}: ${messageOf(e)}` };
     }
     if ("error" in got) {
-      this.storeError = got.detail;
-      this.hooks.alert(`cannot read the stored receipts: ${got.detail}. Payments are off until the game is started again; `
-        + "nothing is saved over it.");
+      this._unreadable(got.detail);
       this.doc = emptyDoc();
     } else {
       if (got.warning !== null) this.hooks.alert(got.warning);
@@ -150,13 +151,15 @@ export class StateMirror {
 
   /** Report a keep-aside; one that made no copy leaves the state unreadable for this run. */
   private _asideDone(aside: Aside): void {
-    if (aside.kept) {
-      this.hooks.alert(aside.message);
-    } else {
-      this.storeError = aside.message;
-      this.hooks.alert(`cannot read the stored receipts: ${aside.message}. Payments are off until the game is started `
-        + "again; nothing is saved over it.");
-    }
+    if (aside.kept) this.hooks.alert(aside.message);
+    else this._unreadable(aside.message);
+  }
+
+  /** The stored state exists but cannot be read (`detail`): reported, and never saved over this run. */
+  private _unreadable(detail: string): void {
+    this.storeError = detail;
+    this.hooks.alert(`cannot read the stored receipts: ${detail}. Payments are off until the game is started again; `
+      + "nothing is saved over it.");
   }
 
   /**
@@ -169,8 +172,7 @@ export class StateMirror {
       const had = this.doc !== null && Object.keys(this.doc.receipts).length > 0;
       this._aside = (async () => {
         try {
-          this._asideDone(await this.store.setAside(
-            `cannot be used (${error instanceof Error ? `${error.name}: ${error.message}` : String(error)})`));
+          this._asideDone(await this.store.setAside(unusable(error)));
         } finally {
           this.doc = emptyDoc();
           this._gen++;

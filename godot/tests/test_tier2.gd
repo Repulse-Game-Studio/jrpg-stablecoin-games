@@ -6,7 +6,7 @@ const T := preload("res://tests/t.gd")
 const Vectors := preload("res://tests/vectors.gd")
 const Tier2 := preload("res://tests/tier2.gd")
 
-## Every Tier 2 vector (M1: 118, fix-up: 121): the count of conformance/vectors/tier2/**/*.json, pinned.
+## Every Tier 2 vector: the count of conformance/vectors/tier2/**/*.json, pinned.
 const ENABLED_COUNT := 121
 
 
@@ -201,7 +201,7 @@ func test_run_action_buckets_raises_and_refuses_null() -> bool:
 	return T.done()
 
 
-# --- carried from Task 6: snapshot_json sorts what Python's sets leave unordered -----------------
+# --- snapshot_json sorts what Python's sets leave unordered --------------------------------------
 
 
 ## An Engine whose snapshot lists `owned` and `unready` in the wrong order, as a Python set may.

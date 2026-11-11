@@ -1,5 +1,5 @@
 /**
- * Owned switches (switches.ts, D6, Review Focus 2): each Items entry's "Owned Switch" is kept
+ * Owned switches (switches.ts): each Items entry's "Owned Switch" is kept
  * equal to `SCFG.owns(id)` after New Game, after every Load, whenever the receipts change, and
  * once when the stored receipts are first read. The plugin owns those switches.
  */

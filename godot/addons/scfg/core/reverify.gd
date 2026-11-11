@@ -25,7 +25,6 @@ extends RefCounted
 
 const FUTURE_TOLERANCE_BLOCKS := 10_000
 const _NET_KINDS: Array[String] = ["KeyError", "TypeError", "ValueError", "AttributeError", "ArithmeticError"]
-const _INT63_MAX := 9223372036854775807
 
 
 ## Whether the malformed-entry net of reverify_receipts catches `err`.

@@ -430,7 +430,7 @@ func _serve_get(c: _Conn) -> void:
 		if _usable(get_status):
 			_json(c, 200, get_status.call())
 		else:
-			_json(c, 503, {"error": "unavailable"})
+			_unavailable(c)
 	elif sub == "logo" and load_logo != null:
 		var logo: Variant = load_logo.call() if _usable(load_logo) else null
 		if (logo is Array and logo.size() == 2 and logo[0] is PackedByteArray and logo[1] is String
@@ -456,7 +456,7 @@ func _on_body(c: _Conn, raw: PackedByteArray) -> void:
 			return
 		var job: Variant = build_tx.call(account) if _usable(build_tx) else null
 		if not job is ScfgJob:  # build_tx failed (an ScfgErr), or is gone
-			_json(c, 503, {"error": "unavailable"})
+			_unavailable(c)
 			return
 		c.job = job
 		c.state = _State.BUILDING
@@ -468,7 +468,7 @@ func _on_body(c: _Conn, raw: PackedByteArray) -> void:
 		_send(c, 400, "bad tx hash".to_utf8_buffer())
 		return
 	if not _usable(on_tx):
-		_json(c, 503, {"error": "unavailable"})
+		_unavailable(c)
 		return
 	on_tx.call(hint[0], hint[1])
 	if c.state != _State.CLOSED:  # (on_tx may have stopped the server)
@@ -484,14 +484,18 @@ func _check_build(c: _Conn) -> void:
 		if value is Dictionary:
 			_json(c, 200, value)
 		else:
-			_json(c, 503, {"error": "unavailable"})
+			_unavailable(c)
 	elif _now() >= c.deadline:
 		c.job.cancel()  # don't build it later for a page that stopped waiting
-		_json(c, 503, {"error": "unavailable"})
+		_unavailable(c)
 
 
 func _not_found(c: _Conn) -> void:
 	_send(c, 404, "not found".to_utf8_buffer())
+
+
+func _unavailable(c: _Conn) -> void:
+	_json(c, 503, {"error": "unavailable"})
 
 
 func _json(c: _Conn, code: int, value: Variant) -> void:

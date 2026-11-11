@@ -172,11 +172,10 @@ static func _check_opts(opts: Variant, required: Array[String], optional: Array[
 
 ## Python's `re.fullmatch(r"[<class>]{1,max}", s)`: the whole string, no trailing newline.
 static func _id_match(s: String, max_len: int, upper: bool) -> bool:
-	var body := s
-	if body.length() < 1 or body.length() > max_len:
+	if s.length() < 1 or s.length() > max_len:
 		return false
-	for i in body.length():
-		var c := body.unicode_at(i)
+	for i in s.length():
+		var c := s.unicode_at(i)
 		var ok := (c >= 0x61 and c <= 0x7a) or (c >= 0x30 and c <= 0x39)
 		if upper:
 			ok = ok or (c >= 0x41 and c <= 0x5a)
@@ -185,10 +184,6 @@ static func _id_match(s: String, max_len: int, upper: bool) -> bool:
 		if not ok:
 			return false
 	return true
-
-
-static func _is_ascii_digit(c: int) -> bool:
-	return c >= 0x30 and c <= 0x39
 
 
 ## `^http://(127\.0\.0\.1|localhost)(:\d{1,5})?(/|\Z)`: `\d` is any Unicode decimal digit; the
@@ -220,10 +215,8 @@ static func _local_http(u: String) -> bool:
 ## @fallible
 static func _address(value: Variant, what: String) -> Variant:
 	var out: Variant = ScfgEvm.normalize_address(value)
-	if out is ScfgErr:
-		if (out as ScfgErr).is_a("ValueError"):
-			return config_error("address.invalid", "%s: %s" % [what, (out as ScfgErr).message])
-		return out
+	if out is ScfgErr and (out as ScfgErr).is_a("ValueError"):
+		return config_error("address.invalid", "%s: %s" % [what, (out as ScfgErr).message])
 	return out
 
 
@@ -457,12 +450,10 @@ static func _accent(value: Variant) -> Variant:
 
 ## `#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})`, fullmatch: no trailing newline.
 static func _hex_color(s: String) -> bool:
-	var body := s
-	if not body.begins_with("#") or not body.length() in [4, 7, 9]:
+	if not s.begins_with("#") or not s.length() in [4, 7, 9]:
 		return false
-	for i in range(1, body.length()):
-		var c := body.unicode_at(i)
-		if not (_is_ascii_digit(c) or (c >= 0x61 and c <= 0x66) or (c >= 0x41 and c <= 0x46)):
+	for i in range(1, s.length()):
+		if not ScfgBytes.is_hex_digit(s.unicode_at(i)):
 			return false
 	return true
 

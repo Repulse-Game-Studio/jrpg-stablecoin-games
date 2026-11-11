@@ -102,7 +102,7 @@ test("TransportError defaults status to null", () => {
   assert.equal(new TransportError("x", 500).status, 500);
 });
 
-// Ruling 6 (tests/unit/test_coio.py::test_an_overlong_json_integer_is_invalid_json): Python reads
+// tests/unit/test_coio.py::test_an_overlong_json_integer_is_invalid_json: Python reads
 // JSON integer literals with ints.int_from, so one of more than 4300 digits is not JSON. JSON.parse
 // would read it as a float (Infinity); jsonLoads refuses it as Python does.
 const LONG = "9".repeat(4301);

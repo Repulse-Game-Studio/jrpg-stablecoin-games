@@ -55,7 +55,7 @@ test("test_classify_known_code_but_below_min_price_asks", () => {
 });
 
 test("test_classify_amount_exactly_at_min_price_counts", () => {
-  // Task 7 review gap: both comparisons are inclusive (Python `amount >= min_price`, `min_price <= amount`).
+  // Both comparisons are inclusive (Python `amount >= min_price`, `min_price <= amount`).
   const c = cfg();
   c.items.get("chapter2")!.min_price = Dec.parse("4.993742") as Dec;
   assert.deepEqual(classify(c, asUnits(4_993_742n)), ["unlock", "chapter2", []]); // code 37, paid exactly min_price

@@ -1,7 +1,7 @@
 ## Stablecoin for Games (SCFG): USDC/USDT tips and unlock purchases for Godot, paid straight to
 ## the developer's wallet. No server, no accounts. This script is the `Scfg` autoload, which the
 ## editor plugin (plugin.gd) registers. It is the Godot twin of plugin/game/scfg/scfg_api.rpy:
-## when this file and the plan are silent, the Ren'Py glue decides.
+## where this file is silent, the Ren'Py glue's behaviour is the reference.
 ##
 ##     func _ready() -> void:
 ##         Scfg.add_chain("myl2", {...})              # optional: your own EVM chain, before configure
@@ -84,6 +84,12 @@ const _RESTORE_OPTIONS: Array[String] = ["callback"]
 const WEB_DIR := "res://addons/scfg/web/"
 ## Characters that can appear in a transaction hash (hex) or a Solana signature (base58).
 const TX_CHARS := "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+## The most characters a hash field takes (a pasted clipboard is cut there too).
+const TX_MAX_LENGTH := 90
+## The Worker's poll interval in seconds: while a payment sheet or the restore screen is open,
+## and otherwise.
+const _POLL_OPEN_S := 3.0
+const _POLL_IDLE_S := 15.0
 
 ## Show a short notification (through `sheet_host`) when a payment confirms or purchases are
 ## restored.
@@ -369,25 +375,29 @@ func accent() -> String:
 
 ## The configured logo as a texture, or null (none configured, or it cannot be read).
 func logo_texture() -> Texture2D:
-	if _logo_texture == null and _logo_res != null:
-		if ResourceLoader.exists(_logo_res):
-			_logo_texture = load(_logo_res) as Texture2D
-		if _logo_texture == null:
-			var file: Variant = _logo_file()
-			if file != null:
-				var image := Image.new()
-				var bytes: PackedByteArray = file[0]
-				var loaded := ERR_FILE_UNRECOGNIZED
-				match str(file[1]):
-					"image/png":
-						loaded = image.load_png_from_buffer(bytes)
-					"image/jpeg":
-						loaded = image.load_jpg_from_buffer(bytes)
-					"image/webp":
-						loaded = image.load_webp_from_buffer(bytes)
-				if loaded == OK:
-					_logo_texture = ImageTexture.create_from_image(image)
+	if _logo_texture != null or _logo_res == null:
+		return _logo_texture
+	if ResourceLoader.exists(_logo_res):
+		_logo_texture = load(_logo_res) as Texture2D
+	if _logo_texture == null:
+		var file: Variant = _logo_file()
+		if file != null:
+			_logo_texture = _decode_texture(file[0], str(file[1]))
 	return _logo_texture
+
+
+## An image file's bytes of content type `kind` as a texture, or null when they cannot be decoded.
+static func _decode_texture(bytes: PackedByteArray, kind: String) -> Texture2D:
+	var image := Image.new()
+	var loaded := ERR_FILE_UNRECOGNIZED
+	match kind:
+		"image/png":
+			loaded = image.load_png_from_buffer(bytes)
+		"image/jpeg":
+			loaded = image.load_jpg_from_buffer(bytes)
+		"image/webp":
+			loaded = image.load_webp_from_buffer(bytes)
+	return ImageTexture.create_from_image(image) if loaded == OK else null
 
 
 ## An item's title (Ren'Py's `_item_title`): the declared title, else the id itself.
@@ -427,7 +437,7 @@ func supported() -> bool:
 
 
 func _interval() -> float:
-	return 3.0 if not (_checkouts.is_empty() and _restores.is_empty()) else 15.0
+	return _POLL_OPEN_S if not (_checkouts.is_empty() and _restores.is_empty()) else _POLL_IDLE_S
 
 
 ## The running Worker, started on first use; null when not configured or when it cannot start
@@ -524,7 +534,7 @@ static func _detached_error() -> Callable:
 
 
 static func _detached_interval() -> Callable:
-	return func() -> float: return 15.0
+	return func() -> float: return _POLL_IDLE_S
 
 
 # --- the pump --------------------------------------------------------------------------------
@@ -554,29 +564,12 @@ func _pump() -> void:
 		c.poll()
 		_register_callback(c)
 	_prune_callbacks(outcomes_snap)
-	var timeout: float = float(_config["methods"]["browser"]["timeout_min"]) * 60.0
-	var now: float = (_engine as ScfgEngine).clock.call()
-	for cid: Variant in _background.keys():
-		var c: Variant = _background[cid]
-		var session: Variant = c.session
-		var expired: bool = not session is Dictionary or now - float(session["created_at"]) > timeout
-		if expired or c.state in ["paid", "underpaid", "expired", "choose"]:
-			c.close()
-			_background.erase(cid)
-	for r: Variant in _restores.values():
-		var before: String = r.state
-		r.poll()
-		if r.state != before and r.state == "done":
-			_deliver_restore(r)
+	_close_finished_background()
+	_poll_restores()
 	var snap: Variant = worker.snapshot
 	if not snap is Dictionary:
 		return
-	var unready: Array = snap["unready"]
-	if not unready.is_empty() and unready != _warned_unready:
-		_warned_unready = unready
-		for route: Array in unready:
-			_warn("your wallet can't receive %s on %s yet (no token account). Receive any amount of %s there once; until then players aren't offered it."
-				% [route[1], route[0], route[1]])
+	_warn_unready(snap["unready"])
 	# clear_local_data(): the snapshots made before the Engine was wiped are skipped
 	if _wipe != null and ((_wipe["job"] as ScfgJob).cancelled() or (_wipe["done"] and not is_same(snap, _wipe["before"]))):
 		_wipe = null
@@ -589,6 +582,39 @@ func _pump() -> void:
 	if _dirty and _clock.call() - _last_save >= PENDING_SAVE_INTERVAL:
 		_last_save = _clock.call()
 		_save()
+
+
+## Close the "keep playing" controllers whose session is final, or older than the browser
+## timeout: their browser page stops answering.
+func _close_finished_background() -> void:
+	var timeout: float = float(_config["methods"]["browser"]["timeout_min"]) * 60.0
+	var now: float = (_engine as ScfgEngine).clock.call()
+	for cid: Variant in _background.keys():
+		var c: Variant = _background[cid]
+		var session: Variant = c.session
+		var expired: bool = not session is Dictionary or now - float(session["created_at"]) > timeout
+		if expired or c.state in ["paid", "underpaid", "expired", "choose"]:
+			c.close()
+			_background.erase(cid)
+
+
+## Poll the open restore controllers, and deliver each one that has just finished.
+func _poll_restores() -> void:
+	for r: Variant in _restores.values():
+		var before: String = r.state
+		r.poll()
+		if r.state != before and r.state == "done":
+			_deliver_restore(r)
+
+
+## Warn about the routes the wallet cannot receive on yet, each time that list changes.
+func _warn_unready(unready: Array) -> void:
+	if unready.is_empty() or unready == _warned_unready:
+		return
+	_warned_unready = unready
+	for route: Array in unready:
+		_warn("your wallet can't receive %s on %s yet (no token account). Receive any amount of %s there once; until then players aren't offered it."
+			% [route[1], route[0], route[1]])
 
 
 ## Remember the pay() callback of the controller's session, once per session: then _deliver (its
@@ -937,6 +963,7 @@ static func _is_screen(node: Variant) -> bool:
 	return node is Node and is_instance_valid(node) and (node as Node).has_signal("closed")
 
 
+## The `sheet.unavailable` ConfigError for a host whose `method` gave no usable screen.
 ## @fallible
 func _no_screen(method: String, node: Variant) -> Variant:
 	var why := "returned null" if node == null else "returned a Node without signal closed(how)"
@@ -1110,16 +1137,11 @@ func paste_into(ctl: Object) -> void:
 	if id == "":
 		return
 	if _platform.is_web():
+		# the page answers later (navigator.clipboard is asynchronous): _pump_page() applies it
 		_paste_target = id
-		_request_page_paste()
+		_web_page().request_paste()
 		return
 	_apply_paste(id, _platform.clipboard_get(), false)
-
-
-## Ask the page (navigator.clipboard, asynchronous); `_pump_page()` hands its answer to
-## `_apply_paste(_paste_target, text, true)`.
-func _request_page_paste() -> void:
-	_web_page().request_paste()
 
 
 ## Web exports, once per frame (the first part of Ren'Py's WEB `_periodic`): the browser's answer
@@ -1157,8 +1179,9 @@ func _apply_paste(id: String, text: Variant, from_page: bool) -> void:
 
 
 ## What a pasted clipboard becomes in a hash field, like typing it there: the first word, only
-## hash characters, at most 90 of them (Ren'Py's `"".join(c for c in words[0] if c in TX_CHARS)[:90]`;
-## the scan stops at the 90th kept character, so a huge clipboard costs nothing).
+## hash characters, at most TX_MAX_LENGTH of them (Ren'Py's
+## `"".join(c for c in words[0] if c in TX_CHARS)[:90]`; the scan stops at the last kept
+## character, so a huge clipboard costs nothing).
 static func _clean_paste(text: Variant) -> String:
 	var s := str(text) if text != null else ""
 	var start := 0
@@ -1166,7 +1189,7 @@ static func _clean_paste(text: Variant) -> String:
 		start += 1
 	var out := ""
 	var i := start
-	while i < s.length() and out.length() < 90 and not ScfgPy.is_py_space(s.unicode_at(i)):
+	while i < s.length() and out.length() < TX_MAX_LENGTH and not ScfgPy.is_py_space(s.unicode_at(i)):
 		if TX_CHARS.contains(s[i]):
 			out += s[i]
 		i += 1
@@ -1318,16 +1341,24 @@ func _save(clear: bool = false) -> void:
 ## The receipts and pending sessions readers see: the Worker's snapshot, or the stored state
 ## before the Worker starts and while clear_local_data() is in progress.
 func _source() -> Dictionary:
+	var live: Variant = _live_snapshot()
+	return live if live != null else _stored()
+
+
+## The Worker's snapshot when readers should see it, else null (before the Worker starts, and
+## while clear_local_data() is in progress).
+func _live_snapshot() -> Variant:
 	if _worker != null and _wipe == null and _worker.snapshot is Dictionary:
 		return _worker.snapshot
-	return _stored()
+	return null
 
 
 ## [owned item ids, tip total (ScfgDec)], or null when the stored receipts cannot be read
 ## (reported).
 func _ownership() -> Variant:
-	if _worker != null and _wipe == null and _worker.snapshot is Dictionary:
-		return [_worker.snapshot["owned"], _worker.snapshot["tip_total"]]
+	var live: Variant = _live_snapshot()
+	if live != null:
+		return [live["owned"], live["tip_total"]]
 	var got: Variant = ScfgReceipts.compute_ownership(_stored()["receipts"], _config["items"])
 	if got is ScfgErr:
 		_report_error("cannot read the stored receipts:", got)

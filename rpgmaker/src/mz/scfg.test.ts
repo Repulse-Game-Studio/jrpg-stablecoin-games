@@ -203,7 +203,7 @@ test("logoNamesAFileUnderImgScfg", async () => {
   assert.equal(await s.logoDataUrl(), null, "no logo");
 });
 
-// --- the logo in an encrypted deployment (Ruling 11) ------------------------------------------
+// --- the logo in an encrypted deployment ------------------------------------------------------
 
 const KEY = "0f1e2d3c4b5a69788796a5b4c3d2e1f0";
 const LOGO_PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 7, 7, 7]);
@@ -259,7 +259,7 @@ test("anEncryptedDeploymentKeepsAPlainLogoMzDidNotEncrypt", async () => {
 });
 
 test("aMissingLogoInAReleaseShowsNoLogoAndPaymentsStayOn", async () => {
-  // Ruling 11: outside test play a logo that cannot be read is a warning, never "payments off"
+  // outside test play a logo that cannot be read is a warning, never "payments off"
   const env = make({ boot: true, options: [], plugins: LOGO_PARAMS() });
   assert.equal(env.s._disabled, null, "not disabled");
   await bootShim();
@@ -655,7 +655,7 @@ test("bootReportsBadParamsWithoutThrowing", async () => {
   assert.equal(env.s.owns("chapter2"), false);
 });
 
-// --- carried from Task 2 -------------------------------------------------------------------------
+// --- stored state after a crash, the RPC clients' clock, the console error report ----------------
 
 test("crashMidSaveOnDesktopKeepsTheReceipts", async () => {
   const storage = new MemoryStorage();
@@ -792,7 +792,7 @@ test("theEnginesAndTheWorkersErrorsAreReportedOnTheConsole", async () => {
 });
 
 test("truncatedStateFileOnDesktopFallsBackToMzsBackup", async () => {
-  // the review's case: a crash while MZ wrote the state file leaves it truncated beside MZ's backup;
+  // a crash while MZ wrote the state file leaves it truncated beside MZ's backup;
   // before the fix the state started empty and the first save unlinked the only good copy
   const first = await configured();
   await start(first.s);

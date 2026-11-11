@@ -7,7 +7,7 @@
  *   version too), the plugin parameters (`@param`) and the plugin commands (`@command`, `@arg`);
  * - one `/*~struct~Name:` block per struct type (`Item`, `Text`).
  *
- * The parameter keys are the ones params.ts reads (PARAM, ITEM_FIELD, TEXT_FIELD; Ruling 4: the
+ * The parameter keys are the ones params.ts reads (PARAM, ITEM_FIELD, TEXT_FIELD; the
  * `@param` key is camelCase, the editor shows the `@text`), and commands.ts registers the commands
  * and reads the arguments named here (COMMAND, ARG, COMMAND_ARGS), so the header cannot drift from
  * the code. This module stays light (no glue imports): build.mjs loads it in Node.

@@ -89,7 +89,6 @@ export interface CreateSessionArgs {
   extra?: Record<string, unknown> | null;
 }
 
-
 export function createSession(store: SessionStore, args: CreateSessionArgs, entropy: Entropy = defaultEntropy): SessionRecord {
   const { kind, item, title, token, chain, price, code, start_block, now } = args;
   if (kind !== "unlock" && kind !== "tip") throw new ValueError(`invalid kind ${JSON.stringify(kind)}`);

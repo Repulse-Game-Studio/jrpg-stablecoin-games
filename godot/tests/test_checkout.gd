@@ -382,7 +382,7 @@ func test_messages_match_catalogue() -> bool:
 	return T.done()
 
 
-# --- poll(): the failure branch (Task 11; no Python twin: a Future raises, a ScfgJob answers) -------
+# --- poll(): the failure branch (no Python twin: a Future raises, a ScfgJob answers) -------
 
 ## A started controller whose next command is the job `make` builds; polled once after select_chain.
 func _polled_with(make: Callable) -> ScfgCheckoutController:

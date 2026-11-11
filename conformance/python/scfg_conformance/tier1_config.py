@@ -13,7 +13,7 @@ Input conventions (same file shape as tier1.py):
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Callable
 
 from scfg_core import chains as chains_mod
 from scfg_core.config import add_item, build_chain, build_config
@@ -23,6 +23,7 @@ from scfg_core.solana.base58 import b58encode
 
 from . import tier1
 from .canonical import to_jsonable
+from .replay import decode_value
 from .tier1 import _EIP55, _WALLET, USDC_MINT, _find_on_curve, _fn
 
 SOURCES: dict[str, Callable[[], dict]] = {}
@@ -34,21 +35,10 @@ UNREACHABLE_CODES: dict[str, str] = {
 
 
 def _topic(name: str, cases: list[tuple[str, dict]]) -> None:
-    def build() -> dict:
-        return {"tier": 1, "topic": name,
-                "cases": [{"fn": fn, "in": inputs, **tier1._compute(fn, inputs)}
-                          for fn, inputs in cases]}
-    SOURCES[f"tier1/{name}.json"] = build
+    tier1.topic(name, cases, SOURCES)
 
 
 # --- adapters --------------------------------------------------------------------------------
-
-
-def _value(v: Any) -> Any:
-    """{"float": "4.99"} -> 4.99; everything else unchanged."""
-    if isinstance(v, dict) and set(v) == {"float"}:
-        return float(v["float"])
-    return v
 
 
 def _chain_or_raw(entry):
@@ -63,8 +53,7 @@ def _config(kwargs: dict):
 
 
 def _item_kwargs(d: dict) -> dict:
-    kw = {k: _value(v) for k, v in d.items()}
-    return kw
+    return {k: decode_value(v) for k, v in d.items()}
 
 
 def _with_items(config_kw: dict, items: list):
@@ -100,7 +89,7 @@ def _add_item(i):
 @_fn("prepare_payment")
 def _prepare_payment(i):
     config = _with_items(i["config"], i.get("items", []))
-    kw = {k: _value(i[k]) for k in ("item", "amount", "token", "title") if k in i}
+    kw = {k: decode_value(i[k]) for k in ("item", "amount", "token", "title") if k in i}
     return to_jsonable(prepare_payment(config, i["kind"], **kw))
 
 

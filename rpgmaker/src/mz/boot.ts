@@ -6,9 +6,9 @@
  * would throw). So boot only does what needs neither: it parses the parameters, adds the custom
  * chains, configures and adds the items (pure; a mistake is reported with
  * `console.error("scfg: ...")`, shown over the game in test play, and leaves the plugin disabled,
- * never throwing: Ruling M2-3), puts the one `Scfg` at `window.SCFG`, and installs the hooks.
+ * never throwing), puts the one `Scfg` at `window.SCFG`, and installs the hooks.
  * A plugin listed below SCFG runs its script after this, still before the title screen: it may
- * call `SCFG.configure(...)` again (Ruling 9), which replaces the configuration and so its Items
+ * call `SCFG.configure(...)` again, which replaces the configuration and so its Items
  * (it re-adds them with `SCFG.addItem`; the Items parameter's Owned Switches follow the items it
  * re-adds under the same ids). The hooks:
  *
@@ -23,7 +23,7 @@
  * - Closing (Ren'Py's quit callback `_shutdown`): `SceneManager.terminate` (MZ's exit), the
  *   page's `pagehide` and, on NW.js, its `beforeunload` (actions.ts `watchClosing`) shut the flows
  *   down and flush the save first; a hidden page (`visibilitychange`) and a browser's
- *   `beforeunload` only flush. No NW.js window "close" listener is registered (Ruling 5): it
+ *   `beforeunload` only flush. No NW.js window "close" listener is registered: it
  *   would take the closing over from other plugins' quit prompts.
  */
 import { PLUGIN_NAME } from "./plugin_header.ts";
@@ -35,9 +35,11 @@ import { mz } from "./platform.ts";
 import { Scfg, type ScfgHooks } from "./scfg.ts";
 import { OwnedSwitches } from "./switches.ts";
 
+const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
 /** Report a boot problem and leave the plugin disabled. */
 function bootFailed(scfg: Scfg, e: unknown): void {
-  const message = e instanceof Error ? e.message : String(e);
+  const message = messageOf(e);
   scfg._disable(message);
   scfg._alert(`the plugin parameters are invalid, payments are off: ${message}`);
 }
@@ -115,7 +117,7 @@ export function installGameHooks(scfg: Scfg, params: ParsedParams | null): void 
     try {
       install();
     } catch (e) {
-      scfg._alert(`cannot add the ${what} to the game: ${e instanceof Error ? e.message : String(e)}`);
+      scfg._alert(`cannot add the ${what} to the game: ${messageOf(e)}`);
     }
   };
   const switches = new OwnedSwitches(scfg, params?.items ?? []);
@@ -139,7 +141,7 @@ export function bootPlugin(hooks: ScfgHooks = {}): Scfg {
   try {
     installHooks(scfg);
   } catch (e) {
-    scfg._alert(`cannot hook into the game, payments are off: ${e instanceof Error ? e.message : String(e)}`);
+    scfg._alert(`cannot hook into the game, payments are off: ${messageOf(e)}`);
   }
   installGameHooks(scfg, params);
   return scfg;

@@ -17,6 +17,7 @@ extends RefCounted
 const TX_VERSION := 1
 const _UNKNOWN_HISTORY := 1 << 62
 const _UNSUPPORTED_VERSION := -32015
+const _INVALID_PARAMS := -32602
 
 ## An ScfgRpcClient (or anything with its methods).
 var client: Variant
@@ -78,7 +79,8 @@ func _named_version(error: ScfgErr) -> Variant:
 ## Python's `re.search(r"version \((\d+)\)", message, re.IGNORECASE)` and int() of the group:
 ## the first match's number, or null. IGNORECASE as CPython applies it to these letters (ſ also
 ## matches s; İ and ı also match i), and \d is any Unicode decimal digit. A number beyond 18
-## significant digits is no match (Ruling 6: a request cannot carry it as an int). Linear.
+## significant digits is no match (ScfgPy.DIGIT_RUN_LIMIT: a request cannot carry it as an
+## int). Linear.
 static func _search_version(message: String) -> Variant:
 	var n := message.length()
 	for start in n:
@@ -112,7 +114,7 @@ static func _letter_matches(letter: String, c: int) -> bool:
 
 ## Older nodes reject a maxSupportedTransactionVersion they don't know (-32602).
 func _lower_version(error: ScfgErr) -> bool:
-	if tx_version > 0 and typeof(error.code) == TYPE_INT and error.code == -32602 \
+	if tx_version > 0 and typeof(error.code) == TYPE_INT and error.code == _INVALID_PARAMS \
 			and error.message.to_lower().contains("version"):
 		tx_version -= 1
 		return true
@@ -267,7 +269,7 @@ func get_priority_fee(accounts: Variant) -> Variant:
 	if rows is ScfgErr:
 		return rows
 	# sorted(int(f["prioritizationFee"]) for f in rows or [])
-	var items: Variant = ScfgRpcClient._iterate(rows if ScfgPy.py_truthy(rows) else [])
+	var items: Variant = ScfgPy.py_iter(rows if ScfgPy.py_truthy(rows) else [])
 	if items is ScfgErr:
 		return items
 	var fees := []
@@ -297,7 +299,7 @@ static func _path(d: Variant, keys: Array) -> Variant:
 ## Python's `list(x)`: a copy of a list, a dict's keys, a str's characters; a TypeError otherwise.
 ## @fallible
 static func _list(v: Variant) -> Variant:
-	var items: Variant = ScfgRpcClient._iterate(v)
+	var items: Variant = ScfgPy.py_iter(v)
 	if items is ScfgErr:
 		return items
 	return (items as Array).duplicate()

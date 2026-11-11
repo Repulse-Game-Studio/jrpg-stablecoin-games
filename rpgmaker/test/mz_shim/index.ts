@@ -87,6 +87,10 @@ export function describeError(e: unknown): string {
   return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
 }
 
+/** What `frame()` and `resetShim()` throw once the game stopped on `errors`. */
+const stoppedError = (errors: readonly unknown[]): Error =>
+  new Error(`mz shim: the game stopped on an error (SceneManager.onError): ${errors.map(describeError).join("; ")}`);
+
 const GAME_GLOBALS = ["$gameTemp", "$gameSystem", "$gameMessage", "$gameSwitches", "$gameVariables", "$gameMap", "$gamePlayer"];
 
 function makeEvent(type: string, props: Record<string, unknown>): Event {
@@ -203,9 +207,7 @@ export function installShim(target: any = globalThis, opts: ShimOptions = {}): S
     pointer: (type, pageX, pageY, button = 0) => dispatch(type, { pageX, pageY, button }),
     frame(n = 1) {
       for (let i = 0; i < n; i++) {
-        if (g.Graphics._shimStopped) {
-          throw new Error(`mz shim: the game stopped on an error (SceneManager.onError): ${errors.map(describeError).join("; ")}`);
-        }
+        if (g.Graphics._shimStopped) throw stoppedError(errors);
         g.SceneManager.updateMain();
       }
     },
@@ -255,7 +257,5 @@ export function resetShim(): void {
     if (descriptor === undefined) delete installed.target[name];
     else Object.defineProperty(installed.target, name, descriptor);
   }
-  if (left.length > 0) {
-    throw new Error(`mz shim: the game stopped on an error (SceneManager.onError): ${left.map(describeError).join("; ")}`);
-  }
+  if (left.length > 0) throw stoppedError(left);
 }

@@ -1,7 +1,7 @@
 """Tier 2 registry: imports every scenario module so its @scenario functions register.
 
-Tasks adding scenarios create conformance/python/scfg_conformance/scenarios/<topic>.py and
-list it here; nothing else needs to change.
+A new scenario module goes in conformance/python/scfg_conformance/scenarios/<topic>.py and is
+listed here; nothing else needs to change.
 """
 
 from __future__ import annotations

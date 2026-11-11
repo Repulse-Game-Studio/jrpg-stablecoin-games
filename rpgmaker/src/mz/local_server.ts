@@ -27,9 +27,9 @@
  *
  * Node is event-driven: the server answers from Node's event loop, `pump()` does nothing and
  * on_tx runs in the socket's turn (JavaScript has one thread, so it never runs inside a worker
- * command). `start()` returns before Node's listen() completes: `url` is "" until then (Ruling
- * 1; `ready()` resolves once listening, rejects when it cannot listen, and `failed` keeps that
- * error). `stop()` closes everything, cancels a build a page is still waiting for and releases
+ * command). `start()` returns before Node's listen() completes: `url` is "" until then (the glue
+ * opens the browser only on a URL; `ready()` resolves once listening, rejects when it cannot
+ * listen, and `failed` keeps that error). `stop()` closes everything, cancels a build a page is still waiting for and releases
  * the callbacks; a stopped server does not start again.
  *
  * Security (as local_server.py):
@@ -435,7 +435,7 @@ export class CheckoutServer {
     return this._port;
   }
 
-  /** The page's URL once listening; "" until then (Ruling 1: the glue opens the browser only on a URL). */
+  /** The page's URL once listening; "" until then (the glue opens the browser only on a URL). */
   get url(): string {
     return this._listening || (this._stopped && this._port !== 0) ? `http://${this.host}:${this._port}/c/${this.secret}/` : "";
   }

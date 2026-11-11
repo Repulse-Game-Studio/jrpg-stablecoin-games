@@ -23,11 +23,22 @@ export const HOST_Z_INDEX = 100000;
 export const HOST_ID = "scfg-host";
 export const STYLESHEET = "margin.css";
 
+/** The box the sheet's sizes are designed for (Ren'Py's `_k()`): its scale is 1 there. */
+const DESIGN_WIDTH = 960;
+const DESIGN_HEIGHT = 720;
+/** The docked sheet's width at scale 1 (Ren'Py's `_sheet_width()`). */
+const SHEET_WIDTH = 520;
+/** The sheet docks only in a box at least this many times its docked width; otherwise it fills the width. */
+const DOCK_MIN_RATIO = 1.6;
+/** MZ's default screen size, for a game whose canvas has no box yet. */
+const MZ_DEFAULT_WIDTH = 816;
+const MZ_DEFAULT_HEIGHT = 624;
+
 /** The sheet's scale and docked width for a box of `width` x `height` (Ren'Py's `_k()` and `_sheet_width()`). */
 export function layoutFor(width: number, height: number): { k: number; sheetWidth: number } {
-  const k = width <= 0 || height <= 0 ? 1 : Math.min(height / 720, width / 960);
-  const docked = Math.round(520 * k);
-  return { k, sheetWidth: width < height || docked * 1.6 > width ? width : docked };
+  const k = width <= 0 || height <= 0 ? 1 : Math.min(height / DESIGN_HEIGHT, width / DESIGN_WIDTH);
+  const docked = Math.round(SHEET_WIDTH * k);
+  return { k, sheetWidth: width < height || docked * DOCK_MIN_RATIO > width ? width : docked };
 }
 
 /** The Margin stylesheet embedded in the plugin (an Error if the build did not carry it). */
@@ -50,16 +61,20 @@ let accent = DEFAULT_ACCENT;
 const mz = (): any => globalThis as any;
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
+/** MZ's game canvas (`Graphics._canvas`, else `#gameCanvas`), or null. */
+function gameCanvas(): HTMLElement | null {
+  return mz().Graphics?._canvas ?? (mz().document as Document).getElementById("gameCanvas");
+}
+
 /** The rectangle of the game on the page: the canvas' box, else the size MZ reports at the page's corner. */
 function gameBox(): { left: number; top: number; width: number; height: number } {
   const g = mz().Graphics;
-  const doc = mz().document as Document;
-  const canvas: HTMLElement | null = g?._canvas ?? doc.getElementById("gameCanvas");
+  const canvas = gameCanvas();
   if (canvas && typeof canvas.getBoundingClientRect === "function") {
     const r = canvas.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) return { left: r.left, top: r.top, width: r.width, height: r.height };
   }
-  return { left: 0, top: 0, width: Number(g?.width) || 816, height: Number(g?.height) || 624 };
+  return { left: 0, top: 0, width: Number(g?.width) || MZ_DEFAULT_WIDTH, height: Number(g?.height) || MZ_DEFAULT_HEIGHT };
 }
 
 /** Put the host over the game canvas again (after a resize; it also runs by itself on window and canvas resizes). */
@@ -120,7 +135,7 @@ export function mountHost(): ShadowRoot {
     win.addEventListener("resize", layoutHost);
     teardown.push(() => win.removeEventListener("resize", layoutHost));
   }
-  const canvas: HTMLElement | null = win.Graphics?._canvas ?? doc.getElementById("gameCanvas");
+  const canvas = gameCanvas();
   if (canvas && typeof win.ResizeObserver === "function") {
     const ro = new win.ResizeObserver(layoutHost);
     ro.observe(canvas);

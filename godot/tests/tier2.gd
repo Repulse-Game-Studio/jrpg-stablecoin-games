@@ -458,7 +458,7 @@ class StepEntropy:
 ##
 ## Every request first waits `frames` process frames (1 by default), as a real transport does: a
 ## coroutine that never suspends returns its value even when the caller forgot `await`, so only
-## a suspending transport lets the vectors catch a missing await (Review Focus 5).
+## a suspending transport lets the vectors catch a missing await.
 class ReplayTransport:
 	extends ScfgCoio.Transport
 	var _calls: Array = []

@@ -7,7 +7,7 @@ import pytest
 @pytest.fixture(params=["interpreter limit", "no interpreter limit"])
 def interpreter(request):
     """Run each test as is and with the interpreter's own int digit limit switched off (0 =
-    unlimited), which is what an interpreter without the limit does (Ruling 5: the core must
+    unlimited), which is what an interpreter without the limit does (the core must
     behave alike on both)."""
     if request.param == "no interpreter limit":
         if not hasattr(sys, "set_int_max_str_digits"):

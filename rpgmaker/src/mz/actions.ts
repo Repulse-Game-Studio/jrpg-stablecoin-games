@@ -141,7 +141,7 @@ export interface ClosingHandlers {
 }
 
 /**
- * Watch for the game closing (Controller Ruling 5):
+ * Watch for the game closing:
  * - Everywhere: `pagehide` quits, unless the page goes into the back/forward cache (`persisted`)
  *   and may come back, which only flushes; `visibilitychange` to hidden flushes (a phone's browser
  *   may end a background tab without any other event).

@@ -6,8 +6,7 @@ from __future__ import annotations
 from scfg_core.chains import ARC_SYSTEM_EMITTER, ARC_USDC
 
 from ..scenario import scenario
-from .evm import covers
-from .fixtures import CHAPTER2, DEV_EVM, PAYER_EVM, tx_hash
+from .fixtures import CHAPTER2, DEV_EVM, PAYER_EVM, covers, tx_hash
 
 NATIVE = 10**12     # 18-decimal wei per 6-decimal unit
 UNITS = 4_993_742   # 4.99 + code 37 + nonce 42, for restore and stored receipts

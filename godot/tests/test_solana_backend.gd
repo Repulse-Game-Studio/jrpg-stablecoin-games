@@ -1,5 +1,5 @@
 ## ScfgSolanaBackend (backends/solana.gd): session start, the launch re-check, restore and
-## readiness. tests/unit/test_solana_backend.py, plus M1's edges (rpgmaker/src/core/backends/
+## readiness. tests/unit/test_solana_backend.py, plus the JS core's edges (rpgmaker/src/core/backends/
 ## solana.test.ts): the constants, the reference drawn after the network calls, the log index
 ## and accepted-wallet checks of reverify, previous-wallet restores.
 extends RefCounted

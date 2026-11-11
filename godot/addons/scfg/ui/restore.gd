@@ -65,16 +65,7 @@ func _on_ui_cancel() -> void:
 func _build() -> void:
 	var ctl := controller
 	_synced = null
-	var scroll := ScrollContainer.new()
-	scroll.name = "Scroll"
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.follow_focus = true
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var body := vbox(10)
-	body.name = "Body"
-	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(body)
-	_layout.add_child(scroll)
+	var body := scrolling_body(_layout)
 	var mark := logo()
 	if mark != null:
 		body.add_child(mark)
@@ -121,14 +112,12 @@ func _input_part(body: VBoxContainer) -> void:
 	var ctl := controller
 	body.add_child(label(tr("Paste the transaction hash or signature of your payment. You can find it in your wallet's activity, or in your exchange's withdrawal history."), "ScfgMuted"))
 	var row := hbox(8)
-	var f := field("tx_input", ctl.tx_input, 90, TX_CHARS, _typed, _check, "tx")
+	var f := field("tx_input", ctl.tx_input, TX_MAX_LENGTH, TX_CHARS, _typed, _check, "tx")
 	f.editable = ctl.state == "input"
 	row.add_child(f)
 	_synced = ctl.tx_input
 	if scfg != null and scfg.is_web():
-		var paste := button("paste", tr("Paste"), "ScfgSmall", _paste, "tx")
-		paste.size_flags_horizontal = Control.SIZE_FILL
-		paste.custom_minimum_size.x = px(90)
+		var paste := fixed_width(button("paste", tr("Paste"), "ScfgSmall", _paste, "tx"), 90)
 		paste.disabled = ctl.state != "input"
 		row.add_child(paste)
 	body.add_child(row)

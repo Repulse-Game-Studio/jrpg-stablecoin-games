@@ -158,7 +158,7 @@ test("test_decode_boundary_matches_python_decimal_precision", () => {
 });
 
 test("test_decode_past_the_decimal_range_is_invalid_operation", () => {
-  // Carried from the M3 review. Python: decimal.InvalidOperation, whose MRO is DecimalException,
+  // Python: decimal.InvalidOperation, whose MRO is DecimalException,
   // ArithmeticError, Exception: not a ValueError, so `except ValueError` does not catch it.
   const e = (() => { try { decode(asUnits(10n ** 32n)); } catch (x) { return x; } return null; })();
   assert.ok(e instanceof InvalidOperation && e instanceof ArithmeticError, String(e));

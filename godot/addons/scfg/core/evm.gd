@@ -73,8 +73,8 @@ static func address_topic(address: Variant) -> Variant:
 ## Fields are read in Python's order, so the first error is Python's: a missing key is a
 ## KeyError; hex integers are `int(text, 16)` (a prefix, a sign, spaces and underscores as
 ## Python takes them; a non-string is a TypeError); a transactionHash/blockHash/topic that is
-## not a string is a TypeError (Python would raise AttributeError on `.lower()`; the M1 port
-## made it a TypeError, and a value must never pass through unconverted); a `log` that is not
+## not a string is a TypeError (Python would raise AttributeError on `.lower()`; the TS core
+## also makes it a TypeError, and a value must never pass through unconverted); a `log` that is not
 ## an object is an AttributeError. logIndex and blockNumber of 2^53 or more are a ValueError:
 ## they would not survive as an exact JSON number. A negative `data` is an OverflowError (an
 ## ScfgBigInt is unsigned; no chain emits one).
@@ -200,10 +200,6 @@ static func _is_hex_word(text: String, digits: int) -> bool:
 	if text.length() != digits + 2 or not text.begins_with("0x"):
 		return false
 	for i in range(2, digits + 2):
-		if not _is_hex_char(text.unicode_at(i)):
+		if not ScfgBytes.is_hex_digit(text.unicode_at(i)):
 			return false
 	return true
-
-
-static func _is_hex_char(c: int) -> bool:
-	return (c >= 0x30 and c <= 0x39) or (c >= 0x61 and c <= 0x66) or (c >= 0x41 and c <= 0x46)

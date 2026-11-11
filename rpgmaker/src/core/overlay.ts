@@ -21,6 +21,7 @@
 import { BUILD_TIMEOUT_S, parseBuildMessage, parseTxMessage } from "./page_messages.ts";
 import type { CheckoutServer } from "./checkout.ts";
 import { ValueError } from "./errors.ts";
+import { hasOwn } from "./pystr.ts";
 import { Job } from "./worker.ts";
 
 /** The page the overlay is shown in (the twin of web_page.py's overlay methods). */
@@ -60,7 +61,7 @@ function jsonEqual(a: unknown, b: unknown): boolean {
   if (!isObject(a) || !isObject(b)) return false;
   const ka = Object.keys(a);
   if (ka.length !== Object.keys(b).length) return false;
-  return ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && jsonEqual(a[k], b[k]));
+  return ka.every((k) => hasOwn(b, k) && jsonEqual(a[k], b[k]));
 }
 
 /** A copy of a JSON value, so a later change to the controller's status object is still seen. */

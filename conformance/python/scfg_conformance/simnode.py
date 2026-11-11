@@ -11,7 +11,7 @@ Nodes answer at the JSON-RPC level with the semantics of the unit-test fakes
 is null, and a Solana endpoint whose history starts after a transaction's slot does not serve
 it. Every URL of a node has an `Endpoint` holding its faults (see `Endpoint`).
 
-Only the replay-free recording side uses this module: replay.py never imports it.
+Only recording uses this module: replay.py never imports it.
 """
 
 from __future__ import annotations

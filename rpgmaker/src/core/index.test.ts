@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as core from "./index.ts";
 
 test("test_public_surface_loads_and_exports_the_supported_api", () => {
-  // Importing the barrel first (as the M2 bundle does) must survive the restore/reverify <-> backends cycle.
+  // Importing the barrel first (as SCFG.js does) must survive the restore/reverify <-> backends cycle.
   for (const name of [
     "Engine", "Worker", "Job", "CancelledError", "CheckoutController", "RestoreController", "buildConfig", "buildChain",
     "addItem", "preparePayment", "MAINNET", "TESTNET", "getChains", "FetchTransport", "ConfigError", "ScfgError",

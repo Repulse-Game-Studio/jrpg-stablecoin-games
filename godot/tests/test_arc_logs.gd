@@ -1,5 +1,5 @@
 ## Arc: tests/unit/test_arc_logs.py (Chain.parse_transfer, the watcher, restore and
-## re-verification on Arc), plus test_arc_floor_keeps_bigint_precision (Review Focus 4).
+## re-verification on Arc), plus test_arc_floor_keeps_bigint_precision (Arc values above 2^63).
 ##
 ## USDC is Arc's native gas coin, so its transfers are read from the system emitter. A plain
 ## native send logs a Transfer only at the emitter (18 decimals); an ERC-20 transfer() on the 0x3600

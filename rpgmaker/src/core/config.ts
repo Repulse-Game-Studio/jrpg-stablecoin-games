@@ -10,11 +10,12 @@
  *
  * Item ids and chain keys may be integer-like ("10"), and a JS object lists those keys first, so
  * every dict keyed by them whose order shows (`items`, `custom_chains`, `registry()`,
- * `enabledChains()`) is a `Map`, which keeps insertion order as a Python dict does (M1 Ruling 9).
+ * `enabledChains()`) is a `Map`, which keeps insertion order as a Python dict does.
  * `rpc_urls` and `confirmations` are only looked up, never iterated, and stay plain objects.
  */
 import { parseAmount } from "./amounts.ts";
 import { DISPLAY_ORDER, makeToken, getChains, type Chain, type Token } from "./chains.ts";
+import { deepCopy } from "./copy.ts";
 import { Dec } from "./decimal.ts";
 import { ConfigError, IndexError, KeyError, ValueError } from "./errors.ts";
 import { normalizeAddress } from "./evm.ts";
@@ -344,16 +345,6 @@ export function textOn(color: string): string {
   const white = 1.05 / (lum + 0.05);
   const ink = (lum + 0.05) / (luminance(INK) + 0.05);
   return white >= ink ? "#ffffff" : INK;
-}
-
-function deepCopy<T>(v: T): T {
-  if (Array.isArray(v)) return v.map(deepCopy) as T;
-  if (isDict(v)) {
-    const out: Record<string, any> = {};
-    for (const [k, x] of Object.entries(v)) put(out, k, deepCopy(x));
-    return out as T;
-  }
-  return v;
 }
 
 function mergeMethods(methods: unknown, chains: readonly string[]): Record<string, Record<string, any>> {

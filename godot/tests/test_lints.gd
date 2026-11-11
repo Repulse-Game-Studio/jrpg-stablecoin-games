@@ -1,7 +1,7 @@
 ## Source lints over the whole addon, res://addons/scfg/ (every .gd file, recursively: the core in
 ## core/ and the Godot glue around it).
 ##
-## ERROR PROPAGATION (`test_err_propagation_lint`, Review Focus 1). GDScript has no exceptions:
+## ERROR PROPAGATION (`test_err_propagation_lint`). GDScript has no exceptions:
 ## a fallible function returns its value or an ScfgErr, and an unchecked ScfgErr flows on as if
 ## it were a value. The lint works on lines and names, with cheap type resolution for receivers,
 ## under these exact rules.
@@ -580,7 +580,7 @@ func test_engine_methods_dispatched_by_name_exist() -> bool:
 	return T.done()
 
 
-## COROUTINE DISCIPLINE (`test_no_unawaited_coroutines`, Review Focus 5). A coroutine called
+## COROUTINE DISCIPLINE (`test_no_unawaited_coroutines`). A coroutine called
 ## without `await` hands its caller a function state instead of a value (or, on an untyped
 ## receiver, aborts the caller with "Trying to call an async function without await"), and the
 ## step goes on with garbage. Godot's parser already refuses an unawaited call it can resolve

@@ -1,6 +1,6 @@
 /**
  * The desktop (NW.js) RPC transport: JSON-RPC over Node's `https` (and `http`, for a local node
- * such as Anvil), the twin of scfg_core.rpc.UrllibTransport (Ruling M2-1). NW.js's `fetch` runs
+ * such as Anvil), the twin of scfg_core.rpc.UrllibTransport. NW.js's `fetch` runs
  * from the game page's origin and depends on each RPC's CORS headers, which urllib never needed.
  *
  *   new NodeHttpsTransport({ https: require("https"), http: require("http") })
@@ -21,7 +21,7 @@
  * no JSON-RPC endpoint answers); it is TransportError("HTTP 30x"). A failure's Node error code
  * (`ECONNREFUSED`, `CERT_HAS_EXPIRED`, ...) is kept as the TransportError's `code`.
  *
- * THE FALLBACK (Ruling 12). NW.js's Node trusts only the CA bundle frozen into its Node build
+ * THE FALLBACK. NW.js's Node trusts only the CA bundle frozen into its Node build
  * (no OS certificate store: a corporate or antivirus root, a CA newer than the build) and does
  * not use the OS proxy settings; Chromium's `fetch` in the same window does both. With
  * `fallback` (the glue passes the core's FetchTransport) a request that Node fails with a
@@ -81,9 +81,8 @@ const PROXY_AUTH = 407;
  */
 function afterNode(f: unknown, first: TransportError): unknown {
   if (!(f instanceof TransportError)) return f;
-  const err = new TransportError(`${f.message} (Node's https failed first: ${codeOf(first) ?? first.message})`, f.status);
-  const code = codeOf(f);
-  if (code !== null) Object.defineProperty(err, "code", { value: code, enumerable: true });
+  const message = `${f.message} (Node's https failed first: ${codeOf(first) ?? first.message})`;
+  const err = withCode(new TransportError(message, f.status), codeOf(f));
   // ES2022's Error cause, set by hand (the bundle targets ES2020; NW.js's older Chromium lacks the option)
   Object.defineProperty(err, "cause", { value: f, enumerable: false, writable: true, configurable: true });
   return err;
@@ -101,6 +100,11 @@ const messageOf = (e: unknown): string => (e instanceof Error ? e.message : Stri
 const codeOf = (e: unknown): string | null => {
   const code = typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
   return typeof code === "string" && code !== "" ? code : null;
+};
+/** `err` with Node's error `code` (when there is one) as its own `code`. */
+const withCode = (err: TransportError, code: string | null): TransportError => {
+  if (code !== null) Object.defineProperty(err, "code", { value: code, enumerable: true });
+  return err;
 };
 
 export class NodeHttpsTransport implements Transport {
@@ -157,11 +161,16 @@ export class NodeHttpsTransport implements Transport {
       const fail = (message: string, code: string | null = null) => {
         if (settled) return;
         settled = true;
-        const err = new TransportError(message);
-        if (code !== null) Object.defineProperty(err, "code", { value: code, enumerable: true });
-        reject(err);
+        reject(withCode(new TransportError(message), code));
       };
       let req: any = null;
+      const destroyQuietly = () => {
+        try {
+          if (req !== null && typeof req.destroy === "function") req.destroy();
+        } catch {
+          // already gone
+        }
+      };
       // Everything that touches the module is inside the try: a throw (a refused option, an
       // older Node's TypeError) is a TransportError like any other failure, never a raw error.
       try {
@@ -195,11 +204,7 @@ export class NodeHttpsTransport implements Transport {
             });
           } catch (e) {
             fail(messageOf(e));
-            try {
-              req.destroy();
-            } catch {
-              // already gone
-            }
+            destroyQuietly();
           }
         });
         req.on("error", (e: unknown) => fail(messageOf(e), codeOf(e)));
@@ -211,11 +216,7 @@ export class NodeHttpsTransport implements Transport {
         req.end(text);
       } catch (e) {
         fail(messageOf(e));
-        try {
-          if (req !== null && typeof req.destroy === "function") req.destroy();
-        } catch {
-          // already gone
-        }
+        destroyQuietly();
       }
     });
   }

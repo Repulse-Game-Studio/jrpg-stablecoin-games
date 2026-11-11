@@ -1,6 +1,6 @@
 ## ScfgWatcher (watcher.gd): the twin of tests/unit/test_watcher_awaiting.py and
-## test_watcher_confirming.py, plus M1's checks (rpgmaker/src/core/watcher.test.ts): Python's
-## lookups and tie-breaks, the 2^53 limit on stored values (M1 Ruling 3), and errors as values.
+## test_watcher_confirming.py, plus the JS core's checks (rpgmaker/src/core/watcher.test.ts): Python's
+## lookups and tie-breaks, the 2^53 limit on stored values, and errors as values.
 extends RefCounted
 
 const T := preload("res://tests/t.gd")
@@ -346,7 +346,7 @@ func test_awaits_a_chain_that_yields_frames() -> bool:
 
 
 func test_hinted_value_at_2_pow_53_is_refused_not_rounded() -> bool:
-	# M1 Ruling 3: match.value is a JSON number, so 2^53 units cannot be stored exactly. The watcher
+	# match.value is a JSON number, so 2^53 units cannot be stored exactly. The watcher
 	# returns a ValueError (the Engine contains it) and leaves the session untouched.
 	var s := _setup(1000)
 	_hinted(s, _receipt_with([_log(USDC, ScfgBigInt.from_decimal("9007199254740992"), 999)]))

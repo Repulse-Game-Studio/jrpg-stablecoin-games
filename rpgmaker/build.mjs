@@ -11,8 +11,9 @@
 //   node build.mjs [--outdir DIR]     (default: dist)
 //
 // The shared checkout page (../plugin/game/scfg/web/*) and the sheet's stylesheets (src/mz/ui/*.css)
-// are embedded as strings with esbuild's text loader (Ruling M2-2), through the virtual module
-// "scfg:assets" generated below. The output depends only on the sources: two builds are byte-identical.
+// are embedded as strings with esbuild's text loader (never copied, so they cannot drift), through
+// the virtual module "scfg:assets" generated below. The output depends only on the sources: two
+// builds are byte-identical.
 import { build } from "esbuild";
 import { existsSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";

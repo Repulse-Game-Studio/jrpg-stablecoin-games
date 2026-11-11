@@ -196,7 +196,7 @@ def test_local_server_accepts_a_signature_hint(make_server):
     assert srv.calls() == [["on_tx", [SIG, DEV]]]
 
 
-# --- hardening (Review Focus 3) -------------------------------------------------------------
+# --- hardening: the secret, Host, headers, request limits, slow clients ---------------------
 
 
 def test_secret_is_128_bit_urlsafe(server):

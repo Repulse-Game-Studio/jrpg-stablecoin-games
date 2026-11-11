@@ -4,7 +4,7 @@
  * encode_returns, snapshot_json, ScriptedEntropy, ReplayTransport, replay); see the README's
  * "Tier 2" section for the contract.
  *
- * `ENABLED` admits the vectors the TS core can run: since Task 8 (the Solana backend), every one.
+ * `ENABLED` admits the vectors the TS core can run: since the Solana backend was ported, every one.
  * A vector it ever refuses is reported as skipped, never as passed.
  */
 import { AssertionError } from "node:assert";

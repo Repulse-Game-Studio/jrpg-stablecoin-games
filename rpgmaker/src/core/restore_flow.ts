@@ -21,7 +21,6 @@ export const MESSAGES: Record<string, string> = {
   failed: "Something went wrong. Please try again.",
 };
 
-
 export class RestoreController {
   submit: Submit;
   state = "input";

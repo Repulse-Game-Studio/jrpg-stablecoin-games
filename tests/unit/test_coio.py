@@ -135,7 +135,7 @@ _LONG = "9" * 4301
 
 
 def test_an_overlong_json_integer_is_invalid_json(interpreter):
-    """Ruling 6: json.loads reads integer literals with ints.int_from, so one of more than 4300
+    """json.loads reads integer literals with ints.int_from, so one of more than 4300
     digits makes the body unreadable on every interpreter (CPython 3.9.25's own behaviour)."""
     with pytest.raises(TransportError, match="invalid JSON response"):
         response_from_envelope({"status": 200, "body": '{"result": ' + _LONG + "}"})

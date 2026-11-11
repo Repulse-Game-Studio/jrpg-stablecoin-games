@@ -10,7 +10,7 @@
  * controller and calls check / choose / confirm; SCFG polls it.
  */
 import { formatUnits, TIP_CHOICE, type RestoreController } from "../../core/index.ts";
-import { TX_CHARS } from "../actions.ts";
+import { PASTE_MAX, TX_CHARS } from "../actions.ts";
 import { Screen, type ScreenEnv } from "./screen.ts";
 
 export class RestoreScreen extends Screen {
@@ -98,7 +98,7 @@ export class RestoreScreen extends Screen {
     const c = this.ctl;
     const typing = c.state === "input";
     body.append(this.label(this.text("paste_hash_help"), "muted"));
-    const field = this.field("tx_input", c.tx_input, 90, TX_CHARS, (t) => {
+    const field = this.field("tx_input", c.tx_input, PASTE_MAX, TX_CHARS, (t) => {
       c.tx_input = t;
       this._synced = t;
     }, () => this.check(), "tx");

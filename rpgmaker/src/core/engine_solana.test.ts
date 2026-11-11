@@ -81,7 +81,7 @@ for (const [why, exc] of [
   ["rpc_error", () => new RpcError(-32005, "node is behind")],
 ] as const) {
   test(`test_readiness_check_hides_nothing_on_network_doubt[${why}]`, async () => {
-    // Task 7 review gap: an RpcUnavailable/RpcError from checkReady leaves `unready` empty, unreported
+    // An RpcUnavailable/RpcError from checkReady leaves `unready` empty, unreported
     const { e, sol } = make();
     e.unready = new Set(["solana\u0000USDC"]); // a stale verdict is replaced, not kept
     const errors: unknown[] = [];
@@ -209,7 +209,7 @@ test("test_engine_builds_only_for_solana_sessions", async () => {
   await assert.rejects(e.buildSolanaPayment("ps_missing", PAYER), KeyError);
 });
 
-// --- previous Solana wallets only (Task 7 review follow-up) --------------------------------------
+// --- previous Solana wallets only ----------------------------------------------------------------
 
 test("test_reverify_judges_solana_receipts_of_a_game_with_only_previous_solana_wallets", async () => {
   // No solana_wallet any more, but Solana receipts paid to a previous one: the Solana backend

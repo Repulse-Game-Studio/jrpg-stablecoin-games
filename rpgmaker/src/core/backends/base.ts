@@ -36,9 +36,9 @@ export interface Backend {
 
   /**
    * Restore candidates for tx on this chain, or null if the chain doesn't know it.
-   * Throws RestoreError("tx_reverted" | "tx_not_a_payment").
+   * Throws RestoreError("tx_reverted" | "tx_not_a_payment"). A transfer that cannot be classified
+   * is skipped and reported to on_error (restore.classifyOrSkip).
    */
-  /** A transfer that cannot be classified is skipped and reported to on_error (restore.classifyOrSkip). */
   lookup(
     tx: string, args: { config: Config; chain: Chain; rpc: any; receipts: SessionStore; on_error?: ((e: unknown) => void) | undefined },
   ): Promise<unknown[] | null>;

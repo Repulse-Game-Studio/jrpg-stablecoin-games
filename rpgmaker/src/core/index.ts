@@ -1,5 +1,5 @@
 /**
- * The supported surface of the payment core, for the RPG Maker MZ glue (M2) and its bundle.
+ * The supported surface of the payment core, for the RPG Maker MZ glue and its bundle.
  * Anything not exported here is internal and may change without notice; tests import modules
  * directly. No Python twin (Python callers import `scfg_core` submodules).
  */
@@ -39,7 +39,7 @@ export {
 } from "./errors.ts";
 export { RestoreError, TIP_CHOICE, type RestoreCandidate } from "./restore.ts";
 
-// What the page tells the game (the M2 server parses with these)
+// What the page tells the game (the glue's checkout server parses with these)
 export { BUILD_TIMEOUT_S, parseBuildMessage, parseTxMessage } from "./page_messages.ts";
 export { OverlayCheckout, type OverlayOptions, type OverlayUi } from "./overlay.ts";
 

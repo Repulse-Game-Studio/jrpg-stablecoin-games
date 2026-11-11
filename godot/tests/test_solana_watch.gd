@@ -1,4 +1,4 @@
-## ScfgSolanaBackend watching (advance, transfer_to): tests/unit/test_solana_watch.py, plus M1's
+## ScfgSolanaBackend watching (advance, transfer_to): tests/unit/test_solana_watch.py, plus the JS core's
 ## edges (rpgmaker/src/core/backends/solana.test.ts): the payer rule, net gains and malformed
 ## balance rows, a dropped hint's verdict cleared by a reference payment, a pending hint
 ## suspending the scan, an expired hint's outage, the node's confirmations, a missing and a

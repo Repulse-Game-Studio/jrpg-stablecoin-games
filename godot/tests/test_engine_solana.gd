@@ -1,4 +1,4 @@
-## ScfgEngine with Solana sessions: tests/unit/test_engine_solana.py, plus M1's checks
+## ScfgEngine with Solana sessions: tests/unit/test_engine_solana.py, plus the JS core's checks
 ## (rpgmaker/src/core/engine_solana.test.ts): readiness hides nothing on network doubt, and a game
 ## with only previous Solana wallets still judges its Solana receipts.
 extends RefCounted

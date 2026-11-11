@@ -25,6 +25,12 @@ def signature(n: int) -> str:
     """A well-formed base58 Solana signature (64 bytes), distinct per n."""
     return b58encode(hashlib.sha512(f"sig {n}".encode()).digest())
 
+
+def covers(unit_file: str, *names: str) -> list[str]:
+    """Pytest ids of tests in tests/unit/test_<unit_file>.py."""
+    return [f"tests/unit/test_{unit_file}.py::test_{n}" for n in names]
+
+
 AVAX_USDC = "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
 # tests/unit/test_custom_chains.py avalanche(): a developer-added EVM chain (build_chain kwargs)
 AVALANCHE = {"key": "avalanche", "name": "Avalanche", "chain_id": 43114,

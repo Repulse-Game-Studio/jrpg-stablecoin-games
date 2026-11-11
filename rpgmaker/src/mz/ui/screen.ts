@@ -23,9 +23,9 @@
  */
 import { getChains, type Chain } from "../../core/index.ts";
 import type { Scfg } from "../scfg.ts";
-import { isTextField, nextFocus, overlayHasFocus, type InputOwner } from "./input.ts";
+import { isTextField, nextFocus, overlayHasFocus, type InputOwner, type Move } from "./input.ts";
 
-export type Move = "up" | "down" | "left" | "right" | "next" | "previous";
+export type { Move } from "./input.ts";
 
 /** What a screen gets from its host. */
 export interface ScreenEnv {
@@ -35,7 +35,9 @@ export interface ScreenEnv {
   logo(): string | null;
 }
 
-const ARROW_SVG = "http://www.w3.org/2000/svg";
+const SVG_NS = "http://www.w3.org/2000/svg";
+/** How much of the body's visible height page up / down scroll. */
+const PAGE_SCROLL = 0.8;
 
 export abstract class Screen {
   readonly el: HTMLElement;
@@ -160,7 +162,7 @@ export abstract class Screen {
       this.run(() => this.onCancel());
     } else if (owner.repeated("pageup") || owner.repeated("pagedown")) {
       const body = this.body;
-      if (body !== null) body.scrollTop += (owner.repeated("pageup") ? -0.8 : 0.8) * body.clientHeight;
+      if (body !== null) body.scrollTop += (owner.repeated("pageup") ? -PAGE_SCROLL : PAGE_SCROLL) * body.clientHeight;
     }
   }
 
@@ -441,10 +443,10 @@ export abstract class Screen {
 
   /** The back arrow, drawn (no font needs the glyph). */
   protected arrow(): SVGElement {
-    const svg = this.doc.createElementNS(ARROW_SVG, "svg");
+    const svg = this.doc.createElementNS(SVG_NS, "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
     svg.setAttribute("aria-hidden", "true");
-    const path = this.doc.createElementNS(ARROW_SVG, "path");
+    const path = this.doc.createElementNS(SVG_NS, "path");
     path.setAttribute("d", "M19 12H5M11 6l-6 6 6 6");
     svg.append(path);
     return svg;

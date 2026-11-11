@@ -100,7 +100,7 @@ def test_amount_scan_payment_is_detected_and_confirmed(world, js_world):
 
 
 def test_node_transport_against_anvil(world):
-    """RPG Maker's desktop transport (NodeHttpsTransport on Node's http, Ruling M2-1) carries a
+    """RPG Maker's desktop transport (NodeHttpsTransport on Node's http) carries a
     whole payment against Anvil: the twin of test_amount_scan_payment_is_detected_and_confirmed
     with the Node transport in place of fetch."""
     chain = world["engine"].chain("arbitrum")

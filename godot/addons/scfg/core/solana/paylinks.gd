@@ -30,9 +30,7 @@ static func solana_pay_uri(opts: Dictionary) -> Variant:
 		if q is ScfgErr:
 			return q
 		parts.append("%s=%s" % [kv[0], q])
-	var recipient: Variant = opts["recipient"]
-	return "solana:%s?%s" % [str(recipient) if (recipient is String or recipient is StringName)
-		else ScfgPy.py_repr(recipient), "&".join(parts)]
+	return "solana:%s?%s" % [ScfgPy.py_str(opts["recipient"]), "&".join(parts)]
 
 
 ## Python `urllib.parse.quote(v, safe="")`: the UTF-8 bytes of a str (or the bytes of a

@@ -20,7 +20,7 @@
  * first step.
  */
 import { parseUnreadyKey, type CheckoutController } from "../../core/index.ts";
-import { TX_CHARS } from "../actions.ts";
+import { PASTE_MAX, TX_CHARS } from "../actions.ts";
 import { qrSvg } from "./qr.ts";
 import { Screen, type ScreenEnv } from "./screen.ts";
 
@@ -132,9 +132,14 @@ export class PaymentSheet extends Screen {
     this.sheet.append(this.footer());
   }
 
-  private title(): string {
+  /** A tip with the default title shows the translated word; any other title is the game's data. */
+  private titleIsText(): boolean {
     const spec = this.ctl.spec;
-    return spec.kind === "tip" && spec.title === "Tip" ? this.text("tip") : spec.title;
+    return spec.kind === "tip" && spec.title === "Tip";
+  }
+
+  private title(): string {
+    return this.titleIsText() ? this.text("tip") : this.ctl.spec.title;
   }
 
   private header(): HTMLElement {
@@ -160,7 +165,7 @@ export class PaymentSheet extends Screen {
       }
     }
     const spec = c.spec;
-    head.append(spec.kind === "tip" && spec.title === "Tip" ? this.label(this.title(), "title", "title") : this.value(spec.title, "title", "title"));
+    head.append(this.titleIsText() ? this.label(this.title(), "title", "title") : this.value(spec.title, "title", "title"));
     head.append(this.div("price", this.value(c.priceText, "amount", "price"), this.value(spec.token, "amount-token", "token")));
     const note = this.exactNote();
     if (note !== "") head.append(this.label(note, "note", "note"));
@@ -299,7 +304,7 @@ export class PaymentSheet extends Screen {
     }
     if (!c.config.methods["manual"]?.["allow_tx_paste"]) return;
     body.append(this.label(this.text("sent_from_exchange_paste", this.txWord()), "label"));
-    const field = this.field("tx_input", c.tx_input, 90, TX_CHARS, (t) => {
+    const field = this.field("tx_input", c.tx_input, PASTE_MAX, TX_CHARS, (t) => {
       c.tx_input = t;
       this._synced.set("tx_input", t);
     }, () => c.submitHash(), "tx");

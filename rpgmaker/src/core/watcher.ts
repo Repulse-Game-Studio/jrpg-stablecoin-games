@@ -12,7 +12,7 @@
  * Record fields are read the way Python indexes them (`pyGet`): a malformed record throws, and
  * the Engine contains it per session, instead of JS coercing `undefined` into a different path.
  *
- * Known limit (Ruling 3): `match.value` is persisted as a JSON number, so a hinted or scanned
+ * Known limit: `match.value` is persisted as a JSON number, so a hinted or scanned
  * transfer of 2^53 units or more (about 9e9 tokens) cannot be recorded exactly. `matchDict` throws
  * ValueError instead of rounding, which the Engine contains as `internal_error` on every tick until
  * the 24 h horizon closes the session. Python would store the exact int; no vector can record it.
@@ -71,7 +71,6 @@ export interface AdvanceArgs {
   items: ReadonlyMap<string, Item>;
   now: number;
 }
-
 
 export function minAmount(rec: SessionRecord, items: ReadonlyMap<string, Item>): Dec {
   if (pyGet(rec, "kind") === "unlock") {

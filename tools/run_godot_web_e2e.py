@@ -46,7 +46,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -72,6 +71,7 @@ from run_godot_e2e import (  # noqa: E402
     button,
     has_button,
     import_problems,
+    launch_chromium,
     no_screen,
     sheet,
     shows,
@@ -646,15 +646,7 @@ def run(godot: str, family: str, templates_dir, headed: bool) -> int:
     started = time.monotonic()
     work = Path(tempfile.mkdtemp(prefix="scfg-godot-web-e2e-"))
     home = work / "home"
-    env = dict(os.environ)
-    env.update(
-        {
-            "HOME": str(home),
-            "XDG_DATA_HOME": str(home / "data"),
-            "XDG_CONFIG_HOME": str(home / "config"),
-            "XDG_CACHE_HOME": str(home / "cache"),
-        }
-    )
+    env = desk.isolated_env(home)
     fam = httpd = None
     console: list[str] = []
     try:
@@ -668,7 +660,8 @@ def run(godot: str, family: str, templates_dir, headed: bool) -> int:
         url, httpd = serve(work / "web")
         fam = fam_cls(exe, work)
         with sync_playwright() as p:
-            options = dict(
+            browser = launch_chromium(
+                p,
                 headless=not headed,
                 args=[
                     "--use-angle=swiftshader",
@@ -676,14 +669,10 @@ def run(godot: str, family: str, templates_dir, headed: bool) -> int:
                     "--autoplay-policy=no-user-gesture-required",
                 ],
             )
-            try:  # the installed Chrome, like the integration tests; else Playwright's
-                browser = p.chromium.launch(channel="chrome", **options)
-            except Exception:
-                browser = p.chromium.launch(**options)
+            a_non_string_config_fails_hard(browser, url)
             # Chromium's Local Network Access check can block the page's fetch() to the loopback
             # Anvil (a test-environment matter: real games fetch public RPC endpoints). The
             # clipboard permissions let the runner read what the sheet's Copy buttons copied.
-            a_non_string_config_fails_hard(browser, url)
             context = browser.new_context(
                 permissions=["local-network-access", "clipboard-read", "clipboard-write"],
                 viewport={"width": 1280, "height": 720},

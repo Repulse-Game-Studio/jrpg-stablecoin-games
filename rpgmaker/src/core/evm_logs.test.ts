@@ -1,4 +1,4 @@
-/** Twin of tests/unit/test_evm_logs.py (by name; evm.test.ts covers the same ground from Task 2). */
+/** Twin of tests/unit/test_evm_logs.py (by name; evm.test.ts also covers this ground). */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { TRANSFER_TOPIC, addressTopic, parseTransferLog } from "./evm.ts";

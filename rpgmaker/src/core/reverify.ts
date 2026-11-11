@@ -77,6 +77,8 @@ function hashable(v: unknown, name: string): void {
   if (typeof v === "object" && v !== null) throw new TypeError(`unhashable ${name}`);
 }
 
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
 /**
  * Why the stored entry `r` is not a receipt the checks can read (Python's KeyError, TypeError,
  * ValueError, AttributeError, ArithmeticError), or null. The backends then read the same fields.
@@ -105,8 +107,6 @@ function invalidFields(r: unknown, chains: Record<string, Chain>): unknown {
   }
   return null;
 }
-
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** A well-formed receipt's verdict: "drop" or "keep". */
 async function judge(r: Record<string, any>, args: ReverifyArgs): Promise<string> {

@@ -150,7 +150,7 @@ export class InputOwner {
     this._epoch++;
     this._held = new Set(this._pressedNow());
     this._heldFrame = this._frameCount();
-    this._touchHeld = this._read(() => this._call(this._originals.touch, "isPressed", this._touch) === true);
+    this._touchHeld = this.touchPressed();
     this._stale.clear();
   }
 
@@ -160,9 +160,7 @@ export class InputOwner {
     if (this._g.Input !== this._input) return;
     for (const name of [...this._held]) this._stillHeld(this._held, name);
     for (const name of [...this._stale]) this._stillHeld(this._stale, name);
-    if (this._touchHeld && !this._read(() => this._call(this._originals.touch, "isPressed", this._touch) === true)) {
-      this._touchHeld = false;
-    }
+    if (this._touchHeld && !this.touchPressed()) this._touchHeld = false;
   }
 
   // --- the screen's reads ------------------------------------------------------------------
@@ -172,7 +170,7 @@ export class InputOwner {
   }
 
   triggered(name: string): boolean {
-    return this._own(name) && this._read(() => this._call(this._originals.input, "isTriggered", this._input, name) === true);
+    return this._own(name) && this._rawTriggered(name);
   }
 
   repeated(name: string): boolean {
@@ -251,6 +249,7 @@ export class InputOwner {
   private _blocksDirection(): boolean {
     if (this._reading > 0) return false;
     if (this._owners > 0) return true;
+    // every direction is asked, not just up to the first held one: _stillHeld also forgets the released ones
     let held = false;
     for (const d of DIRECTIONS) if (this._stillHeld(this._held, d)) held = true;
     return held;
@@ -315,10 +314,11 @@ export class InputOwner {
   }
 }
 
+/** A focus move on a screen: along the focus order (up / down, Tab's next / previous) or within a row (left / right). */
+export type Move = "up" | "down" | "left" | "right" | "next" | "previous";
+
 /** Where the focus goes from control `index` of `count` (-1 when there is none or nothing to move). */
-export function nextFocus(
-  index: number, count: number, rowOf: (i: number) => string | null, move: "up" | "down" | "left" | "right" | "next" | "previous",
-): number {
+export function nextFocus(index: number, count: number, rowOf: (i: number) => string | null, move: Move): number {
   if (count <= 0 || index < 0 || index >= count) return -1;
   switch (move) {
     case "up":

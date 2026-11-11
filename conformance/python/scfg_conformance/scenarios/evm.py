@@ -7,14 +7,9 @@ from scfg_core.sessions import HINT_TIMEOUT_S, SCAN_HORIZON_S, SESSION_WINDOW_S
 from scfg_core.watcher import MAX_SCAN_CALLS, SCAN_STEP_BLOCKS
 
 from ..scenario import EPOCH, scenario
-from .fixtures import CHAPTER2, DEV_EVM, DEV_SOL, PAYER_EVM, tx_hash
+from .fixtures import CHAPTER2, DEV_EVM, DEV_SOL, PAYER_EVM, covers, tx_hash
 
 OTHER_EVM = "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359"
-
-
-def covers(unit_file: str, *names: str) -> list[str]:
-    """Pytest ids of tests in tests/unit/test_<unit_file>.py."""
-    return [f"tests/unit/test_{unit_file}.py::test_{n}" for n in names]
 
 
 def _mainnet(s, chain="arbitrum", *, items=(CHAPTER2,), **config):

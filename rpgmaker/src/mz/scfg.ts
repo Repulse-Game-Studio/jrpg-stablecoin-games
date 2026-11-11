@@ -2,17 +2,17 @@
  * Stablecoin for Games (SCFG) for RPG Maker MZ: USDC/USDT tips and unlock purchases paid straight
  * to the developer's wallet. No server, no accounts. One `Scfg` lives at `window.SCFG` (boot.ts
  * makes it from the plugin parameters). It is the twin of plugin/game/scfg/scfg_api.rpy and of
- * Godot's addons/scfg/scfg.gd: when this file and the plan are silent, the Ren'Py glue decides.
+ * Godot's addons/scfg/scfg.gd: where this file is silent, the Ren'Py glue's behaviour is the reference.
  *
  *     SCFG.addChain("myl2", {...});                           // optional: your own EVM chain, before configure
  *     SCFG.configure({ wallet: "0x...", testnet: true });     // or the plugin parameters
  *     SCFG.addItem("chapter2", { code: 1, price: "4.99", token: "USDC", title: "Chapter 2" });
  *     if (SCFG.owns("chapter2")) { ... }
  *
- * DEVELOPER ERRORS throw, as Ren'Py raises (Ruling M2-3): `configure`, `addChain`, `addItem` and
+ * DEVELOPER ERRORS throw, as Ren'Py raises: `configure`, `addChain`, `addItem` and
  * the queries throw a ConfigError (with a `code`) or a TypeError; a misused `pay`/`restore`
  * rejects. What is not the script's mistake (payments cannot run now, no screen to show) resolves
- * a "failed" result with the code instead (Ruling 10, as Godot): MZ's SceneManager.onReject stops
+ * a "failed" result with the code instead (as Godot): MZ's SceneManager.onReject stops
  * the game on a rejection nobody handled. Errors of the running plugin are printed with
  * `console.error("scfg: ...")`; setup advice only in test play (`console.warn`).
  *
@@ -25,7 +25,7 @@
  * THE PUMP (`pump()`, after every `SceneManager.updateMain`), in Ren'Py's `_periodic` order: drain
  * the Worker's outcomes, give each to every open and background checkout controller and deliver
  * its result; then `poll()` every controller and register its callback; open the browser on a
- * desktop page that started listening since "Open checkout in browser" was pressed (Ruling 1);
+ * desktop page that started listening since "Open checkout in browser" was pressed;
  * close background controllers whose session is final or older than the browser timeout; poll
  * the restore controllers and deliver a finished one; warn once about unready routes; then mirror
  * a new snapshot to storage (persist.ts).
@@ -35,10 +35,9 @@
  * `sheetHost` (sheet_host.ts) and wait for its handle's `closed`. Closing a payment sheet closes
  * its controller first (cancel / finish stop its browser page), and only then the screen;
  * "keep_playing" moves the controller to `_background`, where its page keeps answering until the
- * session is final or the browser timeout passes. Misuse rejects (Ruling M2-3); payments off or
- * no screen resolve "failed" (Ruling 10). The sheet's
- * buttons that leave the game call `openBrowser`, `openWalletApp`, `openExplorer`, `copy` and
- * `pasteInto` (actions.ts has the per-platform parts). Notifications go through `text()`.
+ * session is final or the browser timeout passes. Misuse rejects; payments off or no screen
+ * resolve "failed". The sheet's buttons that leave the game call `openBrowser`, `openWalletApp`,
+ * `openExplorer`, `copy` and `pasteInto` (actions.ts has the per-platform parts). Notifications go through `text()`.
  *
  * WEB (not NW.js; Ren'Py's WEB branches): the browser checkout is the in-page overlay
  * (core/overlay.ts) over the shared page's bridge (web_page.ts), installed on the first payment
@@ -123,7 +122,7 @@ function unavailable(why: string): ScfgError {
   return Object.assign(new ScfgError(`payments are off: ${why}`), { code: "payments.unavailable" });
 }
 
-/** Why a flow cannot run that is not the script's mistake (Ruling 10): it resolves "failed" with this code. */
+/** Why a flow cannot run that is not the script's mistake: it resolves "failed" with this code instead of rejecting. */
 interface Unavailable {
   code: "payments.unavailable" | "sheet.unavailable";
   message: string;
@@ -148,7 +147,7 @@ export class ScreenRestore extends RestoreController {
 export interface ScfgHooks {
   /** Seconds, monotonic: the save interval and the RPC clients' cooldowns. Default `performance.now() / 1000`. */
   clock?: () => number;
-  /** The Engine's transport. Default: NodeHttpsTransport on NW.js (Ruling M2-1), FetchTransport in a browser. */
+  /** The Engine's transport. Default: NodeHttpsTransport on NW.js, FetchTransport in a browser. */
   transport?: Transport;
   /** Extra Engine options (rpc_factory, clock, entropy). */
   engine_opts?: Partial<EngineOptions>;
@@ -211,7 +210,7 @@ function randomSource(crypto: any): RandomSource | undefined {
 
 export class Scfg {
   readonly version = VERSION;
-  /** The status codes the plugin commands store in their variable (Ruling M2-4): `SCFG.STATUS.paid === 1`. */
+  /** The status codes the plugin commands store in their variable: `SCFG.STATUS.paid === 1`. */
   readonly STATUS = STATUS;
   /** Show a short notification when a payment confirms or purchases are restored (parameter "notify"). */
   notify = true;
@@ -261,7 +260,7 @@ export class Scfg {
   private _pasteSeq = 0;
   /**
    * Desktop: "Open checkout in browser" pressed while the controller's page was still starting
-   * (Node's listen() completes on a later turn: its url is "" until then, Ruling 1). The browser
+   * (Node's listen() completes on a later turn: its url is "" until then). The browser
    * opens on the first frame the page listens; a page that cannot listen fails like a start().
    */
   readonly _pendingOpens = new Set<ScreenCheckout>();
@@ -310,7 +309,7 @@ export class Scfg {
     else this._log.error("scfg: " + heading, e);
   }
 
-  /** A setup or storage problem: reported, and shown over the game in test play (Ruling M2-3). */
+  /** A setup or storage problem: reported, and shown over the game in test play. */
   _alert(message: string): void {
     this._log.error("scfg: " + message);
     try {
@@ -359,7 +358,7 @@ export class Scfg {
    * img/scfg/logo.png). It can be called again until payments have started (the frame after the
    * state is read).
    *
-   * The logo (Ruling 11): in test play on desktop a logo that is neither in the game folder nor
+   * The logo: in test play on desktop a logo that is neither in the game folder nor
    * shipped encrypted (`<file>_`) is a ConfigError "logo.file_missing" (the boot reports it and
    * the plugin stays disabled). A released game never stops taking payments for its logo: one
    * that cannot be read is a console warning and the screens show none.
@@ -486,7 +485,7 @@ export class Scfg {
   }
 
   /**
-   * A logo that cannot be read (Ruling 11): in test play reported and shown over the game; in a
+   * A logo that cannot be read: in test play reported and shown over the game; in a
    * released game a console warning. Either way the screens show no logo; payments go on.
    */
   _logoUnreadable(file: string, e: unknown): void {
@@ -516,15 +515,14 @@ export class Scfg {
   }
 
   /**
-   * The Engine's transport: Node's https on NW.js (Ruling M2-1: the page's fetch would depend on
-   * every RPC's CORS headers), retrying through fetch a request Node fails on certificate trust or
-   * a proxy (Ruling 12: NW.js's Node has a frozen CA bundle and ignores the OS proxy); fetch in a
-   * browser. NW.js without Node's https (reported) falls back to fetch.
+   * The Engine's transport: Node's https on NW.js (the page's fetch would depend on every RPC's
+   * CORS headers), retrying through fetch a request Node fails on certificate trust or a proxy
+   * (NW.js's Node has a frozen CA bundle and ignores the OS proxy); fetch in a browser. NW.js
+   * without Node's https (reported) falls back to fetch.
    */
   _defaultTransport(): Transport {
     if (this._platform.isNwjs()) {
       try {
-        // Ruling 12: a request Node fails on its frozen CA bundle or the OS proxy goes once more through fetch
         return new NodeHttpsTransport({
           https: this._platform.requireNode("https"), http: this._platform.requireNode("http"), fallback: new FetchTransport(),
         });
@@ -623,7 +621,20 @@ export class Scfg {
     }
     this._pruneCallbacks(outcomesSnap);
     this._openWhenListening();
-    const timeout = Number(this._config.methods["browser"]?.["timeout_min"]) * 60;
+    this._closeFinishedBackground(this._config);
+    for (const r of [...this._restores.values()]) {
+      const before = r.state;
+      r.poll();
+      if (r.state !== before && r.state === "done") this._deliverRestore(r);
+    }
+    this._warnUnready(worker.snapshot);
+    this._syncSnapshot(worker);
+    this._mirror.flushIfDue();
+  }
+
+  /** Close the "keep playing" controllers whose session is final, or older than the browser timeout. */
+  _closeFinishedBackground(config: Config): void {
+    const timeout = Number(config.methods["browser"]?.["timeout_min"]) * 60;
     const now = this._engine!.clock();
     for (const [cid, c] of this._background) {
       const s = c.session;
@@ -633,23 +644,18 @@ export class Scfg {
         this._background.delete(cid);
       }
     }
-    for (const r of [...this._restores.values()]) {
-      const before = r.state;
-      r.poll();
-      if (r.state !== before && r.state === "done") this._deliverRestore(r);
-    }
-    const snap = worker.snapshot;
+  }
+
+  /** Test play: warn once per new set of routes the snapshot marks unready (the wallet has no token account there yet). */
+  _warnUnready(snap: Snapshot): void {
     const unready = [...snap.unready].sort();
-    if (unready.length > 0 && unready.join("\n") !== this._warnedUnready) {
-      this._warnedUnready = unready.join("\n");
-      for (const key of unready) {
-        const [chain, token] = parseUnreadyKey(key);
-        this._warn(`your wallet can't receive ${token} on ${chain} yet (no token account). `
-          + `Receive any amount of ${token} there once; until then players aren't offered it.`);
-      }
+    if (unready.length === 0 || unready.join("\n") === this._warnedUnready) return;
+    this._warnedUnready = unready.join("\n");
+    for (const key of unready) {
+      const [chain, token] = parseUnreadyKey(key);
+      this._warn(`your wallet can't receive ${token} on ${chain} yet (no token account). `
+        + `Receive any amount of ${token} there once; until then players aren't offered it.`);
     }
-    this._syncSnapshot(worker);
-    this._mirror.flushIfDue();
   }
 
   /** Mirror the Worker's snapshot when it is new (the ones made before clearLocalData()'s wipe are skipped). */
@@ -809,8 +815,8 @@ export class Scfg {
    * given to onResult then, and resolved when the player closes the sheet.
    *
    * A misused call (before configure(), an unknown item, a bad option...) rejects with a
-   * ConfigError (with a `code`) or a TypeError, as Ren'Py raises (Ruling M2-3). What is not the
-   * script's mistake resolves a "failed" result whose `error` says why (Ruling 10, as Godot):
+   * ConfigError (with a `code`) or a TypeError, as Ren'Py raises. What is not the
+   * script's mistake resolves a "failed" result whose `error` says why (as Godot):
    * "payments.unavailable" (the stored receipts cannot be read or are still being read, the
    * payment engine could not start, the game is closing) or "sheet.unavailable" (the sheet host
    * showed nothing); it is reported with console.error and given to `callback` too. An unhandled
@@ -846,7 +852,7 @@ export class Scfg {
     return this._closeCheckout(ctl, shown, how);
   }
 
-  /** Ruling 10 (Godot's _failed_payment): a "failed" result with the code; reported, and given to the callback. */
+  /** Godot's _failed_payment: a "failed" result with the code; reported, and given to the callback. */
   _failedPayment(spec: { kind: string; item: string | null; token: string | null }, callback: ((r: PaymentResult) => void) | null,
     why: Unavailable): PaymentResult {
     if (!why.reported) this._reportError(`pay() failed (${why.code}): ${why.message}`);
@@ -920,7 +926,7 @@ export class Scfg {
     return ctl.result();
   }
 
-  /** The running Worker for a flow, or why payments cannot run now (Ruling 10: a "failed" result). */
+  /** The running Worker for a flow, or why payments cannot run now (the flow resolves "failed"). */
   _workerOrWhy(): Worker | Unavailable {
     const off = (why: string, reported: boolean): Unavailable => ({ code: "payments.unavailable", message: unavailable(why).message, reported });
     if (this._closing) return off("the game is closing", false);
@@ -934,7 +940,7 @@ export class Scfg {
    * Show a screen through the sheet host; its handle. When the host shows nothing usable,
    * `discard()` drops the controller first, then a non-handle the host returned is given back to
    * `host.close()` (controller first, screen second, as everywhere), and "sheet.unavailable" is
-   * returned (the flow resolves "failed", Ruling 10).
+   * returned (the flow resolves "failed").
    */
   _show(method: "openPayment" | "openRestore", ctl: ScreenCheckout | ScreenRestore, discard: () => void): [SheetHost, SheetHandle] | Unavailable {
     const host = this.sheetHost;
@@ -1080,7 +1086,7 @@ export class Scfg {
   }
 
   /**
-   * Desktop (Ruling 1): open the browser for each "Open checkout in browser" whose page was still
+   * Desktop: open the browser for each "Open checkout in browser" whose page was still
    * starting, once it listens; a page that cannot listen is dropped and the press replayed, so the
    * controller fails the browser method as when its page's start() throws. The press is forgotten
    * when the sheet closed or its page went away.

@@ -443,7 +443,7 @@ test("closingTheSheetReleasesThePageFirst", async () => {
 });
 
 test("noSheetUiFailsClearly", async () => {
-  // Ruling 10 (Godot's test_no_sheet_ui_fails_clearly): a host that shows nothing is not the
+  // as Godot's test_no_sheet_ui_fails_clearly: a host that shows nothing is not the
   // script's misuse, so pay()/restore() resolve "failed" with the code (never reject: an
   // unhandled rejection stops an MZ game), reported, and the callback gets it too
   const env = await make();
@@ -490,7 +490,7 @@ test("aNonHandleIsClosedAfterTheControllerIsDropped", async () => {
 });
 
 test("misusedPayRejectsWithConfigError", async () => {
-  // before configure: Ren'Py raises; here the Promise rejects (Ruling M2-3)
+  // before configure: Ren'Py raises; here the Promise rejects
   installShim(g, { nwjs: true });
   const bare = new Scfg({ log: { error: () => undefined, warn: () => undefined }, platform: { devNotice: () => undefined } });
   const early = bare.pay("unlock", { item: "chapter2" });
@@ -526,7 +526,7 @@ test("misusedPayRejectsWithConfigError", async () => {
 
 test("payBeforePaymentsCanStartResolvesFailed", async () => {
   // the stored receipts cannot be read this run: payments are off, and pay() says so in a
-  // "failed" result (Ruling 10: not a rejection, which would stop the game unless caught)
+  // "failed" result (not a rejection, which would stop the game unless caught)
   const storage = new MemoryStorage();
   storage.write(STATE, JSON.stringify({ version: 1, pending: {}, receipts: {} }));
   const shim = installShim(g, { nwjs: true, storage, options: ["test"] });
@@ -837,7 +837,7 @@ test("openBrowserWaitsForTheDesktopPageToListen", async () => {
   s.openBrowser(ctl);
   assert.equal(servers.length, 1, "the page is started");
   assert.equal(servers[0]!.running, true);
-  assert.deepEqual(world.opened, [], "but no browser is opened on an empty URL (Ruling 1)");
+  assert.deepEqual(world.opened, [], "but no browser is opened on an empty URL");
   assert.equal(ctl.step, step, "the sheet stays on its step while the page starts");
   s.openBrowser(ctl); // pressed again before listen() completed
   env.shim.frame(2);
@@ -987,9 +987,9 @@ test("aLogoReadInNodesOwnRealmIsServed", async () => {
 
 test("desktopRpcGoesThroughNodeHttpsAndTheWebThroughFetch", async () => {
   let env = await make({ hooks: { transport: undefined, platform: { requireNode: (name: string) => nodeModules[name] } } });
-  assert.ok(env.s._engine!.transport instanceof NodeHttpsTransport, "NW.js: Node's https (Ruling M2-1)");
+  assert.ok(env.s._engine!.transport instanceof NodeHttpsTransport, "NW.js: Node's https");
   assert.ok((env.s._engine!.transport as NodeHttpsTransport).fallback instanceof FetchTransport,
-    "with fetch for the requests Node's CA bundle or the OS proxy fails (Ruling 12)");
+    "with fetch for the requests Node's CA bundle or the OS proxy fails");
   resetShim();
   env = await make({ nwjs: false, hooks: { transport: undefined } });
   assert.ok(env.s._engine!.transport instanceof FetchTransport, "a browser: fetch");
@@ -1065,7 +1065,7 @@ test("shutdownClosesWithoutDelivery", async () => {
 });
 
 test("shutdownHooksFlushAndShutDownWithoutAWindowListener", async () => {
-  // NW.js: no nw.Window "close" listener (Ruling 5: it would have to force the close and override
+  // NW.js: no nw.Window "close" listener (it would have to force the close and override
   // other plugins); the page's beforeunload shuts down and flushes, delivering nothing
   let env = await make();
   assert.deepEqual([...env.world.nwListeners.keys()], [], "nw.Window.get().on() is never called");

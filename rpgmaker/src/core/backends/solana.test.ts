@@ -1,6 +1,6 @@
 /**
  * Twin of tests/unit/test_solana_backend.py, test_solana_watch.py and the backend half of
- * test_solana_build.py (the checkout controller and server tests belong to M2).
+ * test_solana_build.py (the checkout controller and server tests belong to the glue, src/mz).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

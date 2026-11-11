@@ -54,7 +54,7 @@ sys.path.insert(0, str(TOOLS))
 
 import run_godot_web_e2e as godot_web  # noqa: E402  (also puts scfg_core, tests/integration on sys.path)
 from js_driver import find_node  # noqa: E402
-from run_godot_e2e import E2EError  # noqa: E402
+from run_godot_e2e import E2EError, launch_chromium  # noqa: E402
 from run_godot_web_e2e import amount_of, copy_value, receipts_of  # noqa: E402
 from run_renpy_web_e2e import serve  # noqa: E402
 
@@ -70,7 +70,7 @@ ITEM = "chapter2"
 CONFIRMED = "Payment confirmed. Thank you!"
 OWNED_SWITCH = 1  # the demo kit: chapter2's Owned Switch
 STATUS_VARIABLE = 1  # the demo kit's events store their status here
-PAID = 1  # Ruling M2-4
+PAID = 1  # the status the plugin commands store for a payment (SCFG.STATUS.paid)
 # Page output that means something went wrong: console errors and warnings (the plugin's reports
 # and its test-play developer warnings are "scfg: ..." console.error / console.warn lines, and the
 # shim's SceneManager.onError prints what stopped the game) and uncaught errors. A clean run logs
@@ -273,7 +273,7 @@ def pay_unlock_with_overlay(game: WebGame, fam) -> None:
     state = game.state()
     if state["switch"] or state["owns"]:
         raise E2EError(f"Chapter 2 is owned before the purchase: {state}")
-    # the Confirmations parameter (Ruling 9) reached the configuration SCFG.js built
+    # the Confirmations parameter reached the configuration SCFG.js built
     want = json.loads(fam.parameters().get("confirmations", "{}"))
     got = page.evaluate("() => SCFG._config.confirmations")
     if got != want:
@@ -353,8 +353,8 @@ def pending_survives_reload(game: WebGame, fam) -> dict:
     game.wait_step("amount")
     game.click("forward")
     game.wait_step("method")
-    # A new session is saved at once (Review Focus 3), not after the 10 s save interval: it is in
-    # storage before the tab goes away.
+    # A new session is saved at once, not after the 10 s save interval: it is in storage before
+    # the tab goes away.
     doc = wait_until(
         game,
         "the pending tip in storage",
@@ -384,7 +384,7 @@ def pending_survives_reload(game: WebGame, fam) -> dict:
     if tx not in [r["tx_hash"] for r in receipts_of(after)] or sid in (after.get("pending") or {}):
         raise E2EError(f"the restored session {sid} should be paid by {tx}: {after}")
     if game.state()["switch"] is not True:
-        raise E2EError("switch 1 went OFF")
+        raise E2EError(f"switch {OWNED_SWITCH} went OFF")
     print(
         f"3. reload: 2 receipts and pending session {sid} kept, switch {OWNED_SWITCH} ON;"
         " paid after the reload, receipts=3"
@@ -425,11 +425,7 @@ def run(family: str, headed: bool) -> int:
         fam = fam_cls(exe, work)
         print(f"RPG Maker web e2e: {family}")
         with sync_playwright() as p:
-            options = dict(headless=not headed)
-            try:  # the installed Chrome, like the integration tests; else Playwright's
-                browser = p.chromium.launch(channel="chrome", **options)
-            except Exception:
-                browser = p.chromium.launch(**options)
+            browser = launch_chromium(p, headless=not headed)
             # Chromium's Local Network Access check can block the page's fetch() to the loopback
             # Anvil (a test-environment matter: real games fetch public RPC endpoints). The
             # clipboard permissions let the runner read what the sheet's Copy buttons copied.

@@ -1,7 +1,7 @@
 /**
- * Boot from the plugin parameters (boot.ts), for the advanced parameters of Ruling 9: the custom
+ * Boot from the plugin parameters (boot.ts), for the advanced parameters: the custom
  * chains are added before configure, and with the confirmations and previous wallets they reach
- * the configuration; what the core refuses is a boot error (Ruling M2-3). A plugin below SCFG may
+ * the configuration; what the core refuses is a boot error. A plugin below SCFG may
  * configure again before the game boots; the Items parameter's owned switches follow the items it
  * re-adds.
  */

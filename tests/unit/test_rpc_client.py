@@ -229,7 +229,7 @@ def test_suggested_range_uses_stated_limit_or_halves():
     assert suggested_range(RpcError(-32005, "block range is too large"), 15) == MIN_LOG_RANGE
 
 
-# Ruling 6: a digit run beyond 18 significant digits is no number (it is above any range a
+# A digit run beyond 18 significant digits is no number (it is above any range a
 # caller can try), so a node message never costs a quadratic int() or, on an interpreter with
 # CPython's digit limit, a ValueError out of get_logs. \d is any Unicode decimal digit.
 _OVERLONG_RANGE_ROWS = [

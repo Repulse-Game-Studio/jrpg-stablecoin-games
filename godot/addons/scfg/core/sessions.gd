@@ -91,8 +91,7 @@ static func normalize_tx_hash(tx_hash: Variant) -> Variant:
 	if s.length() != 66 or not s.begins_with("0x"):
 		return bad
 	for i in range(2, 66):
-		var c := s.unicode_at(i)
-		if not ((c >= 0x30 and c <= 0x39) or (c >= 0x61 and c <= 0x66) or (c >= 0x41 and c <= 0x46)):
+		if not ScfgBytes.is_hex_digit(s.unicode_at(i)):
 			return bad
 	return s.to_lower()
 

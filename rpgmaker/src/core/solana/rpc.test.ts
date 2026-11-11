@@ -154,7 +154,7 @@ test("test_unsupported_version_error_naming_an_older_version_is_raised", async (
   assert.equal(t.calls.length, 1);
 });
 
-// Ruling 6 (tests/unit/test_solana_rpc.py::test_named_version_ignores_numbers_beyond_18_digits):
+// tests/unit/test_solana_rpc.py::test_named_version_ignores_numbers_beyond_18_digits:
 // a version beyond 18 significant digits is no match; the match is Python's
 // re.search(r"version \((\d+)\)", message, re.IGNORECASE): \d is any Unicode decimal digit,
 // and IGNORECASE also matches \u017f for s and \u0130, \u0131 for i.

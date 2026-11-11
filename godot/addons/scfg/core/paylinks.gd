@@ -16,8 +16,8 @@ static func eip681_transfer_uri(opts: Dictionary) -> Variant:
 	for key: String in ["token_address", "chain_id", "recipient", "units"]:
 		if not opts.has(key):
 			return ScfgErr.make("TypeError", "eip681_transfer_uri() missing 1 required keyword-only argument: '%s'" % key)
-	return "ethereum:%s@%s/transfer?address=%s&uint256=%s" % [_py_str(opts["token_address"]),
-		_py_str(opts["chain_id"]), _py_str(opts["recipient"]), _py_str(opts["units"])]
+	return "ethereum:%s@%s/transfer?address=%s&uint256=%s" % [ScfgPy.py_str(opts["token_address"]),
+		ScfgPy.py_str(opts["chain_id"]), ScfgPy.py_str(opts["recipient"]), ScfgPy.py_str(opts["units"])]
 
 
 ## Square matrix of modules (an Array of rows, each an Array of bools), true = dark. Medium
@@ -63,11 +63,3 @@ static func qr_rects(text: Variant, border: int = 2) -> Variant:
 			else:
 				x += 1
 	return [n + 2 * border, runs]
-
-
-## Python's `str(v)` in an f-string: a str as it is, an ScfgBigInt as its digits, anything else
-## as its repr.
-static func _py_str(v: Variant) -> String:
-	if v is String or v is StringName:
-		return str(v)
-	return ScfgPy.py_repr(v)

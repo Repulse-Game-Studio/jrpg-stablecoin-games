@@ -6,10 +6,10 @@
  * called them. Each sets its Status Variable to 0, puts the calling Game_Interpreter (`this` of a
  * plugin command in MZ: the map's event, a parallel event's or a common event's own
  * interpreter) in the "scfg" wait mode until its Promise settles, then stores the status code
- * (Ruling M2-4, `SCFG.STATUS`) and refreshes the owned switches. A command that cannot run (a
- * misused call, Ruling M2-3; payments off or no screen, a "failed" result, Ruling 10) stores
- * `failed`, and why is reported with console.error. Nothing here leaves a rejection unhandled
- * (MZ's SceneManager.onReject would stop the game).
+ * (`SCFG.STATUS`) and refreshes the owned switches. A command that cannot run (a misused call,
+ * which rejects; payments off or no screen, which resolve a "failed" result) stores `failed`, and
+ * why is reported with console.error. Nothing here leaves a rejection unhandled (MZ's
+ * SceneManager.onReject would stop the game).
  * Wallet Help opens the players' wallet guide outside the game and does not wait.
  *
  * Each run belongs to its interpreter, in a WeakMap of this session (nothing is added to the
@@ -20,8 +20,8 @@
  * SAVE AND LOAD WHILE WAITING. A Promise cannot be saved. A save made while an event waits holds
  * the variable at 0 and the interpreter in the "scfg" wait mode; after that save is loaded, the
  * interpreter has no live run, so it stops waiting on its next update and the event goes on with
- * the variable at 0 ("not done"). The payment itself is not lost: receipts are global (D6) and
- * the owned switches are set after every load (switches.ts).
+ * the variable at 0 ("not done"). The payment itself is not lost: receipts are global, not per
+ * save slot, and the owned switches are set after every load (switches.ts).
  */
 import { DEFAULT_TIP_AMOUNT } from "./params.ts";
 import { ARG, COMMAND, PLUGIN_NAME, WALLET_HELP_URL } from "./plugin_header.ts";
@@ -31,7 +31,7 @@ import type { Scfg } from "./scfg.ts";
 export { DEFAULT_TIP_AMOUNT, WALLET_HELP_URL };
 
 /**
- * The status codes a command stores in its variable (Ruling M2-4), by result status:
+ * The status codes a command stores in its variable, by result status:
  * `SCFG.STATUS.paid === 1`. Restore Purchases stores restored (1), nothing_found (2), cancelled
  * (6) or failed (7). 0 (`none`): not done yet (the sheet is open) or the command did not finish.
  */
@@ -51,14 +51,18 @@ const RESTORE_CODES: Readonly<Record<string, number>> = {
   restored: STATUS.restored, nothing_found: STATUS.nothing_found, cancelled: STATUS.cancelled,
 };
 
+/** `status`'s code in `codes`; failed for any other status. */
+const codeIn = (codes: Readonly<Record<string, number>>, status: unknown): number =>
+  typeof status === "string" && Object.prototype.hasOwnProperty.call(codes, status) ? codes[status]! : STATUS.failed;
+
 /** The code of a pay() result's status (anything else: failed). */
 export function paymentCode(status: unknown): number {
-  return typeof status === "string" && Object.prototype.hasOwnProperty.call(PAYMENT_CODES, status) ? PAYMENT_CODES[status]! : STATUS.failed;
+  return codeIn(PAYMENT_CODES, status);
 }
 
 /** The code of a restore() result's status (anything else, such as "failed": failed). */
 export function restoreCode(status: unknown): number {
-  return typeof status === "string" && Object.prototype.hasOwnProperty.call(RESTORE_CODES, status) ? RESTORE_CODES[status]! : STATUS.failed;
+  return codeIn(RESTORE_CODES, status);
 }
 
 /** An argument as MZ hands it over (a string; a missing one is ""), trimmed. */

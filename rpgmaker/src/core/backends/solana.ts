@@ -14,9 +14,9 @@
  * constants cannot be patched, so each SolanaBackend carries them as `sig_page` and
  * `max_sig_pages` (the registry's instance keeps the defaults).
  *
- * Ruling 3 applies here as on EVM: a match is persisted with `value` as a JSON number, so a
- * transfer of 2^53 units or more makes `matchDict` throw ValueError (contained by the Engine)
- * instead of storing a rounded value.
+ * The same known limit as on EVM (watcher.ts): a match is persisted with `value` as a JSON
+ * number, so a transfer of 2^53 units or more makes `matchDict` throw ValueError (contained by
+ * the Engine) instead of storing a rounded value.
  */
 import { asUnits, unitsToDecimal } from "../amounts.ts";
 import { base64Encode } from "../bytes.ts";

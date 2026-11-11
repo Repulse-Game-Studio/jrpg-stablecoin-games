@@ -67,7 +67,7 @@ static func parse_body(raw: PackedByteArray) -> Array:
 	return [true, j.data]
 
 
-## parse_body for an RPC answer, as the Python core reads one (ints.json_loads, Ruling 6): an
+## parse_body for an RPC answer, as the Python core reads one (ints.json_loads): an
 ## integer literal (no fraction, no exponent) of more than 4300 digits makes the body unreadable,
 ## as CPython's json refuses it, where Godot's JSON would read it as a float (inf). Linear: a
 ## native regex, tried only where a digit run starts (a lookbehind; unanchored, it would retry at

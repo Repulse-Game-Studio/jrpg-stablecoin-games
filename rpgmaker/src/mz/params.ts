@@ -9,7 +9,7 @@
  * confirmations, previousWallets, customChains: Ren'Py's chains, tokens, methods, rpc_urls,
  * confirmations, previous_wallets and add_chain) are JSON text, as written in a `multiline_string`
  * (also accepted JSON-quoted, as a `note` stores it). A value it cannot read is a ConfigError
- * naming the parameter; boot reports it and leaves the plugin disabled (Ruling M2-3). What the
+ * naming the parameter; boot reports it and leaves the plugin disabled (boot never throws). What the
  * core refuses in a value it can read (a Solana confirmation count, a bad chain) is the core's
  * own ConfigError, reported the same way.
  */
@@ -192,9 +192,7 @@ export function parseParams(raw: Record<string, unknown> | null | undefined): Pa
     }
     switchOwner.set(item.ownedSwitch, item.id);
   }
-  if (items.length > 0 && configure === null) {
-    throw new ConfigError("plugin parameter items needs wallet (an EVM 0x address) and/or solanaWallet", { code: "params.invalid" });
-  }
+  if (items.length > 0 && configure === null) throw bad(PARAM.items, "needs wallet (an EVM 0x address) and/or solanaWallet");
   const texts: Record<string, string> = {};
   for (const [i, s] of structList(p, PARAM.texts).entries()) {
     const id = str(s, TEXT_FIELD.id);

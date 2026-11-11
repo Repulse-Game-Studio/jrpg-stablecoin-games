@@ -128,7 +128,7 @@ def test_unsupported_version_error_naming_an_older_version_is_raised():
     assert len(t.calls) == 1
 
 
-# Ruling 6: a version beyond 18 significant digits is no match (as GDScript: a request cannot
+# A version beyond 18 significant digits is no match (as GDScript: a request cannot
 # carry it as an int), so the node's error is raised; no long digit text reaches int().
 @pytest.mark.parametrize("message, expected", [
     ("Transaction version (" + "9" * 19 + ") is not supported", None),

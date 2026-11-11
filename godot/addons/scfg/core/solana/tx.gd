@@ -15,6 +15,10 @@ class_name ScfgSolanaTx
 extends RefCounted
 
 const COMPUTE_BUDGET_PROGRAM_ID := "ComputeBudget111111111111111111111111111111"
+# The instruction tags: the first data byte names the instruction to its program.
+const _SET_COMPUTE_UNIT_LIMIT := 2
+const _SET_COMPUTE_UNIT_PRICE := 3
+const _TRANSFER_CHECKED := 12
 
 
 static func account_meta(pubkey: Variant, is_signer: Variant, is_writable: Variant) -> Dictionary:
@@ -165,7 +169,7 @@ static func set_compute_unit_limit(units: Variant) -> Variant:
 	var le: Variant = _uint_le(units, 4)
 	if le is ScfgErr:
 		return le
-	return instruction(COMPUTE_BUDGET_PROGRAM_ID, [], ScfgBytes.concat([PackedByteArray([2]), le]))
+	return instruction(COMPUTE_BUDGET_PROGRAM_ID, [], ScfgBytes.concat([PackedByteArray([_SET_COMPUTE_UNIT_LIMIT]), le]))
 
 
 ## ComputeBudget SetComputeUnitPrice: `micro_lamports` as an unsigned 64-bit little-endian number.
@@ -174,7 +178,7 @@ static func set_compute_unit_price(micro_lamports: Variant) -> Variant:
 	var le: Variant = _uint_le(micro_lamports, 8)
 	if le is ScfgErr:
 		return le
-	return instruction(COMPUTE_BUDGET_PROGRAM_ID, [], ScfgBytes.concat([PackedByteArray([3]), le]))
+	return instruction(COMPUTE_BUDGET_PROGRAM_ID, [], ScfgBytes.concat([PackedByteArray([_SET_COMPUTE_UNIT_PRICE]), le]))
 
 
 ## SPL Token TransferChecked. Keyword arguments (Python's `*`) travel in `opts`: source, mint,
@@ -209,7 +213,7 @@ static func transfer_checked(opts: Dictionary) -> Variant:
 		return ScfgErr.make("TypeError", "'%s' object cannot be interpreted as an integer" % ScfgPy.py_type(decimals))
 	if decimals < 0 or decimals > 255:
 		return ScfgErr.make("ValueError", "bytes must be in range(0, 256)")
-	var data := ScfgBytes.concat([PackedByteArray([12]), amount_le, PackedByteArray([decimals])])
+	var data := ScfgBytes.concat([PackedByteArray([_TRANSFER_CHECKED]), amount_le, PackedByteArray([decimals])])
 	return instruction(ScfgSolanaPda.TOKEN_PROGRAM_ID, accounts, data)
 
 

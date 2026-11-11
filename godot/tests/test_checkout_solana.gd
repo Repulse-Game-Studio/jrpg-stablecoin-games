@@ -1,6 +1,6 @@
 ## ScfgCheckoutController on Solana: tests/unit/test_checkout_solana.py (same tests, same names).
 ## Not here: test_restore_accepts_signatures (test_restore_flow.gd) and
-## test_local_server_accepts_a_signature_hint (M4, the localhost server).
+## test_local_server_accepts_a_signature_hint (test_local_server.gd).
 extends RefCounted
 
 const T := preload("res://tests/t.gd")

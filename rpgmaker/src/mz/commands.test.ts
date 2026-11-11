@@ -2,7 +2,7 @@
  * The plugin commands on the MZ shim (commands.ts): Unlock Item, Tip, Restore Purchases and Wallet
  * Help, run by event interpreters as MZ runs them (code 357 -> PluginManager.callCommand with the
  * interpreter as `this`). Each sets its status variable to 0, holds its own interpreter in the
- * "scfg" wait mode until the Promise settles, then stores the Ruling M2-4 code (SCFG.STATUS).
+ * "scfg" wait mode until the Promise settles, then stores the result's status code (SCFG.STATUS).
  */
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";

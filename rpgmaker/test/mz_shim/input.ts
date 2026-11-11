@@ -4,7 +4,7 @@
  * `blur`, the gamepads from `navigator.getGamepads()` once per `update()`.
  *
  * `_shouldPreventDefault` prevents 8 (Backspace), 9 (Tab), 33/34 (Page Up/Down) and 37-40 (arrows),
- * as MZ: Home (36) and End (35) are not prevented (controller ruling, Task 1 fix round 1).
+ * as MZ: Home (36) and End (35) are not prevented.
  */
 import type { Ctx, GamepadLike } from "./context.ts";
 

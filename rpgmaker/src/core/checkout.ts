@@ -22,8 +22,7 @@ import { enabledChains, registry, textOn, walletFor, type Config } from "./confi
 import type { Dec } from "./decimal.ts";
 import { parseUnreadyKey, unreadyKey, type Engine } from "./engine.ts";
 import { ValueError } from "./errors.ts";
-import type { PaymentResult } from "./models.ts";
-import { makePaymentResult } from "./models.ts";
+import { makePaymentResult, type PaymentResult } from "./models.ts";
 import { eip681TransferUri } from "./paylinks.ts";
 import { MIN_TIP, TIP_PRESETS, type PaymentSpec } from "./payments.ts";
 import { RpcUnavailable } from "./rpc.ts";
@@ -54,7 +53,7 @@ export const MESSAGES: Readonly<Record<string, string>> = {
   paste_blocked: "Your browser blocked pasting. Type it instead: the game also finds the payment without it.",
 };
 
-/** What `server_factory` receives: the localhost page (desktop) or the web overlay (M2). */
+/** What `server_factory` receives: the localhost page (desktop) or the web overlay (web build). */
 export interface ServerArgs {
   /** What the page shows and needs to build the payment (amount, recipient, chain, token...). */
   session_info: Record<string, unknown>;
@@ -94,7 +93,6 @@ export interface CheckoutOptions {
   game_name?: string;
   browser_wallet?: ((chain: Chain) => boolean) | null;
 }
-
 
 export class CheckoutController {
   config: Config;

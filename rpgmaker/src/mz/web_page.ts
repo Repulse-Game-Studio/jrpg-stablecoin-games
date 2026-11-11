@@ -18,9 +18,9 @@
  * post/result request bridge has no twin: the core's FetchTransport already uses fetch.)
  *
  * The overlay's host element (what bridge.js adds to the body for an opened checkout, tagged
- * `data-scfg-overlay="<key>"`) gets `guardOverlay` (ui/input.ts): its keys and pointer events are the overlay's, so MZ's document
- * listeners neither preventDefault them (Tab, the arrows, the wheel) nor turn them into the
- * game's or the sheet's input. Opening or showing an overlay gives the focus to its first control,
+ * `data-scfg-overlay="<key>"`) gets `guardOverlay` (ui/input.ts): its keys and pointer events are
+ * the overlay's, so MZ's document listeners neither preventDefault them (Tab, the arrows, the
+ * wheel) nor turn them into the game's or the sheet's input. Opening or showing an overlay gives the focus to its first control,
  * so the keyboard drives the overlay rather than the sheet hidden under it.
  */
 import type { OverlayUi } from "../core/index.ts";
@@ -145,9 +145,8 @@ export class WebPage {
     if (host !== null && !this._guards.has(key) && typeof host.addEventListener === "function") {
       this._guards.set(key, guardOverlay(host));
       this._hosts.set(key, host);
-    } else if (host === null && !this._guards.has(key) && this.available && !this._warned.has("overlayHost")) {
-      this._warned.add("overlayHost");
-      this._warn(NO_HOST);
+    } else if (host === null && !this._guards.has(key) && this.available) {
+      this._warnOnce("overlayHost", NO_HOST);
     }
     this._focus(key);
   }
@@ -213,7 +212,7 @@ export class WebPage {
 
   /**
    * Move the keyboard focus to the shown overlay's first control (its "Back to the game" button):
-   * a keyboard-only player's keys then reach the overlay, not the sheet under it (Task 7 carry).
+   * a keyboard-only player's keys then reach the overlay, not the sheet under it.
    */
   private _focus(key: string): void {
     const root = this._hosts.get(key)?.shadowRoot;
@@ -261,12 +260,16 @@ export class WebPage {
     try {
       return fn.apply(bridge, args);
     } catch (e) {
-      if (!this._warned.has(name)) {
-        this._warned.add(name);
-        this._warn(`scfgBridge.${name} failed: ${e instanceof Error ? e.message : String(e)}`);
-      }
+      this._warnOnce(name, `scfgBridge.${name} failed: ${e instanceof Error ? e.message : String(e)}`);
       return fallback;
     }
+  }
+
+  /** `_warn(message)` the first time only for `key` (a bridge function's name, or "overlayHost"). */
+  private _warnOnce(key: string, message: string): void {
+    if (this._warned.has(key)) return;
+    this._warned.add(key);
+    this._warn(message);
   }
 
   private _warn(message: string): void {

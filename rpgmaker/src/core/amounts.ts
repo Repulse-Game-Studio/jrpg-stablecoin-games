@@ -10,7 +10,7 @@
  * Python `int` is `bigint` or an integral `number`; a non-integral `number` stands for a
  * Python `float`.
  *
- * Token amounts in base units are the branded `Units` bigint (decision D16), so the compiler
+ * Token amounts in base units are the branded `Units` bigint, so the compiler
  * refuses a plain `number` or an unnormalised bigint (a raw 18-decimal Arc log value, a JSON
  * field) where token units are expected. A value becomes `Units` only through `asUnits` (or a
  * function returning `Units`), at the point where it is known to be 6-decimal base units.
@@ -99,8 +99,7 @@ export function storedAmount(x: unknown): Dec {
   if (typeof x === "string") {
     if (x.length > AMOUNT_TEXT_LIMIT) throw new ValueError(`amount text longer than ${AMOUNT_TEXT_LIMIT} characters`);
     d = Dec.parse(x, { anyExponent: true });
-  }
-  else if (typeof x === "boolean") d = Dec.fromInt(x ? 1 : 0); // Decimal(True) == 1
+  } else if (typeof x === "boolean") d = Dec.fromInt(x ? 1 : 0); // Decimal(True) == 1
   else if (typeof x === "bigint") d = Dec.fromInt(x);
   else if (typeof x === "number") d = Number.isFinite(x) ? Dec.fromNumber(x) : "inf";
   else if (Array.isArray(x)) throw new TypeError("a stored amount is a number, not a list"); // Python refuses lists and tuples

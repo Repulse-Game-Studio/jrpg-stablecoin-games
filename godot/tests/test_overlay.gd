@@ -247,7 +247,7 @@ func test_the_rest_of_a_batch_is_ignored_once_a_callback_stopped_the_overlay() -
 
 
 # Godot only: the callbacks belong to a controller that may have been released; a freed one is
-# skipped, never a script error (README "M4 contracts").
+# skipped, never a script error (README "Contracts the core leaves to the glue").
 func test_callbacks_of_a_released_controller_are_skipped() -> bool:
 	var owner := _Owner.new()
 	var ui := FakeUi.new()

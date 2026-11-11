@@ -84,7 +84,7 @@ def test_http_error_with_jsonrpc_body_is_returned_not_raised(base_url):
 
 
 def test_an_overlong_json_integer_is_invalid_json(base_url, interpreter):
-    """Ruling 6: more than 4300 digits in an integer literal is not JSON on any interpreter."""
+    """More than 4300 digits in an integer literal is not JSON on any interpreter."""
     with pytest.raises(TransportError, match="invalid JSON response"):
         UrllibTransport().post_json(base_url + "/long-int", {"id": 1, "method": "x"}, 5)
     with pytest.raises(TransportError) as info:

@@ -403,7 +403,7 @@ test("test_cancelled_or_expired_ui_status_does_not_stop_confirmation", async () 
 });
 
 test("test_hinted_value_at_2_pow_53_is_refused_not_rounded", async () => {
-  // Ruling 3: match.value is a JSON number, so 2^53 units cannot be stored exactly. The watcher
+  // match.value is a JSON number, so 2^53 units cannot be stored exactly. The watcher
   // throws (the Engine contains it as internal_error) and leaves the session untouched.
   const s = setup(1000);
   setHint(s.pending, s.rec.id, TX, 0.0);

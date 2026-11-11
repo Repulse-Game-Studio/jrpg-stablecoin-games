@@ -1,4 +1,4 @@
-## Spike benchmarks (run with `--bench`): medians over 21 runs, printed against the M0 budgets.
+## Spike benchmarks (run with `--bench`): medians over 21 runs, printed against the budgets below.
 ## A missed budget is reported, not failed.
 extends RefCounted
 
@@ -84,7 +84,7 @@ func _report(label: String, ms: float, budget: float) -> void:
 
 
 ## Base58 (Bitcoin alphabet) to exactly 32 bytes, big-endian. Bench-only helper: the real
-## decoder is ported with scfg_core/solana/base58.py in M3.
+## decoder is core/solana/base58.gd, the port of scfg_core/solana/base58.py.
 func _b58decode32(s: String) -> PackedByteArray:
 	var n := ScfgBigInt.new()
 	for ch in s:

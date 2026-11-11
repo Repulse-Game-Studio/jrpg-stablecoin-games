@@ -71,8 +71,7 @@ const PY_DIGITS = new RegExp(`${PY_DIGIT}+`, "gu");
  * when the provider states one ("limited to 0 - 50 blocks range"), otherwise halves.
  */
 export function suggestedRange(err: RpcError, tried: number): number {
-  // Python's re.findall(r"\d+"): runs of any Unicode decimal digit; a run beyond 18 significant
-  // digits is no number (Ruling 6)
+  // A run beyond DIGIT_RUN_LIMIT significant digits is no number (digitRunValue gives null).
   const stated = (err.message.match(PY_DIGITS) ?? []).map(digitRunValue);
   const candidates = stated.filter((n): n is number => n !== null && MIN_LOG_RANGE <= n && n < tried);
   return candidates.length > 0 ? Math.max(...candidates) : Math.max(MIN_LOG_RANGE, Math.floor(tried / 2));

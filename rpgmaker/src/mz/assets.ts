@@ -1,6 +1,6 @@
 /**
  * Text assets the plugin carries inside SCFG.js: the shared browser checkout page
- * (`plugin/game/scfg/web/*`, Ruling M2-2: embedded at build time, never copied, so it cannot drift)
+ * (`plugin/game/scfg/web/*`, embedded at build time, never copied, so it cannot drift)
  * and the sheet's stylesheets (`src/mz/ui/*.css`).
  *
  * This module holds no import of the files themselves, so the glue and its node:test tests can

@@ -11,9 +11,9 @@
 ## Focus: each build lists its focusable controls in visual order. Up and down (and Tab) move
 ## along that list, left and right within a row of buttons, and the ends stay put, so the focus
 ## never leaves the screen for the game behind it. The arrow keys leave a text field too (a
-## LineEdit would keep them), and a field the focus reaches takes typing at once on 4.4+. `ui_accept` presses the focused button (Godot's
-## own handling); `ui_cancel` calls `_on_ui_cancel()`. The focus the game had goes back to it when
-## the screen closes.
+## LineEdit would keep them), and a field the focus reaches takes typing at once on 4.4+.
+## `ui_accept` presses the focused button (Godot's own handling); `ui_cancel` calls
+## `_on_ui_cancel()`. The focus the game had goes back to it when the screen closes.
 ##
 ## Screens can be open at once (pay() and restore() together): one opened later is drawn over the
 ## earlier ones. A rebuild never takes the focus from a screen drawn over this one, and when a
@@ -29,6 +29,8 @@ const _AUTOLOAD := preload("res://addons/scfg/scfg.gd")
 ## Characters a hash field takes: the autoload's TX_CHARS (Ren'Py's), hex for a transaction hash,
 ## base58 for a Solana signature.
 const TX_CHARS: String = _AUTOLOAD.TX_CHARS
+## The most characters a hash field takes: the autoload's TX_MAX_LENGTH.
+const TX_MAX_LENGTH: int = _AUTOLOAD.TX_MAX_LENGTH
 
 ## The Scfg autoload (the screen calls its actions: open_browser, copy, paste_into, ...).
 var scfg: Variant = null
@@ -261,7 +263,7 @@ func option(key: String, text: String, sub: String, selected: bool, on_press: Ca
 	return b
 
 
-## A grid of options, `columns` wide at most; each grid row is a focus row.
+## A grid of options, `columns` wide at most. Give each option its grid row as its focus row.
 func option_grid(key: String, columns: int) -> GridContainer:
 	var g := GridContainer.new()
 	g.name = key.validate_node_name()
@@ -297,6 +299,29 @@ func field(key: String, text: String, max_length: int, allowed: String, on_text:
 			f.call("edit"))
 	reg(f, key, row)
 	return f
+
+
+## A button beside a field or in a row, `width` design pixels wide at least.
+func fixed_width(b: Button, width: float) -> Button:
+	b.size_flags_horizontal = Control.SIZE_FILL
+	b.custom_minimum_size.x = px(width)
+	return b
+
+
+## A vertical scrolling body (named "Body", in a ScrollContainer named "Scroll" added to `parent`)
+## that keeps the focused control in view.
+func scrolling_body(parent: Container) -> VBoxContainer:
+	var scroll := ScrollContainer.new()
+	scroll.name = "Scroll"
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var body := vbox(10)
+	body.name = "Body"
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(body)
+	parent.add_child(scroll)
+	return body
 
 
 func hbox(separation: float = 8) -> HBoxContainer:

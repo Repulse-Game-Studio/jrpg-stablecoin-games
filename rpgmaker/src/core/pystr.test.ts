@@ -70,7 +70,7 @@ test("test_py_format1_raises_what_str_format_raises", () => {
   assert.throws(() => pyFormat1("}", "a"), ValueError);
 });
 
-// Carried from the M3 review. CPython's int() maps non-ASCII whitespace to a space but leaves ASCII
+// CPython's int() maps non-ASCII whitespace to a space but leaves ASCII
 // characters as they are, then skips only ASCII whitespace (Py_ISSPACE). So \x1c-\x1f, which
 // str.strip() removes, make int() fail: int("\x1c5") is a ValueError while Decimal("\x1c5") is 5.
 // The table is str.isspace() for every code point (CPython 3.9.25, `uv run python`).

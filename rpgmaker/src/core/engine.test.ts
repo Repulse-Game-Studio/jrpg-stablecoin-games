@@ -328,7 +328,7 @@ test("test_reverify_replaces_unready_with_the_readiness_check", async () => {
   assert.deepEqual(errors, []);
 });
 
-// --- crash containment (Review Focus #5) ----------------------------------------
+// --- crash containment: one session's crash never rejects the tick --------------
 
 /** Answers eth_blockNumber until `exc` is set, then throws it from postJson. */
 class ThrowingTransport implements Transport {
@@ -427,7 +427,7 @@ test("test_injected_entropy_supplies_id_and_nonce", async () => {
 });
 
 test("test_restore_lookup_keeps_integer_like_chain_keys_in_order", async () => {
-  // M1 Ruling 9: Python builds `{k: chain for k in ordered}`, so "zeta" is asked before "10".
+  // Python builds `{k: chain for k in ordered}`, so "zeta" is asked before "10".
   const custom = (key: string, chain_id: number) => buildChain(key, {
     name: key.toUpperCase(), chain_id, rpc: `https://rpc.${key}.example`, tokens: { USDC: USDC_ARB }, confirmations: 1,
     explorer_tx: "https://x.example/tx/{}",

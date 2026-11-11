@@ -15,7 +15,7 @@
 ##   Button: ScfgOption, ScfgOptionSelected, ScfgPrimary, ScfgAccent, ScfgSmall, ScfgBack;
 ##   PanelContainer: ScfgSheetPanel, ScfgQrFrame, ScfgToast; Panel: ScfgRule.
 ## Colors the screens draw themselves (the step dots, the status dot, the back arrow) are theme
-## colors of the type "ScfgSheet": accent, on_accent, ink, line, ok, warn, error. Its constants
+## colors of the type "ScfgSheet": accent, on_accent, ink, line, ok, warn, error, muted, dim. Its constants
 ## are sheet_width (the docked sheet's width) and dot_size.
 class_name ScfgTheme
 extends RefCounted
@@ -33,6 +33,7 @@ const OK := Color("#17804f")
 const WARN := Color("#9a5b00")
 const ERROR := Color("#c0392b")
 const WHITE := Color("#ffffff")
+const CLEAR := Color(0, 0, 0, 0)
 
 
 ## Ren'Py's `_k()`: the screens are designed for 1280x720 and grow with the game.
@@ -104,21 +105,11 @@ static func build(accent_hex: String, k: float) -> Theme:
 			t.set_font("font", v[0], bold)
 
 	# buttons
-	var focus := _box(Color(0, 0, 0, 0), radius, accent, maxi(2, px(2, k)), 0, 0)
+	var focus := _box(CLEAR, radius, accent, maxi(2, px(2, k)), 0, 0)
 	focus.draw_center = false
 	focus.set_expand_margin_all(maxf(2.0, px(2, k)))
-	_button(t, "Button", px(17, k), bold, focus, {
-		"normal": _box(Color(0, 0, 0, 0), radius, LINE, line_w, px(16, k), px(11, k)),
-		"hover": _box(HOVER, radius, HOVER, line_w, px(16, k), px(11, k)),
-		"pressed": _box(HOVER, radius, LINE, line_w, px(16, k), px(11, k)),
-		"disabled": _box(Color(0, 0, 0, 0), radius, RULE, line_w, px(16, k), px(11, k)),
-	}, INK, FAINT)
-	_button(t, "ScfgSmall", px(15, k), bold, focus, {
-		"normal": _box(Color(0, 0, 0, 0), radius, LINE, line_w, px(10, k), px(6, k)),
-		"hover": _box(HOVER, radius, HOVER, line_w, px(10, k), px(6, k)),
-		"pressed": _box(HOVER, radius, LINE, line_w, px(10, k), px(6, k)),
-		"disabled": _box(Color(0, 0, 0, 0), radius, RULE, line_w, px(10, k), px(6, k)),
-	}, INK, FAINT)
+	_button(t, "Button", px(17, k), bold, focus, _outlined(radius, line_w, px(16, k), px(11, k)), INK, FAINT)
+	_button(t, "ScfgSmall", px(15, k), bold, focus, _outlined(radius, line_w, px(10, k), px(6, k)), INK, FAINT)
 	_button(t, "ScfgPrimary", px(17, k), bold, focus, {
 		"normal": _box(INK, radius, INK, 0, px(16, k), px(11, k)),
 		"hover": _box(INK_HOVER, radius, INK_HOVER, 0, px(16, k), px(11, k)),
@@ -131,29 +122,19 @@ static func build(accent_hex: String, k: float) -> Theme:
 		"pressed": _box(accent.darkened(0.08), radius, accent, 0, px(16, k), px(11, k)),
 		"disabled": _box(LINE, radius, LINE, 0, px(16, k), px(11, k)),
 	}, on_accent, WHITE)
-	_button(t, "ScfgOption", px(15, k), null, focus, {
-		"normal": _box(Color(0, 0, 0, 0), radius, LINE, line_w, px(6, k), px(7, k)),
-		"hover": _box(HOVER, radius, HOVER, line_w, px(6, k), px(7, k)),
-		"pressed": _box(HOVER, radius, LINE, line_w, px(6, k), px(7, k)),
-		"disabled": _box(Color(0, 0, 0, 0), radius, RULE, line_w, px(6, k), px(7, k)),
-	}, INK, FAINT)
+	_button(t, "ScfgOption", px(15, k), null, focus, _outlined(radius, line_w, px(6, k), px(7, k)), INK, FAINT)
 	_button(t, "ScfgOptionSelected", px(15, k), null, focus, {
 		"normal": _box(accent, radius, accent, line_w, px(6, k), px(7, k)),
 		"hover": _box(accent, radius, accent, line_w, px(6, k), px(7, k)),
 		"pressed": _box(accent, radius, accent, line_w, px(6, k), px(7, k)),
 		"disabled": _box(accent, radius, accent, line_w, px(6, k), px(7, k)),
 	}, on_accent, on_accent)
-	_button(t, "ScfgBack", px(20, k), null, focus, {
-		"normal": _box(Color(0, 0, 0, 0), radius, LINE, line_w, 0, 0),
-		"hover": _box(HOVER, radius, HOVER, line_w, 0, 0),
-		"pressed": _box(HOVER, radius, LINE, line_w, 0, 0),
-		"disabled": _box(Color(0, 0, 0, 0), radius, RULE, line_w, 0, 0),
-	}, INK, FAINT)
+	_button(t, "ScfgBack", px(20, k), null, focus, _outlined(radius, line_w, 0, 0), INK, FAINT)
 
 	# fields
-	t.set_stylebox("normal", "LineEdit", _box(Color(0, 0, 0, 0), radius, LINE, line_w, px(12, k), px(9, k)))
+	t.set_stylebox("normal", "LineEdit", _box(CLEAR, radius, LINE, line_w, px(12, k), px(9, k)))
 	t.set_stylebox("focus", "LineEdit", focus)
-	t.set_stylebox("read_only", "LineEdit", _box(Color(0, 0, 0, 0), radius, RULE, line_w, px(12, k), px(9, k)))
+	t.set_stylebox("read_only", "LineEdit", _box(CLEAR, radius, RULE, line_w, px(12, k), px(9, k)))
 	t.set_font_size("font_size", "LineEdit", px(17, k))
 	for name: String in ["font_color", "caret_color"]:
 		t.set_color(name, "LineEdit", INK)
@@ -195,6 +176,17 @@ static func _button(t: Theme, type: String, size: int, font: Variant, focus: Sty
 			"font_hover_pressed_color"]:
 		t.set_color(name, type, color)
 	t.set_color("font_disabled_color", type, disabled)
+
+
+## The styleboxes of an outlined button (a line border, filled on hover and press), with content
+## margins `mx` and `my`.
+static func _outlined(radius: int, line_w: int, mx: int, my: int) -> Dictionary:
+	return {
+		"normal": _box(CLEAR, radius, LINE, line_w, mx, my),
+		"hover": _box(HOVER, radius, HOVER, line_w, mx, my),
+		"pressed": _box(HOVER, radius, LINE, line_w, mx, my),
+		"disabled": _box(CLEAR, radius, RULE, line_w, mx, my),
+	}
 
 
 ## A rounded box: fill, corner radius, border color and width, and content margins (x, y; or

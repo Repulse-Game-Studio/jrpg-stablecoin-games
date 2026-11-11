@@ -1,5 +1,5 @@
 ## ScfgRpcClient (rpc.gd): the twin of tests/unit/test_rpc_client.py, plus the strictness on
-## malformed bodies that M1 found (rpgmaker/src/core/rpc.ts) and the GDScript-only rules (ints
+## malformed bodies that the JS core found (rpgmaker/src/core/rpc.ts) and the GDScript-only rules (ints
 ## never floats in requests, errors as values, coroutines).
 extends RefCounted
 
@@ -434,7 +434,7 @@ func test_suggested_range_reads_like_python() -> bool:
 	return T.done()
 
 
-# tests/unit/test_rpc_client.py::test_suggested_range_ignores_numbers_beyond_18_digits (Ruling 6): a
+# tests/unit/test_rpc_client.py::test_suggested_range_ignores_numbers_beyond_18_digits: a
 # run beyond 18 significant digits is no number.
 func test_suggested_range_ignores_numbers_beyond_18_digits() -> bool:
 	var rows := [["limited to 50 blocks; request " + "9".repeat(4301), 2000, 50],
@@ -510,7 +510,7 @@ func test_malformed_error_objects_become_rpc_errors() -> bool:
 	return T.done()
 
 
-## Review Focus 2: an int parameter must be an int in the payload, never a float. JSON.stringify
+## An int parameter must be an int in the payload, never a float. JSON.stringify
 ## writes 5.0 as "5" on 4.3 and as "5.0" on 4.7, so the check walks the Variant types (holds on
 ## both versions) as well as the text (catches it on 4.7).
 func test_requests_carry_ints_not_floats() -> bool:

@@ -28,6 +28,7 @@ it runs with XDG_DATA_HOME=<data>.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import io
 import os
@@ -107,10 +108,26 @@ def expected_sha512(sums: dict, filename: str) -> str:
     return sums[filename]
 
 
-def verify_sha512(data: bytes, expected: str) -> None:
-    actual = hashlib.sha512(data).hexdigest()
+def _check_sha512(actual: str, expected: str) -> None:
     if actual != expected.lower():
         raise ValueError(f"SHA-512 mismatch: expected {expected}, got {actual}")
+
+
+def verify_sha512(data: bytes, expected: str) -> None:
+    _check_sha512(hashlib.sha512(data).hexdigest(), expected)
+
+
+@contextlib.contextmanager
+def _staged(out: Path):
+    """Yield a `.part` path beside `out` to write; when the block succeeds it replaces `out`,
+    when anything fails it is removed (so `out` is never left half-written)."""
+    tmp = out.with_name(out.name + ".part")
+    try:
+        yield tmp
+        os.replace(tmp, out)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def extract_binary(zip_bytes: bytes, member: str, dest: Path) -> Path:
@@ -121,14 +138,9 @@ def extract_binary(zip_bytes: bytes, member: str, dest: Path) -> Path:
         except KeyError:
             raise ValueError(f"{member} is not in the archive") from None
     out = Path(dest) / member
-    tmp = out.with_name(out.name + ".part")
-    try:
+    with _staged(out) as tmp:
         tmp.write_bytes(data)
         tmp.chmod(0o755)
-        os.replace(tmp, out)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
     return out
 
 
@@ -145,19 +157,13 @@ def download_verified(url: str, out: Path, expected: str) -> Path:
     """Stream `url` to `out`, hashing it on the way; `out` only appears if its SHA-512 is
     `expected` (a `.part` file holds it until then and is removed on any failure)."""
     out = Path(out)
-    tmp = out.with_name(out.name + ".part")
     digest = hashlib.sha512()
-    try:
+    with _staged(out) as tmp:
         with open_url(url) as resp, tmp.open("wb") as f:
             while chunk := resp.read(CHUNK):
                 digest.update(chunk)
                 f.write(chunk)
-        if digest.hexdigest() != expected.lower():
-            raise ValueError(f"SHA-512 mismatch: expected {expected}, got {digest.hexdigest()}")
-        os.replace(tmp, out)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
+        _check_sha512(digest.hexdigest(), expected)
     return out
 
 
@@ -174,14 +180,18 @@ def pinned_sha512(version: str, filename: str) -> str | None:
     return PINNED.get(version, {}).get(filename)
 
 
+def release_sums(version: str) -> dict:
+    """The release's SHA512-SUMS.txt (downloaded), as parse_sums gives it."""
+    return parse_sums(download(release_url(version, SUMS_FILE)).decode("utf-8"))
+
+
 def release_sha512(version: str, filename: str) -> str:
     """The SHA-512 a download must have: the pinned one, else the one the release's
     SHA512-SUMS.txt lists (downloaded)."""
     pinned = pinned_sha512(version, filename)
     if pinned:
         return pinned
-    sums = parse_sums(download(release_url(version, SUMS_FILE)).decode("utf-8"))
-    return expected_sha512(sums, filename)
+    return expected_sha512(release_sums(version), filename)
 
 
 def fetch(version: str, dest: Path) -> Path:
@@ -229,15 +239,9 @@ def unpack_web_templates(tpz: Path, root: Path) -> Path:
         out = Path(root) / "godot" / "export_templates" / version
         out.mkdir(parents=True, exist_ok=True)
         for member in members + ["templates/version.txt"]:
-            target = out / member.rsplit("/", 1)[-1]
-            tmp = target.with_name(target.name + ".part")
-            try:
+            with _staged(out / member.rsplit("/", 1)[-1]) as tmp:
                 with zf.open(member) as src, tmp.open("wb") as dst:
                     shutil.copyfileobj(src, dst, CHUNK)
-                os.replace(tmp, target)
-            except BaseException:
-                tmp.unlink(missing_ok=True)
-                raise
     return out
 
 
@@ -251,14 +255,8 @@ def _recorded_sha512(path: Path) -> str | None:
 
 
 def _record_sha512(path: Path, digest: str) -> None:
-    path = Path(path)
-    tmp = path.with_name(path.name + ".part")
-    try:
+    with _staged(Path(path)) as tmp:
         tmp.write_text(digest.lower() + "\n", encoding="ascii")
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
 
 
 def fetch_templates(version: str, templates_dir=None, cache: Path = TEMPLATES_CACHE) -> Path:
@@ -276,7 +274,7 @@ def fetch_templates(version: str, templates_dir=None, cache: Path = TEMPLATES_CA
     expected = pinned_sha512(version, name)
     if expected is None:
         try:
-            sums = parse_sums(download(release_url(version, SUMS_FILE)).decode("utf-8"))
+            sums = release_sums(version)
         except OSError as e:  # URLError is an OSError
             known = _recorded_sha512(recorded)
             if not (known and tpz.is_file() and file_sha512(tpz) == known):

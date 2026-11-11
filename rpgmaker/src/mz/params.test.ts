@@ -61,7 +61,7 @@ test("paramsRejectWhatTheyCannotRead", () => {
   assert.equal(parseParams({ wallet: DEV, items: JSON.stringify([JSON.stringify({ id: "a", code: "1.5" })]) }).items[0]!.code, "1.5");
 });
 
-// Ruling 9: Ren'Py's confirmations, previous_wallets and add_chain, as advanced parameters
+// Ren'Py's confirmations, previous_wallets and add_chain, as advanced parameters
 const OLD = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
 const MYL2 = {
   name: "My L2", chain_id: 99999, rpc: ["https://rpc.myl2.example"], tokens: { USDC: "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359" },

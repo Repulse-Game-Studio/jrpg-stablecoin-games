@@ -18,6 +18,9 @@
 class_name ScfgSheet
 extends ScfgScreenBase
 
+## The states whose only action is Continue (the payment is over, or this sheet is).
+const _ENDED_STATES: Array[String] = ["closed", "paid", "underpaid", "expired"]
+
 ## The controller this sheet shows.
 var controller: ScfgCheckoutController
 ## The step the body shows now (the controller's step as of the last rebuild).
@@ -49,10 +52,9 @@ func dots() -> Array:
 
 func _signature() -> Variant:
 	var ctl := controller
-	var tx: Variant = ctl.result.get("tx_hash") if ctl.result is Dictionary else null
 	return [ctl.step, ctl.state, ctl.error, ctl.can_go_back, ctl.hint_tx, ctl.confirmations, ctl.required,
 		ctl.method, ctl.chain_key, ctl.price_text, ctl.session_id, ctl.browser_failed, ctl.chain_options(),
-		ctl.methods(), tx, ctl.message(), k]
+		ctl.methods(), _result_tx(), ctl.message(), k]
 
 
 func _moved(before: Variant, after: Variant) -> bool:
@@ -61,7 +63,7 @@ func _moved(before: Variant, after: Variant) -> bool:
 
 func _primary() -> String:
 	var ctl := controller
-	if ctl.state in ["closed", "paid", "underpaid", "expired"]:
+	if ctl.state in _ENDED_STATES:
 		return "continue"
 	match ctl.step:
 		"amount":
@@ -117,16 +119,7 @@ func _build() -> void:
 	_build_header()
 	var step := vbox(12)
 	step.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var scroll := ScrollContainer.new()
-	scroll.name = "Scroll"
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.follow_focus = true
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var body := vbox(10)
-	body.name = "Body"
-	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(body)
-	step.add_child(scroll)
+	var body := scrolling_body(step)
 	_layout.add_child(step)
 	var forward := _build_step(body)
 	if forward.is_empty():
@@ -245,10 +238,7 @@ func _step_amount(body: VBoxContainer) -> void:
 	body.add_child(label(tr("Or enter your own"), "ScfgLabel"))
 	var row := hbox(8)
 	row.add_child(field("custom_amount", ctl.custom_amount, 8, "0123456789.", _amount_typed, _apply_custom, "amount"))
-	var set_button := button("set_amount", tr("Set"), "ScfgSmall", _apply_custom, "amount")
-	set_button.size_flags_horizontal = Control.SIZE_FILL
-	set_button.custom_minimum_size.x = px(90)
-	row.add_child(set_button)
+	row.add_child(fixed_width(button("set_amount", tr("Set"), "ScfgSmall", _apply_custom, "amount"), 90))
 	body.add_child(row)
 	_synced["custom_amount"] = ctl.custom_amount
 
@@ -350,16 +340,10 @@ func _step_manual(body: VBoxContainer) -> void:
 	if ScfgPy.py_truthy(ctl.config["methods"]["manual"]["allow_tx_paste"]):
 		body.add_child(label(tr("Sent from an exchange? Paste the %s:") % _tx_word(), "ScfgLabel"))
 		var row := hbox(8)
-		row.add_child(field("tx_input", ctl.tx_input, 90, TX_CHARS, _tx_typed, _submit_hash, "tx"))
+		row.add_child(field("tx_input", ctl.tx_input, TX_MAX_LENGTH, TX_CHARS, _tx_typed, _submit_hash, "tx"))
 		if _web():
-			var paste := button("paste", tr("Paste"), "ScfgSmall", _paste, "tx")
-			paste.size_flags_horizontal = Control.SIZE_FILL
-			paste.custom_minimum_size.x = px(90)
-			row.add_child(paste)
-		var check := button("check", tr("Check"), "ScfgSmall", _submit_hash, "tx")
-		check.size_flags_horizontal = Control.SIZE_FILL
-		check.custom_minimum_size.x = px(90)
-		row.add_child(check)
+			row.add_child(fixed_width(button("paste", tr("Paste"), "ScfgSmall", _paste, "tx"), 90))
+		row.add_child(fixed_width(button("check", tr("Check"), "ScfgSmall", _submit_hash, "tx"), 90))
 		body.add_child(row)
 		_synced["tx_input"] = ctl.tx_input
 
@@ -400,7 +384,7 @@ func _step_done(body: VBoxContainer) -> void:
 	var title := label(_done_title(), "ScfgHeading")
 	title.add_theme_color_override("font_color", _status_color())
 	body.add_child(title)
-	var tx: Variant = ctl.result.get("tx_hash") if ctl.result is Dictionary else null
+	var tx: Variant = _result_tx()
 	if ctl.state == "paid" and ScfgPy.py_truthy(tx):
 		body.add_child(label(tr("Keep this %s to restore your purchase on another device:") % _tx_word(), "ScfgMuted"))
 		body.add_child(mono(str(tx)))
@@ -429,13 +413,12 @@ func _build_footer() -> void:
 	if status != "":
 		footer.add_child(reg(status_row(status, _status_color()), "status"))
 	var actions := hbox(10)
-	if ctl.state in ["closed", "paid", "underpaid", "expired"]:
+	if ctl.state in _ENDED_STATES:
 		actions.add_child(button("continue", tr("Continue"), "ScfgPrimary", close_with.bind("finish"), "footer"))
-	elif ScfgPy.py_truthy(ctl.session):
-		actions.add_child(button("cancel", tr("Cancel"), "", close_with.bind("cancel"), "footer"))
-		actions.add_child(button("keep_playing", tr("Continue playing"), "ScfgPrimary", close_with.bind("keep_playing"), "footer"))
 	else:
 		actions.add_child(button("cancel", tr("Cancel"), "", close_with.bind("cancel"), "footer"))
+		if ScfgPy.py_truthy(ctl.session):
+			actions.add_child(button("keep_playing", tr("Continue playing"), "ScfgPrimary", close_with.bind("keep_playing"), "footer"))
 	footer.add_child(actions)
 	_layout.add_child(footer)
 
@@ -443,6 +426,12 @@ func _build_footer() -> void:
 func _small(b: Button) -> Button:
 	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	return b
+
+
+## The final result's transaction hash, or null.
+func _result_tx() -> Variant:
+	var result: Variant = controller.result
+	return result.get("tx_hash") if result is Dictionary else null
 
 
 # --- texts (Ren'Py's helpers of the same names) ----------------------------------------------

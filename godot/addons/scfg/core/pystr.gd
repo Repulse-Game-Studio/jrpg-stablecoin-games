@@ -56,7 +56,7 @@ static func py_strip(s: String) -> String:
 
 ## A digit run read out of a node's error message (an EVM range limit, a Solana transaction
 ## version) is a number only up to this many significant digits (scfg_core/ints.py
-## DIGIT_RUN_LIMIT, Ruling 6): every range or version a request can carry is below 10**18.
+## DIGIT_RUN_LIMIT): every range or version a request can carry is below 10**18.
 const DIGIT_RUN_LIMIT := 18
 
 
@@ -386,6 +386,13 @@ static func py_repr(v: Variant) -> String:
 				return "%s(%s)" % [(v as ScfgErr).kind, _repr_str((v as ScfgErr).message)]
 	return str(v)
 
+
+## Python's `str(v)` (as an f-string formats it): a str as it is, anything else as its repr (an
+## int, None, True, an ScfgBigInt's digits).
+static func py_str(v: Variant) -> String:
+	if v is String or v is StringName:
+		return str(v)
+	return py_repr(v)
 
 
 ## Python `template.format(arg)` for ONE positional str argument (no keyword arguments), as
