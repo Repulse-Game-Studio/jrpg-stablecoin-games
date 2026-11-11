@@ -209,9 +209,12 @@ def test_rpgmaker_zip_carries_the_vendored_notices():
 def test_rpgmaker_guide_is_joined_from_its_docs_and_says_it_is_unverified():
     guide = package.rpgmaker_guide()
     assert guide.startswith("# Stablecoin for Games: RPG Maker MZ Developer Guide")
-    assert "not yet on real RPG Maker MZ" in guide
+    assert "not yet in real RPG Maker MZ" in guide
+    assert guide.count("# For RPG Maker MZ developers") == 0  # the README is the intro, under the title
     anchors = {package.slug(h) for h in headings(guide)}
     for target in re.findall(r"\]\(([^)\s]+)\)", guide):
+        if target.startswith(("http://", "https://")):
+            continue  # a page on the web, such as the plugin's README on GitHub
         assert ".md" not in target, target
         if target.startswith("#"):
             assert target[1:] in anchors, target

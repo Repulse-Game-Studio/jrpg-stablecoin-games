@@ -104,7 +104,7 @@ From least to most work:
 2. `Scfg.configure({"theme": my_theme})`: a `Theme` merged over the built-in look. Your definitions win; your
    Theme is not changed. Style the screens through the type variations listed at the top of
    `addons/scfg/ui/theme.gd` (`ScfgTitle`, `ScfgAccent`, `ScfgOption`, `ScfgSheetPanel`, ...) and the colors
-   of the type `ScfgSheet` (`accent`, `ink`, `line`, `ok`, `warn`, `error`, `dim`), or the base types
+   of the type `ScfgSheet` (`accent`, `on_accent`, `ink`, `line`, `ok`, `warn`, `error`, `muted`, `dim`), or the base types
    (`Label`, `Button`, `LineEdit`). The built-in theme is scaled for the window (designed at 1280x720); yours
    is used as given.
 3. `Scfg.configure({"sheet_scene": preload("res://my_sheet.tscn")})`: your scene replaces the payment sheet.

@@ -14,7 +14,9 @@ any EVM chain you add yourself.
 ## From the release zip
 
 1. Download `scfg-godot-<version>.zip` from the
-   [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest).
+   [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest). If the
+   latest release has no Godot zip yet, build it from a clone of the repository with
+   `uv run python tools/package.py --engine godot` (Python 3.9+); it is written to `dist/`.
 2. Unzip it into your Godot project folder, the one that contains `project.godot`. It adds
    `addons/scfg/` and three files at the root: `scfg-README.md`, `scfg-LICENSE.txt` and `scfg-NOTICES.txt`.
 3. In the editor, open **Project > Project Settings > Plugins** and enable **Stablecoin for Games (SCFG)**.
@@ -44,8 +46,30 @@ func _on_unlock_pressed() -> void:
 Replace the placeholder wallet with your own. Check `Scfg.owns("chapter2")` wherever the game gates the
 content: it is instant and works offline.
 
-A complete runnable example is in `godot/demo/` in the repository: a title screen, a locked Chapter 2, a Tip
-button and a Restore button.
+## Try the showcase first
+
+The repository has two runnable Godot projects that use the addon:
+
+- [`godot/showcase/`](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/tree/main/godot/showcase)
+  is a one-screen tour of the whole API. It has three unlocks (one with a pay-what-you-want amount), a tip
+  jar, Restore, Export and Clear, and next to them it shows what the addon knows (owned items, tips, pending
+  payments, receipts) and a live log of every result and signal. Its `main.gd` is written to be read top to
+  bottom.
+- [`godot/demo/`](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/tree/main/godot/demo) is a
+  small game: a title screen, a locked Chapter 2, a Tip button and a Restore button. The end-to-end tests
+  play it against local chains.
+
+To run the showcase, clone the repository and run:
+
+```
+uv run python tools/sync_demo.py --engine godot   # copies addons/scfg into both projects
+godot --path godot/showcase --import              # first run only
+godot --path godot/showcase
+```
+
+Both run on testnets, so no real money moves. Put your own testnet wallet in `WALLET` at the top of the
+showcase's `main.gd`, and you can watch a real test payment arrive. Get test USDC from
+[Circle's faucet](https://faucet.circle.com/).
 
 ## What you get
 

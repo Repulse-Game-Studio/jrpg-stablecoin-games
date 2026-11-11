@@ -25,7 +25,7 @@ The plugin end to end, on the shim against local chains (from the repository roo
     uv run python tools/run_rpgmaker_web_e2e.py [--family arc]              # web: the built SCFG.js in Chromium
     uv run python tools/run_rpgmaker_desktop_e2e.py [--family arc|solana]   # desktop (NW.js) path, in Node
 
-The web run serves this folder and plays `test/harness/e2e.html` (the demo kit's `js/plugins.js`, with the runner's test-only parameter override `window.scfgE2EConfig` applied by `test/harness/e2e_config.ts`, never by SCFG.js): the real DOM sheet and checkout overlay, driven by real clicks and held keys, with a mock browser wallet; the shim keeps a web game's saves in the page's `localStorage`, so they outlive the reload step. The desktop run (Ruling M2-5: no NW.js here) is `test/e2e/desktop_driver.ts`, a JSON-lines process with `SCFG-REPLY ` replies: the real glue on the shim as an NW.js game (saves in a temporary game folder), the real localhost checkout page and Node https transport, and a headless sheet host that presses the sheet's buttons by name; the browser checkout it opens is paid in Playwright.
+The web run serves this folder and plays `test/harness/e2e.html` (the demo kit's `js/plugins.js`, with the runner's test-only parameter override `window.scfgE2EConfig` applied by `test/harness/e2e_config.ts`, never by SCFG.js): the real DOM sheet and checkout overlay, driven by real clicks and held keys, with a mock browser wallet; the shim keeps a web game's saves in the page's `localStorage`, so they outlive the reload step. The desktop run (there is no NW.js on CI or here) is `test/e2e/desktop_driver.ts`, a JSON-lines process with `SCFG-REPLY ` replies: the real glue on the shim as an NW.js game (saves in a temporary game folder), the real localhost checkout page and Node https transport, and a headless sheet host that presses the sheet's buttons by name; the browser checkout it opens is paid in Playwright.
 
 The sheet's DOM tests and the checkout server's security suite (from the repository root, after `npm ci` and Playwright's Chromium):
 
@@ -51,7 +51,7 @@ not yet seen in the real thing:
    the shim from memory), on desktop and web; a missing logo in a release only warns.
 3. **Minimised or hidden window.** The pump runs on MZ's frames (`requestAnimationFrame`): check that payment status
    freezes while the NW.js window is minimised or covered and catches up on return, with nothing lost.
-4. **Node CA bundle and proxies.** RPC through Node `https` on NW.js; check the fetch retry (Ruling 12) behind a
+4. **Node CA bundle and proxies.** RPC through Node `https` on NW.js; check the retry through `fetch` (on a TLS or proxy error, see `src/mz/node_transport.ts`) behind a
    company proxy and with an antivirus/company root certificate, and that plain networks never use it.
 5. **NW.js / Chromium version.** The sheet uses flexbox `gap` (Chromium 84, NW.js 0.47): check the NW.js MZ 1.0 and
    the current MZ ship, and the sheet's look on the oldest.
@@ -71,7 +71,7 @@ not yet seen in the real thing:
     other's receipts (the shim models MZ's `StorageManager.forageKey`); check where the editor sets `advanced.gameId`
     for a new project and whether a copied project keeps it.
 
-## Using the core (for M2)
+## Using the core
 
 Import from `src/core/index.ts`; anything it does not export is internal. The Engine is not re-entrant: only the `Worker` touches it, one command at a time, and the game loop talks to the Worker.
 

@@ -224,8 +224,9 @@ def build_godot_zip(dist):
 
 
 def rpgmaker_guide():
-    """The RPG Maker MZ developer guide (docs/developers/rpgmaker/), joined like the others."""
-    return developer_guide(RPGMAKER_PAGES, (), RPGMAKER_GUIDE_TITLE, intro=False)
+    """The RPG Maker MZ developer guide (docs/developers/rpgmaker/), joined like the Godot one:
+    its README (the sidebar category's landing page) is the intro, the other pages sections."""
+    return developer_guide(RPGMAKER_PAGES, (), RPGMAKER_GUIDE_TITLE, intro=True)
 
 
 def rpgmaker_plugin_version():

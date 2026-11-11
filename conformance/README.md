@@ -36,8 +36,8 @@ Generation is deterministic: running twice yields byte-identical files.
 `vectors/tier1/<topic>.json` is `{"tier": 1, "topic": str, "cases": [...]}`. A case is
 `{"fn": str, "in": {...}, "out": ...}`, or `{"fn", "in", "error": <code>}` when the function must fail.
 Config, item and payment validation is compared by **error code, never message text**. A port calls its own
-function for `fn` with `in` and compares the result to `out`. The GDScript runner
-(`godot/tests/test_tier1.gd`) currently replays `keccak` and `ed25519`; the other topics are for the M1 to M3 ports.
+function for `fn` with `in` and compares the result to `out`. The TypeScript runner
+(`conformance/js/tier1.test.ts`) and the GDScript runner (`godot/tests/test_tier1.gd`) replay every topic.
 
 Encodings: see "Integer encodings" and "Error encodings" below.
 

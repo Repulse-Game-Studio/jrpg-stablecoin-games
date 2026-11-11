@@ -22,7 +22,10 @@ Only **RPG Maker MZ** is supported (the plugin needs a modern JavaScript runtime
 ## From the release zip
 
 1. Download `scfg-rpgmaker-mz-<version>.zip` from the
-   [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest).
+   [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest). If the
+   latest release has no RPG Maker zip yet, build it from a clone of the repository with
+   `(cd rpgmaker && npm ci)` and then `uv run python tools/package.py --engine rpgmaker` (Python 3.9+ and
+   Node 22.18+); it is written to `dist/`.
 2. Unzip it into your project folder, the one that contains `game.rmmzproject`. It adds `js/plugins/SCFG.js`,
    an `img/scfg/` folder (for your logo), and three files at the root: `scfg-README.md`, `scfg-LICENSE.txt`
    and `scfg-NOTICES.txt`.

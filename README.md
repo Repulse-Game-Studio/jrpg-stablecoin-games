@@ -6,13 +6,20 @@
 [npm](https://www.npmjs.com/package/stablecoin-games-renpy) ·
 [PyPI](https://pypi.org/project/stablecoin-games-renpy/)
 
-Accept **USDC/USDT tips and unlock purchases** in Ren'Py games (and, as a pure-GDScript addon, in Godot 4.3+ games, and, as one plugin file, in RPG Maker MZ games), paid straight to the
-developer's wallet, on Ethereum, Arbitrum, Polygon, Base, **Arc** and **Solana**. No server, no
-accounts, no middleman: the game watches the blockchain itself. Works in desktop builds and
-in Ren'Py's and Godot's web (HTML5) builds. The Godot addon ([docs](docs/developers/godot/install.md)) is released as
-`scfg-godot-<version>.zip`; mobile Godot exports are best effort and unverified. The RPG Maker MZ plugin
-([docs](docs/developers/rpgmaker/install.md)) is released as `scfg-rpgmaker-mz-<version>.zip` (desktop and web;
-mobile is unverified). It is tested on an in-repo MZ stand-in, **not yet on real RPG Maker MZ**.
+Accept **USDC/USDT tips and unlock purchases** in your game, paid straight to the developer's wallet, on
+Ethereum, Arbitrum, Polygon, Base, **Arc** and **Solana**. No server, no accounts, no middleman: the game
+watches the blockchain itself.
+
+| Engine | You add | Status | Docs |
+|---|---|---|---|
+| **Ren'Py 8.2+** | `game/scfg/` and its Python core | Released: desktop and web builds | [Install](docs/developers/install.md) |
+| **Godot 4.3+** | the `addons/scfg/` addon, pure GDScript | Preview: tested on 4.3 and 4.7.2, desktop and web exports | [Install](docs/developers/godot/install.md), [showcase](godot/showcase/README.md) |
+| **RPG Maker MZ** | one plugin file, `js/plugins/SCFG.js` | Preview: tested on an in-repo MZ stand-in, **not yet in real RPG Maker MZ** | [Install](docs/developers/rpgmaker/install.md) |
+
+The three share one payment core: the Ren'Py plugin's Python is the reference, and the TypeScript (RPG Maker)
+and GDScript (Godot) ports replay the same [conformance vectors](conformance/README.md). `tools/package.py` builds
+`scfg-renpy-<version>.zip`, `scfg-godot-<version>.zip` and `scfg-rpgmaker-mz-<version>.zip`; releases so far
+carry only the Ren'Py zip. Mobile builds are best effort and unverified on every engine.
 
 ![A player tips 3 USDC on Arc in Ruby Dreams: pick an amount, pick a network, scan the QR code, payment confirmed](.github/media/tip-arc.gif)
 
@@ -27,7 +34,9 @@ label end_of_chapter1:
         jump chapter2
 ```
 
-## Using it in your game
+## Using it in your Ren'Py game
+
+For Godot and RPG Maker MZ, follow their install pages linked in the table above.
 
 1. From your Ren'Py project folder, run `uvx stablecoin-games-renpy install .` (or `pipx run stablecoin-games-renpy install .`, or `npx stablecoin-games-renpy install .`),
    and `uvx stablecoin-games-renpy update .` later for new versions. Or download `scfg-renpy-<version>.zip`
@@ -69,8 +78,9 @@ Players can read how paying works, which wallets work and how to restore a purch
 | `conformance/` | Language-neutral JSON vectors recorded from `scfg_core` (the reference for the JS and GDScript ports), the generator, a Python replay runner and the receipt schema. See [its README](conformance/README.md) |
 | `rpgmaker/` | The RPG Maker MZ plugin: the TypeScript port of the payment core (`src/core/`, dependency-free, Node 22.18+), the MZ glue (`src/mz/`: plugin header, commands, `window.SCFG`, the HTML payment sheet, the NW.js checkout server), the esbuild build to `js/plugins/SCFG.js`, an MZ stand-in (`test/mz_shim/`) its tests run on, the demo kit (`demo/`) and the JSON-lines driver for the integration tests. See [its README](rpgmaker/README.md) |
 | `tests/rpgmaker_ui/`, `tests/server_security/` | The RPG Maker sheet in headless Chrome on the MZ stand-in; the localhost checkout server's security suite (Python, GDScript and Node servers) |
-| `godot/` | Godot 4.3+ addon (`addons/scfg/`: the `Scfg` autoload, payment sheet, localhost/web checkout and the pure-GDScript payment core in `core/`), the runnable `demo/` game, its headless test runner and the JSON-lines driver for the integration tests. See [its README](godot/README.md) |
-| `tools/` | `package.py` (release zip), `sync_demo.py`, `check_rpcs.py`, `run_renpy_e2e.py`, `run_renpy_web_e2e.py`, `make_ui_assets.py` (screen corner images), `gen_vectors.py` (conformance vectors), `fetch_godot.py` (download a verified Godot binary or web export templates), `run_godot_tests.py` (the GDScript runner, failing closed), `run_godot_e2e.py` / `run_godot_web_e2e.py` (the Godot demo against a local chain), `make_pot.py`, `sync_web_page.py`, `check_text_ids.py` (RPG Maker text ids), `run_rpgmaker_web_e2e.py` / `run_rpgmaker_desktop_e2e.py` (the RPG Maker plugin against a local chain) |
+| `godot/` | Godot 4.3+ addon (`addons/scfg/`: the `Scfg` autoload, payment sheet, localhost/web checkout and the pure-GDScript payment core in `core/`), the runnable `showcase/` (a one-screen tour of the API) and `demo/` (the game the e2e tests play), its headless test runner and the JSON-lines driver for the integration tests. See [its README](godot/README.md) |
+| `tests/godot_showcase/` | Boots the Godot showcase headless and presses its chain-free buttons (needs `SCFG_GODOT`) |
+| `tools/` | `package.py` (release zip), `sync_demo.py` (copies the plugin into the demos and the Godot showcase), `check_rpcs.py`, `run_renpy_e2e.py`, `run_renpy_web_e2e.py`, `make_ui_assets.py` (screen corner images), `gen_vectors.py` (conformance vectors), `fetch_godot.py` (download a verified Godot binary or web export templates), `run_godot_tests.py` (the GDScript runner, failing closed), `run_godot_e2e.py` / `run_godot_web_e2e.py` (the Godot demo against a local chain), `make_pot.py`, `sync_web_page.py`, `check_text_ids.py` (RPG Maker text ids), `run_rpgmaker_web_e2e.py` / `run_rpgmaker_desktop_e2e.py` (the RPG Maker plugin against a local chain) |
 | `contracts/` | `MockToken.sol` (6-decimal mock token) and the Arc stand-ins `ArcMockUsdc.sol` / `ArcSystemEmitter.sol`, used by integration tests |
 
 ## Development
@@ -112,6 +122,10 @@ uv run python tools/fetch_godot.py --version 4.3-stable --dest /tmp/godot   # pr
 /tmp/godot/Godot_v4.3-stable_linux.x86_64 --headless --path godot --import  # once per checkout
 uv run python tools/run_godot_tests.py --godot /tmp/godot/Godot_v4.3-stable_linux.x86_64
 SCFG_GODOT=/tmp/godot/Godot_v4.3-stable_linux.x86_64 uv run pytest -m integration tests/integration/test_gd_core.py
+# the Godot showcase: run it, or boot it headless in the test (sync_demo copies the addon into it)
+uv run python tools/sync_demo.py --engine godot
+/tmp/godot/Godot_v4.3-stable_linux.x86_64 --path godot/showcase --import && /tmp/godot/Godot_v4.3-stable_linux.x86_64 --path godot/showcase
+SCFG_GODOT=/tmp/godot/Godot_v4.3-stable_linux.x86_64 uv run pytest tests/godot_showcase
 # the Godot demo end to end (anvil / solana-test-validator on PATH; web needs export templates, see godot/README.md)
 uv run python tools/run_godot_e2e.py --godot /tmp/godot/Godot_v4.3-stable_linux.x86_64 --family evm   # or arc, solana
 uv run python tools/run_godot_web_e2e.py --godot /tmp/godot/Godot_v4.3-stable_linux.x86_64 --family evm   # or arc

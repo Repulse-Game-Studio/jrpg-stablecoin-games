@@ -9,7 +9,7 @@
     },
     {
       "type": "category",
-      "label": "For developers",
+      "label": "For Ren'Py developers",
       "collapsed": false,
       "link": {"type": "doc", "id": "developers/README"},
       "items": [
@@ -47,8 +47,9 @@
     },
     {
       "type": "category",
-      "label": "For RPG Maker developers",
+      "label": "For RPG Maker MZ developers",
       "collapsed": false,
+      "link": {"type": "doc", "id": "developers/rpgmaker/README"},
       "items": ["developers/rpgmaker/install", "developers/rpgmaker/api"]
     }
   ]
