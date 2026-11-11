@@ -105,6 +105,8 @@ func _refresh() -> void:
 
 func _on_unlock() -> void:
 	var result: ScfgPaymentResult = await _while_paused(func() -> ScfgPaymentResult: return await Scfg.pay("unlock", {"item": ITEM}))
+	if not is_inside_tree():
+		return  # the game quit while the sheet was open: pay() returned at once
 	_refresh()
 	_restore_focus()
 	match result.status:
@@ -118,6 +120,8 @@ func _on_unlock() -> void:
 
 func _on_tip() -> void:
 	var result: ScfgPaymentResult = await _while_paused(func() -> ScfgPaymentResult: return await Scfg.pay("tip", {"amount": "1.00", "token": "USDC"}))
+	if not is_inside_tree():
+		return
 	_restore_focus()
 	if result.status == "paid":
 		_status.text = "Thank you for the %s %s tip!" % [result.amount, result.token]
@@ -127,6 +131,8 @@ func _on_tip() -> void:
 
 func _on_restore() -> void:
 	var result: ScfgRestoreResult = await _while_paused(func() -> ScfgRestoreResult: return await Scfg.restore())
+	if not is_inside_tree():
+		return
 	_refresh()
 	_restore_focus()
 	_status.text = "Restore: %s" % result.status
@@ -153,8 +159,9 @@ func _restore_focus() -> void:
 ## Runs `flow` with the game tree paused: the sheet does not stop game nodes polling Input,
 ## and the addon's autoload and screens keep running while paused (PROCESS_MODE_ALWAYS).
 func _while_paused(flow: Callable) -> Variant:
-	var was_paused := get_tree().paused
-	get_tree().paused = true
+	var tree := get_tree()  # kept: when the game quits with a sheet open, this node leaves it first
+	var was_paused := tree.paused
+	tree.paused = true
 	var result: Variant = await flow.call()
-	get_tree().paused = was_paused
+	tree.paused = was_paused
 	return result

@@ -56,6 +56,9 @@ npm/*.tgz
 # Godot demo: addon copy made by tools/sync_demo.py --engine godot, and the editor cache
 godot/demo/addons/scfg/
 godot/demo/.godot/
+# Godot showcase: the same addon copy and editor cache
+godot/showcase/addons/scfg/
+godot/showcase/.godot/
 
 # Godot demo e2e: the driver autoload tools/run_godot_e2e.py adds for one run
 godot/demo/override.cfg

@@ -5,7 +5,8 @@ Usage:
     uv run python tools/sync_demo.py --engine godot   # Godot
 
 Ren'Py copies plugin/game/ into examples/demo_game/game/; Godot copies godot/addons/scfg/ into
-godot/demo/addons/scfg/.
+the addons/scfg/ folder of each Godot project that uses it: godot/demo/ (the demo game the
+end-to-end tests play) and godot/showcase/ (a tour of the whole API).
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 RENPY_SRC = ROOT / "plugin" / "game"
 RENPY_DST = ROOT / "examples" / "demo_game" / "game"
 GODOT_SRC = ROOT / "godot" / "addons" / "scfg"
-GODOT_DST = ROOT / "godot" / "demo" / "addons" / "scfg"
+GODOT_PROJECTS = (ROOT / "godot" / "demo", ROOT / "godot" / "showcase")
 
 
 def _copy(src: Path, target: Path, ignore) -> None:
@@ -33,8 +34,9 @@ def sync_renpy(src: Path = RENPY_SRC, dst: Path = RENPY_DST) -> None:
         _copy(src / name, dst / name, shutil.ignore_patterns("__pycache__", "*.rpyc"))
 
 
-def sync_godot(src: Path = GODOT_SRC, dst: Path = GODOT_DST) -> None:
-    _copy(src, dst, shutil.ignore_patterns("tests", ".godot", "*.uid"))
+def sync_godot(src: Path = GODOT_SRC, projects: tuple[Path, ...] = GODOT_PROJECTS) -> None:
+    for project in projects:
+        _copy(src, project / "addons" / "scfg", shutil.ignore_patterns("tests", ".godot", "*.uid"))
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

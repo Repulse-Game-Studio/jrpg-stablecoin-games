@@ -65,6 +65,11 @@ jobs:
           SCFG_REQUIRE_GD: "1"   # the Godot half fails, rather than skips, without a binary
           SCFG_GODOT: /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64
         run: uv run pytest tests/server_security -m godot_server
+      - name: The showcase project boots and its chain-free buttons work
+        env:
+          SCFG_REQUIRE_GD: "1"
+          SCFG_GODOT: /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64
+        run: uv run pytest tests/godot_showcase
 
   js-core:
     runs-on: ubuntu-latest

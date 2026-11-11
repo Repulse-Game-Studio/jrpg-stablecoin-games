@@ -14,7 +14,7 @@ def sync(tmp_path):
     return module
 
 
-def test_godot_copies_the_addon_without_tests_or_caches(sync, tmp_path):
+def test_godot_copies_the_addon_into_each_project_without_tests_or_caches(sync, tmp_path):
     src = tmp_path / "godot" / "addons" / "scfg"
     (src / "core").mkdir(parents=True)
     (src / "tests").mkdir()
@@ -24,18 +24,22 @@ def test_godot_copies_the_addon_without_tests_or_caches(sync, tmp_path):
     (src / "core" / "engine.gd").write_text("class_name E\n")
     (src / "tests" / "t.gd").write_text("x\n")
     (src / ".godot" / "cache").write_text("x\n")
-    dst = tmp_path / "godot" / "demo" / "addons" / "scfg"
-    dst.mkdir(parents=True)
-    (dst / "stale.gd").write_text("old\n")
+    projects = (tmp_path / "godot" / "demo", tmp_path / "godot" / "showcase")
+    for project in projects:
+        (project / "addons" / "scfg").mkdir(parents=True)
+        (project / "addons" / "scfg" / "stale.gd").write_text("old\n")
 
-    sync.sync_godot(src=src, dst=dst)
+    sync.sync_godot(src=src, projects=projects)
 
-    assert (dst / "scfg.gd").read_text() == "extends Node\n"
-    assert (dst / "core" / "engine.gd").exists()
-    assert not (dst / "tests").exists()
-    assert not (dst / ".godot").exists()
-    assert not (dst / "scfg.gd.uid").exists()
-    assert not (dst / "stale.gd").exists()
+    for project in projects:
+        dst = project / "addons" / "scfg"
+        assert (dst / "scfg.gd").read_text() == "extends Node\n"
+        assert (dst / "core" / "engine.gd").exists()
+        assert not (dst / "tests").exists()
+        assert not (dst / ".godot").exists()
+        assert not (dst / "scfg.gd.uid").exists()
+        assert not (dst / "stale.gd").exists()
+
 
 
 def test_renpy_copies_plugin_and_packages_without_caches(sync, tmp_path):
@@ -84,11 +88,11 @@ def test_default_paths_are_the_repository_folders(sync):
         ROOT / "plugin" / "game",
         ROOT / "examples" / "demo_game" / "game",
     )
-    assert (sync.GODOT_SRC, sync.GODOT_DST) == (
+    assert (sync.GODOT_SRC, sync.GODOT_PROJECTS) == (
         ROOT / "godot" / "addons" / "scfg",
-        ROOT / "godot" / "demo" / "addons" / "scfg",
+        (ROOT / "godot" / "demo", ROOT / "godot" / "showcase"),
     )
     assert (sync.GODOT_SRC / "scfg.gd").is_file() and (sync.RENPY_SRC / "scfg").is_dir()
     # the functions copy between them when called without arguments
-    assert sync.sync_godot.__defaults__ == (sync.GODOT_SRC, sync.GODOT_DST)
+    assert sync.sync_godot.__defaults__ == (sync.GODOT_SRC, sync.GODOT_PROJECTS)
     assert sync.sync_renpy.__defaults__ == (sync.RENPY_SRC, sync.RENPY_DST)
