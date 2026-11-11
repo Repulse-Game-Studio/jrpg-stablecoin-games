@@ -8,8 +8,14 @@ DEFAULT_TEXTS), never parsed out of TypeScript. Checked:
   - the RM ids include every id of conformance/vectors/messages.json (with the same English);
   - every id the sheet code passes to `text("...")` / `.text("...")` / `_notify("...")` (the
     non-test sources in rpgmaker/src/mz) exists;
-  - every string of the Godot template (godot/addons/scfg/translations/scfg.pot) is the English of
-    some RM text, so the engines show the same words (`%d` and `%s` count as the same).
+  - Godot, BY ID where Godot has ids: the checkout's messages are the messages.json ids above
+    (the Godot core is checked against those vectors), and each entry of the restore screen's
+    MESSAGES (godot/addons/scfg/core/restore_flow.gd) is the RM text `restore_<id>`, word for
+    word;
+  - Godot, BY VALUE ONLY for the sheet strings, which have no ids there (a `tr()` key is its own
+    English): every other string of the Godot template (godot/addons/scfg/translations/scfg.pot)
+    is the English of some RM text, under any id, so the engines show the same words.
+`%d` and `%s` count as the same.
 """
 
 from __future__ import annotations
@@ -22,10 +28,16 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+from make_pot import restore_messages  # noqa: E402  (the reader the .pot itself is made with)
+
 RM_SRC = ROOT / "rpgmaker" / "src" / "mz"
 DUMP = RM_SRC / "texts_dump.ts"
 MESSAGES_JSON = ROOT / "conformance" / "vectors" / "messages.json"
 POT = ROOT / "godot" / "addons" / "scfg" / "translations" / "scfg.pot"
+RESTORE_FLOW = ROOT / "godot" / "addons" / "scfg" / "core" / "restore_flow.gd"
+# the RM id of the Godot restore screen's message <code> (texts.ts's ID SCHEME)
+RESTORE_PREFIX = "restore_"
 
 CALL = re.compile(r'(?<![\w$])(?:text|_notify)\(\s*"([^"\\\n]+)"')
 BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
@@ -86,11 +98,23 @@ def problems(texts: dict[str, str] | None = None, src: Path = RM_SRC) -> list[st
     for tid, where in sorted(used_ids(src).items()):
         if tid not in texts:
             found.append(f"{where} asks for text id {tid!r}, which has no RM default text")
+    by_id = set(vectors.values())
+    if RESTORE_FLOW.exists():
+        restore = restore_messages(RESTORE_FLOW.read_text(encoding="utf-8"), RESTORE_FLOW.name)
+        for code, english in restore:
+            rid = RESTORE_PREFIX + code
+            by_id.add(english)
+            if rid not in texts:
+                found.append(f"Godot restore message {code!r} has no RM text {rid!r}")
+            elif _norm(texts[rid]) != _norm(english):
+                found.append(f"RM text {rid!r} is {texts[rid]!r}, "
+                             f"Godot's restore message {code!r} says {english!r}")
     have = {_norm(v) for v in texts.values()}
     if POT.exists():
         for msgid in pot_msgids():
-            if _norm(msgid) not in have:
-                found.append(f"Godot string {msgid!r} has no RM text")
+            if msgid not in by_id and _norm(msgid) not in have:
+                found.append(f"Godot sheet string {msgid!r} has no RM text "
+                             "(compared by value: it has no id)")
     return found
 
 

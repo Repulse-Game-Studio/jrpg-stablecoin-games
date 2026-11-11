@@ -154,6 +154,42 @@ test("test_unsupported_version_error_naming_an_older_version_is_raised", async (
   assert.equal(t.calls.length, 1);
 });
 
+// Ruling 6 (tests/unit/test_solana_rpc.py::test_named_version_ignores_numbers_beyond_18_digits):
+// a version beyond 18 significant digits is no match; the match is Python's
+// re.search(r"version \((\d+)\)", message, re.IGNORECASE): \d is any Unicode decimal digit,
+// and IGNORECASE also matches \u017f for s and \u0130, \u0131 for i.
+test("test_named_version_ignores_numbers_beyond_18_digits", () => {
+  const rows: [string, number | null][] = [
+    ["Transaction version (" + "9".repeat(19) + ") is not supported", null],
+    ["Transaction version (" + "9".repeat(4301) + ") is not supported", null],
+    ["Transaction version (" + "9".repeat(1_000_000) + ") is not supported", null],
+    ["Transaction version (" + "9".repeat(15) + ") is not supported", 999_999_999_999_999],
+    ["Transaction version (" + "0".repeat(30) + "3) is not supported", 3],
+    ["version (" + "9".repeat(19) + ") version (5)", null],
+    ["version (12 version (5)", 5],
+    ["version (\u0663)", 3],
+    ["Transaction VER\u017fION (2) x", 2],
+    ["vers\u0131on (4)", 4],
+    ["vers\u0130on (4)", 4],
+    ["Version (2", null],
+    ["version(2)", null],
+    ["version (x) version (6)", 6],
+    ["version (1)", null],
+    ["version (\u{11f53})", null], // a Kawi digit (Unicode 15): not a digit in Python 3.9
+  ];
+  for (const [message, expected] of rows) {
+    const { rpc } = client({ [A]: () => ok(null) });
+    assert.equal((rpc as any)._namedVersion(new RpcError(-32015, message)), expected, message.slice(0, 40));
+  }
+  assert.equal((client({ [A]: () => ok(null) }).rpc as any)._namedVersion(new RpcError(-32000, "version (5)")), null, "only for -32015");
+});
+
+test("test_an_overlong_named_version_raises_the_node_error", async () => {
+  const { rpc, t } = client({ [A]: () => err(-32015, V2.replace("(2)", "(" + "9".repeat(4301) + ")")) });
+  await assert.rejects(rpc.getTransaction("SIG"), RpcError);
+  assert.equal(t.calls.length, 1);
+});
+
 test("test_get_transaction_any_retries_with_the_named_version", async () => {
   const { rpc } = client({ [A]: versioned(3) });
   assert.deepEqual(await rpc.getTransactionAny("SIG", { min_slot: 1 }), [{ slot: 5 }, false]);

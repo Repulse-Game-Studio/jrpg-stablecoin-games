@@ -17,8 +17,11 @@
 ##     (by default the chain's backend's make_rpc on the transport, whose RPC clients keep their
 ##     own monotonic clock for endpoint cooldowns, as Python's RpcClient defaults to
 ##     time.monotonic: the Engine's clock is the wall clock, which can jump);
-##   - on_error: a Callable(err: ScfgErr) told of every session step it contained (by default the
-##     error is printed to stderr, as Python's traceback hook does);
+##   - on_error: a Callable(err: ScfgErr) told of every crash it contained: a session step, a stored
+##     receipt reverify could not check, a restore transfer it could not classify (by default the
+##     error is printed to stderr, as Python's traceback hook does). It is read each time an
+##     error is reported, so a handler replaced while a pass is in flight is the one told (the
+##     Godot autoload detaches its own in `_exit_tree`);
 ##   - entropy: Python's `secrets` (see ScfgSessions; OS randomness by default).
 ## An unknown option, or one of the wrong type, is a TypeError: `create(config, opts)` returns it,
 ## and `new` keeps it in `init_error`, which every method then returns.
@@ -113,7 +116,7 @@ static func _wall_clock() -> float:
 
 
 static func _print_error(err: Variant) -> void:
-	printerr("ScfgEngine: a session step failed (contained): %s" % str(err))
+	printerr("ScfgEngine: contained error: %s" % str(err))
 
 
 ## Python's `hash(key)` failing: a list or dict cannot be a dict key or set member.
@@ -485,7 +488,7 @@ func reverify() -> Variant:
 	for family: String in ["evm", "solana"]:
 		wallets[family] = ScfgConfig.accepted_wallets_for(config, family)
 	var removed: Variant = await ScfgReverify.reverify_receipts(receipts, {"rpc_for": rpc, "chains": chains,
-		"wallets": wallets})
+		"wallets": wallets, "on_error": _report})
 	if removed is ScfgErr:
 		return removed
 	var checked: Variant = await _check_ready()
@@ -548,7 +551,14 @@ func restore_lookup(tx_hash: Variant) -> Variant:
 			return c
 		chains[key] = c
 	return await ScfgRestore.lookup(tx_hash, {"config": config, "chains": chains, "rpc_for": rpc,
-		"receipts": receipts})
+		"receipts": receipts, "on_error": _report})
+
+
+## The on_error handed to reverify and restore_lookup, which report as they go: it calls `on_error`
+## as it is when the error is reported, not as it was when the pass started (through
+## ScfgErr.report, so one that is no longer a valid Callable prints the error instead).
+func _report(err: ScfgErr) -> void:
+	ScfgErr.report(on_error, err)
 
 
 ## Store receipts for the candidates (see ScfgRestore.apply); returns the ones added.

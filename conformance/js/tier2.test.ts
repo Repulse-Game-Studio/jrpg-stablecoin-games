@@ -14,7 +14,7 @@ import { loadTier2 } from "./vectors.ts";
 const vectors = loadTier2();
 
 test("the vectors directory has every Tier 2 scenario", () => {
-  assert.equal(vectors.length, 118);
+  assert.equal(vectors.length, 121);
 });
 
 for (const { path, vector } of vectors) {
@@ -22,9 +22,9 @@ for (const { path, vector } of vectors) {
 }
 
 test("test_every_vector_enabled", () => {
-  assert.equal(vectors.length, 118);
+  assert.equal(vectors.length, 121);
   assert.deepEqual(vectors.filter((v) => !ENABLED(v.vector)).map((v) => v.path), []);
-  assert.equal(vectors.filter((v) => ENABLED(v.vector)).length, 118);
+  assert.equal(vectors.filter((v) => ENABLED(v.vector)).length, 121);
   assert.ok(vectors.some((v) => v.path === "tier2/solana/readiness_crash.json"));
   assert.ok(vectors.some((v) => v.path === "tier2/solana/scan_far_behind.json"));
 });

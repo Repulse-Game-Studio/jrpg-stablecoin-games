@@ -38,7 +38,10 @@ export interface Backend {
    * Restore candidates for tx on this chain, or null if the chain doesn't know it.
    * Throws RestoreError("tx_reverted" | "tx_not_a_payment").
    */
-  lookup(tx: string, args: { config: Config; chain: Chain; rpc: any; receipts: SessionStore }): Promise<unknown[] | null>;
+  /** A transfer that cannot be classified is skipped and reported to on_error (restore.classifyOrSkip). */
+  lookup(
+    tx: string, args: { config: Config; chain: Chain; rpc: any; receipts: SessionStore; on_error?: ((e: unknown) => void) | undefined },
+  ): Promise<unknown[] | null>;
 
   /** token name -> can the developer receive it on this chain. */
   checkReady(args: { rpc: any; chain: Chain; wallet: string | null }): Promise<Record<string, boolean>>;

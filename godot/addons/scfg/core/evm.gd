@@ -13,23 +13,15 @@ const TRANSFER_LOG_FIELDS: Array[String] = ["token", "sender", "recipient", "val
 		"block_number", "block_hash"]
 
 
-## The EIP-55 mixed-case form of a 20-byte hex address (any input case). Python's regex
-## `^0x[0-9a-fA-F]{40}$` also matches before one trailing newline, so that is accepted too and
-## carried into the result (the checksum is then taken over 41 characters, as Python does).
-## A non-string, a `0X` prefix, surrounding space or a wrong length is a ValueError.
+## The EIP-55 mixed-case form of a 20-byte hex address (any input case). The whole string must
+## be `0x` and 40 hex digits (Python's fullmatch): a non-string, a `0X` prefix, surrounding space,
+## a trailing newline or a wrong length is a ValueError.
 ## @fallible
 static func to_checksum_address(address: Variant) -> Variant:
 	if not (address is String or address is StringName):
 		return ScfgErr.make("ValueError", "not a 20-byte hex address: %s" % ScfgPy.py_repr(address))
 	var text := str(address)
-	var body := text.trim_suffix("\n") if text.ends_with("\n") else text
-	var valid := body.length() == 42 and body.begins_with("0x")
-	if valid:
-		for i in range(2, 42):
-			if not _is_hex_char(body.unicode_at(i)):
-				valid = false
-				break
-	if not valid:
+	if not _is_hex_word(text, 40):
 		return ScfgErr.make("ValueError", "not a 20-byte hex address: %s" % ScfgPy.py_repr(address))
 	var lower := text.substr(2).to_lower()
 	var digest := ScfgBytes.bytes_to_hex(ScfgKeccak.keccak256(lower.to_ascii_buffer()))
@@ -107,8 +99,8 @@ static func parse_transfer_log(log: Variant) -> Variant:
 	if topic0 != TRANSFER_TOPIC:
 		return null
 	var data: Variant = d.get("data")
-	if not ScfgPy.py_truthy(data):
-		data = "0x"
+	if not (data is String or data is StringName) or not _is_hex_word(str(data), 64):
+		return null  # not exactly the 32-byte value ("0x" and 64 hex digits): not an ERC-20 Transfer
 
 	var address: Variant = ScfgPy.py_get(d, "address")
 	if address is ScfgErr:
@@ -158,11 +150,9 @@ static func _topic_to_address(topic: Variant) -> Variant:
 	return to_checksum_address("0x" + text.substr(maxi(0, text.length() - 40)))
 
 
-## `value=int(data, 16) if data not in ("0x", "") else 0`, as an ScfgBigInt. `data` is truthy.
+## `value=int(data, 16)`, as an ScfgBigInt. `data` is one 32-byte word (_is_hex_word).
 ## @fallible
 static func _value(data: Variant) -> Variant:
-	if data is String and (data == "0x" or data == ""):
-		return ScfgBigInt.from_int(0)
 	var n: Variant = ScfgPy.py_hex_int(data)
 	if n is ScfgErr:
 		return n
@@ -203,6 +193,16 @@ static func _safe_hex_int(d: Dictionary, key: String) -> Variant:
 	if n is ScfgBigInt or n >= ScfgPy.TWO_53:
 		return ScfgErr.make("ValueError", "log %s exceeds 2^53: %s" % [key, ScfgPy.py_repr(v)])
 	return n
+
+
+## Whether `text` is exactly `0x` and `digits` hex digits (either case).
+static func _is_hex_word(text: String, digits: int) -> bool:
+	if text.length() != digits + 2 or not text.begins_with("0x"):
+		return false
+	for i in range(2, digits + 2):
+		if not _is_hex_char(text.unicode_at(i)):
+			return false
+	return true
 
 
 static func _is_hex_char(c: int) -> bool:

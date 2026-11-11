@@ -4,7 +4,7 @@
  * an injected `Transport`. ES2020 built-ins only; `fetch` and `AbortController` are
  * looked up on `globalThis` at call time so this file needs neither DOM nor Node types.
  */
-import { pyTruthy } from "./pystr.ts";
+import { jsonLoads, pyTruthy } from "./pystr.ts";
 
 /** Network or HTTP failure talking to one endpoint. */
 export class TransportError extends Error {
@@ -77,7 +77,7 @@ export class FetchTransport implements Transport {
       // Pass those through so the client can react to the message.
       let body: unknown = null;
       try {
-        body = JSON.parse(raw);
+        body = jsonLoads(raw);
       } catch {
         body = null;
       }
@@ -88,7 +88,7 @@ export class FetchTransport implements Transport {
       throw new TransportError(`HTTP ${status}`, status);
     }
     try {
-      return JSON.parse(raw);
+      return jsonLoads(raw);
     } catch {
       throw new TransportError("invalid JSON response");
     }

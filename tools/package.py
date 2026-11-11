@@ -58,7 +58,7 @@ GODOT_SKIP_SUFFIXES = {".uid", ".pyc"}
 RPGMAKER_PAGES = "developers/rpgmaker/"
 RPGMAKER_GUIDE_TITLE = "# Stablecoin for Games: RPG Maker MZ Developer Guide"
 RPGMAKER_DIR = ROOT / "rpgmaker"
-RPGMAKER_VERSION_SOURCE = RPGMAKER_DIR / "src" / "mz" / "scfg.ts"
+RPGMAKER_VERSION_SOURCE = RPGMAKER_DIR / "src" / "mz" / "version.ts"
 RPGMAKER_VENDORED_QR = RPGMAKER_DIR / "src" / "core" / "vendor" / "qrcodegen.js"
 RPGMAKER_LOGO_NOTE = """Put your logo here
 ==================
@@ -156,8 +156,9 @@ def files_to_ship():
 
 
 def godot_guide():
-    """The Godot developer guide (docs/developers/godot/), joined like the Ren'Py one."""
-    return developer_guide(GODOT_PAGES, (), GODOT_GUIDE_TITLE, intro=False)
+    """The Godot developer guide (docs/developers/godot/), joined like the Ren'Py one: its
+    README (the sidebar category's landing page) is the intro, the other pages sections."""
+    return developer_guide(GODOT_PAGES, (), GODOT_GUIDE_TITLE, intro=True)
 
 
 def godot_notices():
@@ -227,12 +228,32 @@ def rpgmaker_guide():
 
 
 def rpgmaker_plugin_version():
-    """The version SCFG.js reports (`SCFG.version`): the VERSION constant of src/mz/scfg.ts.
+    """The version SCFG.js reports (`SCFG.version`): the VERSION constant of src/mz/version.ts.
 
-    The plugin header (the MZ comment blocks) carries no version of its own.
+    The plugin header shows it too (see `rpgmaker_header_problems`).
     """
     text = RPGMAKER_VERSION_SOURCE.read_text(encoding="utf-8")
     return re.search(r'^export const VERSION = "([^"]+)"', text, re.M).group(1)
+
+
+def rpgmaker_header_problems(plugin_text, version):
+    """What is wrong with the version the plugin header of `plugin_text` (a built SCFG.js) shows:
+    [] when its `/*:` block (the one MZ's Plugin Manager reads, at the top of the file) has
+    `@plugindesc ... v<version>` and a first `@help` line ending in `v<version>.`. MZ has no
+    version annotation, so those two lines are where the editor shows it."""
+    m = re.match(r"/\*:\n(.*?)\*/", plugin_text, re.S)
+    if m is None:
+        return ["the plugin header (a /*: block at the start of SCFG.js) is missing"]
+    lines = [re.sub(r"^ \* ?", "", line) for line in m.group(1).splitlines()]
+    problems = []
+    desc = [line for line in lines if line.startswith("@plugindesc ")]
+    if len(desc) != 1 or not desc[0].endswith(f" v{version}"):
+        problems.append(f"the plugin header's @plugindesc does not end with v{version}: {desc}")
+    after = lines[lines.index("@help") + 1:] if "@help" in lines else []
+    first = after[0] if after else None
+    if first is None or not first.endswith(f", v{version}."):
+        problems.append(f"the plugin header's first @help line does not show v{version}: {first!r}")
+    return problems
 
 
 def rpgmaker_notices():
@@ -281,6 +302,9 @@ def build_rpgmaker_zip(dist, plugin=None):
     with tempfile.TemporaryDirectory(prefix="scfg-rpgmaker-") as tmp:
         if plugin is None:
             plugin = build_rpgmaker_plugin(tmp)
+        problems = rpgmaker_header_problems(Path(plugin).read_text(encoding="utf-8"), __version__)
+        if problems:
+            raise ValueError("SCFG.js: " + "; ".join(problems))
         dist.mkdir(parents=True, exist_ok=True)
         target = dist / f"scfg-rpgmaker-mz-{__version__}.zip"
         with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:

@@ -28,16 +28,16 @@ func test_tier1_vectors() -> bool:
 ## the last five topics). A new topic in the vectors fails here until its adapters exist.
 func test_every_topic_implemented() -> bool:
 	var topics := Vectors.load_tier1(T.vectors_dir)
-	T.eq(topics.size(), 17, "17 Tier 1 topics")
+	T.eq(topics.size(), 18, "18 Tier 1 topics")
 	for topic: String in topics:
 		T.ok(topic in Tier1.IMPLEMENTED, "tier1/%s.json is implemented" % topic)
 	for topic: String in Tier1.IMPLEMENTED:
 		T.ok(topics.has(topic), "implemented topic %s has a vector file" % topic)
-	T.eq(Tier1.IMPLEMENTED.size(), 17, "IMPLEMENTED lists 17 topics")
+	T.eq(Tier1.IMPLEMENTED.size(), 18, "IMPLEMENTED lists 18 topics")
 	var total := 0
 	for topic: String in topics:
 		total += (topics[topic] as Array).size()
-	T.eq(total, 1074, "1,074 Tier 1 cases")
+	T.eq(total, 1209, "1,209 Tier 1 cases")
 	var missing: Array[String] = []
 	for topic: String in topics:
 		for c: Variant in topics[topic]:

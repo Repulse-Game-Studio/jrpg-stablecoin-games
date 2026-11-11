@@ -35,8 +35,9 @@ neither does anything in a real run:
 
 - Desktop: the environment variable `SCFG_E2E_CONFIG` names a JSON file.
 - Web export: the page sets `window.scfgE2EConfig` to the JSON text (a string) before the game loads,
-  for example with Playwright's `add_init_script`. If it is absent or not a string, the normal demo runs.
-  The web export has no process environment, so the variable is not read there.
+  for example with Playwright's `add_init_script`. If it is absent, the normal demo runs; anything else
+  but a non-empty string is an unusable hook (below). The web export has no process environment, so
+  the variable is not read there.
 
 ```json
 {
@@ -49,9 +50,11 @@ neither does anything in a real run:
 
 `configure` is passed to `Scfg.configure()` as is, and each entry of `items` to `Scfg.add_item(id, opts)`.
 The demo's item id must stay `chapter2` for its Unlock button. JSON numbers are turned into integers
-before they reach the core. If the hook is set but unusable (missing file, bad JSON, wrong shape),
-the demo reports the reason with `push_error` and quits with exit code 1; it never falls back to the
-built-in config. Do not use this hook in a game.
+before they reach the core. If the hook is set but unusable (missing file, bad JSON, wrong shape, a
+web value that is not a string), the demo reports the reason with `push_error` and quits with exit
+code 1; it never falls back to the built-in config. It also quits with code 1 when `configure()` or
+`add_item()` refuses the setup, the hook's or the built-in one (the addon printed why). Do not use
+this hook in a game.
 
 ## The end-to-end driver: `e2e/e2e_driver.gd`
 
@@ -61,6 +64,10 @@ and restarts the game to check the purchase is kept. It drives the real payment 
 `e2e/e2e_driver.gd`, which it loads as an extra autoload with a temporary, git-ignored
 `override.cfg` next to `project.godot`. The driver does nothing in a normal run, and it is not
 part of the addon. The game's user data goes to a temporary `HOME`, so a run never touches yours.
+Before it plays, the run starts the demo with two broken configs and checks that it quits with
+code 1 by itself. The driver reads stdin on a thread and joins it at exit: when the game quits on
+its own, the driver prints `SCFG-QUITTING` and the runner closes the game's stdin, which ends the
+read (so a manual run with `SCFG_E2E_CONFIG` set waits for the end of stdin, Ctrl-D, at such a quit).
 
 ```
 uv run python tools/run_godot_e2e.py --godot /path/to/godot [--family arc|solana]
@@ -72,7 +79,8 @@ It runs headless; set `SCFG_E2E_VIDEODRIVER=x11` to watch it in a window.
 
 `export_presets.cfg` has a "Web" preset: single-threaded (`variant/thread_support=false`), so the
 page needs no cross-origin isolation (COOP/COEP) headers, with `addons/scfg/web/*` in its
-non-resource filter so the checkout page ships in the export. Godot's web export templates are
+non-resource filter so the checkout page ships in the export, and `e2e/*` in its exclude filter so
+the e2e driver never does. Godot's web export templates are
 needed once (about 1 GB, kept in `/tmp/godot-templates`; only the web templates are unpacked):
 
 ```
@@ -86,7 +94,9 @@ the in-page checkout overlay, a tip is copied from the sheet and paid from Anvil
 reload the receipts and an unpaid pending payment are still there. The page sets
 `window.scfgE2EConfig` (with `rpc_urls` pointing the built-in chain at Anvil), and the e2e driver
 answers on `window.scfgE2E`. The runner exports a temporary copy of the demo whose `project.godot`
-adds the driver as an autoload, because an export ignores `override.cfg`.
+adds the driver as an autoload, because an export ignores `override.cfg`, and whose preset does not
+exclude `e2e/*`. It first loads the demo with a `window.scfgE2EConfig` that is not a string and
+checks that the demo refuses it and quits.
 
 ```
 uv run python tools/run_godot_web_e2e.py --godot /path/to/godot [--family arc] [--templates-dir DIR]

@@ -25,11 +25,12 @@ DEFAULT_METHODS = {
     "qr": {"enabled": True, "wallet_button": True, "chains": None},
     "manual": {"enabled": True, "allow_tx_paste": True},
 }
-_ITEM_ID = re.compile(r"^[a-z0-9_-]{1,64}$")
-_CHAIN_KEY = re.compile(r"^[a-z0-9_-]{1,32}$")
-_NATIVE_SYMBOL = re.compile(r"^[A-Za-z0-9]{1,11}$")
+# Used with fullmatch: the whole string (`$` would also match before a trailing newline).
+_ITEM_ID = re.compile(r"[a-z0-9_-]{1,64}")
+_CHAIN_KEY = re.compile(r"[a-z0-9_-]{1,32}")
+_NATIVE_SYMBOL = re.compile(r"[A-Za-z0-9]{1,11}")
 # Plain http is only accepted for a node on this computer (e.g. a local Anvil test chain).
-_LOCAL_HTTP = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d{1,5})?(/|$)")
+_LOCAL_HTTP = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d{1,5})?(/|\Z)")  # \Z: no "\n"
 FEE_HINTS = ("lowest", "low", "high")
 
 DEFAULT_ACCENT = "#0e7c74"
@@ -37,7 +38,7 @@ INK = "#17202e"
 # Raster formats only: an SVG served from the checkout page's origin could run script.
 LOGO_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
               ".webp": "image/webp"}
-_HEX_COLOR = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
+_HEX_COLOR = re.compile(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")  # fullmatch
 
 
 @dataclass
@@ -135,7 +136,7 @@ def build_chain(key, *, name, chain_id, rpc, tokens, confirmations, explorer_tx,
     Ethereum JSON-RPC. The tokens must have 6 decimals, because the item code and
     nonce live in the last four decimals of the amount.
     """
-    if not isinstance(key, str) or not _CHAIN_KEY.match(key):
+    if not isinstance(key, str) or not _CHAIN_KEY.fullmatch(key):
         raise ConfigError(f"invalid chain key {key!r} (use a-z, 0-9, _ and -)",
                           code="chain.invalid_key")
     what = f"chain {key!r}"
@@ -164,7 +165,7 @@ def build_chain(key, *, name, chain_id, rpc, tokens, confirmations, explorer_tx,
     except (IndexError, KeyError, ValueError):
         raise ConfigError(f"{what}: explorer_tx may contain no braces besides {{}}",
                           code="chain.bad_explorer_tx_braces") from None
-    if not isinstance(native_symbol, str) or not _NATIVE_SYMBOL.match(native_symbol):
+    if not isinstance(native_symbol, str) or not _NATIVE_SYMBOL.fullmatch(native_symbol):
         raise ConfigError(f"{what}: native_symbol must be letters/digits, like 'AVAX'",
                           code="chain.bad_native_symbol")
     if fee_hint not in FEE_HINTS:
@@ -225,7 +226,7 @@ def logo_content_type(path: str) -> str:
 def _accent(value) -> str:
     if value is None:
         return DEFAULT_ACCENT
-    if not isinstance(value, str) or not _HEX_COLOR.match(value):
+    if not isinstance(value, str) or not _HEX_COLOR.fullmatch(value):
         raise ConfigError(f"accent must be a color like '#0e7c74': {value!r}",
                           code="accent.invalid")
     digits = value[1:]
@@ -384,7 +385,7 @@ def chains_for_token(config: Config, token: str) -> list[str]:
 
 
 def add_item(config: Config, item_id, *, code, price, token, title, min_price=None) -> Item:
-    if not isinstance(item_id, str) or not _ITEM_ID.match(item_id):
+    if not isinstance(item_id, str) or not _ITEM_ID.fullmatch(item_id):
         raise ConfigError(f"invalid item id {item_id!r} (use a-z, 0-9, _ and -)",
                           code="item.invalid_id")
     if item_id in config.items:

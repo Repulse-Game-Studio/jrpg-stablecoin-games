@@ -105,3 +105,16 @@ export class ConfigError extends ValueError {
   }
 }
 Object.defineProperty(ConfigError.prototype, SCFG_ERROR, { value: true });
+
+interface ConsoleGlobals {
+  console?: { error?: (...args: unknown[]) => void };
+}
+
+/**
+ * The default `on_error` (Python's `print_error`): a crash the core contained (one session's step,
+ * one stored receipt, one restore candidate) is printed with console.error and the work goes on.
+ */
+export function printError(e: unknown): void {
+  const c = (globalThis as unknown as ConsoleGlobals).console;
+  if (c && typeof c.error === "function") c.error(e);
+}

@@ -196,13 +196,17 @@ test("test_lookup_classifies_by_amount_code", async () => {
   assert.ok((await B.lookup(sig(1), { config: cfg(), chain: MAIN, rpc: chain, receipts }))![0]!.already_restored);
 });
 
-test("test_lookup_value_decode_cannot_hold_rejects_the_lookup", async () => {
-  // Python: classify -> decode raises decimal.InvalidOperation from 10**32 units; lookup does not catch it.
+test("test_lookup_skips_a_value_decode_cannot_price", async () => {
+  // Python: classify -> decode raises decimal.InvalidOperation from 10**32 units; that transfer is
+  // skipped and reported, so the transaction pays nothing the game knows.
   const chain = new FakeSolanaChain();
   const tx = chain.pay(sig(1), { mint: MAIN_MINT, payer: PAYER, owner: DEV, amount: 1, slot: 950 });
   tx["meta"]["postTokenBalances"][1]["uiTokenAmount"]["amount"] = String(10n ** 32n);
-  await assert.rejects(B.lookup(sig(1), { config: cfg(), chain: MAIN, rpc: chain, receipts: {} }),
-    (e: unknown) => e instanceof InvalidOperation && !(e instanceof ValueError));
+  const errors: unknown[] = [];
+  await assert.rejects(B.lookup(sig(1), { config: cfg(), chain: MAIN, rpc: chain, receipts: {}, on_error: (e) => errors.push(e) }),
+    (e: unknown) => e instanceof RestoreError && e.code === "tx_not_a_payment");
+  assert.equal(errors.length, 1);
+  assert.ok(errors[0] instanceof InvalidOperation && !(errors[0] instanceof ValueError));
 });
 
 test("test_lookup_offers_previous_wallet_payments_too", async () => {

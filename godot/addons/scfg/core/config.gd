@@ -24,8 +24,8 @@
 ##   anything else is a TypeError, and a dict or set lookup with an Array or Dictionary key is
 ##   an "unhashable" TypeError;
 ## - `.items()` on a value that is not a Dictionary is an AttributeError;
-## - `$` in the patterns also matches before one trailing newline, and `\d` in the local-http
-##   pattern is any Unicode decimal digit.
+## - the id, symbol, colour and local-http patterns match the whole string (no trailing newline);
+##   `\d` in the local-http pattern is any Unicode decimal digit.
 class_name ScfgConfig
 extends RefCounted
 
@@ -170,9 +170,9 @@ static func _check_opts(opts: Variant, required: Array[String], optional: Array[
 	return null
 
 
-## Python's `re.match(r"^[<class>]{1,max}$", s)`: `$` also matches before one trailing newline.
+## Python's `re.fullmatch(r"[<class>]{1,max}", s)`: the whole string, no trailing newline.
 static func _id_match(s: String, max_len: int, upper: bool) -> bool:
-	var body := s.trim_suffix("\n") if s.ends_with("\n") else s
+	var body := s
 	if body.length() < 1 or body.length() > max_len:
 		return false
 	for i in body.length():
@@ -191,8 +191,8 @@ static func _is_ascii_digit(c: int) -> bool:
 	return c >= 0x30 and c <= 0x39
 
 
-## `^http://(127\.0\.0\.1|localhost)(:\d{1,5})?(/|$)`: `\d` is any Unicode decimal digit, `$`
-## matches before one trailing newline.
+## `^http://(127\.0\.0\.1|localhost)(:\d{1,5})?(/|\Z)`: `\d` is any Unicode decimal digit; the
+## URL ends there (no trailing newline) or continues with a path.
 static func _local_http(u: String) -> bool:
 	if not u.begins_with("http://"):
 		return false
@@ -211,7 +211,7 @@ static func _local_http(u: String) -> bool:
 		if digits < 1 or digits > 5:
 			return false
 		rest = rest.substr(n)
-	return rest == "" or rest == "\n" or rest.begins_with("/")
+	return rest == "" or rest.begins_with("/")  # `\Z`: the URL ends, or a path follows
 
 
 # --- wallets and urls ------------------------------------------------------------------------
@@ -455,9 +455,9 @@ static func _accent(value: Variant) -> Variant:
 	return "#" + digits.substr(0, 6).to_lower()  # alpha, if any, is dropped
 
 
-## `^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$`.
+## `#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})`, fullmatch: no trailing newline.
 static func _hex_color(s: String) -> bool:
-	var body := s.trim_suffix("\n") if s.ends_with("\n") else s
+	var body := s
 	if not body.begins_with("#") or not body.length() in [4, 7, 9]:
 		return false
 	for i in range(1, body.length()):

@@ -11,17 +11,20 @@
 ##
 ## Only a *definitive* mismatch removes a receipt; network trouble never does.
 ##
-## Pinned quirks of the Python reference (D14, mirrored):
+## As in Python:
 ## - the removed keys come back in store order;
-## - the malformed-entry net catches KeyError, TypeError, ValueError, AttributeError and
-##   InvalidOperation only. An "Infinity" amount (OverflowError), an infinite float log_index or
-##   block (OverflowError), a stored tip beyond Decimal's range (Overflow) and an unhashable
-##   token name (TypeError, raised outside the net) escape it and fail the whole run.
+## - a stored entry whose own fields are invalid (a missing field, a chain, token or item that
+##   cannot be a key, a tx hash that is not a str, a log index or block that is not an int, an
+##   amount that is not a number of base units within the stored-amount range) is removed
+##   whatever chain it names, with the reason reported to `on_error`: a forged receipt cannot
+##   escape verification by making its check fail;
+## - a check that fails on what a node returned keeps that receipt as unverifiable, reports the
+##   failure, and the run goes on. Only a CancelledError (not an Exception) stops it.
 class_name ScfgReverify
 extends RefCounted
 
 const FUTURE_TOLERANCE_BLOCKS := 10_000
-const _NET_KINDS: Array[String] = ["KeyError", "TypeError", "ValueError", "AttributeError", "InvalidOperation"]
+const _NET_KINDS: Array[String] = ["KeyError", "TypeError", "ValueError", "AttributeError", "ArithmeticError"]
 const _INT63_MAX := 9223372036854775807
 
 
@@ -41,103 +44,128 @@ static func _lower(v: Variant) -> Variant:
 	return str(v).to_lower()
 
 
-## "drop" when the malformed-entry net catches `err`, else `err` itself (it escapes the net).
-## @fallible
-static func _netted(err: ScfgErr) -> Variant:
-	if _caught(err):
-		return "drop"
-	return err
-
-
-## One check of the net on the stored field `v`: 1 `tx_hash.lower()`, 2 `int(log_index)`,
-## 3 `int(block)`, 4 `decimal_to_units(Decimal(amount))`. Returns its result or its error.
+## One check of the stored field `v`: 1 `tx_hash.lower()`, 2 `int(log_index)`, 3 `int(block)`,
+## 4 `decimal_to_units(stored_amount(amount))`. Returns its result or its error.
 ## @fallible
 static func _check_field(i: int, v: Variant) -> Variant:
 	if i == 1:
 		return _lower(v)
 	if i == 4:
-		return ScfgAmounts.decimal_to_units(v)
+		var d: Variant = ScfgAmounts.stored_amount(v)
+		if d is ScfgErr:
+			return d
+		return ScfgAmounts.decimal_to_units(d)
 	return ScfgPy.py_int(v)
 
 
-## The checks of the malformed-entry net, in Python's order: `chains.get(r["chain"])`,
-## `r["tx_hash"].lower()`, `int(r["log_index"])`, `int(r["block"])`,
-## `decimal_to_units(Decimal(r["amount"]))` and `r["token"]`. Returns [chain or null, token name],
-## "drop" for a receipt the net catches, or the ScfgErr that escapes it.
+## Why the stored entry `r` is not a receipt the checks can read, or null. Python's checks, in
+## order: `hash(r["chain"])`, `hash(r["token"])`, `hash(r.get("item"))`, `r["tx_hash"].lower()`,
+## `int(r["log_index"]) >= 0`, `int(r["block"]) >= 0`, `decimal_to_units(stored_amount(r["amount"]))`
+## and, on a chain this build knows, the tx id as its family's (no surrounding whitespace, then
+## the backend's normalize_tx).
 ## @fallible
-static func _screen(r: Variant, chains: Dictionary) -> Variant:
-	var key: Variant = ScfgPy.py_get(r, "chain")
-	if key is ScfgErr:
-		return _netted(key)
-	if key is Array or key is Dictionary:
-		return "drop"  # chains.get([..]): unhashable, a TypeError inside the net
-	var found: Variant = chains.get(key)
+static func _invalid_fields(r: Variant, chains: Dictionary) -> Variant:
+	for name: String in ["chain", "token"]:
+		var v: Variant = ScfgPy.py_get(r, name)
+		if v is ScfgErr:
+			return v
+		if v is Array or v is Dictionary:
+			return ScfgErr.make("TypeError", "unhashable type: '%s'" % ScfgPy.py_type(v))
+	var item: Variant = (r as Dictionary).get("item") if r is Dictionary else null
+	if item is Array or item is Dictionary:
+		return ScfgErr.make("TypeError", "unhashable type: '%s'" % ScfgPy.py_type(item))
 	var fields := ["tx_hash", "log_index", "block", "amount"]
 	for i in fields.size():
 		var v: Variant = ScfgPy.py_get(r, fields[i])
 		if v is ScfgErr:
-			return _netted(v)
+			return v
 		var checked: Variant = _check_field(i + 1, v)
 		if checked is ScfgErr:
-			return _netted(checked)
-	var token_name: Variant = ScfgPy.py_get(r, "token")
-	if token_name is ScfgErr:
-		return "drop"
-	return [found, token_name]
+			return checked
+		if (i == 1 or i == 2) and _negative(checked):
+			return ScfgErr.make("ValueError", "log index and block must be >= 0")
+	var chain: Variant = chains.get((r as Dictionary)["chain"])
+	if chain is Dictionary:
+		var tx: String = str((r as Dictionary)["tx_hash"])
+		if tx != ScfgPy.py_strip(tx):
+			return ScfgErr.make("ValueError", "tx id with surrounding whitespace: %s" % ScfgPy.py_repr(tx))
+		var backend: Variant = ScfgBackends.backend_for(chain)
+		if backend is ScfgErr:
+			return backend
+		var typed: ScfgBaseBackend = backend
+		var normalized: Variant = typed.normalize_tx(tx)
+		if normalized is ScfgErr:
+			return normalized
+	return null
+
+
+## Whether an int (or ScfgBigInt, which is never negative) is below zero.
+static func _negative(n: Variant) -> bool:
+	return n is int and n < 0
 
 
 ## Remove receipts that the chain contradicts. Returns the removed keys, in store order. `opts`:
 ## rpc_for (a Callable(key) returning that chain's RPC object or an ScfgErr), chains ({key:
-## Chain}) and wallets: an Array (the developer's wallets, for every family) or a Dictionary
-## family -> Array. A family with no wallets keeps its receipts: they cannot be judged. A
-## coroutine.
-## @fallible
+## Chain}), wallets: an Array (the developer's wallets, for every family) or a Dictionary
+## family -> Array, and on_error (optional: told why each invalid entry was removed and of each
+## check that failed on node data, whose receipt is kept; by default it is printed). A family with
+## no wallets keeps its receipts: they cannot be judged. A coroutine.
+## @fallible: only a CancelledError
 ## @coroutine
 static func reverify_receipts(receipts: Dictionary, opts: Dictionary) -> Variant:
-	var rpc_for: Callable = opts["rpc_for"]
-	var chains: Dictionary = opts["chains"]
-	var wallets: Variant = opts["wallets"]
 	var removed := []
 	for key: Variant in receipts.keys():
 		var r: Variant = receipts[key]
-		var screened: Variant = _screen(r, chains)
-		if screened is ScfgErr:
-			return screened
-		if screened is String:
+		var problem: Variant = _invalid_fields(r, opts["chains"])
+		if problem is ScfgErr:
+			if not _caught(problem):
+				return problem
 			receipts.erase(key)
 			removed.append(key)
+			ScfgErr.report(opts.get("on_error"), ScfgErr.make("ValueError",
+				"stored receipt %s is invalid and was removed: %s" % [ScfgPy.py_repr(key), str(problem)]))
 			continue
-		var chain: Variant = screened[0]
-		if chain == null:
-			continue  # chain unknown to this build: cannot judge, keep
-		var token_name: Variant = screened[1]
-		if token_name is Array or token_name is Dictionary:
-			return ScfgErr.make("TypeError", "unhashable type: '%s'" % ScfgPy.py_type(token_name))
-		if not (token_name is String or token_name is StringName) or not (chain["tokens"] as Dictionary).has(str(token_name)):
-			receipts.erase(key)
-			removed.append(key)
-			continue
-		var family_wallets: Variant = wallets
-		if wallets is Dictionary:
-			family_wallets = (wallets as Dictionary).get(chain["family"], [])
-		var listed: Variant = ScfgPy.py_iter(family_wallets)
-		if listed is ScfgErr:
-			return listed
-		if (listed as Array).is_empty():
-			continue  # no wallet of this family configured any more: cannot judge, keep
-		var backend: Variant = ScfgBackends.backend_for(chain)
-		if backend is ScfgErr:
-			return backend
-		var rpc: Variant = rpc_for.call(chain["key"])
-		if rpc is ScfgErr:
-			return rpc
-		var verdict: Variant = await backend.reverify(r, {"rpc": rpc, "chain": chain, "wallets": (listed as Array).duplicate()})
+		var verdict: Variant = await _judge(r, opts)
 		if verdict is ScfgErr:
-			return verdict
+			if not (verdict as ScfgErr).is_a("Exception"):
+				return verdict
+			ScfgErr.report(opts.get("on_error"), verdict)  # node data: unverifiable, kept, the rest still checked
+			continue
 		if ScfgPy.py_eq(verdict, "drop"):
 			receipts.erase(key)
 			removed.append(key)
 	return removed
+
+
+## A well-formed receipt's verdict: "drop", "keep" (or the backend's own answer) or the ScfgErr of
+## a check that failed. A coroutine.
+## @fallible
+## @coroutine
+static func _judge(r: Dictionary, opts: Dictionary) -> Variant:
+	var rpc_for: Callable = opts["rpc_for"]
+	var chains: Dictionary = opts["chains"]
+	var wallets: Variant = opts["wallets"]
+	var chain: Variant = chains.get(r["chain"])
+	if chain == null:
+		return "keep"  # chain unknown to this build: cannot judge, keep
+	var token_name: Variant = r["token"]
+	if not (token_name is String or token_name is StringName) or not (chain["tokens"] as Dictionary).has(str(token_name)):
+		return "drop"
+	var family_wallets: Variant = wallets
+	if wallets is Dictionary:
+		family_wallets = (wallets as Dictionary).get(chain["family"], [])
+	var listed: Variant = ScfgPy.py_iter(family_wallets)
+	if listed is ScfgErr:
+		return listed
+	if (listed as Array).is_empty():
+		return "keep"  # no wallet of this family configured any more: cannot judge, keep
+	var backend: Variant = ScfgBackends.backend_for(chain)
+	if backend is ScfgErr:
+		return backend
+	var rpc: Variant = rpc_for.call(chain["key"])
+	if rpc is ScfgErr:
+		return rpc
+	return await backend.reverify(r, {"rpc": rpc, "chain": chain, "wallets": (listed as Array).duplicate()})
 
 
 ## Whether any log of `logs` is the receipt's transfer. The logs are parsed by `chain.parse_transfer`

@@ -68,7 +68,8 @@ init -10 python in scfg:
             self.checkouts = python_dict()     # cid -> controller with its screen open
             self.background = python_dict()    # cid -> "continue playing" controller (browser page alive)
             self.restores = python_dict()
-            self.callbacks = python_dict()     # session id -> developer callback
+            self.callbacks = python_dict()     # session id -> developer callback, until the session is over
+            self.seen_pending = frozenset()    # callbacks' session ids the last snapshot listed as pending
             self.restore_callbacks = python_dict()
             self.next_id = 0
             self.last_snapshot = None
@@ -232,6 +233,8 @@ init -10 python in scfg:
                     renpy.notify(_("Couldn't copy: your browser blocked the clipboard."))
             else:
                 changed = False
+            # Read before draining: every outcome of the run that made this snapshot is queued.
+            outcomes_snap = worker.snapshot
             controllers = python_list(_state.checkouts.values()) + python_list(_state.background.values())
             for outcome in worker.drain_outcomes():
                 changed = True
@@ -244,6 +247,7 @@ init -10 python in scfg:
                 c.poll()
                 _register_callback(c)
                 changed = changed or c.state != before
+            _prune_callbacks(outcomes_snap)
             timeout = _state.config.methods["browser"]["timeout_min"] * 60
             now = _time.time()
             for cid, c in python_list(_state.background.items()):
@@ -441,6 +445,8 @@ init -10 python in scfg:
         """CheckoutController + an id. Pickles as a lookup, so a save taken while the
         payment screen is up never tries to save threads or sockets."""
 
+        callback_sid = None   # the session id _register_callback registered the callback for
+
         def __reduce__(self):
             return (_lookup_checkout, (self.cid,))
 
@@ -551,8 +557,29 @@ init -10 python in scfg:
         return _open_checkout(kind, item, amount, token, callback, blocking=True)
 
     def _register_callback(ctl):
-        if ctl.session_id and ctl.callback is not None:
-            _state.callbacks[ctl.session_id] = ctl.callback
+        """Remember the pay() callback of the controller's session, once per session: then
+        _deliver (its final result) or _prune_callbacks (it left the Engine) drops it for good.
+        Registering again each pump would bring back the callback of a sheet left open on an
+        expired session past its scan horizon, which no snapshot lists to prune any more. Not
+        at all once the session's final result (paid / underpaid) was delivered."""
+        sid = ctl.session_id
+        if (sid and ctl.callback is not None and sid != ctl.callback_sid
+                and ctl.state not in ("paid", "underpaid")):
+            _state.callbacks[sid] = ctl.callback
+            ctl.callback_sid = sid
+
+    def _prune_callbacks(snap):
+        """Drop the callbacks of sessions that left the Engine since a snapshot listed them
+        (closed at their scan horizon, or discarded): no result can reach them any more.
+        Results still can while a session is pending, also after it expired ("continue
+        playing"). `snap` was read before this pump drained the outcomes, so a session that
+        left because it was paid had its result delivered first. A session id the snapshots
+        have not listed yet (just started) is kept."""
+        pending = snap.pending
+        for sid in python_list(_state.callbacks):
+            if sid not in pending and sid in _state.seen_pending:
+                _state.callbacks.pop(sid, None)
+        _state.seen_pending = frozenset(sid for sid in _state.callbacks if sid in pending)
 
     def _close_checkout(cid, how):
         """Close the payment screen. how: cancel | keep_playing | finish."""

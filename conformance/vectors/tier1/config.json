@@ -1796,6 +1796,26 @@
    }
   },
   {
+   "error": "rpc.not_https",
+   "fn": "build_config",
+   "in": {
+    "rpc_urls": {
+     "base": "http://127.0.0.1:8545\n"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "rpc.not_https",
+   "fn": "build_config",
+   "in": {
+    "rpc_urls": {
+     "base": "http://localhost\n"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
    "error": "confirmations.unknown_chain",
    "fn": "build_config",
    "in": {
@@ -1958,6 +1978,22 @@
    "fn": "build_config",
    "in": {
     "accent": 5,
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "accent.invalid",
+   "fn": "build_config",
+   "in": {
+    "accent": "#0e7c74\n",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "accent.invalid",
+   "fn": "build_config",
+   "in": {
+    "accent": "#abc\n",
     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
    }
   }

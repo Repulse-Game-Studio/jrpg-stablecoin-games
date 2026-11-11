@@ -99,18 +99,16 @@ static func compute_ownership(store: Dictionary, items: Dictionary) -> Variant:
 		if not r is Dictionary or not (r as Dictionary).has("kind") or not (r as Dictionary).has("amount"):
 			continue  # Python: TypeError (not subscriptable) or KeyError
 		var kind: Variant = r["kind"]
-		var amount: Variant = ScfgDec.from_value(r["amount"])
+		var amount: Variant = ScfgAmounts.stored_amount(r["amount"])
 		if amount is ScfgErr:
 			var e: ScfgErr = amount
-			if e.is_a("TypeError") or e.is_a("InvalidOperation"):
-				continue
+			if e.is_a("TypeError") or e.is_a("ValueError"):
+				continue  # not a number within the stored-amount range: skipped
 			return e
-		if not amount is ScfgDec:
-			continue  # NaN or Infinity: not finite
 		if typeof(kind) == TYPE_STRING and kind == "unlock":
 			var key: Variant = (r as Dictionary).get("item")
 			if key is Array or key is Dictionary:
-				return ScfgErr.make("TypeError", "unhashable type: '%s'" % ScfgPy.py_type(key))
+				continue  # Python: items.get([...]) is a TypeError: skipped
 			var item: Variant = items.get(key) if (key is String or key is StringName) else null
 			if item is Dictionary:
 				var min_price: Variant = (item as Dictionary).get("min_price")
@@ -121,7 +119,7 @@ static func compute_ownership(store: Dictionary, items: Dictionary) -> Variant:
 		elif typeof(kind) == TYPE_STRING and kind == "tip":
 			var sum: Variant = tips.add_checked(amount)
 			if sum is ScfgErr:
-				return sum  # Python: decimal.Overflow is not caught (a tip of "1E+1000000")
+				return sum  # cannot happen: stored amounts are bounded, so the sum stays below Emax
 			tips = sum
 	var ids: Array = owned.keys()
 	ids.sort()

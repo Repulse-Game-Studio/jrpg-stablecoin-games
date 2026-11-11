@@ -15,8 +15,9 @@
 ## already_restored.
 ##
 ## Errors follow Python: only RpcUnavailable and RpcError are swallowed by `lookup`; anything
-## else (a malformed log, a value of 10**32 units or more that `decode` refuses with an
-## InvalidOperation) fails the whole lookup as it is.
+## else (a malformed log) fails the whole lookup as it is, except a transfer of 10**32 units or
+## more, which `decode` cannot price (an InvalidOperation): that one is skipped and reported to
+## `on_error` (classify_or_skip).
 class_name ScfgRestore
 extends RefCounted
 
@@ -58,6 +59,18 @@ static func classify(config: Dictionary, value: Variant) -> Variant:
 	return [null, null, affordable + [TIP_CHOICE]]
 
 
+## classify(), or null for a value decode() cannot price (10**32 units or more, an
+## InvalidOperation): such a transfer is skipped and reported to `on_error` (ScfgErr.report), the
+## rest of the transaction is still offered. Any other error is returned.
+## @fallible
+static func classify_or_skip(config: Dictionary, value: Variant, on_error: Variant) -> Variant:
+	var verdict: Variant = classify(config, value)
+	if verdict is ScfgErr and (verdict as ScfgErr).is_a("InvalidOperation"):
+		ScfgErr.report(on_error, verdict)
+		return null
+	return verdict
+
+
 ## Whether a transfer value (an int or ScfgBigInt) is `<= 0`.
 static func _not_positive(value: Variant) -> bool:
 	if value is ScfgBigInt:
@@ -66,7 +79,7 @@ static func _not_positive(value: Variant) -> bool:
 
 
 ## Candidates for a normalized tx hash on one EVM chain; [] if the chain lacks it (Python's None:
-## see `lookup`). `opts`: config, chain, rpc, receipts. A coroutine.
+## see `lookup`). `opts`: config, chain, rpc, receipts, on_error (optional). A coroutine.
 ## @fallible
 ## @coroutine
 static func lookup_evm(tx_hash: Variant, opts: Dictionary) -> Variant:
@@ -101,9 +114,11 @@ static func lookup_evm(tx_hash: Variant, opts: Dictionary) -> Variant:
 		if t == null or not by_address.has(t["token"]) or _not_positive(t["value"]) \
 				or not wallets.has(t["recipient"]):
 			continue
-		var verdict: Variant = classify(config, t["value"])
+		var verdict: Variant = classify_or_skip(config, t["value"], opts.get("on_error"))
 		if verdict is ScfgErr:
 			return verdict
+		if verdict == null:
+			continue
 		var key: Variant = ScfgReceipts.receipt_key(chain["key"], t["tx_hash"], t["log_index"])
 		if key is ScfgErr:
 			return key
@@ -122,7 +137,8 @@ static func _network_trouble(err: ScfgErr) -> bool:
 
 ## Find the chain that knows `tx_hash` and the candidates in it. `opts`: config, chains
 ## ({key: Chain}, asked in order), rpc_for (a Callable(key) returning that chain's RPC object or
-## an ScfgErr), receipts. A coroutine.
+## an ScfgErr), receipts, on_error (optional: told of each transfer that cannot be classified;
+## by default it is printed). A coroutine.
 ##
 ## A backend's `lookup` answers [] where Python returns None (the chain does not know the
 ## transaction): a null `found` is what a coroutine aborted by a script error leaves, so it fails
@@ -150,7 +166,7 @@ static func lookup(tx_hash: Variant, opts: Dictionary) -> Variant:
 		var found: Variant = rpc
 		if not rpc is ScfgErr:
 			found = await backend.lookup(tx, {"config": opts["config"], "chain": chain, "rpc": rpc,
-				"receipts": opts["receipts"]})
+				"receipts": opts["receipts"], "on_error": opts.get("on_error")})
 		if found is ScfgErr:
 			if _network_trouble(found):
 				network_trouble = true

@@ -31,7 +31,7 @@ jobs:
         working-directory: rpgmaker
       - run: uv sync
       - run: uv run ruff check .
-      - run: uv run pytest
+      - run: uv run pytest   # server_security's Python third; its Godot third skips here (godot-core runs it), rpgmaker_ui and node_server are deselected (rpgmaker-ui runs them)
       - run: uv run python tools/gen_vectors.py --check   # committed conformance vectors are current
       - run: uv run python tools/sync_web_page.py --check   # Godot addon copy of the checkout page matches plugin/game/scfg/web
       - run: uv run python tools/make_pot.py --check   # the Godot translation template is current
@@ -52,11 +52,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24   # the Node half of the server security suite (RPG Maker's checkout server)
-      - run: npm ci
-        working-directory: rpgmaker
       - name: Download Godot
         run: uv run --no-project python tools/fetch_godot.py --version ${{ matrix.godot }} --dest /tmp/godot
       - name: Import the project (registers the class_name globals, needed once per checkout)
@@ -65,12 +60,11 @@ jobs:
         # the wrapper also requires the runner's "<n> passed, 0 failed" summary with n > 0:
         # Godot can exit 0 when run.gd itself fails to compile
         run: uv run --no-project python tools/run_godot_tests.py --godot /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64
-      - name: Localhost checkout server security suite (the Python, GDScript and Node servers)
+      - name: Localhost checkout server security suite, GDScript server (Python runs in unit, Node in rpgmaker-ui)
         env:
           SCFG_REQUIRE_GD: "1"   # the Godot half fails, rather than skips, without a binary
-          SCFG_REQUIRE_JS: "1"   # the Node half fails, rather than skips, without Node or rpgmaker/node_modules
           SCFG_GODOT: /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64
-        run: uv run pytest tests/server_security
+        run: uv run pytest tests/server_security -m godot_server
 
   js-core:
     runs-on: ubuntu-latest
@@ -86,8 +80,6 @@ jobs:
       - run: npm run typecheck
       - name: TypeScript core, RPG Maker glue and bundle checks against the conformance vectors
         run: npm test
-      - name: Bundle checks on their own (ES2020 only, header first, page embedded unchanged)
-        run: node --test test/bundle.test.ts
       - name: SCFG.js builds reproducibly (two builds are byte-identical)
         run: |
           npm run build
@@ -111,6 +103,8 @@ jobs:
       - run: uv sync
       - name: RPG Maker payment sheet and restore screen in Chrome, on the MZ shim
         run: uv run pytest tests/rpgmaker_ui -q   # uses the runner's preinstalled Google Chrome
+      - name: Localhost checkout server security suite, Node server (RPG Maker's desktop page)
+        run: uv run pytest tests/server_security -m node_server
 
   rpgmaker-e2e:
     runs-on: ubuntu-latest
@@ -296,6 +290,11 @@ jobs:
         run: uv run --no-project python tools/fetch_godot.py --version 4.3-stable --dest /tmp/godot
       - name: Import the project (registers the class_name globals)
         run: $GODOT --headless --path godot --import
+      - name: Cache the web export templates
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/godot-templates
+          key: godot-templates-4.3-stable-${{ hashFiles('tools/fetch_godot.py') }}   # a changed pin refreshes it
       - name: Download the web export templates (SHA-512 checked against the release's SHA512-SUMS)
         run: uv run --no-project python tools/fetch_godot.py --version 4.3-stable --templates
       - name: Godot web build end-to-end payment

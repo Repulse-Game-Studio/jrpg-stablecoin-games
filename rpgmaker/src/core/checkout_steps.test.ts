@@ -137,6 +137,19 @@ test("test_tip_amount_step_applies_a_typed_amount", () => {
   assert.equal(String(ctl.amount), "7.50");
 });
 
+test("test_a_typed_amount_is_stripped_as_str_strip_does", () => {
+  // Python's str.strip(): \x85 and \x1c are whitespace, U+FEFF is not (JS trim() is the reverse)
+  let { ctl } = setup({ kind: "tip" });
+  ctl.custom_amount = "\x85\x1c";
+  assert.ok(ctl.nextStep() === true && String(ctl.step) === "network");
+  ({ ctl } = setup({ kind: "tip" }));
+  ctl.custom_amount = "\ufeff7.50";
+  assert.ok(ctl.nextStep() === false && ctl.error === "invalid_amount");
+  assert.equal(ctl.applyCustomAmount(), false);
+  ctl.custom_amount = "\x857.50\x1c";
+  assert.ok(ctl.applyCustomAmount() === true && String(ctl.amount) === "7.50");
+});
+
 // --- skipping single-option steps -------------------------------------------------------
 
 test("test_single_network_is_skipped_for_unlocks", async () => {

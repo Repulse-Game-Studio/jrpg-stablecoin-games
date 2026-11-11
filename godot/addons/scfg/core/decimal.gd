@@ -220,6 +220,8 @@ func is_integral() -> bool:
 ## unsigned).
 ## @fallible
 func to_py_int() -> Variant:
+	if coef.is_zero():
+		return 0  # whatever the exponent (0E+999999): no power of ten to build
 	var mag: ScfgBigInt
 	if exponent >= 0:
 		mag = coef.mul(_pow10(exponent))

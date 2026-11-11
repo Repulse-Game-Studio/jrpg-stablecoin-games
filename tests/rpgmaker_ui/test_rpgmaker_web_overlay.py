@@ -11,7 +11,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "integration"))
 
 from scfg_core.rpc import RpcError  # noqa: E402
 
-from browser_mocks import install_mock_wallet  # noqa: E402
+from browser_mocks import (  # noqa: E402
+    ESCAPE_RECORDER,
+    MALFORMED_EXTENSIONS,
+    assert_nothing_escaped,
+    install_mock_wallet,
+    try_bad_wallets,
+)
 
 PAYER = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
 RAW = "() => Object.keys(Input._currentState).filter((k) => Input._currentState[k])"
@@ -197,3 +203,62 @@ def test_the_sheet_takes_the_focus_back_when_the_paid_overlay_hides(make_game):
     assert game.screen().count() == 0, "one held Enter closed the sheet"
     assert game.box()["result"]["status"] == "paid"
     assert game.js(OVERLAYS) == [], "the overlay went with the sheet"
+
+
+def _with_malformed_extensions(page):
+    install_mock_wallet(page, NoChain(), PAYER)
+    page.add_init_script(ESCAPE_RECORDER)
+    page.add_init_script(MALFORMED_EXTENSIONS)
+
+
+def test_web_overlay_survives_malformed_extensions(make_game):
+    # broken EIP-6963 announcements and Wallet Standard registrations in the game's page, and
+    # wallets rejecting with odd values: the overlay shows each as its wallet error and nothing
+    # reaches MZ's SceneManager.onError/onReject (make_game fails the test on any page error or
+    # stopped game); the good wallet still connects (there is no chain: it ends at its first call)
+    game = make_game(before_goto=_with_malformed_extensions)
+    _overlay_open(game)
+    hosts = game.js("() => [...document.querySelectorAll('[data-scfg-overlay]')].map((e) => e.getAttribute('data-scfg-overlay'))")
+    assert len(hosts) == 1 and hosts[0], f"bridge.js tags the overlay host with its key ({hosts})"
+    game.page.wait_for_timeout(700)  # past the page's "no wallet" check
+    assert_nothing_escaped(game.page, [])
+    try_bad_wallets(game.page, [])
+    game.page.get_by_role("button", name="Pay with Mock Wallet").click()
+    game.page.wait_for_function("() => document.querySelector('[data-scfg-overlay]').shadowRoot"
+                                ".getElementById('status').textContent.includes('no chain in this test')")
+    game.frames(5)
+    assert_nothing_escaped(game.page, [])
+    assert game.js("() => mzShim.errors.length") == 0
+    assert game.step() == "waiting"
+
+
+def test_a_touch_in_the_overlay_never_reaches_mz(make_game):
+    # a tap on the overlay's own button: the browser sends the touch's events to the button it
+    # began on, so MZ's TouchInput (document listeners) must see none of them, not even the
+    # touchend; the button still works (the tap's click)
+    game = make_game(before_goto=_with_wallet)
+    _overlay_open(game)
+    game.js("""() => {
+        window.__seen = [];
+        for (const name of ["_onTouchStart", "_onTouchMove", "_onTouchEnd", "_onTouchCancel"]) {
+            const original = TouchInput[name];
+            TouchInput[name] = function (...args) { window.__seen.push(name); return original.apply(this, args); };
+        }
+        const host = [...document.body.children].find((e) => e.shadowRoot && e.id !== "scfg-host");
+        const button = host.shadowRoot.getElementById("cp-close");
+        const r = button.getBoundingClientRect();
+        const at = (x, y) => new Touch({ identifier: 3, target: button, pageX: x, pageY: y, clientX: x, clientY: y });
+        const x = r.left + r.width / 2, y = r.top + r.height / 2;
+        for (const type of ["touchstart", "touchmove", "touchend", "touchstart", "touchcancel"]) {
+            const touch = at(x, y);
+            button.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, composed: true,
+                changedTouches: [touch], touches: type === "touchstart" || type === "touchmove" ? [touch] : [] }));
+        }
+        button.click();  // what the browser fires after the tap
+    }""")
+    game.frames(3)
+    assert game.js("() => window.__seen") == [], "no touch of the overlay reached MZ"
+    assert game.js("() => TouchInput._screenPressed") is False
+    assert [o["shown"] for o in game.js(OVERLAYS)] == [False], "the overlay's Back to the game still worked"
+    game.key("cancel").click()
+    game.frames(3)

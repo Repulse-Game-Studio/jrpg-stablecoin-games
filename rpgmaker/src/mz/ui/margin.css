@@ -2,8 +2,8 @@
  * The "Margin" look of the payment sheet and the restore screen: the twin of the scfg_* styles in
  * plugin/game/scfg/scfg_screens.rpy and of godot/addons/scfg/ui/theme.gd (same palette, same sizes).
  * A light sheet docked on the right with ink text, outlined buttons and options with rounded
- * corners, and the developer's accent colour for the selected option, the forward button and the
- * progress dots.
+ * corners (the primary and accent buttons are filled, their border transparent), and the developer's
+ * accent colour for the selected option, the forward button and the progress dots.
  *
  * Sizes are designed for a 1280x720 game and grow with the game: every length is
  * `calc(<design px> * var(--scfg-k))`, where dom.ts sets --scfg-k (Ren'Py's _k()) and --scfg-sheet-w
@@ -154,13 +154,18 @@ button:focus-visible, input:focus-visible, .option:focus-visible {
   outline-offset: max(2px, calc(2px * var(--scfg-k)));
 }
 button.small { font-size: calc(15px * var(--scfg-k)); padding: calc(6px * var(--scfg-k)) calc(10px * var(--scfg-k)); }
-button.primary { color: var(--scfg-white); background: var(--scfg-ink); border-color: var(--scfg-ink); }
-button.primary:hover, button.primary:active { background: var(--scfg-ink-hover); border-color: var(--scfg-ink-hover); }
-button.primary:disabled { color: var(--scfg-white); background: var(--scfg-line); border-color: var(--scfg-line); }
-button.accent { color: var(--scfg-on-accent); background: var(--scfg-accent); border-color: var(--scfg-accent); }
-button.accent:hover { filter: brightness(1.08); background: var(--scfg-accent); border-color: var(--scfg-accent); }
-button.accent:active { filter: brightness(0.92); background: var(--scfg-accent); border-color: var(--scfg-accent); }
-button.accent:disabled { color: var(--scfg-white); background: var(--scfg-line); border-color: var(--scfg-line); filter: none; }
+/* filled buttons: no visible border, as theme.gd's ScfgPrimary and ScfgAccent, and the same size as
+   the outlined ones (in Godot a border never adds to a button's size): the width stays, transparent,
+   and the fill paints under it (background-clip: border-box). After the button:hover/active/disabled
+   rules, so it wins over their border colours. */
+button.primary, button.accent { border-color: transparent; }
+button.primary { color: var(--scfg-white); background: var(--scfg-ink); }
+button.primary:hover, button.primary:active { background: var(--scfg-ink-hover); }
+button.primary:disabled { color: var(--scfg-white); background: var(--scfg-line); }
+button.accent { color: var(--scfg-on-accent); background: var(--scfg-accent); }
+button.accent:hover { filter: brightness(1.08); background: var(--scfg-accent); }
+button.accent:active { filter: brightness(0.92); background: var(--scfg-accent); }
+button.accent:disabled { color: var(--scfg-white); background: var(--scfg-line); filter: none; }
 button.back {
   width: calc(44px * var(--scfg-k)); height: calc(44px * var(--scfg-k)); padding: 0;
   font-size: calc(20px * var(--scfg-k)); font-weight: 400;

@@ -11,12 +11,14 @@ from __future__ import annotations
 
 from collections.abc import MutableMapping
 from dataclasses import dataclass
+from decimal import InvalidOperation
 from typing import Callable
 
 from .amounts import decode, units_to_decimal
 from .backends import backend_for
 from .chains import Chain
 from .config import Config
+from .errors import print_error
 from .evm import TransferLog
 from .receipts import add_receipt, make_receipt, receipt_key
 from .rpc import RpcError, RpcUnavailable
@@ -61,8 +63,21 @@ def classify(config: Config, value: int) -> tuple[str | None, str | None, tuple[
     return None, None, affordable + (TIP_CHOICE,)
 
 
-def lookup_evm(tx_hash: str, *, config: Config, chain: Chain, rpc,
-               receipts: MutableMapping) -> list[RestoreCandidate] | None:
+def classify_or_skip(config: Config, value: int,
+                     on_error: Callable[[BaseException], None] | None):
+    """classify(), or None for a value decode() cannot price (10**32 units or more): such a
+    transfer is skipped and reported to `on_error` (by default printed), the rest of the
+    transaction is still offered."""
+    try:
+        return classify(config, value)
+    except InvalidOperation as e:
+        (on_error or print_error)(e)
+        return None
+
+
+def lookup_evm(tx_hash: str, *, config: Config, chain: Chain, rpc, receipts: MutableMapping,
+               on_error: Callable[[BaseException], None] | None = None,
+               ) -> list[RestoreCandidate] | None:
     """Candidates for a normalized tx hash on one EVM chain; None if the chain lacks it."""
     receipt = yield from rpc.get_transaction_receipt(tx_hash)
     if receipt is None:
@@ -76,7 +91,10 @@ def lookup_evm(tx_hash: str, *, config: Config, chain: Chain, rpc,
         if (t is None or t.token not in by_address or t.value <= 0
                 or t.recipient not in config.accepted_wallets):
             continue
-        kind, item, choices = classify(config, t.value)
+        classified = classify_or_skip(config, t.value, on_error)
+        if classified is None:
+            continue
+        kind, item, choices = classified
         out.append(RestoreCandidate(
             chain=chain.key, token=by_address[t.token], transfer=t, kind=kind, item=item,
             choices=choices,
@@ -87,7 +105,10 @@ def lookup_evm(tx_hash: str, *, config: Config, chain: Chain, rpc,
 
 
 def lookup(tx_hash: str, *, config: Config, chains: dict[str, Chain],
-           rpc_for: Callable[[str], object], receipts: MutableMapping) -> list[RestoreCandidate]:
+           rpc_for: Callable[[str], object], receipts: MutableMapping,
+           on_error: Callable[[BaseException], None] | None = None) -> list[RestoreCandidate]:
+    """The candidates of the first chain that knows `tx_hash`. A transfer that cannot be
+    classified is skipped and reported to `on_error` (see classify_or_skip)."""
     network_trouble = False
     understood = False
     for key, chain in chains.items():
@@ -99,7 +120,7 @@ def lookup(tx_hash: str, *, config: Config, chains: dict[str, Chain],
         understood = True
         try:
             out = yield from backend.lookup(tx, config=config, chain=chain, rpc=rpc_for(key),
-                                            receipts=receipts)
+                                            receipts=receipts, on_error=on_error)
         except (RpcUnavailable, RpcError):
             network_trouble = True
             continue

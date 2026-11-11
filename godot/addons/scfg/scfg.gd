@@ -45,10 +45,25 @@
 ## removed, and a session's `state` or `hint_tx` changing are written at once (a web tab, or a
 ## crash, can end the game any moment); other pending changes such as scan progress (`cursor`)
 ## at most every PENDING_SAVE_INTERVAL seconds, and once more when the autoload leaves the tree
-## (the game quits). A save that failed is tried again every PENDING_SAVE_INTERVAL seconds.
+## (the game quits). A save that failed is tried again every PENDING_SAVE_INTERVAL seconds; a
+## failure is reported once, and again only after a save succeeded.
 ## `receipts_changed` is emitted whenever the receipts change. A state file that exists but
-## cannot be read (a lock, a permission, an I/O error; not a corrupt one, which is moved aside)
-## starts no payments this run and is never saved over (see store.gd); the next launch retries.
+## cannot be read (a lock, a permission, an I/O error; not a corrupt one, which is moved aside,
+## unless it cannot be moved) starts no payments this run and is never saved over (see store.gd);
+## the next launch retries.
+##
+## WEB: A SECOND COPY OF THE RECEIPTS (ScfgWebMirror). Every Godot web export on one origin shares
+## one IndexedDB database, and another game there can delete state.json after this one saved it.
+## So on the web a save also merges the receipts (not the pending sessions) into a copy in the
+## page's localStorage (ScfgWebMirror.update: a receipt another tab of this game saved stays there;
+## one this tab removed itself, such as by re-verification, leaves it; clear_local_data() empties
+## it, until another open tab of this game saves its receipts into it again), and the first read
+## of the state merges that copy back: a receipt the copy has and state.json lacks is added
+## (state.json's own version wins a conflict), and the merged state is saved at once. The merged
+## receipts are stored receipts like any other: normalised, then re-verified when the Engine
+## starts. A localStorage that is missing, blocked or full only warns
+## (debug builds, once); saving to user:// goes on. A state file that cannot be read leaves the
+## copy alone too.
 extends Node
 
 ## A final result of a payment that has no pay() callback (Ren'Py's `on_result`).
@@ -87,7 +102,8 @@ var _start_error: Variant = null  # the Engine could not be built from this conf
 var _checkouts := {}  # cid -> controller with its sheet open
 var _background := {}  # cid -> "keep playing" controller (its browser page still answers)
 var _restores := {}  # rid -> restore controller with its screen open
-var _callbacks := {}  # session id -> the pay() callback
+var _callbacks := {}  # session id -> the pay() callback, until the session is over (_prune_callbacks)
+var _seen_pending := {}  # the callbacks' session ids the last snapshot listed as pending (a set)
 var _restore_callbacks := {}  # rid -> the restore() callback
 var _next_id := 0
 var _last_snapshot: Variant = null
@@ -95,6 +111,7 @@ var _last_save := -INF
 var _warned_unready: Variant = null
 var _persisted: Variant = null  # {"pending", "receipts"}: what was last mirrored (null: not read yet)
 var _dirty := false  # _persisted has changes that are not on disk
+var _save_failing := false  # the last save failed and was reported (reported again only after a success)
 ## How many times `receipts_changed` was emitted: a screen compares it each frame instead of
 ## copying the receipts (ui/restore.gd).
 var _receipts_rev := 0
@@ -118,6 +135,12 @@ var _server_factory_override: Variant = null
 var _paste_target: Variant = null  # web: the cid or rid waiting for the page's clipboard answer
 var _js_override: Variant = null  # web: the page's JavaScript (default ScfgWebPage.BrowserJs)
 var _page: ScfgWebPage = null  # web: the page's bridge, built on first use (_web_page())
+var _mirror: ScfgWebMirror = null  # web: the receipts' copy in localStorage (_web_mirror())
+var _mirror_off := false  # web: localStorage could not be read this run, so no copy is kept
+## web: the receipt keys this tab had at its last merge or write of the copy (a set; null: none
+## yet). A key gone from the receipts since then was removed here, so it leaves the copy too.
+var _own_prev: Variant = null
+var _mirror_warned := false  # web: a copy the browser refused was warned about (once a run)
 var _copy_watch_until := -INF  # web: until when to ask the page whether a Copy failed (_clock time)
 ## Errors the Engine or Worker reported after this node left the tree (a pass still in flight
 ## at quit), counted and dropped: there is nobody left to tell.
@@ -159,6 +182,11 @@ func _setup(opts: Dictionary) -> void:
 	_server_factory_override = opts.get("server_factory", _server_factory_override)
 	_js_override = opts.get("js", _js_override)
 	_persisted = null
+	_save_failing = false
+	_mirror = null
+	_mirror_off = false
+	_own_prev = null
+	_mirror_warned = false
 
 
 static func _monotonic() -> float:
@@ -514,6 +542,8 @@ func _pump() -> void:
 	if worker == null:
 		return
 	_pump_page()
+	# Read before draining: every outcome of the pass that made this snapshot is queued.
+	var outcomes_snap: Variant = worker.snapshot
 	var controllers: Array = _checkouts.values() + _background.values()
 	for outcome: Variant in worker.drain_outcomes():
 		for c: Variant in controllers:
@@ -523,6 +553,7 @@ func _pump() -> void:
 	for c: Variant in controllers:
 		c.poll()
 		_register_callback(c)
+	_prune_callbacks(outcomes_snap)
 	var timeout: float = float(_config["methods"]["browser"]["timeout_min"]) * 60.0
 	var now: float = (_engine as ScfgEngine).clock.call()
 	for cid: Variant in _background.keys():
@@ -560,11 +591,36 @@ func _pump() -> void:
 		_save()
 
 
+## Remember the pay() callback of the controller's session, once per session: then _deliver (its
+## final result) or _prune_callbacks (it left the Engine) drops it for good. Registering again each
+## pump would bring back the callback of a sheet left open on an expired session past its scan
+## horizon, which no snapshot lists to prune any more. Not at all once the session's final result
+## (paid / underpaid) was delivered.
 func _register_callback(ctl: Variant) -> void:
 	var cb: Variant = ctl.get("callback")
 	var sid: Variant = ctl.session_id
-	if ScfgPy.py_truthy(sid) and cb is Callable and (cb as Callable).is_valid():
+	if ScfgPy.py_truthy(sid) and cb is Callable and (cb as Callable).is_valid() \
+			and sid != ctl.get("callback_sid") and not ctl.state in ["paid", "underpaid"]:
 		_callbacks[sid] = cb
+		ctl.set("callback_sid", sid)
+
+
+## Drop the callbacks of sessions that left the Engine since a snapshot listed them (closed at
+## their scan horizon, or discarded): no result can reach them any more. Results still can while
+## a session is pending, also after it expired ("keep playing"). `snap` was read before this pump
+## drained the outcomes, so a session that left because it was paid had its result delivered
+## first. A session id no snapshot listed yet (just started) is kept.
+func _prune_callbacks(snap: Variant) -> void:
+	if not snap is Dictionary or not (snap as Dictionary).get("pending") is Dictionary:
+		return
+	var pending: Dictionary = snap["pending"]
+	var seen := {}
+	for sid: Variant in _callbacks.keys():
+		if pending.has(sid):
+			seen[sid] = true
+		elif _seen_pending.has(sid):
+			_callbacks.erase(sid)
+	_seen_pending = seen
 
 
 ## A session's result: to its pay() callback, else to `payment_resolved`. A paid one is
@@ -624,6 +680,7 @@ class _Checkout:
 	extends ScfgCheckoutController
 	var cid := ""
 	var callback: Variant = null
+	var callback_sid: Variant = null  # the session id _register_callback registered `callback` for
 
 
 ## The controller behind a restore screen, with its id.
@@ -1136,7 +1193,72 @@ func _stored() -> Dictionary:
 			_warn(got["warning"])
 		_store_error = got.get("error")
 		_persisted = {"pending": got["pending"], "receipts": got["receipts"]}
+		if _store_error == null and _platform.is_web():
+			_merge_mirror()
 	return _persisted
+
+
+## The receipts' copy in localStorage (web exports only), made on first use.
+func _web_mirror() -> ScfgWebMirror:
+	if _mirror == null:
+		var js: Variant = _js_override if _js_override != null else ScfgWebPage.BrowserJs.new()
+		_mirror = ScfgWebMirror.new(js, ScfgWebMirror.project_key())
+	return _mirror
+
+
+## Web, at the first read of the state: merge the receipts' copy into it (see the header).
+func _merge_mirror() -> void:
+	var got := _web_mirror().read()
+	if got["warning"] != null:
+		_warn(got["warning"])
+	if not got["available"]:
+		_mirror_off = true
+		return
+	var receipts: Dictionary = _persisted["receipts"]
+	var copy: Dictionary = got["receipts"]
+	var added := false
+	for k: Variant in copy:
+		if not receipts.has(k):
+			receipts[k] = copy[k]
+			added = true
+	_own_prev = _key_set(receipts)
+	if added:
+		_dirty = true
+		_last_save = _clock.call()
+		_save()  # also brings the copy up to date
+	else:
+		_write_mirror()
+
+
+## Web: merge the receipts into the copy in localStorage (`clear`: empty it). A refusal warns
+## once a run; the next save tries again.
+func _write_mirror(clear: bool = false) -> void:
+	if not _platform.is_web() or _mirror_off:
+		return
+	var receipts: Dictionary = _persisted["receipts"]
+	var refused: Variant
+	if clear:
+		refused = _web_mirror().write({})
+	else:
+		var dropped := {}
+		if _own_prev is Dictionary:
+			for k: Variant in _own_prev:
+				if not receipts.has(k):
+					dropped[k] = true
+		refused = _web_mirror().update(receipts, dropped)
+	if refused == null:
+		_own_prev = _key_set(receipts)
+		return
+	if not _mirror_warned:
+		_mirror_warned = true
+		_warn(refused)
+
+
+static func _key_set(d: Dictionary) -> Dictionary:
+	var keys := {}
+	for k: Variant in d:
+		keys[k] = true
+	return keys
 
 
 ## What must reach disk at once: which sessions exist, their state and tx hint.
@@ -1173,14 +1295,20 @@ func _emit_receipts_changed() -> void:
 	receipts_changed.emit()
 
 
-func _save() -> void:
+## Writes the state to disk, and on the web into the copy (`clear`: the copy is emptied, for
+## clear_local_data()).
+func _save(clear: bool = false) -> void:
 	var stored := _stored()
 	if _store_error != null:
 		return  # the file on disk could not be read: what is in memory must not replace it
 	var err: Variant = ScfgStore.save(_store_path, stored["pending"], stored["receipts"])
+	_write_mirror(clear)  # also when user:// failed: the copy is then the only place they are kept
 	if err is ScfgErr:
-		_report_error("cannot save the payment state:", err)
+		if not _save_failing:  # once, not at every retry, until a save succeeds
+			_save_failing = true
+			_report_error("cannot save the payment state:", err)
 		return
+	_save_failing = false
 	_dirty = false
 
 
@@ -1267,7 +1395,7 @@ func clear_local_data() -> void:
 		_wipe = wipe
 	_persisted = {"pending": {}, "receipts": {}}
 	_last_save = _clock.call()
-	_save()
+	_save(true)
 	if had_receipts:
 		_emit_receipts_changed()
 

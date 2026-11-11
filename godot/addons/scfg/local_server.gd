@@ -41,9 +41,10 @@
 ##
 ## HTTP, as Python's BaseHTTPRequestHandler reads it: GET and POST only, any other method
 ## (HEAD included, which gets no body) is 501; a request line that is empty is closed without an
-## answer, a bad version is 400 and HTTP/2+ is 505; lines may end in LF or CRLF; header names
-## are case-insensitive and the first of a repeated header counts; a path starting with `//` is
-## reduced to one `/`; the query string is ignored; Content-Length is read as Python's int().
+## answer, a bad version is 400 and HTTP/2+ is 505; lines may end in LF or CRLF, and a bare CR
+## inside a header line ends that header (_headers); header names are case-insensitive and the
+## first of a repeated header counts; a path starting with `//` is reduced to one `/`; the query
+## string is ignored; Content-Length is read as Python's int().
 ## Every answer is HTTP/1.1 with `Connection: close`. Deviations: a two-word (HTTP/0.9) request
 ## line is a 400 (http.server answers it with a bare body), an answer is sent with its status
 ## line where http.server sends a bare error page (a bad request line), and the 501's body is
@@ -77,7 +78,7 @@ const LINGER_MAX_BYTES := 65536
 const WRITE_CHUNK := 65536
 const WRITE_CHUNKS := 16
 ## The content types the logo is served as: the ones ScfgConfig accepts for a logo file.
-static var RASTER_TYPES: Array = ScfgConfig.LOGO_TYPES.values()
+static var RASTER_TYPES: Array[String] = Array(ScfgConfig.LOGO_TYPES.values(), TYPE_STRING, &"", null)
 
 const _CTYPES := {
 	"index.html": "text/html; charset=utf-8",
@@ -119,6 +120,9 @@ var running: bool:
 
 ## Seconds, monotonic. A test hook (tests/test_local_server.gd).
 var _clock: Callable = _ticks
+## A test hook (tests/test_local_server.gd): `func(peer: StreamPeerTCP) -> Object`, what each
+## accepted connection is used through (a recorder of the calls pump() makes), or null.
+var _wrap_peer: Variant = null
 var _tcp: TCPServer = null
 var _port := 0
 var _conns: Array = []  # of _Conn
@@ -126,7 +130,7 @@ var _conns: Array = []  # of _Conn
 
 class _Conn:
 	extends RefCounted
-	var peer: StreamPeerTCP
+	var peer: Object  # a StreamPeerTCP, or what the _wrap_peer test hook made of one
 	var state := _State.HEAD
 	var deadline := 0.0
 	var buf := PackedByteArray()
@@ -195,7 +199,7 @@ func pump() -> void:
 		if peer == null:
 			break
 		var c := _Conn.new()
-		c.peer = peer
+		c.peer = peer if _wrap_peer == null else (_wrap_peer as Callable).call(peer)
 		c.deadline = _now() + DEADLINE_S
 		_conns.append(c)
 	for c: _Conn in _conns.duplicate():
@@ -344,30 +348,63 @@ func _on_head(c: _Conn) -> void:
 		_on_body(c, c.buf.slice(0, c.need))
 
 
-## The header block as email.parser (compat32) reads it: {lowercase name: first value}. A value
-## loses its leading spaces and tabs, not its trailing ones; a continuation line is appended (so
-## a folded value matches nothing); a line with an empty name or an envelope `From ` line is
-## skipped; the first line that is not a header ends the block.
+## The header block as email.parser (compat32) reads it: {lowercase name: first value}.
+## `lines` are the head's header lines as read at each LF (without the LF). The block they make
+## is split again after each \r\n, \r or \n (feedparser's universal newlines: a bare CR inside
+## a line ends a header there); the first line that is not a header ends the block. A value
+## loses its leading spaces and tabs and its trailing \r and \n, not its trailing spaces; a
+## continuation line (leading space or tab) is appended to the header before it, line ends and
+## all (so a folded value matches nothing), and is skipped with no header before it; a line with
+## an empty name or an envelope `From ` line is skipped; the first of a repeated name counts.
+## As local_server.ts's pyHeaders.
 static func _headers(lines: Array[String]) -> Dictionary:
 	var out := {}
-	var owner := ""  # the header a continuation line extends: the first of its name
-	for line in lines:
+	var parts: Array[String] = []  # the header being read: its first line, then continuations
+	for line in _universal_lines(lines):
 		if line.begins_with(" ") or line.begins_with("\t"):
-			if owner != "":
-				out[owner] += "\n" + line
-			continue
-		owner = ""
-		if line.begins_with("From "):
+			if not parts.is_empty():
+				parts.append(line)
 			continue
 		var colon := line.find(":")
-		if colon == 0:
-			continue
-		if colon < 0 or not _header_name(line.left(colon)):
+		if not line.begins_with("From ") and (colon < 0 or not _header_name(line.left(colon))):
 			break
-		var name := line.left(colon).to_lower()
-		if not out.has(name):
-			out[name] = line.substr(colon + 1).lstrip(" \t").rstrip("\r\n")
-			owner = name
+		_finish_header(out, parts)
+		parts = []
+		if not line.begins_with("From ") and colon > 0:
+			parts = [line]
+	_finish_header(out, parts)
+	return out
+
+
+## Adds the header `parts` hold (its first line, then its continuation lines) unless its name is
+## already in `out`.
+static func _finish_header(out: Dictionary, parts: Array[String]) -> void:
+	if parts.is_empty():
+		return
+	var first := parts[0]
+	var colon := first.find(":")
+	var name := first.left(colon).to_lower()
+	if out.has(name):
+		return
+	var value := first.substr(colon + 1).lstrip(" \t")
+	for i in range(1, parts.size()):
+		value += parts[i]
+	out[name] = value.rstrip("\r\n")
+
+
+## `lines` (each read up to an LF, the LF removed) split after each \r\n, \r or \n of the
+## block they make, line ends kept.
+static func _universal_lines(lines: Array[String]) -> Array[String]:
+	var out: Array[String] = []
+	for line in lines:
+		var start := 0
+		while true:
+			var cr := line.find("\r", start)
+			if cr < 0 or cr == line.length() - 1:
+				out.append(line.substr(start) + "\n")
+				break
+			out.append(line.substr(start, cr + 1 - start))
+			start = cr + 1
 	return out
 
 

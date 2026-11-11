@@ -7,14 +7,16 @@
  * question says so.
  */
 import type { RpcClient } from "../rpc.ts";
-import { pyGet, pyInt, pyIntNumber, pyTruthy } from "../pystr.ts";
+import { PY_DIGIT, digitRunValue, pyGet, pyInt, pyIntNumber, pyTruthy } from "../pystr.ts";
 import { RpcError, RpcUnavailable } from "../rpc.ts";
 import { ValueError } from "../errors.ts";
 
 export const TX_VERSION = 1; // highest transaction version this build can read (only meta is used)
 const UNKNOWN_HISTORY = 2 ** 62;
 const UNSUPPORTED_VERSION = -32015;
-const NAMED_VERSION = /version \((\d+)\)/i;
+// Python's re.compile(r"version \((\d+)\)", re.IGNORECASE): \d is any Unicode decimal digit (PY_DIGIT), and
+// IGNORECASE also matches \u017f for s and \u0130, \u0131 for i (JS's /i does not)
+const NAMED_VERSION = new RegExp(`[vV][eE][rR][sS\u017f][iI\u0130\u0131][oO][nN] \\((${PY_DIGIT}+)\\)`, "u");
 
 export class SolanaRpc {
   client: RpcClient;
@@ -54,13 +56,15 @@ export class SolanaRpc {
 
   /**
    * The newer version a -32015 "Transaction version (N) is not supported" names. Only meta,
-   * slot and accountKeys are read, so any version can be read.
+   * slot and accountKeys are read, so any version can be read. A number beyond 18 significant
+   * digits is no match (Ruling 6).
    */
   private _namedVersion(error: RpcError): number | null {
     if (error.code !== UNSUPPORTED_VERSION) return null;
     const found = NAMED_VERSION.exec(error.message);
-    if (found === null || Number(found[1]) <= this.tx_version) return null;
-    return Number(found[1]);
+    const version = found === null ? null : digitRunValue(found[1]!);
+    if (version === null || version <= this.tx_version) return null;
+    return version;
   }
 
   /** Older nodes reject a maxSupportedTransactionVersion they don't know (-32602). */

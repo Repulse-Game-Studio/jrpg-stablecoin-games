@@ -33,6 +33,18 @@
   "tests/unit/test_rpc_client.py"
  ],
  "tests": {
+  "tests/unit/test_amounts.py::test_amount_text_is_bounded": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_decimal_to_units_is_exact": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_decimal_to_units_range_edges": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_decimal_to_units_rejects_amounts_out_of_range": [
+   "tier1/amounts"
+  ],
   "tests/unit/test_amounts.py::test_decimal_to_units_rejects_sub_unit_precision": [
    "tier1/amounts"
   ],
@@ -64,6 +76,15 @@
    "tier1/amounts"
   ],
   "tests/unit/test_amounts.py::test_parse_amount_rejects_values": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_stored_amount_reads_numbers_in_range": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_stored_amount_refuses_lists_and_tuples": [
+   "tier1/amounts"
+  ],
+  "tests/unit/test_amounts.py::test_stored_amount_refuses_others": [
    "tier1/amounts"
   ],
   "tests/unit/test_amounts.py::test_units_conversions": [
@@ -401,6 +422,12 @@
   "tests/unit/test_engine.py::test_restore_through_engine": [
    "tier2/evm/restore_through_engine"
   ],
+  "tests/unit/test_engine.py::test_reverify_prints_when_on_error_is_unset_mid_pass": {
+   "python_only": "an on_error unset mid-pass (None/falsy) falling back to print_error is not on the vector surface (a vector cannot replace the handler, nor see stderr); the TypeScript port tests it natively (engine.test.ts), GDScript's ScfgErr.report falls back the same way (test_engine.gd test_reverify_prints_when_on_error_is_not_a_valid_callable)"
+  },
+  "tests/unit/test_engine.py::test_reverify_reports_to_the_on_error_set_mid_pass": {
+   "python_only": "which on_error object is told is not on the vector surface (a vector counts the reported errors, never the handler, and cannot replace it mid-pass); the GDScript and TypeScript ports test it natively (test_engine.gd, engine.test.ts)"
+  },
   "tests/unit/test_engine.py::test_reverify_uses_accepted_wallets": [
    "tier2/evm/reverify_accepted_wallets"
   ],
@@ -492,7 +519,7 @@
    "tier1/keccak",
    "tier1/evm_address"
   ],
-  "tests/unit/test_evm_logs.py::test_empty_data_means_zero_value": [
+  "tests/unit/test_evm_logs.py::test_data_must_be_one_32_byte_word": [
    "tier1/evm_address"
   ],
   "tests/unit/test_evm_logs.py::test_ignores_erc721_transfer_with_four_topics": [
@@ -535,8 +562,14 @@
   "tests/unit/test_page_messages.py::test_tx_message_with_a_checksummed_sender": [
    "tier1/page_messages"
   ],
+  "tests/unit/test_paylinks.py::test_a_version_32_payment_link_matrix": [
+   "tier1/qr"
+  ],
   "tests/unit/test_paylinks.py::test_eip681_uri": [
    "tier1/paylinks"
+  ],
+  "tests/unit/test_paylinks.py::test_qr_alignment_patterns_sit_where_the_standard_puts_them": [
+   "tier1/qr"
   ],
   "tests/unit/test_paylinks.py::test_qr_matrix_is_square_with_finder_patterns": [
    "tier1/qr"
@@ -576,6 +609,9 @@
    "tier1/receipts"
   ],
   "tests/unit/test_receipts.py::test_ownership_ignores_unknown_items": [
+   "tier1/receipts"
+  ],
+  "tests/unit/test_receipts.py::test_ownership_of_forged_huge_amounts_is_nothing_and_quick": [
    "tier1/receipts"
   ],
   "tests/unit/test_receipts.py::test_ownership_requires_min_price": [
@@ -637,6 +673,28 @@
   "tests/unit/test_restore.py::test_lookup_not_found_anywhere": [
    "tier2/restore/not_found"
   ],
+  "tests/unit/test_restore.py::test_lookup_skips_a_transfer_too_large_to_decode": [
+   "tier2/restore/too_large_to_decode_is_skipped"
+  ],
+  "tests/unit/test_reverify.py::test_a_forged_out_of_range_receipt_no_longer_unlocks": [
+   "tier2/reverify/invalid_receipts_are_removed",
+   "tier1/receipts"
+  ],
+  "tests/unit/test_reverify.py::test_a_malformed_receipt_on_an_unknown_chain_is_kept": [
+   "tier2/reverify/invalid_receipts_are_removed"
+  ],
+  "tests/unit/test_reverify.py::test_a_receipt_whose_check_crashes_is_kept_and_reported": [
+   "tier2/reverify/invalid_receipts_are_removed"
+  ],
+  "tests/unit/test_reverify.py::test_a_receipt_with_invalid_fields_is_removed_and_reported": [
+   "tier2/reverify/invalid_receipts_are_removed"
+  ],
+  "tests/unit/test_reverify.py::test_a_report_without_on_error_is_printed": {
+   "python_only": "the default stderr hook (print_error) when no on_error is given; the Engine always passes its own"
+  },
+  "tests/unit/test_reverify.py::test_a_type_valid_but_malformed_receipt_is_removed_before_any_rpc": [
+   "tier2/reverify/invalid_receipts_are_removed"
+  ],
   "tests/unit/test_reverify.py::test_block_slightly_ahead_of_lagging_head_is_kept": [
    "tier2/reverify/blocks_ahead_of_the_node"
   ],
@@ -674,6 +732,9 @@
   ],
   "tests/unit/test_rpc_client.py::test_all_endpoints_down_raises_unavailable": [
    "tier2/rpc/all_endpoints_fail"
+  ],
+  "tests/unit/test_rpc_client.py::test_an_overlong_number_in_a_range_error_does_not_break_get_logs": [
+   "tier1/rpc_errors"
   ],
   "tests/unit/test_rpc_client.py::test_archive_message_counts_as_range_error": [
    "tier2/rpc/range_error_phrases"
@@ -741,6 +802,12 @@
   "tests/unit/test_rpc_client.py::test_success_resets_cooldown": [
    "tier2/rpc/cooldown_doubles_to_the_cap_and_recovers"
   ],
+  "tests/unit/test_rpc_client.py::test_suggested_range_ignores_numbers_beyond_18_digits": [
+   "tier1/rpc_errors"
+  ],
+  "tests/unit/test_rpc_client.py::test_suggested_range_reads_18_significant_digits_not_19": {
+   "python_only": "the boundary shows only for a tried range of 10**18 or more, which no vector can carry (ints stay below 2**53); the GDScript port tests it natively, and JS numbers cannot hold it exactly"
+  },
   "tests/unit/test_rpc_client.py::test_suggested_range_uses_stated_limit_or_halves": [
    "tier2/rpc/getlogs_range_halves_without_a_stated_limit",
    "tier2/rpc/getlogs_range_shrinks_to_a_stated_limit",
@@ -773,6 +840,9 @@
   "tests/unit/test_sessions.py::test_record_contains_only_plain_types": {
    "python_only": "Guards Ren'Py's pickling of persistent data against custom classes; the vectors' snapshots are JSON by construction (checked by the state schema), so a port has no equivalent property to test"
   },
+  "tests/unit/test_sessions.py::test_session_price_is_read_as_a_stored_amount": [
+   "tier1/amounts"
+  ],
   "tests/unit/test_sessions.py::test_set_hint_unknown_session": [
    "tier2/evm/session_actions"
   ],
@@ -798,6 +868,9 @@
   "tests/unit/test_solana_backend.py::test_lookup_outcomes": [
    "tier2/solana/restore_lookup"
   ],
+  "tests/unit/test_solana_backend.py::test_lookup_skips_a_value_decode_cannot_price": [
+   "tier2/solana/restore_too_large_to_decode_is_skipped"
+  ],
   "tests/unit/test_solana_backend.py::test_make_rpc_wraps_the_failover_client": {
    "python_only": "Asserts the Python class composition (SolanaRpc wrapping an RpcClient); the URL order it checks shows in the url of every recorded call. A port cannot share its class structure"
   },
@@ -822,7 +895,13 @@
   "tests/unit/test_solana_backend.py::test_start_fields": [
    "tier2/solana/paid_by_reference"
   ],
+  "tests/unit/test_solana_base58.py::test_a_length_that_is_not_a_byte_count_is_a_value_error": [
+   "tier1/base58"
+  ],
   "tests/unit/test_solana_base58.py::test_decode_rejects_bad_input": [
+   "tier1/base58"
+  ],
+  "tests/unit/test_solana_base58.py::test_fixed_length_decoding_refuses_long_text_before_decoding": [
    "tier1/base58"
   ],
   "tests/unit/test_solana_base58.py::test_fixed_lengths": [
@@ -832,6 +911,12 @@
    "tier1/base58"
   ],
   "tests/unit/test_solana_base58.py::test_matches_solders_for_random_keys_and_signatures": [
+   "tier1/base58"
+  ],
+  "tests/unit/test_solana_base58.py::test_the_length_check_spy_sees_the_decoding_of_valid_lengths": {
+   "python_only": "checks the wiring of the Python test's decoder spy (a monkeypatched module function); the length bound itself is in tier1/base58 and each port asserts the refusal's message natively"
+  },
+  "tests/unit/test_solana_base58.py::test_the_longest_encodings_still_decode": [
    "tier1/base58"
   ],
   "tests/unit/test_solana_build.py::test_build_payment_rejects_a_bad_account": [
@@ -877,6 +962,9 @@
   "tests/unit/test_solana_pda.py::test_wrong_length_is_not_on_curve": [
    "tier1/ed25519"
   ],
+  "tests/unit/test_solana_rpc.py::test_an_overlong_named_version_raises_the_node_error": [
+   "tier1/rpc_errors"
+  ],
   "tests/unit/test_solana_rpc.py::test_get_transaction_any_retries_with_the_named_version": [
    "tier2/solana/tx_version_named_by_node"
   ],
@@ -894,6 +982,9 @@
   ],
   "tests/unit/test_solana_rpc.py::test_get_transaction_retries_once_with_the_version_the_node_names": [
    "tier2/solana/tx_version_named_by_node"
+  ],
+  "tests/unit/test_solana_rpc.py::test_named_version_ignores_numbers_beyond_18_digits": [
+   "tier1/rpc_errors"
   ],
   "tests/unit/test_solana_rpc.py::test_null_from_full_history_endpoint_is_authoritative": [
    "tier2/solana/history_covering_endpoint_drops"

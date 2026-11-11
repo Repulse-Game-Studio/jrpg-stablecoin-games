@@ -39,7 +39,19 @@ export function b58decode(text: string): Uint8Array {
   return out;
 }
 
+/** The longest base58 text of `length` bytes: 44 characters for 32, 88 for 64 (Python's max_encoded_length). */
+export function maxEncodedLength(length: number): number {
+  return Math.ceil(length * Math.log(256) / Math.log(58));
+}
+
+/**
+ * `length` bytes from base58 `text`. Decoding is quadratic in the text's length, so text longer than
+ * any encoding of `length` bytes is refused before it is decoded.
+ */
 export function decodeFixed(text: string, length: number): Uint8Array {
+  if (typeof text === "string" && text.length > maxEncodedLength(length)) {
+    throw new ValueError(`too long for ${length} bytes: ${text.length} characters`);
+  }
   const raw = b58decode(text);
   if (raw.length !== length) throw new ValueError(`expected ${length} bytes, got ${raw.length}: ${JSON.stringify(text)}`);
   return raw;

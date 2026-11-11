@@ -3,11 +3,17 @@
  * stopping while it waits (`wait(frames)` or a wait mode). Written from MZ's documented behaviour.
  *
  * A command runs as MZ runs it: the interpreter's method named "command" + its code, whatever
- * defines it (the shim or a plugin); a code without one is skipped. The shim defines 230 (Wait)
- * and 357 (Plugin Command, MZ): `[pluginName, commandName, commandText, args]`, which calls
- * `PluginManager.callCommand` with the interpreter as `this`. Wait modes other than "message" are
- * never waiting (the shim has no transfers, routes, animations or images). Plugins add their own
- * wait modes by aliasing `updateWaitMode`, as with MZ.
+ * defines it (the shim or a plugin); a code without one is skipped. The shim defines 117 (Common
+ * Event), 230 (Wait) and 357 (Plugin Command, MZ): `[pluginName, commandName, commandText, args]`,
+ * which calls `PluginManager.callCommand` with the interpreter as `this`. Wait modes other than
+ * "message" are never waiting (the shim has no transfers, routes, animations or images). Plugins
+ * add their own wait modes by aliasing `updateWaitMode`, as with MZ.
+ *
+ * A common event runs as in MZ: command117 hands its list to a child interpreter (`setupChild`,
+ * one level deeper, with the calling event's id when that event is on the current map), and
+ * `update()` updates the child first (`updateChild`): while the child runs, the parent waits; the
+ * frame the child ends, the parent goes on. So a plugin command in a common event runs with the
+ * child as `this`, and a wait mode it sets holds the child (and through it the parent).
  */
 import type { Ctx } from "./context.ts";
 
@@ -31,6 +37,7 @@ export function createGameInterpreter(ctx: Ctx) {
     declare _waitCount: number;
     declare _waitMode: string;
     declare _indent: number;
+    declare _childInterpreter: Game_Interpreter | null;
 
     constructor(...args: unknown[]) {
       this.initialize(...args);
@@ -50,6 +57,7 @@ export function createGameInterpreter(ctx: Ctx) {
       this._waitCount = 0;
       this._waitMode = "";
       this._indent = 0;
+      this._childInterpreter = null;
     }
 
     // Game_Interpreter.prototype.setup(list, eventId)
@@ -65,12 +73,34 @@ export function createGameInterpreter(ctx: Ctx) {
       return !!this._list;
     }
 
-    // Game_Interpreter.prototype.update: run commands until one waits or the list ends
+    // Game_Interpreter.prototype.isOnCurrentMap
+    isOnCurrentMap(): boolean {
+      return !!g.$gameMap && this._mapId === g.$gameMap.mapId();
+    }
+
+    // Game_Interpreter.prototype.setupChild(list, eventId): a child interpreter one level deeper
+    setupChild(list: EventCommand[], eventId: number): void {
+      this._childInterpreter = new Game_Interpreter(this._depth + 1);
+      this._childInterpreter.setup(list, eventId);
+    }
+
+    // Game_Interpreter.prototype.update: run commands until the child runs, one waits or the list ends
     update(): void {
       while (this.isRunning()) {
-        if (this.updateWait()) break;
+        if (this.updateChild() || this.updateWait()) break;
         if (!this.executeCommand()) break;
       }
+    }
+
+    // Game_Interpreter.prototype.updateChild: update the child; true while it still runs (the
+    // parent waits), and a child that ended is dropped
+    updateChild(): boolean {
+      if (this._childInterpreter) {
+        this._childInterpreter.update();
+        if (this._childInterpreter.isRunning()) return true;
+        this._childInterpreter = null;
+      }
+      return false;
     }
 
     // Game_Interpreter.prototype.updateWait
@@ -129,6 +159,17 @@ export function createGameInterpreter(ctx: Ctx) {
     // Game_Interpreter.prototype.terminate
     terminate(): void {
       this._list = null;
+    }
+
+    // Game_Interpreter.prototype.command117: Common Event. Parameters [common event id]: its list
+    // runs in a child interpreter (an id without a common event runs nothing).
+    command117(params: any[]): boolean {
+      const commonEvent = g.$dataCommonEvents?.[params[0]];
+      if (commonEvent) {
+        const eventId = this.isOnCurrentMap() ? this._eventId : 0;
+        this.setupChild(commonEvent.list, eventId);
+      }
+      return true;
     }
 
     // Game_Interpreter.prototype.command230: Wait

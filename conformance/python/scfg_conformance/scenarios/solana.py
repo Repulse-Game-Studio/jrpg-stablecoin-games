@@ -603,7 +603,7 @@ def _unwatchable(s):
 @scenario("solana/crash_in_one_session", covers=covers(
     "engine_solana", "an_exception_in_one_session_does_not_stop_the_others"))
 def _crash(s):
-    """An Arbitrum session whose node returns a log with malformed data (`0xzz`) crashes while
+    """An Arbitrum session whose node returns a log with a malformed logIndex (`0xzz`) crashes while
     being advanced: it is contained (waiting with error internal_error, one internal error),
     and the Solana session in the same tick still advances."""
     s.config(wallet=DEV_EVM, solana_wallet=DEV_SOL)
@@ -615,7 +615,7 @@ def _crash(s):
     fine = s.start_session("unlock", "solana", item="chapter2")
     log = arb.add_transfer(usdc, PAYER_EVM, DEV_EVM, broken["units"], block=998,
                            tx_hash=tx_hash(1))
-    log["data"] = "0xzz"
+    log["logIndex"] = "0xzz"
     pay(sol, mint, 1, fine["units"], addresses=[fine["reference"], fine["dest"]])
     outs = {o.session_id: o for o in s.expect("internal_error").tick()}
     assert s.steps[-1]["internal_errors"] == 1

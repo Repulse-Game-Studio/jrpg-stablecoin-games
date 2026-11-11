@@ -27,7 +27,7 @@ import { IndexError, KeyError, ValueError } from "../errors.ts";
 import type { Item } from "../models.ts";
 import { hasOwn, pyGet, pyInt, pyIntNumber, pyTruthy, pyType } from "../pystr.ts";
 import { addReceipt, makeReceipt, receiptKey } from "../receipts.ts";
-import { RestoreError, classify, type RestoreCandidate } from "../restore.ts";
+import { RestoreError, classifyOrSkip, type RestoreCandidate } from "../restore.ts";
 import { FUTURE_TOLERANCE_BLOCKS, amountUnits } from "../reverify.ts";
 import { RpcClient, RpcError, RpcUnavailable } from "../rpc.ts";
 import {
@@ -489,7 +489,9 @@ export class SolanaBackend implements Backend {
   }
 
   async lookup(
-    tx: string, args: { config: Config; chain: Chain; rpc: SolanaWatchRpc; receipts: SessionStore },
+    tx: string, args: {
+      config: Config; chain: Chain; rpc: SolanaWatchRpc; receipts: SessionStore; on_error?: ((e: unknown) => void) | undefined;
+    },
   ): Promise<RestoreCandidate[] | null> {
     const { config, chain, rpc, receipts } = args;
     const [found] = await rpc.getTransactionAny(tx);
@@ -500,7 +502,9 @@ export class SolanaBackend implements Backend {
       for (const owner of acceptedWalletsFor(config, "solana")) {
         const t = transferTo(found, { sig: tx, mint: token.address, owner });
         if (t === null) continue;
-        const [kind, item, choices] = classify(config, t.value);
+        const classified = classifyOrSkip(config, t.value, args.on_error);
+        if (classified === null) continue;
+        const [kind, item, choices] = classified;
         out.push({
           chain: chain.key, token: name, transfer: t, kind, item, choices,
           already_restored: hasOwn(receipts, receiptKey(chain.key, t.tx_hash, t.log_index)),

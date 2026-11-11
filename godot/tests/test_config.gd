@@ -63,8 +63,8 @@ func test_wallet_is_normalized() -> bool:
 	T.eq(_code(ScfgConfig.build_config({})), "wallet.missing", "no wallet at all")
 	T.is_err(ScfgConfig.build_config({"wallet": DEV, "bogus": 1}), "TypeError", "an unexpected keyword")
 	T.is_err(ScfgConfig.build_config({}), "ValueError", "a ConfigError is a ValueError")
-	# the regex' `$` also matches before one trailing newline; the checksum is then taken over 41 chars
-	T.eq(_good({"wallet": DEV + "\n"})["wallet"], "0x52908400098527886E0f7030069857D2e4169ee7\n", "trailing newline")
+	# an address is the whole string (Python's fullmatch): a trailing newline is refused
+	_bad({"wallet": DEV + "\n"}, "address.invalid", "trailing newline")
 	return T.done()
 
 
@@ -171,7 +171,8 @@ func test_rpc_urls() -> bool:
 			{"base": "http://example.org"}, {"base": ["https://ok.example.org", "ftp://x"]},
 			{"base": "http://127.0.0.1.evil.org"}, {"base": {"https://a": 1}}, {"base": [["https://x"]]},
 			{"base": "http://localhost:123456"}, {"base": "http://localhost:"}, {"base": "http://localhostx"},
-			{"base": "http://localhost:8545\n\n"}]:
+			{"base": "http://localhost:8545\n\n"}, {"base": "http://localhost:8545\n"}, {"base": "http://localhost\n"},
+			{"base": "http://127.0.0.1\n"}]:  # full match: no trailing newline
 		T.is_err(_cfg({"rpc_urls": urls}), "ConfigError", "rpc_urls %s" % ScfgPy.py_repr(urls))
 	_bad({"rpc_urls": {"base": []}}, "rpc.bad_list")
 	_bad({"rpc_urls": {"base": "http://example.org"}}, "rpc.not_https")
@@ -179,7 +180,7 @@ func test_rpc_urls() -> bool:
 	_bad({"rpc_urls": {"polygon": "https://x.example.org"}, "chains": ["base"]}, "rpc_urls.unknown_chain")
 	_bad({"rpc_urls": ["x"]}, "AttributeError", "a list has no .items()")
 	for ok: Variant in ["http://127.0.0.1:8545", "http://localhost:8545/", "http://127.0.0.1", "http://localhost:12345/x",
-			"http://localhost:8545\n", "http://localhost:\u0661\u0662\u0663"]:
+			"http://localhost:\u0661\u0662\u0663"]:
 		T.eq(_good({"rpc_urls": {"base": ok}})["rpc_urls"], {"base": [ok]}, "plain http on this computer: %s" % ScfgPy.py_repr(ok))
 	T.eq(_good({"rpc_urls": ""})["rpc_urls"], {}, "falsy")
 	return T.done()
@@ -247,10 +248,10 @@ func test_logo_and_accent() -> bool:
 	T.eq(ScfgConfig.logo_content_type("x.webp"), "image/webp", "webp")
 	T.is_err(ScfgConfig.logo_content_type("x.svg"), "ConfigError", "svg")
 	T.eq(_code(ScfgConfig.logo_content_type("noext")), "logo.bad_type", "no extension")
-	for pair: Array in [["#0E7C74", "#0e7c74"], ["#09c", "#0099cc"], ["#0099ccff", "#0099cc"], [null, "#0e7c74"],
-			["#abc\n", "#abc\n"], ["#AABBCC\n", "#aabbcc"]]:
+	for pair: Array in [["#0E7C74", "#0e7c74"], ["#09c", "#0099cc"], ["#0099ccff", "#0099cc"], [null, "#0e7c74"]]:
 		T.eq(_good({"accent": pair[0]})["accent"], pair[1], "accent %s" % ScfgPy.py_repr(pair[0]))
-	for bad: Variant in ["0099cc", "#0099c", "#gggggg", "teal", 0x0099CC, "#0099cc80 ", "#abcdefa", "", 0, "red", "#12"]:
+	for bad: Variant in ["0099cc", "#0099c", "#gggggg", "teal", 0x0099CC, "#0099cc80 ", "#abcdefa", "", 0, "red", "#12",
+			"#abc\n", "#AABBCC\n"]:  # the whole string (Python's fullmatch): no trailing newline
 		_bad({"accent": bad}, "accent.invalid", "accent")
 	return T.done()
 
@@ -340,11 +341,12 @@ func test_build_chain_fields() -> bool:
 	T.eq(_avax({"testnet": "x"})["testnet"], true, "bool(testnet)")
 	T.eq(_avax({"testnet": []})["testnet"], false, "bool([])")
 	T.eq(_avax({"max_log_range": 10})["max_log_range"], 10, "the minimum")
-	T.eq(_avax({"native_symbol": "ETH\n"})["native_symbol"], "ETH\n", "`$` accepts one trailing newline")
-	T.eq(_avax({"key": "ab\n"})["key"], "ab\n", "(also the key)")
+	# the patterns match the whole string (Python's fullmatch): no trailing newline
+	T.eq(_code(_avax({"native_symbol": "ETH\n"})), "chain.bad_native_symbol", "a trailing newline in the symbol")
+	T.eq(_code(_avax({"key": "ab\n"})), "chain.invalid_key", "(and in the key)")
 	T.eq(_avax({"tokens": {"USDT": AVAX_USDC, "USDC": AVAX_USDC}})["tokens"].keys(), ["USDT", "USDC"], "token order")
-	T.eq(_avax({"tokens": {"USDC": AVAX_USDC.to_lower() + "\n"}})["tokens"]["USDC"]["address"], "0xB97EF9EF8734C71904d8002F8b6Bc66DD9C48A6e\n",
-		"a newline-terminated address carries the newline")
+	T.eq(_code(_avax({"tokens": {"USDC": AVAX_USDC.to_lower() + "\n"}})), "address.invalid",
+		"a newline-terminated token address is refused")
 	return T.done()
 
 
@@ -492,7 +494,11 @@ func test_add_item() -> bool:
 	T.eq(str(_okitem({"price": " 4.99 "})["price"]), "4.99", "a padded price")
 	T.eq(str(_okitem({"price": "0.5E1"})["price"]), "5.00", "exponent form")
 	T.eq(_okitem({"title": "\ud83d\ude00".repeat(80)})["title"].length(), 80, "80 astral characters")
-	T.eq(_okitem({"item_id": "ab\n"})["item_id"], "ab\n", "`$` accepts one trailing newline")
+	# the item id pattern matches the whole string (Python's fullmatch): no trailing newline
+	var nl_opts := _item({})
+	nl_opts.erase("item_id")
+	var nl: Variant = ScfgConfig.add_item(_good(), "ab\n", nl_opts)
+	T.eq(_code(nl), "item.invalid_id", "a trailing newline in the item id")
 	return T.done()
 
 

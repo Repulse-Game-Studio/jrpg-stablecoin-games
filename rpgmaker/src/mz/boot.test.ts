@@ -96,3 +96,37 @@ test("aScriptConfigureBeforeBootKeepsTheItemsParametersOwnedSwitches", async () 
   assert.equal(g.$gameSwitches.value(1), true, "the Items entry's Owned Switch follows the re-added item");
   assert.deepEqual(errors, []);
 });
+
+test("anItemsEntryAScriptConfigureDidNotReAddLeavesItsSwitchAlone", async () => {
+  // a plugin below SCFG configures again and re-adds no item: the Items entry's Owned Switch
+  // belongs to no item any more, so it is never set (the game's own value stays); the reason is
+  // reported once, not on every refresh, and payments work on the script's configuration
+  const glue = await bootGlue({ params: { wallet: DEV, testnet: "false", items: encodeItems([CHAPTER2]) }, start: false });
+  const { s, errors } = glue;
+  s.configure({ wallet: DEV, chains: ["arbitrum"] });
+  s.addItem("chapter3", { code: 38, price: "2.99", token: "USDC", title: "Chapter 3" });
+  await bootShim();
+  await s._mirror.idle();
+  glue.shim.frame();
+  assert.ok(s._worker !== null, "the game boots on the script's configuration");
+  assert.throws(() => s.owns("chapter2"), /unknown item/, "chapter2 was not re-added");
+  g.$gameSwitches.setValue(1, true); // the game's own use of that switch
+  await pass(glue);
+  s._worker.submit((e) => addReceipt(e.receipts, {
+    chain: "arbitrum", tx_hash: TX, log_index: 0, block: 10, kind: "unlock", item: "chapter3", amount: "2.99", token: "USDC",
+    payer: PAYER.toLowerCase(), recipient: DEV.toLowerCase(), source: "payment",
+  } as any));
+  await pass(glue);
+  assert.equal(s.owns("chapter3"), true, "a re-added item is owned as usual");
+  assert.equal(g.$gameSwitches.value(1), true, "the refresh on that receipt left the switch alone");
+  s._worker.submit((e) => addReceipt(e.receipts, {
+    chain: "arbitrum", tx_hash: "0x" + "ef".repeat(32), log_index: 0, block: 11, kind: "tip", item: null, amount: "1.00", token: "USDC",
+    payer: PAYER.toLowerCase(), recipient: DEV.toLowerCase(), source: "payment",
+  } as any));
+  await pass(glue); // the receipts changed: another refresh
+  assert.equal(g.$gameSwitches.value(1), true, "still as the game set it");
+  const reports = errors.filter((e) => e.includes("cannot set item chapter2's owned switch"));
+  assert.equal(reports.length, 1, errors.join("\n"));
+  assert.match(reports[0]!, /unknown item/);
+  assert.deepEqual(errors.filter((e) => !reports.includes(e)), [], "nothing else reported");
+});

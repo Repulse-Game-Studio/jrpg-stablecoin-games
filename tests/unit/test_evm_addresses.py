@@ -30,7 +30,8 @@ def test_checksum_from_uppercase_body(address):
 @pytest.mark.parametrize(
     "bad",
     ["", "0x", "5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed", "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAe",
-     "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAedd", "0xZZAeb6053F3E94C9b9A09f33669435E7Ef1BeAed", None, 42],
+     "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAedd", "0xZZAeb6053F3E94C9b9A09f33669435E7Ef1BeAed", None, 42,
+     EIP55[0] + "\n", EIP55[0].lower() + "\n", "\n" + EIP55[0], EIP55[0] + "\r\n"],
 )
 def test_checksum_rejects_malformed(bad):
     with pytest.raises(ValueError):
@@ -41,6 +42,7 @@ def test_is_checksum_address():
     assert is_checksum_address(EIP55[0])
     assert not is_checksum_address(EIP55[0].lower())
     assert not is_checksum_address("nonsense")
+    assert not is_checksum_address(EIP55[0] + "\n")
 
 
 def test_normalize_accepts_single_case_input():
@@ -50,6 +52,8 @@ def test_normalize_accepts_single_case_input():
 
 def test_normalize_accepts_correct_mixed_case():
     assert normalize_address(EIP55[2]) == EIP55[2]
+    with pytest.raises(ValueError):
+        normalize_address(EIP55[2] + "\n")
 
 
 def test_normalize_rejects_wrong_mixed_case():

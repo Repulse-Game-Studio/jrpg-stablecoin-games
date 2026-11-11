@@ -36,6 +36,27 @@ class ManualTimer:
 			pending = null
 
 
+## A pass of the Worker landing between a drain and a later snapshot read: right after a drain
+## that found nothing, the paid session leaves the snapshot and its outcome is queued.
+class RacingWorker:
+	extends ScfgWorker
+	var armed := true
+	var sid: Variant
+	var paid: Variant
+
+	func drain_outcomes() -> Array:
+		var out := super.drain_outcomes()
+		if armed and out.is_empty():
+			armed = false
+			var snap: Dictionary = (snapshot as Dictionary).duplicate()
+			var pending: Dictionary = (snap["pending"] as Dictionary).duplicate()
+			pending.erase(sid)
+			snap["pending"] = pending
+			snapshot = snap
+			_outcomes.append(paid)
+		return out
+
+
 ## A sheet: the test closes it by emitting `closed`.
 class FakeSheet:
 	extends Node
@@ -703,6 +724,73 @@ func test_restore_flow_restores_and_notifies() -> bool:
 	return T.done()
 
 
+# --- concurrent flows ------------------------------------------------------------------------
+
+
+## Two pay() calls at once (an unlock, then a tip while its sheet is still open): two sheets, two
+## sessions, and each call resolves from its own sheet, with its own callback, in any order.
+func test_two_pay_calls_at_once_resolve_independently() -> bool:
+	var env := await _make("two_pays")
+	var s: Node = env["node"]
+	var host: FakeHost = env["host"]
+	var calls := {"unlock": [], "tip": []}
+	var unlock := _pay(s, "unlock", {"item": "chapter2", "callback": func(r: ScfgPaymentResult) -> void: calls["unlock"].append(r)})
+	var first := await _session(s, host)
+	var tip := _pay(s, "tip", {"amount": "3.00", "token": "USDC", "callback": func(r: ScfgPaymentResult) -> void: calls["tip"].append(r)})
+	var second := await _session(s, host)
+	T.eq(host.kinds, ["payment", "payment"], "a sheet each")
+	T.eq(s._checkouts.size(), 2, "two checkouts")
+	T.ok(first.session_id != second.session_id, "two sessions (%s, %s)" % [first.session_id, second.session_id])
+	await _pay_on_chain(env, second)
+	T.eq(second.state, "paid", "the tip is paid")
+	T.ok(first.state != "paid", "the unlock is not (%s)" % first.state)
+	(host.sheets[1] as FakeSheet).closed.emit("close")
+	var r: ScfgPaymentResult = tip.get("result")
+	T.eq([r.status, r.kind, r.session_id] if r != null else null, ["paid", "tip", second.session_id], "the tip resolves paid")
+	T.ok(not unlock.has("result"), "the unlock still waits for its sheet")
+	T.eq(s._checkouts.keys(), [first.cid], "only its checkout is left")
+	(host.sheets[0] as FakeSheet).closed.emit("cancel")
+	r = unlock.get("result")
+	T.eq([r.status, r.kind, r.session_id] if r != null else null, ["cancelled", "unlock", first.session_id], "the unlock resolves cancelled")
+	T.eq([calls["unlock"].size(), calls["tip"].size()], [1, 1], "each callback once, with its own result")
+	T.eq(s.owns("chapter2"), false, "the tip did not unlock chapter2")
+	await _drop(env)
+	return T.done()
+
+
+## restore() while a pay() sheet is open: the restore screen opens over it, restores and closes,
+## and the payment carries on and resolves from its own sheet.
+func test_restore_during_pay() -> bool:
+	var env := await _make("restore_during_pay")
+	var s: Node = env["node"]
+	var host: FakeHost = env["host"]
+	var paying := _pay(s, "tip", {"amount": "3.00", "token": "USDC"})
+	var ctl := await _session(s, host)
+	var chain: F.FakeChain = env["chains"]["arbitrum"]
+	var old_tx := "0x" + "cd".repeat(32)
+	chain.receipts[old_tx] = {"status": "0x1", "logs": [F.transfer_log(USDC_ARB, PAYER, DEV, 4_993_742, {"block": 10, "tx_hash": old_tx})]}
+	var restoring := _restore(s)
+	T.eq(host.kinds, ["payment", "restore"], "the restore screen opens while the sheet is open")
+	var rctl: ScfgRestoreController = (host.sheets[1] as FakeSheet).controller
+	T.eq(rctl.check(old_tx), true, "a transaction hash")
+	await _pass(s)  # the lookup
+	await _pass(s)  # the save
+	T.eq(rctl.state, "done", "restored")
+	(host.sheets[1] as FakeSheet).closed.emit("close")
+	var rr: ScfgRestoreResult = restoring.get("result")
+	T.eq([rr.status, rr.restored.size()] if rr != null else null, ["restored", 1], "restore() resolves restored")
+	T.eq(s.owns("chapter2"), true, "chapter2 is owned")
+	T.ok(not paying.has("result"), "pay() still waits for its sheet")
+	T.eq([s._checkouts.size(), s._restores.size()], [1, 0], "the checkout is still open")
+	await _pay_on_chain(env, ctl)
+	T.eq(ctl.state, "paid", "the tip confirms meanwhile")
+	(host.sheets[0] as FakeSheet).closed.emit("close")
+	var r: ScfgPaymentResult = paying.get("result")
+	T.eq([r.status, r.kind, r.session_id] if r != null else null, ["paid", "tip", ctl.session_id], "pay() resolves paid")
+	await _drop(env)
+	return T.done()
+
+
 # --- actions for the sheet -------------------------------------------------------------------
 
 
@@ -785,4 +873,164 @@ func test_clean_paste_matches_renpy_and_stops_at_90() -> bool:
 	var took_ms := (Time.get_ticks_usec() - started) / 1000.0
 	T.eq(cleaned.length(), 90, "a 100 kB word: 90 characters")
 	T.ok(took_ms < 100.0, "and it stops there instead of filtering the whole word (%.1f ms)" % took_ms)
+	return T.done()
+
+
+# --- the pay() callback map (Ren'Py's _state.callbacks; tests/unit/test_renpy_callbacks.py) --------
+
+
+func test_a_delivered_paid_result_drops_the_callback() -> bool:
+	var env := await _make("callback_paid")
+	var s: Node = env["node"]
+	var host: FakeHost = env["host"]
+	var called: Array = []
+	_pay(s, "unlock", {"item": "chapter2", "callback": func(r: ScfgPaymentResult) -> void: called.append(r.status)})
+	var ctl := await _session(s, host)
+	var sid: Variant = ctl.session_id
+	(host.sheets[-1] as FakeSheet).closed.emit("keep_playing")
+	await _pass(s)
+	T.ok(s._callbacks.has(sid), "registered while the payment is pending")
+	await _pay_on_chain(env, ctl)
+	T.eq(called, ["paid"], "the callback got the final result")
+	T.eq(s._callbacks.size(), 0, "and is dropped: the session is over")
+	await _pass(s)
+	T.eq(s._callbacks.size(), 0, "not registered again")
+	await _drop(env)
+	return T.done()
+
+
+func test_an_expired_session_keeps_its_callback_until_it_is_paid() -> bool:
+	var env := await _make("callback_expired")
+	var s: Node = env["node"]
+	var host: FakeHost = env["host"]
+	var called: Array = []
+	_pay(s, "unlock", {"item": "chapter2", "callback": func(r: ScfgPaymentResult) -> void: called.append(r.status)})
+	var ctl := await _session(s, host)
+	var sid: Variant = ctl.session_id
+	(host.sheets[-1] as FakeSheet).closed.emit("keep_playing")
+	await _pass(s)
+	(env["clock"] as F.FakeClock).advance(31 * 60)
+	await _pass(s)
+	T.eq(called, ["expired"], "the window closed")
+	T.eq(s._background.size(), 0, "its controller is closed")
+	T.ok(s._callbacks.has(sid), "the scan goes on: a later payment still reaches the callback")
+	await _pay_on_chain(env, ctl)
+	T.eq(called, ["expired", "paid"], "the payment found later")
+	T.eq(s._callbacks.size(), 0, "dropped once paid")
+	await _drop(env)
+	return T.done()
+
+
+## A sheet left open on an expired session: once the session leaves the Engine at its scan horizon
+## the callback is dropped, and the sheet's controller, still polled by every pump, does not
+## register it again (no snapshot would ever list the session to prune it).
+func test_an_open_sheet_past_the_scan_horizon_does_not_register_its_callback_again() -> bool:
+	var env := await _make("callback_horizon")
+	var s: Node = env["node"]
+	var host: FakeHost = env["host"]
+	_pay(s, "unlock", {"item": "chapter2", "callback": func(_r: ScfgPaymentResult) -> void: pass})
+	var ctl := await _session(s, host)
+	var sid: Variant = ctl.session_id
+	await _pass(s)
+	(env["clock"] as F.FakeClock).advance(31 * 60)
+	await _pass(s)
+	T.eq(ctl.state, "expired", "the open sheet shows the expired session")
+	T.ok(s._callbacks.has(sid), "the scan goes on")
+	(env["clock"] as F.FakeClock).advance(24 * 3600)
+	await _pass(s)
+	await _pass(s)
+	T.ok(not ((s._worker as ScfgWorker).snapshot["pending"] as Dictionary).has(sid), "the session left the Engine")
+	T.eq(s._callbacks.size(), 0, "its callback is dropped")
+	await _pass(s)
+	await _pass(s)
+	T.eq(s._callbacks.size(), 0, "not registered again")
+	T.eq(s._checkouts.size(), 1, "the sheet is still open")
+	(host.sheets[-1] as FakeSheet).closed.emit("cancel")
+	await _drop(env)
+	return T.done()
+
+
+func test_a_discarded_session_drops_its_callback() -> bool:
+	var env := await _make("callback_discarded")
+	var s: Node = env["node"]
+	var host: FakeHost = env["host"]
+	_pay(s, "unlock", {"item": "chapter2", "callback": func(_r: ScfgPaymentResult) -> void: pass})
+	var ctl := await _session(s, host)
+	var first: Variant = ctl.session_id
+	await _pass(s)
+	T.ok(s._callbacks.has(first), "registered")
+	T.eq(ctl.choose_network("base"), null, "the player switched networks: the unpaid session is discarded")
+	await _pass(s)
+	await _pass(s)
+	var second: Variant = ctl.session_id
+	T.ok(ScfgPy.py_truthy(second) and second != first, "a new session")
+	T.eq(s._callbacks.keys(), [second], "only the live session keeps a callback")
+	(host.sheets[-1] as FakeSheet).closed.emit("cancel")
+	await _drop(env)
+	return T.done()
+
+
+## The state guard of _register_callback: no snapshot ever lists the session (so _prune_callbacks
+## cannot drop it), and the paid controller is still polled in the pump that delivered the result.
+func test_a_session_paid_before_any_snapshot_listed_it_releases_its_callback() -> bool:
+	var env := await _make("callback_unlisted")
+	var s: Node = env["node"]
+	var host: FakeHost = env["host"]
+	var worker: ScfgWorker = s._worker
+	var frozen: Variant = worker.snapshot
+	var called: Array = []
+	_pay(s, "unlock", {"item": "chapter2", "callback": func(r: ScfgPaymentResult) -> void: called.append(r.status)})
+	var ctl: ScfgCheckoutController = (host.sheets[-1] as FakeSheet).controller
+	T.eq(ctl.choose_network("arbitrum"), null, "choose a network")
+	await worker.run_once()
+	worker.snapshot = frozen  # no snapshot lists the session
+	s._pump()
+	var sid: Variant = ctl.session_id
+	T.ok(ScfgPy.py_truthy(sid) and s._callbacks.has(sid), "registered")
+	(host.sheets[-1] as FakeSheet).closed.emit("keep_playing")
+	var chain: F.FakeChain = env["chains"]["arbitrum"]
+	var block := chain.head + 1
+	chain.logs.append(F.transfer_log(USDC_ARB, PAYER, DEV, ctl.session["units"], {"block": block, "tx_hash": TX}))
+	chain.head = block
+	await worker.run_once()
+	worker.snapshot = frozen
+	s._pump()
+	chain.head = block + 19
+	await worker.run_once()
+	worker.snapshot = frozen
+	s._pump()
+	T.eq(called, ["paid"], "the callback got the paid result")
+	T.eq(s._callbacks.size(), 0, "released although no snapshot listed it")
+	await worker.run_once()
+	worker.snapshot = frozen
+	s._pump()
+	T.eq(s._callbacks.size(), 0, "not registered again")
+	await _drop(env)
+	return T.done()
+
+
+func test_the_snapshot_is_read_before_the_outcomes_are_drained() -> bool:
+	var env := await _make("callback_race")
+	var s: Node = env["node"]
+	var host: FakeHost = env["host"]
+	var called: Array = []
+	_pay(s, "unlock", {"item": "chapter2", "callback": func(r: ScfgPaymentResult) -> void: called.append(r.status)})
+	var ctl := await _session(s, host)
+	var sid: Variant = ctl.session_id
+	(host.sheets[-1] as FakeSheet).closed.emit("keep_playing")
+	await _pass(s)
+	await _pass(s)  # listed by a snapshot: the callback could be pruned
+	var old: ScfgWorker = s._worker
+	var racing := RacingWorker.new(s._engine, {"scheduler": ManualTimer.new()})
+	racing.snapshot = old.snapshot
+	racing.sid = sid
+	racing.paid = ScfgWatcher.step_outcome(sid, "paid", {"result": ScfgModels.make_payment_result(
+		{"status": "paid", "kind": "unlock", "item": "chapter2", "session_id": sid})})
+	s._worker = racing
+	s._pump()  # drains nothing, then the pass lands
+	s._pump()  # drains the paid outcome
+	T.eq(called, ["paid"], "the paid result reached the callback")
+	T.eq(s._callbacks.size(), 0, "released")
+	s._worker = old
+	await _drop(env)
 	return T.done()

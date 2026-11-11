@@ -42,7 +42,9 @@ export class EvmBackend implements Backend {
     return checkEvmReceipt(receipt, args);
   }
 
-  lookup(tx: string, args: { config: Config; chain: Chain; rpc: EvmRpc; receipts: SessionStore }): Promise<RestoreCandidate[] | null> {
+  lookup(
+    tx: string, args: { config: Config; chain: Chain; rpc: EvmRpc; receipts: SessionStore; on_error?: ((e: unknown) => void) | undefined },
+  ): Promise<RestoreCandidate[] | null> {
     return lookupEvm(tx, args);
   }
 

@@ -355,7 +355,8 @@ def _token_or_chain_unknown(s):
     "reverify", "malformed_entries_are_removed"))
 def _malformed_entries(s):
     """Stored entries that are not receipts (empty, missing fields, a non-numeric log index) are
-    removed; the genuine receipt next to them stays."""
+    removed, each with its reason reported (an internal error); the genuine receipt next to
+    them stays."""
     node, usdc = _reverify_game(s)
     junk = {"chain": "arbitrum", "tx_hash": tx_hash(9), "log_index": "x", "block": 1,
             "amount": "1", "token": "USDC"}
@@ -363,5 +364,75 @@ def _malformed_entries(s):
                          "junk2": junk})
     node.add_transfer(usdc, PAYER_EVM, DEV_EVM, 4_993_742, block=900, tx_hash=tx_hash(1),
                       log_index=2)
-    assert s.reverify() == ["junk0", "junk1", "junk2"]
+    assert s.expect("internal_error").reverify() == ["junk0", "junk1", "junk2"]
+    assert s.steps[-1]["internal_errors"] == 3                    # each removed with a reason
     assert list(s.steps[-1]["snapshot"]["receipts"]) == [_key(1)]
+
+
+@scenario("reverify/invalid_receipts_are_removed", covers=covers(
+    "reverify", "a_receipt_with_invalid_fields_is_removed_and_reported",
+    "a_forged_out_of_range_receipt_no_longer_unlocks",
+    "a_receipt_whose_check_crashes_is_kept_and_reported",
+    "a_type_valid_but_malformed_receipt_is_removed_before_any_rpc",
+    "a_malformed_receipt_on_an_unknown_chain_is_kept"))
+def _invalid_removed(s):
+    """A stored receipt whose own fields are invalid is removed with its reason reported (one
+    internal error each): an infinite amount, a forged Chapter 2 unlock of 1E+999999 (out of the
+    amount range; it owned nothing to begin with), a token name that cannot be a key, a negative
+    block, a hash too short for an EVM chain, an EVM hash on Solana, a well-formed hash with
+    str.strip() whitespace after it (\\x85, \\x1c), all with no RPC asked. A receipt whose
+    check fails on what the node returned (a log in its block whose logIndex is not hex) is
+    kept and reported, and so is one naming a chain this build does not know (it cannot be
+    checked; a chain removed from the config must not erase purchases). The receipts after them
+    are still checked: the invented one is revoked, the genuine one kept."""
+    node, usdc = _reverify_game(s)
+    s.initial(receipts={_key(1): dict(_receipt(1), amount="Infinity"),
+                        _key(2): dict(_receipt(2), amount="1E+999999"),
+                        _key(3): _receipt(3), _key(4): _receipt(4),
+                        _key(5): _receipt(5, block=905),
+                        _key(7): dict(_receipt(7), token=["USDC"]),
+                        # type-valid but malformed for their chain family: checked before any RPC
+                        _key(8): dict(_receipt(8), block=-1),
+                        "arbitrum:0x1234:2": dict(_receipt(9), tx_hash="0x1234"),
+                        _key(10, "solana"): dict(_receipt(10), chain="solana"),
+                        _key(12): dict(_receipt(12), log_index="9" * 4301),   # past int()'s digits
+                        "solana:" + "2" * 89 + ":2": dict(_receipt(13), chain="solana",
+                                                          tx_hash="2" * 89),  # too long to decode
+                        # str.strip() whitespace around a well-formed hash (JS trim() keeps it)
+                        _key(14): dict(_receipt(14), tx_hash=tx_hash(14) + "\x85"),
+                        _key(15): dict(_receipt(15), tx_hash=tx_hash(15) + "\x1c"),
+                        # a chain this build does not know: kept, its family fields unchecked
+                        "tron:0x1234:2": dict(_receipt(11), chain="tron", tx_hash="0x1234")})
+    node.add_transfer(usdc, PAYER_EVM, DEV_EVM, 4_993_742, block=900, tx_hash=tx_hash(3),
+                      log_index=2)
+    bad = node.add_transfer(usdc, PAYER_EVM, DEV_EVM, 1, block=905, tx_hash=tx_hash(6))
+    bad["logIndex"] = "0xzz"
+    removed = s.expect("internal_error").reverify()
+    assert sorted(removed) == sorted([_key(1), _key(2), _key(4), _key(7), _key(8),
+                                      "arbitrum:0x1234:2", _key(10, "solana"), _key(12),
+                                      "solana:" + "2" * 89 + ":2", _key(14), _key(15)])
+    assert s.steps[-1]["internal_errors"] == 11
+    assert sorted(s.steps[-1]["snapshot"]["receipts"]) == sorted([_key(3), _key(5),
+                                                                  "tron:0x1234:2"])
+    assert s.steps[-1]["snapshot"]["owned"] == ["chapter2"]
+
+
+@scenario("restore/too_large_to_decode_is_skipped", covers=covers(
+    "restore", "lookup_skips_a_transfer_too_large_to_decode"))
+def _too_large_skipped(s):
+    """A transfer of 10**32 units or more cannot be priced (decode's 28 digits): it is skipped
+    and counted as an internal error, the transfer next to it is still offered. A
+    transaction whose only payment is such a transfer is tx_not_a_payment."""
+    nodes, usdc = _game(s)
+    node = nodes["arbitrum"]
+    node.add_transfer(usdc["arbitrum"], PAYER_EVM, DEV_EVM, 10**32, block=50,
+                      tx_hash=tx_hash(1), log_index=1)
+    node.add_transfer(usdc["arbitrum"], PAYER_EVM, DEV_EVM, 4_993_742, block=50,
+                      tx_hash=tx_hash(1), log_index=2)
+    node.add_transfer(usdc["arbitrum"], PAYER_EVM, DEV_EVM, 2**256 - 1, block=51,
+                      tx_hash=tx_hash(2), log_index=0)
+    [cand] = s.expect("internal_error").restore_lookup(tx_hash(1))
+    assert (cand.transfer.log_index, cand.kind, cand.item) == (2, "unlock", "chapter2")
+    assert s.steps[-1]["internal_errors"] == 1
+    assert s.expect("internal_error").restore_lookup(tx_hash(2)) is None
+    assert s.steps[-1]["raises"] == {"type": "RestoreError", "code": "tx_not_a_payment"}

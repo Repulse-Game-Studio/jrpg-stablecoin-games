@@ -14,15 +14,21 @@
 ## LineEdit would keep them), and a field the focus reaches takes typing at once on 4.4+. `ui_accept` presses the focused button (Godot's
 ## own handling); `ui_cancel` calls `_on_ui_cancel()`. The focus the game had goes back to it when
 ## the screen closes.
+##
+## Screens can be open at once (pay() and restore() together): one opened later is drawn over the
+## earlier ones. A rebuild never takes the focus from a screen drawn over this one, and when a
+## screen on top closes, the focus goes back to the screen below it (to the control it had, or
+## the same key in its newer build).
 class_name ScfgScreenBase
 extends Control
 
 ## The player is done with the screen (see sheet_host.gd for the values of `how`).
 signal closed(how: String)
 
-## Characters a hash field takes (Ren'Py's TX_CHARS, the same as the autoload's): hex for a
-## transaction hash, base58 for a Solana signature.
-const TX_CHARS := "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const _AUTOLOAD := preload("res://addons/scfg/scfg.gd")
+## Characters a hash field takes: the autoload's TX_CHARS (Ren'Py's), hex for a transaction hash,
+## base58 for a Solana signature.
+const TX_CHARS: String = _AUTOLOAD.TX_CHARS
 
 ## The Scfg autoload (the screen calls its actions: open_browser, copy, paste_into, ...).
 var scfg: Variant = null
@@ -37,6 +43,8 @@ var _rows := {}  # Control -> row id: left / right move within a row
 var _sig: Variant = null  # what the current build shows
 var _ended := false
 var _back_focus: WeakRef = weakref(null)
+var _back_screen: WeakRef = weakref(null)  # the screen below that had the focus when this one opened
+var _back_key := ""  # which of its controls had it
 
 
 ## A small filled circle (the step dots, the status dot).
@@ -65,6 +73,10 @@ func _ready() -> void:
 	var owner_now := get_viewport().gui_get_focus_owner()
 	if owner_now != null and not is_ancestor_of(owner_now):
 		_back_focus = weakref(owner_now)
+		var below := _screen_of(owner_now)
+		if below != null:
+			_back_screen = weakref(below)
+			_back_key = below._focused_key()
 	_frame()
 	get_viewport().size_changed.connect(_on_resized)
 	modulate.a = 0.0
@@ -76,6 +88,11 @@ func _exit_tree() -> void:
 	var back: Variant = _back_focus.get_ref()
 	if back is Control and (back as Control).is_inside_tree() and (back as Control).is_visible_in_tree():
 		(back as Control).grab_focus()
+		return
+	# the control is gone (the screen below rebuilt meanwhile): the same key in its new build
+	var below: Variant = _back_screen.get_ref()
+	if below is ScfgScreenBase and (below as ScfgScreenBase).is_inside_tree() and not (below as ScfgScreenBase)._ended:
+		(below as ScfgScreenBase)._focus((below as ScfgScreenBase)._primary(), _back_key)
 
 
 func _process(_delta: float) -> void:
@@ -99,7 +116,8 @@ func _update() -> void:
 	_rows.clear()
 	_build()
 	_wire_focus()
-	_focus(_primary(), "" if moved else keep)
+	if not _covered():
+		_focus(_primary(), "" if moved else keep)
 
 
 ## Close the screen once: emits `closed(how)`.
@@ -378,6 +396,31 @@ static func _clear(container: Node) -> void:
 	for child in container.get_children():
 		container.remove_child(child)
 		child.queue_free()
+
+
+## The screen `node` is part of (null: the game's own UI).
+static func _screen_of(node: Node) -> ScfgScreenBase:
+	while node != null and not node is ScfgScreenBase:
+		node = node.get_parent()
+	return node as ScfgScreenBase
+
+
+## True while another screen drawn over this one has the focus.
+func _covered() -> bool:
+	var owner_now := get_viewport().gui_get_focus_owner()
+	var other := _screen_of(owner_now)
+	if other == null or other == self or not other.is_inside_tree():
+		return false
+	var mine := _layer_of(self)
+	var theirs := _layer_of(other)
+	return theirs > mine or (theirs == mine and other.is_greater_than(self))
+
+
+## The CanvasLayer index `node` is drawn on (0: the default canvas).
+static func _layer_of(node: Node) -> int:
+	while node != null and not node is CanvasLayer:
+		node = node.get_parent()
+	return (node as CanvasLayer).layer if node != null else 0
 
 
 func _focused_key() -> String:

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  MAX_AMOUNT, TOKEN_DECIMALS, asUnits, decimalToUnits, decode, encode, formatUnits, parseAmount, unitsToDecimal,
+  MAX_AMOUNT, TOKEN_DECIMALS, asUnits, decimalToUnits, decode, encode, formatUnits, parseAmount, storedAmount, unitsToDecimal,
   type Units,
 } from "./amounts.ts";
 import { Dec } from "./decimal.ts";
@@ -20,7 +20,7 @@ test("test_constants", () => {
 test("test_parse_amount_accepts", () => {
   const cases: [unknown, string][] = [
     ["4.99", "4.99"], ["3", "3.00"], [" 2.5 ", "2.50"], ["4.990", "4.99"], [dec("1.10"), "1.10"], [7, "7.00"], [7n, "7.00"],
-    ["1_000", "1000.00"], [" 5", "5.00"], ["+5", "5.00"], ["1E+1", "10.00"], ["5E-1", "0.50"], ["1000000.00", "1000000.00"],
+    [" 5", "5.00"], ["+5", "5.00"], ["1E+1", "10.00"], ["5E-1", "0.50"], ["1000000.00", "1000000.00"],
     ["5\n", "5.00"], ["　5　", "5.00"],
   ];
   for (const [value, want] of cases) assert.equal(String(parseAmount(value)), want, String(value));
@@ -33,7 +33,8 @@ test("test_parse_amount_rejects_types", () => {
 
 test("test_parse_amount_rejects_values", () => {
   for (const v of ["", " ", "abc", "4.999", "0", "-1", "0.00", "NaN", "Infinity", "sNaN", "-Infinity", "1000000.01",
-    "0.005", "1e-30", "-0", "1,000", ".", 0, -1, 1_000_001, 0n, 2_000_000n]) {
+    "0.005", "1e-30", "-0", "1,000", ".", 0, -1, 1_000_001, 0n, 2_000_000n,
+    "1_000", "4_99", "1_0.00", "_5", "5_", "1__000"]) {
     assert.throws(() => parseAmount(v), ValueError, String(v));
   }
 });
@@ -76,6 +77,64 @@ test("test_units_conversions", () => {
   assert.equal(decimalToUnits(dec("0.000001")), 1n);
   assert.equal(decimalToUnits(dec("-1")), -1_000_000n);
   assert.throws(() => decimalToUnits(dec("0.0000001")), ValueError);
+  // exact past Decimal's default 28 significant digits: no rounding (Python builds it from the digits)
+  assert.equal(String(unitsToDecimal(asUnits(0n))), "0.000000");
+  assert.equal(String(unitsToDecimal(asUnits(10n ** 28n + 1n))), "10000000000000000000000.000001");
+  assert.equal(String(unitsToDecimal(asUnits(2n ** 256n - 1n))),
+    "115792089237316195423570985008687907853269984665640564039457584007913129.639935");
+  assert.equal(String(unitsToDecimal(asUnits(-(10n ** 30n) - 7n))), "-1000000000000000000000000.000007");
+});
+
+test("test_decimal_to_units_rejects_amounts_out_of_range", () => {
+  // a nonzero amount's adjusted exponent must be within +-40: a ValueError, at once
+  for (const x of ["1E+41", "-1E+41", "1E+999993", "1E+999999", "-1E+999995", "1E-41", "9.99E+41"]) {
+    const start = performance.now();
+    assert.throws(() => decimalToUnits(dec(x)), ValueError, x);
+    assert.ok(performance.now() - start < 1000, `${x} is refused quickly`);
+  }
+  assert.equal(decimalToUnits(dec("1E+40")), 10n ** 46n);
+  assert.equal(decimalToUnits(dec("-9.999999E+40")), -9_999_999n * 10n ** 40n);
+  assert.equal(decimalToUnits(Dec.parse("0E+999999", { anyExponent: true }) as Dec), 0n);
+  assert.equal(decimalToUnits(dec("1E+20")), 10n ** 26n);
+});
+
+test("test_stored_amount_reads_numbers_in_range", () => {
+  const cases: [unknown, string][] = [["4.990000", "4.990000"], [" 5 ", "5"], [5, "5"], ["0", "0"],
+    ["0E-999999", "0E-999999"], ["1E+40", "1E+40"], ["-1.5E-40", "-1.5E-40"], [1.5, "1.5"], [true, "1"]];
+  for (const [v, want] of cases) assert.equal(String(storedAmount(v)), want, String(v));
+});
+
+test("test_amount_text_is_bounded", () => {
+  // AMOUNT_TEXT_LIMIT = 100 characters: longer text is refused before it is parsed
+  assert.equal(String(storedAmount("4.99" + "0".repeat(96))), "4.99" + "0".repeat(96));
+  assert.equal(String(parseAmount("4.99" + "0".repeat(96))), "4.99");
+  for (const text of ["4.99" + "0".repeat(97), "9".repeat(100_000), "0." + "9".repeat(100_000), " ".repeat(99) + "5 "]) {
+    const start = performance.now();
+    assert.throws(() => storedAmount(text), ValueError);
+    assert.throws(() => parseAmount(text), ValueError);
+    assert.ok(performance.now() - start < 500);
+  }
+});
+
+test("test_stored_amount_refuses_lists_and_tuples", () => {
+  // Python: Decimal() reads a (sign, digits, exponent) list; a stored amount never is one: TypeError
+  for (const v of [[0, [2, 5], -1], [1], []]) assert.throws(() => storedAmount(v), TypeError, JSON.stringify(v));
+});
+
+test("test_decimal_to_units_is_exact", () => {
+  assert.equal(decimalToUnits(dec("12345678901234567890123456789012")), 12345678901234567890123456789012n * 10n ** 6n);
+  assert.equal(decimalToUnits(dec("1.2345678901234567890123456789012345E+30")), 1234567890123456789012345678901234500n);
+  assert.equal(decimalToUnits(dec("4.9900000000000000000000000000000000")), 4_990_000n);
+  assert.throws(() => decimalToUnits(dec("0.000001000000000000000000000000001")), ValueError, "7th decimal nonzero");
+});
+
+test("test_stored_amount_refuses_others", () => {
+  for (const v of ["1E+41", "1E-41", "1E+999999", "1E+9999999999999999", "Infinity", "NaN", "sNaN", "abc", "",
+    null, undefined, [1], {}, 1e300, Infinity]) {
+    const start = performance.now();
+    assert.throws(() => storedAmount(v), (e: unknown) => e instanceof ValueError || e instanceof TypeError, String(v));
+    assert.ok(performance.now() - start < 1000);
+  }
 });
 
 test("test_format_units_keeps_six_decimals", () => {

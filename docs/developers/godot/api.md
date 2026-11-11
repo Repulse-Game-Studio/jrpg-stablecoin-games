@@ -21,7 +21,7 @@ Setup advice (a token the wallet cannot receive yet, a corrupt state file) is pr
 | `Scfg.add_chain(key, opts)` | `null`, or the `ScfgErr`. Adds your own EVM chain; call before `configure()`. `opts`: `name`, `chain_id`, `rpc` (Array of https URLs), `tokens` (`{"USDC": "0x..."}`, 6-decimal tokens), `confirmations`, `explorer_tx` (https URL with `{}` for the hash), optional `native_symbol`, `fee_hint`, `testnet`, `max_log_range` |
 | `Scfg.configure(opts)` | `null`, or the `ScfgErr`. `opts`: `wallet` (EVM `0x` address) and/or `solana_wallet`, `testnet`, `chains`, `tokens`, `methods`, `rpc_urls`, `confirmations`, `previous_wallets`, `logo` (`res://` path to a png, jpg or webp), `accent` (`"#rrggbb"`), and the Godot-only `theme` and `sheet_scene` |
 | `Scfg.add_item(id, opts)` | `null`, or the `ScfgErr`. `opts`: `code` (1-99, never change it after release), `price` (`"4.99"`), `token` (`"USDC"` or `"USDT"`), `title`, optional `min_price` |
-| `await Scfg.pay(kind, opts)` | `ScfgPaymentResult`, when the payment sheet closes. `kind` is `"unlock"` (`opts.item` required) or `"tip"` (`opts.amount`, the suggested amount, and `opts.token` required). `opts` also takes `callback` (a Callable taking the result). Amounts are Strings, never floats |
+| `await Scfg.pay(kind, opts)` | `ScfgPaymentResult`, when the payment sheet closes. `kind` is `"unlock"` (`opts.item` required) or `"tip"` (`opts.amount`, the suggested amount, and `opts.token` required). An unlock also takes an optional `opts.amount`, the amount to charge instead of the item's price (at least its `min_price`, which defaults to the price: so pay-what-you-want above the price, or a sale down to `min_price`), and an optional `opts.token`, another enabled token than the item's. `opts` also takes `callback` (a Callable taking the result). Amounts are Strings, never floats |
 | `await Scfg.restore(opts)` | `ScfgRestoreResult`; shows the restore screen where the player pastes a transaction hash. `opts.callback` gets the result once a restore finishes |
 | `Scfg.owns(item_id)` | `true` if a stored, verified payment unlocks the item. Instant, works offline |
 | `Scfg.has_tipped()` | `true` once the player has tipped any amount |
@@ -77,8 +77,10 @@ the fields as a Dictionary.
 - `receipts_changed`: the stored receipts changed (a payment confirmed, a restore, `clear_local_data()`).
 
 A `callback` given to `pay()` receives this call's own `already_owned`, `failed` and `cancelled` results and
-every later result of that payment; without one, the cancel and the later results reach `payment_resolved`
-(as well as the value `await` returns, see above), while `already_owned` and `failed` are only returned.
+every later result of that payment, until the payment is over (its `paid` or `underpaid` result, or the session
+ending unpaid: after 24 hours, or when the player switched networks); then the addon releases it. Without one,
+the cancel and the later results reach `payment_resolved` (as well as the value `await` returns, see above),
+while `already_owned` and `failed` are only returned.
 
 ## Pausing the game while the sheet is open
 
@@ -129,7 +131,9 @@ amounts and chain names are never translated.
 ## Web exports
 
 On a web export there is no localhost server: the checkout page opens as an overlay in the game's own page
-and talks to the wallet extension there. What the export needs:
+and talks to the wallet extension there. A broken wallet extension (one that announces itself badly or throws odd
+values) can't break the game's page: the checkout leaves it out or shows a wallet error, and the player's other
+wallets still pay. What the export needs:
 
 - **Export filter.** The page's files are not Godot resources. Add `addons/scfg/web/*` to the web preset's
   **Filters to export non-resource files/folders**. A debug build warns, naming each missing file.
@@ -145,13 +149,35 @@ and talks to the wallet extension there. What the export needs:
   - two games with the same project name share `user://scfg/state.json` and can overwrite each other's
     receipts;
   - games with different names keep separate files, but a game deletes from IndexedDB whatever another game
-    (or another tab) saved after it loaded. One game open in two tabs behaves the same: the last tab to save
-    wins.
+    (or another tab) saved after it loaded. One game open in two tabs behaves the same for `state.json`: the
+    last tab to save wins.
 
-  Give the game a unique `application/config/name`, and serve it from an origin of its own where you can. A
-  player who loses a receipt this way can bring it back with Restore and the transaction hash. If the browser
-  blocks IndexedDB (some private-browsing modes), `user://` is lost when the tab closes; a debug build warns
-  once.
+  So the addon also keeps a copy of the receipts in the page's `localStorage`, which other games do not
+  rewrite. Every save merges the game's receipts into it, so a receipt another tab of the same game saved
+  stays in the copy; only a receipt the game removed itself (failed re-verification, `clear_local_data()`)
+  leaves it. `clear_local_data()` empties the copy, until another open tab of the same game saves: that
+  tab's save merges its own receipts back into it. At startup the addon adds back any receipt the copy has
+  and `state.json` lacks (when both have one, `state.json`'s is kept), saves the result at once, and
+  re-verifies it on the chain like any stored receipt. So with one game open in two tabs, a receipt one tab
+  saved comes back at the next start even when the other tab's `state.json` replaced it. Pending payments
+  are not copied: a payment lost with `state.json` comes back with Restore and its transaction hash. If
+  localStorage is missing, blocked or full, saving goes on as before and a debug build warns once.
+
+  The copy's key is `scfg:<application/config/name>:<sha256 of the storage id>`. The storage id is the
+  project setting `scfg/web/storage_id` if you set it, else the project name. Set it if another game on
+  your origin might use the same project name: with the plugin enabled it is under **Project Settings >
+  Scfg > Web > Storage Id**, or add it to `project.godot`:
+
+  ```ini
+  [scfg]
+
+  web/storage_id="com.example.mygame"
+  ```
+
+  Don't change the storage id or the project name after a release: the copy would be looked for under a new
+  key. Two games with the same project name still share `state.json` itself, so give the game a unique
+  `application/config/name` too, and serve it from an origin of its own where you can. If the browser blocks
+  IndexedDB (some private-browsing modes), `user://` is lost when the tab closes; a debug build warns once.
 
 ## Mobile (unverified)
 

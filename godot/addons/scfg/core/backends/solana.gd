@@ -998,9 +998,11 @@ func lookup(tx: Variant, opts: Dictionary) -> Variant:
 				return t
 			if t == null:
 				continue
-			var verdict: Variant = ScfgRestore.classify(config, t["value"])
+			var verdict: Variant = ScfgRestore.classify_or_skip(config, t["value"], opts.get("on_error"))
 			if verdict is ScfgErr:
 				return verdict
+			if verdict == null:
+				continue
 			var key: Variant = ScfgReceipts.receipt_key(chain["key"], t["tx_hash"], t["log_index"])
 			if key is ScfgErr:
 				return key

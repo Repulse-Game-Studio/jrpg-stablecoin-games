@@ -100,10 +100,13 @@ func _make_chains(by_chain: Dictionary = {}) -> Array:
 	return [chains, fakes]
 
 
-func _lookup(cf: Array, receipts: Dictionary = {}, tx: Variant = TX) -> Variant:
+func _lookup(cf: Array, receipts: Dictionary = {}, tx: Variant = TX, on_error: Variant = null) -> Variant:
 	var fakes: Dictionary = cf[1]
-	return await ScfgRestore.lookup(tx, {"config": _cfg(), "chains": cf[0], "receipts": receipts,
-		"rpc_for": func(key: Variant) -> Variant: return fakes[key]})
+	var opts := {"config": _cfg(), "chains": cf[0], "receipts": receipts,
+		"rpc_for": func(key: Variant) -> Variant: return fakes[key]}
+	if on_error != null:
+		opts["on_error"] = on_error
+	return await ScfgRestore.lookup(tx, opts)
 
 
 func _log(token: String, recipient: String, value: Variant, opts: Dictionary = {}) -> Dictionary:
@@ -250,17 +253,33 @@ func test_lookup_contains_a_null_from_a_backend_as_a_runtime_error() -> bool:
 ## Only RpcUnavailable and RpcError are swallowed: a bad log is a plain error, not a RestoreError.
 func test_lookup_malformed_log_rejects_the_whole_lookup() -> bool:
 	var bad := _log(ARB_USDC, DEV, 5_000_000, {"block": 1})
-	bad["data"] = "0xzz"
+	bad["logIndex"] = "0xzz"
 	var out: Variant = await _lookup(_make_chains({"arbitrum": {"status": "0x1", "logs": [bad]}}))
 	T.is_err(out, "ValueError", "a malformed log")
 	T.ok(out is ScfgErr and not (out as ScfgErr).is_a("RestoreError"), "not a RestoreError")
 	return T.done()
 
 
-func test_lookup_value_decode_cannot_hold_rejects_the_lookup() -> bool:
-	var huge := _log(ARB_USDC, DEV, ScfgBigInt.from_decimal("1" + "0".repeat(32)), {"block": 1})
-	var out: Variant = await _lookup(_make_chains({"arbitrum": {"status": "0x1", "logs": [huge]}}))
-	T.is_err(out, "InvalidOperation", "10**32 units")
+## tests/unit/test_restore.py::test_lookup_skips_a_transfer_too_large_to_decode
+func test_lookup_skips_a_transfer_too_large_to_decode() -> bool:
+	var huge := _log(ARB_USDC, DEV, ScfgBigInt.from_decimal("1" + "0".repeat(32)), {"block": 50, "log_index": 1})
+	var fine := _log(ARB_USDC, DEV, 4_993_742, {"block": 50, "log_index": 2})
+	var errors: Array = []
+	var out: Variant = await _lookup(_make_chains({"arbitrum": {"status": "0x1", "logs": [huge, fine]}}), {}, TX,
+		func(e: Variant) -> void: errors.append(e))
+	T.ok(out is Array and (out as Array).size() == 1, "only the transfer decode can price is offered")
+	if out is Array and (out as Array).size() == 1:
+		var c: Dictionary = out[0]
+		T.eq([c["transfer"]["log_index"], c["kind"], c["item"]], [2, "unlock", "chapter2"], "the Chapter 2 unlock")
+	T.eq(errors.size(), 1, "the skipped one is reported")
+	if errors.size() == 1:
+		T.is_err(errors[0], "InvalidOperation", "decode's error")
+	errors.clear()
+	var only := _log(ARB_USDC, DEV, ScfgBigInt.from_decimal("1" + "0".repeat(40)), {"block": 50, "log_index": 1})
+	out = await _lookup(_make_chains({"arbitrum": {"status": "0x1", "logs": [only]}}), {}, TX,
+		func(e: Variant) -> void: errors.append(e))
+	_is_restore_error(out, "tx_not_a_payment", "nothing else in the transaction")
+	T.eq(errors.size(), 1, "reported")
 	return T.done()
 
 

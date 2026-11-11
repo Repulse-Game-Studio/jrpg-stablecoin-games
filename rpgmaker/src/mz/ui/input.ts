@@ -46,11 +46,15 @@
  * and Enter and Space do not also press the focused button by the browser's default. Mouse,
  * touch and wheel events on the screens are stopped at the host too, so TouchInput never sees a
  * click that pressed a button (nor calls preventDefault on the sheet's scrolling). The one
- * exception is a release (mouseup, touchend, touchcancel) while MZ's TouchInput holds a press it
- * saw on the canvas before the screen opened under it: MZ gets that release, or it would stay
- * pressed after the screen closed (the player walking toward the pointer). A release of a press
- * MZ never saw stays stopped: MZ would count it as a click once the screen closed, and a menu
- * window under the sheet (the Tip Jar's) would run the command under the pointer.
+ * exception is a mouse release (mouseup, pointerup) while MZ's TouchInput holds a press it saw on
+ * the canvas before the screen opened under it: MZ gets that release, or it would stay pressed
+ * after the screen closed (the player walking toward the pointer). A mouse release goes to the
+ * element under the pointer, so a press MZ saw can end over the host. A touch cannot: the browser
+ * sends touchend and touchcancel to the element the touch started on, so a touch release at the
+ * host is always one of a touch that began there, which MZ never saw (the release of a touch MZ
+ * saw goes to the canvas, past the host). Those stay stopped, like every release of a press MZ
+ * never saw: MZ would count it as a click once the screen closed, and a menu window under the
+ * sheet (the Tip Jar's) would run the command under the pointer.
  */
 
 const INPUT_QUERIES = ["isPressed", "isTriggered", "isRepeated", "isLongPressed"] as const;
@@ -351,8 +355,12 @@ const POINTER_EVENTS = [
   "mousedown", "mouseup", "mousemove", "click", "dblclick", "contextmenu", "wheel",
   "touchstart", "touchmove", "touchend", "touchcancel", "pointerdown", "pointerup", "pointermove",
 ];
-/** The releases MZ's TouchInput needs to see wherever they happen (it saw the press on the canvas). */
-const POINTER_RELEASES = ["mouseup", "touchend", "touchcancel", "pointerup"];
+/**
+ * The releases MZ's TouchInput needs to see wherever they happen (it saw the press on the canvas):
+ * the mouse's only. A touchend or touchcancel goes to the element the touch started on, so one at
+ * a host is of a touch MZ never saw (see the header).
+ */
+const POINTER_RELEASES = ["mouseup", "pointerup"];
 const ENTER = 13;
 const SPACE = 32;
 
@@ -450,12 +458,15 @@ export function guardHost(
  * The web checkout overlay's host (the element bridge.js adds over the game): everything typed
  * into it is the overlay's, so its keys are stopped there (MZ would preventDefault Tab and the
  * arrows, and its "ok" would press the payment sheet's focused button under the overlay), with
- * their releases as in `guardHost`; so are its pointer events but the releases (MZ's wheel handler
- * would keep the overlay from scrolling, its touchstart from being tapped). The host is marked
- * with OVERLAY_ATTR (see `overlayHasFocus`). Returns the function that removes the listeners.
+ * their releases as in `guardHost`; so are its pointer events but the mouse releases (MZ's wheel
+ * handler would keep the overlay from scrolling, its touchstart from being tapped; a touch's own
+ * release at the overlay is of a touch that began there, see the header). The host is marked
+ * with OVERLAY_ATTR (see `overlayHasFocus`): bridge.js tags it with its key, which is kept; a host
+ * without it is marked here and unmarked again. Returns the function that removes the listeners.
  */
 export function guardOverlay(host: HTMLElement): () => void {
-  if (typeof host.setAttribute === "function") host.setAttribute(OVERLAY_ATTR, "");
+  const marked = typeof host.hasAttribute === "function" && host.hasAttribute(OVERLAY_ATTR);
+  if (!marked && typeof host.setAttribute === "function") host.setAttribute(OVERLAY_ATTR, "");
   const claims = new KeyClaims(host, () => 0);
   const onKeyDown = (e: KeyboardEvent) => {
     e.stopPropagation();
@@ -474,7 +485,7 @@ export function guardOverlay(host: HTMLElement): () => void {
     host.removeEventListener("keyup", onKeyUp);
     for (const type of pointer) host.removeEventListener(type, onPointer);
     claims.detach();
-    if (typeof host.removeAttribute === "function") host.removeAttribute(OVERLAY_ATTR);
+    if (!marked && typeof host.removeAttribute === "function") host.removeAttribute(OVERLAY_ATTR);
   };
 }
 

@@ -6,6 +6,7 @@ extends RefCounted
 const T := preload("res://tests/t.gd")
 
 const _DIR := "user://scfg-tests/store"
+const _RWX := FileAccess.UNIX_READ_OWNER | FileAccess.UNIX_WRITE_OWNER | FileAccess.UNIX_EXECUTE_OWNER
 
 
 func _fresh_dir(name: String) -> String:
@@ -196,5 +197,32 @@ func test_later_corruption_keeps_earlier_copies() -> bool:
 	T.ok(got.get("warning") is String and (got["warning"] as String).contains(path + ".corrupt.2"),
 		"the warning names where it went (%s)" % [got.get("warning")])
 	T.ok(not FileAccess.file_exists(path), "the bad file is out of the way")
+	_remove_tree(_DIR)
+	return T.done()
+
+
+## A corrupt file that cannot be moved aside (here its directory is read-only) is not dropped for
+## an empty start: the next save would replace it with nothing kept anywhere. It is treated as
+## unreadable for this run (an `error`, so the caller never saves over it), as RPG Maker's store.
+func test_corrupt_file_that_cannot_be_moved_aside_is_unreadable() -> bool:
+	var dir := _fresh_dir("stuck")
+	var path := dir.path_join("state.json")
+	_write(path, "{\"version\": 1, \"pend")
+	FileAccess.set_unix_permissions(dir, FileAccess.UNIX_READ_OWNER | FileAccess.UNIX_EXECUTE_OWNER)
+	if DirAccess.rename_absolute(path, dir.path_join("probe")) == OK:
+		DirAccess.rename_absolute(dir.path_join("probe"), path)
+		FileAccess.set_unix_permissions(dir, _RWX)
+		T.skip("this process renames inside a read-only directory (root)")
+		_remove_tree(_DIR)
+		return T.done()
+	var got := ScfgStore.load(path)
+	FileAccess.set_unix_permissions(dir, _RWX)
+	T.eq([got.get("pending"), got.get("receipts"), got.get("warning")], [{}, {}, null], "no stores and no warning")
+	T.is_err(got.get("error"), "RuntimeError", "an error instead: never saved over this run")
+	var message := str(got.get("error"))
+	T.ok(message.contains(path) and message.contains("is not valid JSON") and message.contains("could not be moved aside"),
+		"naming the file, what is wrong with it and why it stays (%s)" % message)
+	T.eq(FileAccess.get_file_as_string(path), "{\"version\": 1, \"pend", "the file is untouched")
+	T.ok(not FileAccess.file_exists(path + ".corrupt"), "and no copy was made")
 	_remove_tree(_DIR)
 	return T.done()

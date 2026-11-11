@@ -68,7 +68,9 @@ func test_missing_removed_field_is_fine() -> bool:
 	return T.done()
 
 
-func test_empty_data_means_zero_value() -> bool:
-	var t: Variant = ScfgEvm.parse_transfer_log(_make_log({"data": "0x"}))
-	T.ok(t is Dictionary and (t["value"] as ScfgBigInt).is_zero(), "0x is zero")
+func test_data_must_be_one_32_byte_word() -> bool:
+	for d: Variant in ["0x", "", null, 5, "0x01", "0x" + "00".repeat(31), "0x" + "00".repeat(33), "0xzz"]:
+		T.eq(ScfgEvm.parse_transfer_log(_make_log({"data": d})), null, "data %s" % ScfgPy.py_repr(d))
+	var t: Variant = ScfgEvm.parse_transfer_log(_make_log({"data": "0x" + "00".repeat(32)}))
+	T.ok(t is Dictionary and (t["value"] as ScfgBigInt).is_zero(), "a zero word is value 0")
 	return T.done()

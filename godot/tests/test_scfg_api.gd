@@ -11,7 +11,6 @@ extends RefCounted
 const T := preload("res://tests/t.gd")
 const F := preload("res://tests/fakes.gd")
 const SCFG := preload("res://addons/scfg/scfg.gd")
-const HTTP := preload("res://tests/test_http_transport.gd")
 
 const DEV := "0x52908400098527886E0F7030069857D2E4169EE7"
 const DIR := "user://scfg-tests/api"
@@ -404,7 +403,7 @@ func test_quitting_mid_request_ends_the_pass_before_the_node_goes() -> bool:
 	var tree := Engine.get_main_loop() as SceneTree
 	if not tree.root.is_inside_tree():
 		await tree.process_frame
-	var responder := HTTP.Responder.new()
+	var responder := F.Responder.new()
 	tree.root.add_child(responder)
 	T.ok(responder.start(), "the responder listens")
 	# A stored receipt: the first pass re-verifies it on chain (as on every launch after a purchase).
@@ -430,8 +429,17 @@ func test_quitting_mid_request_ends_the_pass_before_the_node_goes() -> bool:
 		await tree.process_frame
 	T.eq(responder.requests.size(), 1, "a request is in flight")
 	T.eq(box.get("done", false), false, "the pass waits on it")
+	# The receipt's HostGone verdict is contained per receipt and reported to on_error. The pass
+	# was handed the Engine's on_error when it started, while it was still the node's _log_error;
+	# _exit_tree replaces it with the detached one, and the report must go there, not be printed
+	# as a "worker error" (the Godot e2e's restarted game printed it at quit).
+	var reported: Array[String] = s._reported
+	var dropped_before: int = SCFG.errors_after_exit
 	s.free()
 	T.eq(box.get("done", false), true, "the pass ended inside _exit_tree")
+	T.eq(reported.filter(func(l: String) -> bool: return "HostGone" in l), [],
+		"the HostGone at quit is not reported as a worker error")
+	T.ok(SCFG.errors_after_exit > dropped_before, "it went to the detached handler")
 	await tree.process_frame
 	T.eq(responder.requests.size(), 1, "nothing more was sent (no failover to the public endpoints)")
 	for c in responder.conns:
@@ -481,6 +489,37 @@ func test_a_failed_save_is_retried() -> bool:
 	s._pump()
 	T.ok((_on_disk(path)["pending"] as Dictionary).has(sid), "retried once the interval passed, with no new snapshot")
 	T.eq(s._dirty, false, "and clean")
+	await _drop(env)
+	return T.done()
+
+
+## A save that keeps failing (a full disk) is reported once, not at every retry; once a save
+## succeeds, a later failure is reported again.
+func test_a_persistently_failing_save_is_reported_once() -> bool:
+	var path := _path("fail_once")
+	var env := await _configured(path)
+	var s: Node = env["node"]
+	var clock: F.FakeClock = env["clock"]
+	await _start(s)
+	var failures := func() -> int:
+		return s._reported.filter(func(l: String) -> bool: return l.begins_with("scfg: cannot save the payment state:")).size()
+	DirAccess.make_dir_recursive_absolute(path + ".tmp")  # every save fails
+	var first: Variant = (await _start_session(s))["id"]
+	T.eq(failures.call(), 1, "the first failure is reported")
+	for i in 3:
+		clock.advance(10.0)
+		s._pump()
+	await _start_session(s)  # a change saved at once fails again
+	T.eq(s._dirty, true, "still unsaved")
+	T.eq(failures.call(), 1, "the retries and the next change are not reported again (%s)" % [s._reported])
+	DirAccess.remove_absolute(path + ".tmp")
+	clock.advance(10.0)
+	s._pump()
+	T.ok((_on_disk(path)["pending"] as Dictionary).has(first), "a save succeeded")
+	DirAccess.make_dir_recursive_absolute(path + ".tmp")
+	await _start_session(s)
+	T.eq(failures.call(), 2, "a failure after that success is reported again")
+	DirAccess.remove_absolute(path + ".tmp")
 	await _drop(env)
 	return T.done()
 
@@ -558,6 +597,44 @@ func test_a_result_without_callback_reaches_payment_resolved() -> bool:
 # --- the editor plugin -----------------------------------------------------------------------
 
 
+## The editor plugin shows `scfg/web/storage_id` in Project Settings (a String, empty by default,
+## with a placeholder), without replacing a value the project already has. The game itself only
+## reads the setting (ScfgWebMirror.project_key), with or without the plugin.
+func test_plugin_registers_the_storage_id_setting() -> bool:
+	var plugin := load("res://addons/scfg/plugin.gd") as GDScript
+	var name := ScfgWebMirror.STORAGE_ID_SETTING
+	T.eq(plugin.get_script_constant_map().get("STORAGE_ID_SETTING") if plugin != null else null, name,
+		"the plugin's name for it is ScfgWebMirror's")
+	T.ok(plugin != null and plugin.has_method("register_settings"), "plugin.gd has register_settings()")
+	if plugin == null or not plugin.has_method("register_settings"):
+		return T.done()
+	ProjectSettings.set_setting(name, null)
+	plugin.call("register_settings")
+	T.eq([ProjectSettings.has_setting(name), ProjectSettings.get_setting(name, null)], [true, ""], "registered, empty")
+	T.eq(ProjectSettings.property_get_revert(name), "", "whose default is empty (not saved to project.godot)")
+	var info: Array = ProjectSettings.get_property_list().filter(func(p: Dictionary) -> bool: return p["name"] == name)
+	T.ok(info.size() == 1 and info[0]["type"] == TYPE_STRING and info[0]["hint"] == PROPERTY_HINT_PLACEHOLDER_TEXT
+		and str(info[0]["hint_string"]) != "", "a String with a placeholder (%s)" % [info])
+	ProjectSettings.set_setting(name, "com.example.kept")
+	plugin.call("register_settings")
+	T.eq(ProjectSettings.get_setting(name), "com.example.kept", "a value the project has is kept")
+	ProjectSettings.set_setting(name, null)
+	return T.done()
+
+
+## Stands in for the editor (EditorPlugin's autoload methods) in the plugin tests: the editor is
+## not running here, so the plugin's enable() / disable() are given this instead of the plugin.
+class FakeEditorPlugin:
+	extends RefCounted
+	var calls: Array = []
+
+	func add_autoload_singleton(autoload_name: String, path: String) -> void:
+		calls.append(["add", autoload_name, path])
+
+	func remove_autoload_singleton(autoload_name: String) -> void:
+		calls.append(["remove", autoload_name])
+
+
 func test_plugin_registers_the_scfg_autoload() -> bool:
 	var cfg := ConfigFile.new()
 	T.eq(cfg.load("res://addons/scfg/plugin.cfg"), OK, "plugin.cfg")
@@ -565,12 +642,21 @@ func test_plugin_registers_the_scfg_autoload() -> bool:
 	T.eq(cfg.get_value("plugin", "script", ""), "plugin.gd", "script")
 	var plugin := load("res://addons/scfg/plugin.gd") as GDScript
 	T.ok(plugin != null and plugin.can_instantiate(), "plugin.gd compiles")
-	if plugin != null:
-		T.eq(plugin.get_instance_base_type(), &"EditorPlugin", "an EditorPlugin")
-		var methods: Array = plugin.get_script_method_list().map(func(m: Dictionary) -> String: return m["name"])
-		T.ok("_enable_plugin" in methods and "_disable_plugin" in methods, "enable and disable hooks (%s)" % [methods])
-		T.ok(plugin.source_code.contains("add_autoload_singleton(AUTOLOAD_NAME")
-			and plugin.source_code.contains("remove_autoload_singleton(AUTOLOAD_NAME"), "they add and remove the autoload")
-		T.ok(plugin.source_code.contains("const AUTOLOAD_NAME := \"Scfg\""), "named Scfg")
+	if plugin == null:
+		return T.done()
+	T.eq(plugin.get_instance_base_type(), &"EditorPlugin", "an EditorPlugin")
+	var methods: Array = plugin.get_script_method_list().map(func(m: Dictionary) -> String: return m["name"])
+	T.ok("_enable_plugin" in methods and "_disable_plugin" in methods and "enable" in methods and "disable" in methods,
+		"the enable and disable hooks, and what they run (%s)" % [methods])
+	if not ("enable" in methods and "disable" in methods):
+		return T.done()
+	var path: String = plugin.call("autoload_path", plugin)
+	T.eq(path, "res://addons/scfg/scfg.gd", "the autoload is scfg.gd beside plugin.gd")
+	var editor := FakeEditorPlugin.new()
+	plugin.call("enable", editor, path)
+	T.eq(editor.calls, [["add", "Scfg", path]], "enabling adds the Scfg autoload")
+	editor.calls.clear()
+	plugin.call("disable", editor)
+	T.eq(editor.calls, [["remove", "Scfg"]], "disabling removes it")
 	T.eq(ProjectSettings.get_setting("autoload/Scfg", ""), "*res://addons/scfg/scfg.gd", "the dev project registers it")
 	return T.done()

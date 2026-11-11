@@ -19,7 +19,7 @@ import { Dec } from "./decimal.ts";
 import { ConfigError, IndexError, KeyError, ValueError } from "./errors.ts";
 import { normalizeAddress } from "./evm.ts";
 import type { Item } from "./models.ts";
-import { hasOwn, pyFormat1, pyStrip, pyTruthy } from "./pystr.ts";
+import { PY_DIGIT, hasOwn, pyFormat1, pyStrip, pyTruthy } from "./pystr.ts";
 import { MIN_LOG_RANGE } from "./rpc.ts";
 import { b58decode, normalizePubkey } from "./solana/base58.ts";
 import { isOnCurve } from "./solana/ed25519.ts";
@@ -30,12 +30,13 @@ export const DEFAULT_METHODS: Record<string, Record<string, unknown>> = {
   qr: { enabled: true, wallet_button: true, chains: null },
   manual: { enabled: true, allow_tx_paste: true },
 };
-// Python's `$` also matches before one trailing newline, hence `\n?$` in the anchored patterns.
-const ITEM_ID = /^[a-z0-9_-]{1,64}\n?$/;
-const CHAIN_KEY = /^[a-z0-9_-]{1,32}\n?$/;
-const NATIVE_SYMBOL = /^[A-Za-z0-9]{1,11}\n?$/;
-// Plain http is only accepted for a node on this computer (e.g. a local Anvil test chain). Python's `\d` is Unicode.
-const LOCAL_HTTP = /^http:\/\/(127\.0\.0\.1|localhost)(:\p{Nd}{1,5})?(\/|\n?$)/u;
+// The id patterns match the whole string (Python's fullmatch: no trailing newline).
+const ITEM_ID = /^[a-z0-9_-]{1,64}$/;
+const CHAIN_KEY = /^[a-z0-9_-]{1,32}$/;
+const NATIVE_SYMBOL = /^[A-Za-z0-9]{1,11}$/;
+// Plain http is only accepted for a node on this computer (e.g. a local Anvil test chain). Python's `\d` is
+// Unicode (PY_DIGIT: Python 3.9's digits); the URL ends there or continues with a path (`\Z`: no trailing newline).
+const LOCAL_HTTP = new RegExp(`^http://(127\\.0\\.0\\.1|localhost)(:${PY_DIGIT}{1,5})?(/|$)`, "u");
 export const FEE_HINTS: readonly string[] = ["lowest", "low", "high"];
 
 export const DEFAULT_ACCENT = "#0e7c74";
@@ -44,7 +45,7 @@ export const INK = "#17202e";
 export const LOGO_TYPES: Record<string, string> = {
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
 };
-const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\n?$/;
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
 /** Set an own data property (a plain `o[k] = v` on `__proto__` would change the prototype). */
 function put<T>(o: Record<string, T>, k: string, v: T): void {

@@ -218,6 +218,8 @@ def _config_errors():
         _c(rpc_urls={"base": "http://example.org"}),
         _c(rpc_urls={"base": ["https://ok.example.org", "ftp://x"]}),
         _c(rpc_urls={"base": "http://127.0.0.1.evil.org"}),
+        _c(rpc_urls={"base": "http://127.0.0.1:8545\n"}),   # full match: no trailing newline
+        _c(rpc_urls={"base": "http://localhost\n"}),
         _c(confirmations={"polygon": 2}, chains=["base"]),
         {**ok, "confirmations": {"solana": 5}},
         _c(confirmations={"base": 0}),
@@ -237,6 +239,8 @@ def _config_errors():
         _c(accent="#12345"),
         _c(accent="0e7c74"),
         _c(accent=5),
+        _c(accent="#0e7c74\n"),       # full match: no trailing newline
+        _c(accent="#abc\n"),
     ]
 
 
@@ -272,6 +276,7 @@ _CHAIN_ERRORS = [
     _chain(rpc=[]),
     _chain(rpc=5),
     _chain(rpc="http://example.org"),
+    _chain(rpc="http://127.0.0.1:8545\n"),       # full match: no trailing newline
     _chain(tokens={}),
     _chain(tokens=["USDC"]),
     _chain(tokens={"DAI": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"}),
@@ -288,6 +293,8 @@ _CHAIN_ERRORS = [
     _chain(native_symbol=""),
     _chain(native_symbol="TOOLONGSYMBOL"),
     _chain(native_symbol="A-B"),
+    _chain(native_symbol="AVAX\n"),       # full match: no trailing newline
+    _chain(key="avalanche\n"),
     _chain(fee_hint="medium"),
     _chain(max_log_range=9),
     _chain(max_log_range="1000"),
@@ -380,6 +387,7 @@ _ITEM_VALID = [
 
 _ITEM_ERRORS = [
     _a(_item("")),
+    _a(_item("chapter-2\n")),       # full match: no trailing newline
     _a(_item("Chapter")),
     _a(_item("has space")),
     _a(_item("x" * 65)),

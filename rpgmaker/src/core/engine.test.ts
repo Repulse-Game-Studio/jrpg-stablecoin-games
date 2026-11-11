@@ -248,6 +248,50 @@ test("test_reverify_uses_accepted_wallets", async () => {
   assert.deepEqual(e.receipts, {});
 });
 
+test("test_reverify_reports_to_the_on_error_set_mid_pass", async () => {
+  // The Godot autoload replaces the Engine's on_error at quit while a pass may be in flight; a
+  // receipt's contained error reported after that reaches the new handler (all ports).
+  const { e } = makeEngine();
+  const first: unknown[] = [];
+  const second: unknown[] = [];
+  e.on_error = (x) => first.push(x);
+  e.receipts["k"] = {
+    chain: "arbitrum", tx_hash: TX, log_index: 0, block: 900, amount: "1.000000", token: "USDC", kind: "tip", item: null,
+  };
+  (e as any)._rpc_factory = () => {
+    e.on_error = (x) => second.push(x);
+    throw new Error("boom");
+  };
+  assert.deepEqual(await e.reverify(), []); // unverifiable: kept
+  assert.deepEqual(first, []);
+  assert.equal(second.length, 1);
+  assert.equal((second[0] as Error).message, "boom");
+});
+
+test("test_reverify_prints_when_on_error_is_unset_mid_pass", async () => {
+  // a handler set to null (or anything falsy) while a pass runs: the error is printed
+  // (printError: console.error), as the pass's own `on_error || printError` did before handlers
+  // were looked up at report time
+  const { e } = makeEngine();
+  e.receipts["k"] = {
+    chain: "arbitrum", tx_hash: TX, log_index: 0, block: 900, amount: "1.000000", token: "USDC", kind: "tip", item: null,
+  };
+  (e as any)._rpc_factory = () => {
+    (e as any).on_error = null;
+    throw new Error("boom");
+  };
+  const printed: unknown[] = [];
+  const quiet = console.error;
+  console.error = (...a: unknown[]) => void printed.push(...a);
+  try {
+    assert.deepEqual(await e.reverify(), []); // unverifiable: kept
+  } finally {
+    console.error = quiet;
+  }
+  assert.equal(printed.length, 1);
+  assert.equal((printed[0] as Error).message, "boom");
+});
+
 test("test_restore_through_engine", async () => {
   const { e, chains } = makeEngine();
   const chain = new FakeChain();
@@ -325,7 +369,7 @@ test("test_tick_contains_a_session_crash", async () => {
   const b = await e.startSession("tip", "base", { amount: "3", token: "USDC" });
   const c = await e.startSession("unlock", "arbitrum", { item: "chapter2" });
   const bad = transferLog(USDC_ARB, PAYER, DEV, 1, { block: 999, tx_hash: TX });
-  bad["data"] = "0xzz";
+  bad["logIndex"] = "0xzz";
   chains["base"]!.logs.push({ ...bad, address: MAINNET["base"]!.tokens["USDC"]!.address.toLowerCase() });
   const order: string[] = [];
   for (const key of ["arbitrum", "base"]) {

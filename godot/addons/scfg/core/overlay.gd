@@ -18,7 +18,10 @@
 ## on_tx, get_status and build_tx are the checkout controller's, bound to a RefCounted controller
 ## that may be released while this still holds them: each is checked with is_valid() before it is
 ## called (a freed get_status leaves the status as it was; a freed build_tx answers 503).
-## Every Callable is synchronous; start(), stop(), reopen() and pump() never suspend.
+## Every Callable is synchronous; start(), stop(), reopen() and pump() never suspend. Once stop()
+## ran (also from inside one of those callbacks) none is called again, not for the rest of that
+## batch of messages either, and a job handed back by a build_tx that stopped the overlay is
+## cancelled at once.
 class_name ScfgOverlayCheckout
 extends RefCounted
 
@@ -87,6 +90,8 @@ func pump() -> void:
 		return
 	for message: Variant in ui.take(key):
 		_handle(message)
+		if not _open:
+			return  # a callback stopped the overlay: the rest of the batch is moot
 	_finish_builds()
 	_push_status()
 
@@ -116,6 +121,12 @@ func _handle(message: Variant) -> void:
 		ui.reply(key, rid, 503, {"error": "unavailable"})
 		return
 	var job: Variant = (build_tx as Callable).call(account)
+	if not _open:
+		# build_tx stopped the overlay (its controller closed): nobody answers this build, so it
+		# must not run
+		if job is ScfgJob:
+			(job as ScfgJob).cancel()
+		return
 	if not job is ScfgJob:
 		ui.reply(key, rid, 503, {"error": "unavailable"})
 		return

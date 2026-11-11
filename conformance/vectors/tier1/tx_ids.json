@@ -418,6 +418,20 @@
    }
   },
   {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": " 22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+   }
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
+   },
+   "out": "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
+  },
+  {
    "fn": "normalize_any_tx",
    "in": {
     "text": "0xabababababababababababababababababababababababababababababababab"

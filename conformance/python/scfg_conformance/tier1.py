@@ -14,7 +14,7 @@ import random
 from decimal import Decimal
 from typing import Any, Callable
 
-from scfg_core import amounts, evm, page_messages, paylinks, receipts, sessions
+from scfg_core import amounts, evm, page_messages, paylinks, receipts, rpc, sessions
 from scfg_core.backends import normalize_any_tx
 from scfg_core.chains import ARC_SYSTEM_EMITTER, ARC_USDC
 from scfg_core.checkout import MESSAGES
@@ -23,6 +23,7 @@ from scfg_core.keccak import keccak256
 from scfg_core.models import Item
 from scfg_core.solana import base58, pda, tx
 from scfg_core.solana.ed25519 import D, P, is_on_curve
+from scfg_core.solana.rpc import SolanaRpc
 from scfg_core.transfers import Transfer
 
 SOURCES: dict[str, Callable[[], dict]] = {}
@@ -180,6 +181,15 @@ def _decimal_to_units(i):
     return str(amounts.decimal_to_units(Decimal(i["amount"])))
 
 
+@_fn("stored_amount")
+def _stored_amount(i):
+    """`in.value` is the JSON value itself (a float has the {"float": repr} form)."""
+    v = i["value"]
+    if isinstance(v, dict) and set(v) == {"float"}:
+        v = float(v["float"])
+    return str(amounts.stored_amount(v))
+
+
 @_fn("format_units")
 def _format_units(i):
     return amounts.format_units(int(i["units"]))
@@ -287,6 +297,21 @@ def _normalize_tx_hash(i):
 @_fn("normalize_any_tx")
 def _normalize_any_tx(i):
     return normalize_any_tx(i["text"])
+
+
+# node error messages
+
+
+@_fn("suggested_range")
+def _suggested_range(i):
+    return rpc.suggested_range(rpc.RpcError(-32005, i["message"]), i["tried"])
+
+
+@_fn("named_version")
+def _named_version(i):
+    client = SolanaRpc(None)
+    client.tx_version = i["tx_version"]
+    return client._named_version(rpc.RpcError(i["code"], i["message"]))
 
 
 # --- runner ---------------------------------------------------------------------------------
@@ -440,6 +465,14 @@ def _evm_cases():
     cases.append(("parse_transfer_log", {"log": _tlog(data="0x01")}))  # short data
     cases.append(("parse_transfer_log", {"log": _tlog(data="0x" + "00" * 12 + "ff" * 20)}))
     cases.append(("parse_transfer_log", {"log": _tlog(data="0xzz")}))
+    # the data must be exactly one 32-byte word
+    for data in ("0x" + "00" * 31, "0x" + "00" * 33, "0x" + "00" * 31 + "0", "0X" + "00" * 32,
+                 "00" * 33, "0x" + "zz" * 32, "0x" + "0_" * 32, "0x" + "00" * 31 + " 1",
+                 "0x" + "00" * 32, "0x" + "FF" * 32, None, 16):
+        cases.append(("parse_transfer_log", {"log": _tlog(data=data)}))
+    no_data = _tlog()
+    del no_data["data"]
+    cases.append(("parse_transfer_log", {"log": no_data}))
     cases.append(("parse_transfer_log", {"log": _tlog(address="0x1234")}))
     cases.append(("parse_transfer_log", {"log": _tlog(
         address=_USDC_ETH.upper().replace("0X", "0x"))}))
@@ -486,7 +519,14 @@ def _b58_cases():
     cases.append(("b58decode", {"text": base58.b58encode(b"\0" * 64)}))
     for text, length in [(USDC_MINT, 32), (SYSTEM_PROGRAM, 32), (sig, 64), (USDC_MINT, 31),
                          (USDC_MINT, 33), (USDC_MINT, 64), (sig, 32), (SYSTEM_PROGRAM, 31),
-                         ("1", 1), ("1", 0), ("", 32), ("0" + USDC_MINT[1:], 32)]:
+                         ("1", 1), ("1", 0), ("", 32), ("0" + USDC_MINT[1:], 32),
+                         # no text longer than the longest encoding (44 / 88 characters) is decoded
+                         (base58.b58encode(b"\xff" * 32), 32), (base58.b58encode(b"\xff" * 64), 64),
+                         ("1" * 64, 64), ("1" * 89, 64), ("2" * 89, 64), ("z" * 45, 32),
+                         ("2" * 1000, 64), ("0" * 89, 64),
+                         # a length that is not a number is invalid input, never a crash
+                         (USDC_MINT, "32"), (USDC_MINT, None), (USDC_MINT, True),
+                         (USDC_MINT, [32]), ("2" * 1000, "64")]:
         cases.append(("decode_fixed", {"text": text, "length": length}))
     pk_inputs = [USDC_MINT, "  " + USDC_MINT + "\n", SYSTEM_PROGRAM, TOKEN_PROGRAM,
                  USDC_MINT[:-1], USDC_MINT + "1", sig, "", "0", 12, None,
@@ -712,7 +752,8 @@ def _amount_cases():
     for text in ["4.99", " 4.99 ", "5", "0.001", "0", "-1", "1000000", "1000000.01", "NaN",
                  "Infinity", "abc", "1e2", "", "   ", "0.01", "0.005", "0.10", "1.5", "+5",
                  "5.", ".5", "1_000", "1,000", "-0", "0.00", "999999.99", "-Infinity", "sNaN",
-                 "4.990", "4.999", "007", "1E+1", "5\n", "\u00a05"]:
+                 "4.990", "4.999", "007", "1E+1", "5\n", "\u00a05", "4_99", "1_0.00", "_5", "5_",
+                 "1__000", "4.99" + "0" * 96, "4.99" + "0" * 97]:
         cases.append(("parse_amount", {"type": "str", "value": text}))
     for n in (5, 0, -1, 1, 1_000_000, 1_000_001, 12):
         cases.append(("parse_amount", {"type": "int", "value": n}))
@@ -735,15 +776,33 @@ def _amount_cases():
         cases.append(("decode", {"units": units}))
 
     for units in ("0", "1", "4990000", str(10**12), str(10**18 // 10**12), "999999",
-                  "1000000", "4993742", "10", "123", str(10**18), str(2**64), "-1", "-5000000"):
+                  "1000000", "4993742", "10", "123", str(10**18), str(2**64), "-1", "-5000000",
+                  # exact past Decimal's 28 significant digits (positive: GDScript's ints are
+                  # signed 64-bit and its big integers unsigned, so no port needs a huge negative)
+                  str(10**28 - 1), str(10**28 + 1), str(10**32), str(2**256 - 1)):
         cases.append(("units_to_decimal", {"units": units}))
     for amount in ("0", "1", "4.99", "4.990000", "0.000001", "0.0000001", "1000000", "5",
                    "0.1234567", "1.2300179", "-1", "0.00000100", "123456.654321", "000.5",
                    "0.000000000000000001"):
         cases.append(("decimal_to_units", {"amount": amount}))
     for units in ("0", "1", "4990000", str(10**12), str(10**18 // 10**12), "4993742", "999999",
-                  "100", "-5", "123456789012", str(2**53)):
+                  "100", "-5", "123456789012", str(2**53), str(10**28 + 1), str(2**256 - 1)):
         cases.append(("format_units", {"units": units}))
+    # the amount range (AMOUNT_EXPONENT_LIMIT = 40): a nonzero adjusted exponent in [-40, 40]
+    for amount in ("1E+40", "9.999999E+40", "1E+41", "-1E+41", "1E+999993", "1E+999999",
+                   "0E+999999", "1E-41", "Infinity", "-Infinity", "NaN",
+                   # exact, no rounding to Decimal's 28 digits
+                   "12345678901234567890123456789012", "1.2345678901234567890123456789012345E+30",
+                   "4.9900000000000000000000000000000000", "0.000001000000000000000000000000001"):
+        cases.append(("decimal_to_units", {"amount": amount}))
+    for value in ("4.990000", "4.99", " 5 ", "0", "-0", "0E-999999", "1E+40", "-1.5E-40", "1E+41",
+                  "1E-41", "-1E+41", "1E+999999", "1E+9999999999999999", "Infinity", "-Infinity",
+                  "NaN", "sNaN", "abc", "", "1_000", 5, 0, -3, True, None, [1], {},
+                  {"float": "1.5"}, {"float": "1e+300"}, {"float": "1e-300"},
+                  [0, [2, 5], -1],    # read by Decimal() as a tuple: never a stored amount
+                  # the text limit (AMOUNT_TEXT_LIMIT = 100 characters)
+                  "4.99" + "0" * 96, "4.99" + "0" * 97, "9" * 1000):
+        cases.append(("stored_amount", {"value": value}))
     return cases
 
 
@@ -829,6 +888,9 @@ _QR_TEXTS = {
     "boundary": _QR_BOUNDARY_TEXT,
     "non_ascii": "Caf\u00e9 \u65e5\u672c\u8a9e \U0001f3ae",
     "longest": _LONGEST_URI,
+    # 1453 bytes need version 32 (145 x 145) at medium error correction, whose alignment patterns
+    # are 26 modules apart (a naive step formula gives 28); no payment link gets close.
+    "version_32": (_LONGEST_URI * 8)[:1453],
 }
 
 
@@ -1040,6 +1102,13 @@ def _receipt_cases():
     own(rec(kind="tip", item=None, amount="1.5"), rec(kind="tip", item=None, amount="0",
                                                        tx_hash="0x" + "77" * 32))
     own(rec(item="chapter2", amount="4.99"), its=items[:1])
+    # out of the stored-amount range (forged): neither owns nor tips, and the total stays finite
+    own(store={"a": rec(amount="1E+999999"), "b": rec(amount="1E+41"),
+               "c": {"kind": "tip", "amount": "9.999999999999999999999999999E+999999"},
+               "d": {"kind": "tip", "amount": "9.999999999999999999999999999E+999999"},
+               "e": {"kind": "tip", "amount": "-1E+41"}, "f": {"kind": "tip", "amount": "1E+40"},
+               "g": {"kind": "tip", "amount": "1E+40"}, "h": rec(item=["chapter2"])})
+    own(rec(amount="1E+40"), rec(kind="tip", item=None, amount="1E-40", tx_hash="0x" + "88" * 32))
     return cases
 
 
@@ -1066,7 +1135,7 @@ def _tx_id_cases():
              [_EVM_TX]]
     for text in evm_like + other:
         cases.append(("normalize_tx_hash", {"text": text}))
-    for text in sol_like + evm_like[:3] + other:
+    for text in sol_like + evm_like[:3] + other + [" " + "2" * 89, base58.b58encode(b"\xff" * 64)]:
         cases.append(("normalize_signature", {"text": text}))
     for text in evm_like + sol_like + other:
         cases.append(("normalize_any_tx", {"text": text}))
@@ -1074,6 +1143,51 @@ def _tx_id_cases():
 
 
 topic("tx_ids", _tx_id_cases())
+
+# --- rpc_errors -----------------------------------------------------------------------------
+# Numbers read out of a node's error message: the eth_getLogs range a provider states and the
+# transaction version a Solana node names. \d is any Unicode decimal digit (Python's re), and a
+# run of more than 18 significant digits is no number (Ruling 6).
+
+_V = "Transaction version ({}) is not supported by the requesting client."
+
+
+def _rpc_error_cases():
+    ranges = [
+        ("eth_getLogs is limited to 0 - 50 blocks range", 2000),
+        ("ranges over 10000 blocks are not supported on free plan", 2000),
+        ("block range is too large", 15),
+        ("limited to 50 blocks; request " + "9" * 4301, 2000),
+        ("block range too large: " + "9" * 4301, 5000),
+        ("max " + "0" * 30 + "50 blocks", 2000),
+        ("max " + "9" * 19 + " or 50", 2000),
+        ("max " + "9" * 18 + " or 50", 2000),
+        ("max \u0665\u0660 blocks", 2000),
+        ("max " + "\u0660" * 25 + "\u0665\u0660", 2000),
+        ("max \uff15\uff10", 2000),
+        ("max \u096b\u0966 or \u09eb\u09e6", 2000),
+        ("10 or 11 or 12", 12),
+        ("1999 and 2000 and 9", 2000),
+        ("x", 21),
+        ("x", 101),
+    ]
+    versions = [
+        (-32015, _V.format(2), 1), (-32015, _V.format(0), 1), (-32015, _V.format(1), 1),
+        (-32015, _V.format(1), 0), (-32000, _V.format(5), 1), (-32015, _V.format("9" * 15), 1),
+        (-32015, _V.format("9" * 19), 1), (-32015, _V.format("9" * 4301), 1),
+        (-32015, _V.format("0" * 30 + "3"), 1),
+        (-32015, "version (" + "9" * 19 + ") version (5)", 1),
+        (-32015, "version (12 version (5)", 1), (-32015, "version (\u0663)", 1),
+        (-32015, "Transaction VER\u017fION (2) x", 1), (-32015, "vers\u0131on (4)", 1),
+        (-32015, "vers\u0130on (4)", 1), (-32015, "Version (2", 1), (-32015, "version(2)", 1),
+        (-32015, "version (x) version (6)", 1),
+    ]
+    return ([("suggested_range", {"message": m, "tried": t}) for m, t in ranges]
+            + [("named_version", {"code": c, "message": m, "tx_version": v})
+               for c, m, v in versions])
+
+
+topic("rpc_errors", _rpc_error_cases())
 
 # --- message catalogue (a generated source of its own, not a Tier 1 topic) ------------------
 

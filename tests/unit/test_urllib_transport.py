@@ -22,8 +22,16 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(payload)
             return
+        if self.path == "/400-long-int":
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"error": {"code": ' + b"9" * 4301 + b', "message": "x"}}')
+            return
         if self.path == "/garbage":
             payload = b"<html>not json</html>"
+        elif self.path == "/long-int":
+            payload = b'{"jsonrpc": "2.0", "id": 1, "result": ' + b"9" * 4301 + b"}"
         else:
             payload = json.dumps({"jsonrpc": "2.0", "id": body["id"], "result": body["method"],
                                   "ua": self.headers.get("User-Agent"),
@@ -73,3 +81,12 @@ def test_connection_refused_raises():
 def test_http_error_with_jsonrpc_body_is_returned_not_raised(base_url):
     resp = UrllibTransport().post_json(base_url + "/400-jsonrpc", {"id": 3, "method": "x"}, 5)
     assert resp["error"]["code"] == 35
+
+
+def test_an_overlong_json_integer_is_invalid_json(base_url, interpreter):
+    """Ruling 6: more than 4300 digits in an integer literal is not JSON on any interpreter."""
+    with pytest.raises(TransportError, match="invalid JSON response"):
+        UrllibTransport().post_json(base_url + "/long-int", {"id": 1, "method": "x"}, 5)
+    with pytest.raises(TransportError) as info:
+        UrllibTransport().post_json(base_url + "/400-long-int", {"id": 1, "method": "x"}, 5)
+    assert info.value.status == 400

@@ -1,10 +1,12 @@
 // Stablecoin for Games checkout page: EVM chains. Finds browser wallet extensions (EIP-6963),
 // asks the chosen one to send one ERC-20 transfer, and reports the tx hash to the game.
+// What an extension announces or throws is never trusted to be well-formed: a broken one is
+// left out or shown as a wallet error, never thrown into the page.
 "use strict";
 
 (function () {
   function start(ctx) {
-    const { session, $, setStatus } = ctx;
+    const { session, $, setStatus, field } = ctx;
     // Kept free for the network fee when the token is also the gas coin: 0.01 token.
     const FEE_MARGIN_UNITS = 10000n;
     let provider = null;
@@ -25,9 +27,44 @@
     }
 
     function walletError(err) {
-      if (err && err.code === 4001) return "You rejected the request in your wallet. You can try again.";
-      if (err && err.code === -32002) return "Your wallet already has a pending request. Open it to continue.";
-      return "Wallet error: " + ((err && err.message) || String(err));
+      const code = field(err, "code");
+      if (code === 4001) return "You rejected the request in your wallet. You can try again.";
+      if (code === -32002) return "Your wallet already has a pending request. Open it to continue.";
+      return "Wallet error: " + ctx.errorText(err);
+    }
+
+    // A click handler: whatever the flow throws ends as the wallet error state.
+    function guarded(flow) {
+      return (...args) => {
+        flow(...args).catch((err) => {
+          if (!ctx.isSent()) setStatus(walletError(err), "bad");
+        });
+      };
+    }
+
+    // An extension's window.ethereum (its getter may throw), else null. Twin of bridge.js
+    // injected().
+    function injected() {
+      try {
+        return window.ethereum || null;
+      } catch (err) {
+        return null;
+      }
+    }
+
+    // An EIP-6963 announcement as { info: { uuid, name, icon }, provider } of plain values,
+    // read once; null for one that isn't (no detail, no provider, fields that throw). Twin of
+    // bridge.js announcedUuid(): the same announcements are wallets for the game's offer.
+    function announced(event) {
+      try {
+        const { info, provider: p } = event.detail || {};
+        if (!info || !p) return null;
+        const { uuid, name, icon } = info;
+        if (typeof uuid !== "string" || typeof name !== "string") return null;
+        return { info: { uuid, name, icon: typeof icon === "string" ? icon : "" }, provider: p };
+      } catch (err) {
+        return null;
+      }
     }
 
     function renderWallets() {
@@ -35,20 +72,21 @@
       list.textContent = "";
       if (ctx.isSent()) return;
       const entries = [...discovered.values()];
-      if (entries.length === 0 && window.ethereum) {
-        entries.push({ info: { name: "Browser wallet", icon: "" }, provider: window.ethereum });
+      const fallback = entries.length === 0 ? injected() : null;
+      if (fallback) {
+        entries.push({ info: { name: "Browser wallet", icon: "" }, provider: fallback });
       }
       for (const { info, provider: p } of entries) {
         const b = document.createElement("button");
         b.type = "button";
-        if (typeof info.icon === "string" && info.icon.startsWith("data:image/")) {
+        if (info.icon.startsWith("data:image/")) {
           const img = document.createElement("img");
           img.src = info.icon;
           img.alt = "";
           b.appendChild(img);
         }
         b.appendChild(document.createTextNode("Pay with " + info.name));
-        b.addEventListener("click", () => connect(p));
+        b.addEventListener("click", guarded(() => connect(p)));
         list.appendChild(b);
       }
       if (entries.length > 0) {
@@ -64,7 +102,7 @@
       try {
         await p.request({ method: "wallet_switchEthereumChain", params: [{ chainId: session.chain_id_hex }] });
       } catch (err) {
-        if (err && (err.code === 4902 || (err.data && err.data.originalError && err.data.originalError.code === 4902))) {
+        if (field(err, "code") === 4902 || field(field(field(err, "data"), "originalError"), "code") === 4902) {
           await p.request({
             method: "wallet_addEthereumChain",
             params: [{
@@ -173,17 +211,17 @@
     }
 
     window.addEventListener("eip6963:announceProvider", (event) => {
-      const { info, provider: p } = event.detail || {};
-      if (info && p && !discovered.has(info.uuid)) {
-        discovered.set(info.uuid, { info, provider: p });
+      const wallet = announced(event);
+      if (wallet && !discovered.has(wallet.info.uuid)) {
+        discovered.set(wallet.info.uuid, wallet);
         renderWallets();
       }
     });
-    $("pay").addEventListener("click", pay);
+    $("pay").addEventListener("click", guarded(pay));
     window.dispatchEvent(new Event("eip6963:requestProvider"));
     setTimeout(() => {
       renderWallets();
-      if (discovered.size === 0 && !window.ethereum) {
+      if (discovered.size === 0 && !injected()) {
         setStatus("No wallet extension found in this browser. Install MetaMask, Rabby or " +
           "Coinbase Wallet, or use the QR code in the game.", "warn");
       }

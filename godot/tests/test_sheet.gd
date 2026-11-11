@@ -486,3 +486,38 @@ func _visit_every_step() -> void:
 	await UI.frames(1)
 	T.ok(rbox.has("result"), "closed")
 	await UI.drop(env)
+
+
+## pay() and restore() at once: the restore screen opens over the payment sheet and takes the
+## focus. A rebuild of the sheet below (its session starts) leaves the focus on the screen on top;
+## when that closes, the focus goes back to the sheet, although the control it had was rebuilt.
+func test_a_rebuild_below_never_takes_the_focus_from_a_screen_on_top() -> bool:
+	var env := await UI.make("stacked")
+	var s: Node = env["node"]
+	var opened := await _open_unlock(s)
+	var sheet: Node = opened[1]
+	var ctl: ScfgCheckoutController = opened[2]
+	T.ok(sheet is ScfgSheet and sheet.is_ancestor_of(UI.focused()), "the sheet has the focus (%s)" % [UI.focused()])
+	var restoring := UI.restore(s)
+	await UI.frames(2)
+	var top: Node = UI.screen(s)
+	T.ok(top is ScfgRestoreScreen and top != sheet, "the restore screen opens over the sheet (%s)" % [top])
+	if not top is ScfgRestoreScreen or not sheet is ScfgSheet:
+		await UI.drop(env)
+		return T.done()
+	T.ok(UI.focused() == top.control("tx_input"), "the screen on top has the focus (%s)" % [UI.focused()])
+	T.eq(ctl.choose_network("arbitrum"), null, "the payment moves on below")
+	await UI.pass_(s)
+	await UI.frames(3)
+	T.eq(sheet.shown_step, "method", "the sheet rebuilt for the method step")
+	T.ok(UI.focused() == top.control("tx_input"), "the focus stayed on the screen on top (%s)" % [UI.focused()])
+	await UI.type_text("ab")
+	T.eq((top.controller as ScfgRestoreController).tx_input, "ab", "and typing still goes there")
+	await UI.act("ui_cancel")
+	var r: ScfgRestoreResult = restoring.get("result")
+	T.eq(r.status if r != null else null, "cancelled", "ui_cancel closes the screen on top only")
+	T.eq(s._checkouts.size(), 1, "the payment is still open")
+	await UI.frames(2)
+	T.ok(UI.focused() != null and sheet.is_ancestor_of(UI.focused()), "the focus is back on the sheet (%s)" % [UI.focused()])
+	await UI.drop(env)
+	return T.done()

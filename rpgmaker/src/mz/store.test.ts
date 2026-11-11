@@ -1,14 +1,14 @@
 /** ScfgStore on the MZ shim's StorageManager, desktop (save files) and web (localforage keys). */
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
-import { MemoryStorage, bootShim, installShim, resetShim } from "../../test/mz_shim/index.ts";
+import { DEFAULT_GAME_ID, MemoryStorage, bootShim, installShim, resetShim } from "../../test/mz_shim/index.ts";
 import { ScfgStore } from "./store.ts";
 
 afterEach(() => resetShim());
 
 const MODES = [
   { name: "nwjs", nwjs: true, key: (n: string) => `save/${n}.rmmzsave` },
-  { name: "web", nwjs: false, key: (n: string) => `rmmzsave.12345678.${n}` },
+  { name: "web", nwjs: false, key: (n: string) => `rmmzsave.${DEFAULT_GAME_ID}.${n}` },
 ] as const;
 
 const RECEIPT = {
@@ -145,9 +145,9 @@ test("backupThatCannotBeRecoveredIsUnreadable", async () => {
 test("noBackupRecoveryOnTheWeb", async () => {
   // localforage writes one key; MZ keeps no backup there
   const good = JSON.stringify({ version: 1, pending: {}, receipts: { k: RECEIPT } });
-  const { storage, store } = await env(false, { "rmmzsave.12345678.scfg_": good });
+  const { storage, store } = await env(false, { [`rmmzsave.${DEFAULT_GAME_ID}.scfg_`]: good });
   assert.deepEqual(await store.load(), { pending: {}, receipts: {}, warning: null });
-  assert.equal(storage.has("rmmzsave.12345678.scfg"), false);
+  assert.equal(storage.has(`rmmzsave.${DEFAULT_GAME_ID}.scfg`), false);
 });
 
 for (const mode of MODES) {
@@ -249,3 +249,29 @@ for (const mzReader of [true, false]) {
     assert.equal(storage.has("save/scfg.rmmzsave_"), false);
   });
 }
+
+test("twoGamesOnOneOriginKeepTheirOwnState", async () => {
+  // MZ's web build keeps every game of an origin in that origin's one localforage store (the
+  // shim's browser build: its localStorage); the state's key holds the game's $dataSystem
+  // advanced.gameId, so two games there never read or overwrite each other's receipts.
+  const storage = new MemoryStorage();
+  const as = async <T>(gameId: number, fn: (store: ScfgStore) => Promise<T>): Promise<T> => {
+    installShim(globalThis, { nwjs: false, storage, gameId });
+    await bootShim();
+    try {
+      return await fn(new ScfgStore());
+    } finally {
+      resetShim();
+    }
+  };
+  const a = { pending: { ps_1: { id: "ps_1", state: "awaiting" } }, receipts: { "arbitrum:0xab:3": RECEIPT } };
+  const tx = "0x" + "cd".repeat(32);
+  const b = { pending: {}, receipts: { [`arbitrum:${tx}:3`]: { ...RECEIPT, tx_hash: tx, kind: "tip", item: null } } };
+  await as(111, (s) => s.save(a));
+  assert.deepEqual(await as(222, (s) => s.load()), { pending: {}, receipts: {}, warning: null }, "the other game starts empty");
+  await as(222, (s) => s.save(b));
+  assert.deepEqual(await as(111, (s) => s.load()), { ...a, warning: null }, "the first game's state is untouched");
+  assert.deepEqual(await as(222, (s) => s.load()), { ...b, warning: null }, "and the second keeps its own");
+  assert.deepEqual(storage.keys().filter((k) => k.endsWith(".scfg")).sort(), ["rmmzsave.111.scfg", "rmmzsave.222.scfg"],
+    "one key per gameId");
+});

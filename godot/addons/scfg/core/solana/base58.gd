@@ -62,16 +62,26 @@ static func b58decode(text: Variant) -> Variant:
 	return out
 
 
+## The longest base58 text of `length` bytes: 44 characters for 32, 88 for 64 (Python's
+## max_encoded_length: ceil(length * log(256) / log(58))).
+static func max_encoded_length(length: float) -> int:
+	return ceili(length * log(256.0) / log(58.0))
+
+
 ## `b58decode(text)` that must be exactly `length` bytes (else ValueError). A JSON `length`
 ## arrives as a float, so any number equal to the byte count passes; anything else is a ValueError
 ## (Python: a length that does not equal `len(raw)`).
+## Decoding is quadratic in the text's length, so text longer than any encoding of `length`
+## bytes (max_encoded_length) is refused before it is decoded.
 ## @fallible
 static func decode_fixed(text: Variant, length: Variant) -> Variant:
+	var numeric := (length is int or length is float) and typeof(length) != TYPE_BOOL
+	if numeric and (text is String or text is StringName) and str(text).length() > max_encoded_length(length):
+		return ScfgErr.make("ValueError", "too long for %s bytes: %d characters" % [ScfgPy.py_repr(length), str(text).length()])
 	var raw: Variant = b58decode(text)
 	if raw is ScfgErr:
 		return raw
 	var bytes: PackedByteArray = raw
-	var numeric := (length is int or length is float) and typeof(length) != TYPE_BOOL
 	if not numeric or bytes.size() != length:
 		return ScfgErr.make("ValueError", "expected %s bytes, got %d: %s" % [
 			ScfgPy.py_repr(length), bytes.size(), ScfgPy.py_repr(text)])

@@ -51,9 +51,15 @@
 ##
 ## Stdin is read on a thread: OS.read_string_from_stdin blocks, and the game must keep running
 ## (its localhost page server and the payment checks run every frame) while the runner waits.
+## The thread is always joined at exit. It ends by itself after "quit" or at the end of stdin; a
+## game that quits on its own (a failed run: the demo refused its config) prints QUITTING_LINE
+## first, and the runner then closes the game's stdin, which ends the read.
 extends Node
 
 const REPLY_PREFIX := "SCFG-REPLY "
+## Printed when the game quits while the reader still waits on stdin (tools/run_godot_e2e.py's
+## QUITTING): the runner closes stdin so the reader ends and can be joined.
+const QUITTING_LINE := "SCFG-QUITTING"
 const CONFIG_ENV := "SCFG_E2E_CONFIG"
 const CHAIN_ENV := "SCFG_E2E_CHAIN"
 ## Godot 4.4+ stdin read size (bytes, including fgets' terminator): the longest command line + 1.
@@ -92,6 +98,7 @@ var _thread: Thread = null
 var _mutex := Mutex.new()
 var _lines: Array[String] = []
 var _eof := false
+var _reader_done := false  # the reader read "quit" or the end of stdin: it ends without more input
 var _quitting := false
 var _busy := false  # a command is running (it may await frames)
 var _web := OS.has_feature("web")
@@ -149,10 +156,15 @@ func _on_page_command(args: Array) -> void:
 
 
 func _exit_tree() -> void:
-	# The reader stops by itself after "quit" or at the end of stdin. A game quitting on its own
-	# (a failed run) leaves it blocked on stdin: waiting for it would hang the quit.
-	if _thread != null and _thread.is_started() and not _thread.is_alive():
-		_thread.wait_to_finish()
+	if _thread == null or not _thread.is_started():
+		return
+	_mutex.lock()
+	var done := _reader_done
+	_mutex.unlock()
+	if not done:
+		# the game quits on its own while the reader waits on stdin: ask the runner to close it
+		print(QUITTING_LINE)
+	_thread.wait_to_finish()
 
 
 func _process(_delta: float) -> void:
@@ -394,16 +406,16 @@ func _apply_chain(text: String) -> String:
 func _read_stdin() -> void:
 	while true:
 		var line := _read_line()
+		var cmd: Variant = JSON.parse_string(line) if line != "" else null
+		var last: bool = line == "" or (cmd is Dictionary and cmd.get("op") == "quit")
 		_mutex.lock()
 		if line == "":
 			_eof = true
 		else:
 			_lines.append(line)
+		_reader_done = last
 		_mutex.unlock()
-		if line == "":
-			return
-		var cmd: Variant = JSON.parse_string(line)
-		if cmd is Dictionary and cmd.get("op") == "quit":
+		if last:
 			return
 
 

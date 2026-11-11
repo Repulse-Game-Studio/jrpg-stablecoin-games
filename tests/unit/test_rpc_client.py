@@ -229,6 +229,53 @@ def test_suggested_range_uses_stated_limit_or_halves():
     assert suggested_range(RpcError(-32005, "block range is too large"), 15) == MIN_LOG_RANGE
 
 
+# Ruling 6: a digit run beyond 18 significant digits is no number (it is above any range a
+# caller can try), so a node message never costs a quadratic int() or, on an interpreter with
+# CPython's digit limit, a ValueError out of get_logs. \d is any Unicode decimal digit.
+_OVERLONG_RANGE_ROWS = [
+    ("limited to 50 blocks; request " + "9" * 4301, 2000, 50),
+    ("block range too large: " + "9" * 4301, 5000, 2500),
+    ("block range too large: " + "9" * 1_000_000, 5000, 2500),
+    ("max " + "0" * 30 + "50 blocks", 2000, 50),
+    ("max " + "9" * 19 + " or 50", 2000, 50),
+    ("max \u0665\u0660 blocks", 2000, 50),
+    ("max " + "\u0660" * 25 + "\u0665\u0660", 2000, 50),
+    ("max \uff15\uff10", 2000, 50),
+]
+
+
+@pytest.mark.parametrize("message, tried, expected", _OVERLONG_RANGE_ROWS,
+                         ids=["4301-beside-a-limit", "4301-alone", "a-million", "leading-zeros",
+                              "19-digits", "arabic-indic", "arabic-indic-zeros", "fullwidth"])
+def test_suggested_range_ignores_numbers_beyond_18_digits(interpreter, int_texts, message,
+                                                          tried, expected):
+    import scfg_core.ints
+    import scfg_core.rpc
+    from scfg_core.rpc import suggested_range
+    converted = int_texts(scfg_core.rpc, scfg_core.ints)
+    assert suggested_range(RpcError(-32005, message), tried) == expected
+    assert max(converted, default=0) <= 18          # no long digit text reaches int()
+
+
+def test_suggested_range_reads_18_significant_digits_not_19(interpreter):
+    from scfg_core.rpc import suggested_range
+    tried = 9 * 10**18
+    assert suggested_range(RpcError(0, "max " + "9" * 18), tried) == 10**18 - 1
+    assert suggested_range(RpcError(0, "max " + "0" * 5 + "9" * 18), tried) == 10**18 - 1
+    assert suggested_range(RpcError(0, "max 1" + "0" * 18), tried) == tried // 2
+
+
+def test_an_overlong_number_in_a_range_error_does_not_break_get_logs(interpreter):
+    message = "block range too large: " + "9" * 4301
+
+    def handler(m, p):
+        lo, hi = int(p[0]["fromBlock"], 16), int(p[0]["toBlock"], 16)
+        return err(-32005, message) if hi - lo + 1 > 100 else ok([])
+    c, t, _ = client({A: handler}, log_range=400)
+    assert c.get_logs("0xT", [], 1, 400) == []
+    assert c.log_range == 100
+
+
 def test_archive_message_counts_as_range_error():
     assert is_range_error(RpcError(-32602, "Archive requests require a personal token. Get one at x"))
 

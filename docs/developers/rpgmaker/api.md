@@ -22,7 +22,7 @@ Open the Plugin Manager and select SCFG. The parameter names below are what the 
 | **Wallet** | Your EVM wallet address (`0x...`). It receives the payments on Ethereum, Arbitrum, Polygon, Base and Arc |
 | **Solana Wallet** | Optional: your Solana wallet address, to take USDC/USDT on Solana too |
 | **Testnet** | ON: test networks with test tokens, no real money. Turn it OFF for the release. Default OFF, so set it ON while you test |
-| **Logo** | Optional: a png file from `img/scfg/`, shown on the payment sheet and the checkout page. The editor's file picker lists png files; for a jpg or webp logo, pass it from a script: `SCFG.configure({logo: "mark.webp"})` |
+| **Logo** | Optional: a png file from `img/scfg/`, shown on the payment sheet and the checkout page. The editor's file picker lists png files; for a jpg or webp logo, pass it from a script: `SCFG.configure({logo: "mark.webp"})`. A logo named only in a script is used by nothing MZ knows of, so a deployment with **Exclude unused files** leaves it out: deploy without that option, or copy the file into the deployed game's `img/scfg/` |
 | **Accent** | Optional: a color like `#0e7c74` for selected options, the forward button and the progress dots |
 | **Items** | What players can unlock: see below |
 | **Notify** | Show a short notice when a payment confirms or purchases are restored. Default ON |
@@ -67,7 +67,8 @@ These take JSON text. Empty means the defaults.
 ## Plugin commands
 
 All four are under **SCFG** in the event editor. Unlock Item, Tip and Restore Purchases show the sheet and
-the event **waits** until the player closes it.
+the event **waits** until the player closes it. In a common event the common event waits, and so does the event
+that called it (MZ runs a common event inside its caller).
 
 | Command | Arguments |
 |---|---|
@@ -105,6 +106,10 @@ payment confirms or purchases are restored (also in the middle of a map), when t
 read, and after each plugin command. An item added only from a script has no switch: read `SCFG.owns(id)`.
 
 Purchases are global, not per save slot, so every slot and every New Game sees them.
+
+When the game boots, MZ's boot scene waits until the stored purchases are read, as it waits for MZ's own
+options and save list: the title screen and every script after it already see `SCFG.owns(...)` and the
+switches.
 
 ## The script API: `window.SCFG`
 
@@ -218,7 +223,7 @@ A **receipt** has `chain`, `tx_hash`, `log_index`, `block`, `kind`, `item`, `amo
 background, across restarts, and the final result arrives later through the `callback` or `SCFG.onResult`.
 
 A `callback` gets this call's own `already_owned`, `failed` and `cancelled` results and every later result of that
-payment. Without one, a cancel and the later results reach `SCFG.onResult`, also when the awaited call
+payment, until the payment is over (its `paid` or `underpaid` result, or the session ending unpaid); then it is released. Without one, a cancel and the later results reach `SCFG.onResult`, also when the awaited call
 returns the same result (a payment that confirms while its sheet is open): keep the handler idempotent, for
 example refresh what is unlocked from `SCFG.owns()` rather than counting results.
 
@@ -283,7 +288,12 @@ engines. From least to most work:
    The logo is a file in `img/scfg/`. In a desktop test play a missing file is reported when you configure, and
    the plugin stays off until you fix it. In a released game a logo that cannot be read is a console warning
    and the screens show no logo; payments go on. A deployment made with **Encrypt image files** ships
-   `logo.png_` instead of `logo.png`: the plugin reads and decrypts it the way MZ does its own images.
+   `logo.png_` instead of `logo.png`: the plugin reads and decrypts it the way MZ does its own images (MZ
+   encrypts only png images: a jpg or webp logo ships as it is). A jpg or webp logo can only be set from a
+   script, and **Exclude unused files** drops a file only a script names: see **Logo** in
+   [Plugin parameters](#plugin-parameters). In a web game the logo is read when a payment starts, usually long
+   before the player opens the wallet overlay; if it is still being read then, the overlay waits for it up to
+   one second and otherwise opens without the logo.
 2. **`SCFG.css`**: a stylesheet text that is appended to the sheet's own (inside its shadow root, so your game's
    CSS never reaches it, and its CSS never reaches the game). The colors are custom properties on the host
    (`--scfg-accent`, `--scfg-ink`, `--scfg-line`, `--scfg-ok`, `--scfg-warn`, `--scfg-error`, `--scfg-dim`,
@@ -364,6 +374,11 @@ SCFG.texts.cancel = "Annuler";
 - **No server and no setup.** The checkout page is inside `SCFG.js`. On the web the browser wallet step opens as
   an overlay in the game's own page, and the plugin talks to the wallet extension there. You do not copy any
   extra files or change any server settings.
+- **Broken wallet extensions.** An uncaught error in the page stops an MZ game, so the checkout page never
+  lets one out of its own code: a wallet extension that announces itself badly or throws odd values at it is
+  left out or shown as a wallet error, and the player's other wallets still pay. An extension that throws
+  inside its own code (its own event listeners, its own timers) can still stop the game: the page contains
+  only its own code, and that error is the extension's to fix.
 - **HTTPS.** Wallet extensions, the clipboard and the RPC calls expect HTTPS or `localhost`. Without a secure
   context, Copy and Paste are refused and the sheet says so.
 - **Receipts persist in the browser's storage.** MZ's web build keeps the global save data in `localforage`
@@ -371,6 +386,14 @@ SCFG.texts.cancel = "Annuler";
   restarts but belong to the browser profile and the origin: clearing site data deletes them (Restore
   Purchases brings them back with the transaction hash) and a private window loses them when it closes. In test play the plugin warns once if the
   browser cannot keep them.
+- **Several games on one origin.** The receipts are one localforage entry, `rmmzsave.<gameId>.scfg`, next to
+  MZ's own `rmmzsave.<gameId>.global` and `rmmzsave.<gameId>.config`. `<gameId>` is the game's
+  `$dataSystem.advanced.gameId` (`advanced.gameId` in `data/System.json`), so games on one origin, such as a
+  host that serves many games from one domain, keep their receipts apart. localforage writes one entry at a
+  time, so a game never deletes another game's entry. A project copied from another one keeps that
+  project's gameId: give a copy that ships as a separate game its own `advanced.gameId`, or the two share
+  receipts (and saves) on one origin. This is checked on the stand-in
+  (`twoGamesOnOneOriginKeepTheirOwnState` in `src/mz/store.test.ts`), not yet in real MZ.
 - **If the page cannot run the overlay** (reported in test play), copy, paste and links fall back to the
   browser's own APIs, and there is no browser wallet method.
 - **Embedding.** A game inside a third-party iframe usually has no storage and no wallet. Serve it from a page

@@ -14,7 +14,12 @@ const CONFIG_ENV := "SCFG_E2E_CONFIG"  # test-only hook, see README.md
 
 
 func _ready() -> void:
-	_configure()
+	var hook := _e2e_config()
+	if hook.get("failed", false) or not _configure(hook.get("config", {})):
+		# A test run must never silently fall back to the built-in testnet config, and a setup
+		# the addon refused (it printed why) must not run as if it worked.
+		get_tree().quit(1)
+		return
 	Scfg.payment_resolved.connect(_on_payment_resolved)
 	Scfg.receipts_changed.connect(_refresh)
 	_unlock.pressed.connect(_on_unlock)
@@ -24,38 +29,45 @@ func _ready() -> void:
 	_unlock.grab_focus()
 
 
-func _configure() -> void:
-	var hook := _e2e_config()
-	if hook.get("failed", false):
-		get_tree().quit(1)  # a test run must never silently fall back to the built-in testnet config
-		return
-	var override: Dictionary = hook.get("config", {})
+## Configures the addon: the built-in testnet setup, or the test hook's `override`. False when
+## configure() or add_item() refused it (each returns the error it reported with push_error).
+func _configure(override: Dictionary) -> bool:
 	if override.is_empty():
-		Scfg.configure({
+		var err: Variant = Scfg.configure({
 			# TODO: replace with YOUR wallet address. This placeholder is the public EIP-55 example
 			# address from the EIP-55 spec: it is not yours, so a real payment to it is lost.
 			"wallet": "0x52908400098527886E0F7030069857D2E4169EE7",
 			"testnet": true,  # Sepolia / Arbitrum Sepolia / Amoy / Base Sepolia: no real money
 		})
-		Scfg.add_item(ITEM, {"code": 1, "price": "1.00", "token": "USDC", "title": "Chapter 2: The Fall"})
-		return
-	Scfg.configure(override["configure"])
+		if err == null:
+			err = Scfg.add_item(ITEM, {"code": 1, "price": "1.00", "token": "USDC", "title": "Chapter 2: The Fall"})
+		return err == null
+	if Scfg.configure(override["configure"]) != null:
+		return false
 	var items: Dictionary = override["items"]
 	for id: String in items:
-		Scfg.add_item(id, items[id])
+		if Scfg.add_item(id, items[id]) != null:
+			return false
+	return true
 
 
 ## The test-only override, {"configure": {...}, "items": {id: {...}}}. On desktop it is the JSON file
 ## named by SCFG_E2E_CONFIG; on web it is the JSON string in window.scfgE2EConfig. Returns {} when
 ## the hook is not set (every real run), {"config": {...}} when valid, {"failed": true} (after
-## push_error) when it is set but unusable.
+## push_error) when it is set but unusable (on the web: anything but a non-empty string).
 func _e2e_config() -> Dictionary:
 	var text := ""
 	var source := CONFIG_ENV
 	if OS.has_feature("web"):
 		source = "window.scfgE2EConfig"
-		var raw: Variant = JavaScriptBridge.eval("typeof window.scfgE2EConfig === 'string' ? window.scfgE2EConfig : ''")
-		text = str(raw) if raw != null else ""
+		var kind: Variant = JavaScriptBridge.eval("typeof window.scfgE2EConfig")
+		if kind == "undefined":
+			return {}
+		if kind != "string":
+			return _bad_hook(source, "not a string but %s" % kind)
+		text = str(JavaScriptBridge.eval("window.scfgE2EConfig"))
+		if text == "":
+			return _bad_hook(source, "an empty string")
 	else:
 		var path := OS.get_environment(CONFIG_ENV)
 		if path == "":
@@ -66,8 +78,6 @@ func _e2e_config() -> Dictionary:
 		text = FileAccess.get_file_as_string(path)
 		if text == "":
 			return _bad_hook(source, "file is empty or unreadable")
-	if text == "":
-		return {}
 	var parsed: Variant = JSON.parse_string(text)
 	if not parsed is Dictionary:
 		return _bad_hook(source, "not a JSON object")

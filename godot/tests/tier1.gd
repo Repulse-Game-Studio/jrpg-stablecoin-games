@@ -28,7 +28,7 @@ const NONE := &"__scfg_tier1_none__"
 const IMPLEMENTED: Array[String] = [
 	"keccak", "ed25519", "evm_address", "base58", "pda", "solana_tx",
 	"amounts", "paylinks", "qr", "page_messages", "receipts", "tx_ids",
-	"chains", "config", "custom_chains", "items", "payments",
+	"chains", "config", "custom_chains", "items", "payments", "rpc_errors",
 ]
 
 ## {Python fn name: Callable(input: Dictionary) -> Variant}.
@@ -67,6 +67,7 @@ static func _register() -> Dictionary:
 		"decode": _decode,
 		"units_to_decimal": _units_to_decimal,
 		"decimal_to_units": _decimal_to_units,
+		"stored_amount": _stored_amount,
 		"format_units": _format_units,
 		# paylinks
 		"eip681_transfer_uri": _eip681_transfer_uri,
@@ -92,6 +93,9 @@ static func _register() -> Dictionary:
 		"build_config": _build_config,
 		"add_item": _add_item,
 		"prepare_payment": _prepare_payment,
+		# rpc_errors
+		"suggested_range": _suggested_range,
+		"named_version": _named_version,
 	}
 
 
@@ -394,6 +398,17 @@ static func _decimal_to_units(i: Dictionary) -> Variant:
 	return _str_of(ScfgAmounts.decimal_to_units(d))
 
 
+## str(amounts.stored_amount(value)): the JSON value itself, a {"float": repr} a float.
+static func _stored_amount(i: Dictionary) -> Variant:
+	var raw: Variant = ScfgPy.py_get(ScfgPy.from_json(i), "value")
+	if raw is ScfgErr:
+		return raw
+	var value: Variant = _value(raw)
+	if value is ScfgErr:
+		return value
+	return _str_of(ScfgAmounts.stored_amount(value))
+
+
 ## amounts.format_units(int(i["units"]))
 static func _format_units(i: Dictionary) -> Variant:
 	var units: Variant = _int_field(i, "units")
@@ -595,6 +610,24 @@ static func _normalize_any_tx(i: Dictionary) -> Variant:
 	if text is ScfgErr:
 		return text
 	return ScfgBackends.normalize_any_tx(text)
+
+
+# rpc_errors: numbers read out of a node's error message
+
+
+## rpc.suggested_range(RpcError(-32005, i["message"]), i["tried"])
+static func _suggested_range(i: Dictionary) -> Variant:
+	var v: Variant = ScfgPy.from_json(i)
+	return ScfgRpcClient.suggested_range(ScfgRpcClient.rpc_error(-32005, v["message"]), v["tried"])
+
+
+## SolanaRpc(None) with tx_version = i["tx_version"], then _named_version(RpcError(code, message))
+static func _named_version(i: Dictionary) -> Variant:
+	var v: Variant = ScfgPy.from_json(i)
+	var rpc := ScfgSolanaRpc.new(null)
+	rpc.tx_version = v["tx_version"]
+	var version: Variant = rpc._named_version(ScfgRpcClient.rpc_error(v["code"], v["message"]))
+	return NONE if version == null else version
 
 
 # chains, configuration and payments (conformance/python/scfg_conformance/tier1_config.py)

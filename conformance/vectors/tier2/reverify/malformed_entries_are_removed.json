@@ -80,7 +80,7 @@
     }
    ],
    "entropy": [],
-   "internal_errors": 0,
+   "internal_errors": 3,
    "raises": null,
    "returns": [
     "junk0",

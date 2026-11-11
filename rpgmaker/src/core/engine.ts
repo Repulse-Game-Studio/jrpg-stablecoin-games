@@ -11,7 +11,7 @@ import type { Transport } from "./coio.ts";
 import { acceptedWalletsFor, enabledChains, registry, walletFor, type Config } from "./config.ts";
 import { deepCopy } from "./copy.ts";
 import type { Dec } from "./decimal.ts";
-import { ConfigError, KeyError, ValueError } from "./errors.ts";
+import { ConfigError, KeyError, ValueError, printError } from "./errors.ts";
 import { makePaymentResult } from "./models.ts";
 import { MIN_TIP, preparePayment } from "./payments.ts";
 import { computeOwnership } from "./receipts.ts";
@@ -71,15 +71,6 @@ export interface StartSessionOptions {
 }
 
 
-interface ConsoleGlobals {
-  console?: { error?: (...args: unknown[]) => void };
-}
-
-/** Python's default hook prints the traceback to stderr. */
-function printError(e: unknown): void {
-  const c = (globalThis as unknown as ConsoleGlobals).console;
-  if (c && typeof c.error === "function") c.error(e);
-}
 
 export class Engine {
   config: Config;
@@ -248,7 +239,7 @@ export class Engine {
     for (const k of registry(this.config).keys()) chains[k] = this.chain(k);
     const wallets: Record<string, string[]> = {};
     for (const f of ["evm", "solana"]) wallets[f] = acceptedWalletsFor(this.config, f);
-    const removed = await reverifyReceipts(this.receipts, { rpc_for: (k) => this.rpc(k), chains, wallets });
+    const removed = await reverifyReceipts(this.receipts, { rpc_for: (k) => this.rpc(k), chains, wallets, on_error: (e) => this._report(e) });
     await this._checkReady();
     return removed;
   }
@@ -289,7 +280,19 @@ export class Engine {
     const ordered = [...this.config.chains, ...[...reg.keys()].filter((k) => !this.config.chains.includes(k))];
     const chains = new Map<string, Chain>();
     for (const k of ordered) chains.set(k, this.chain(k));
-    return lookupRestore(tx_hash, { config: this.config, chains, rpc_for: (k) => this.rpc(k), receipts: this.receipts });
+    return lookupRestore(tx_hash, {
+      config: this.config, chains, rpc_for: (k) => this.rpc(k), receipts: this.receipts, on_error: (e) => this._report(e),
+    });
+  }
+
+  /**
+   * The on_error handed to reverify and restoreLookup, which report as they go: it calls
+   * `on_error` as it is when the error is reported, not as it was when the pass started (the
+   * Godot autoload replaces its handler at quit, with a pass possibly in flight). A handler
+   * unset by then (null, or anything falsy) prints the error, as `on_error || printError` does.
+   */
+  private _report(e: unknown): void {
+    (this.on_error || printError)(e);
   }
 
   restoreApply(candidates: RestoreCandidate[], choices: Record<number | string, string | null> | null = null): Record<string, any>[] {

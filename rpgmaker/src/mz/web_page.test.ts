@@ -205,6 +205,61 @@ test("aBridgeThatThrowsIsAnsweredWithNothingAndWarnedOncePerCall", () => {
   assert.ok(warnings.some((w) => w.includes("openCheckout") && w.includes("broken")));
 });
 
+/** The attributes of an element bridge.js tagged as the overlay host of `key`. */
+function tagged(key: string) {
+  const attributes: Record<string, string> = { "data-scfg-overlay": key };
+  return {
+    attributes,
+    getAttribute: (name: string) => (name in attributes ? attributes[name]! : null),
+    hasAttribute: (name: string) => name in attributes,
+    setAttribute: (name: string, value: string) => void (attributes[name] = String(value)),
+    removeAttribute: (name: string) => void delete attributes[name],
+  };
+}
+
+test("theOverlaysHostIsTheElementTaggedWithItsKey", () => {
+  // bridge.js tags the host it creates with data-scfg-overlay="<key>": that element is guarded,
+  // not whatever else appeared in the body meanwhile, nor another overlay's host; the tag stays
+  const { bridge, win, page, warnings } = make();
+  page.install();
+  const guarded: string[] = [];
+  const element = <A extends object>(name: string, attrs: A) => ({
+    shadowRoot: {}, ownerDocument: { defaultView: { addEventListener() {}, removeEventListener() {} } },
+    addEventListener: () => void guarded.push(name), removeEventListener() {}, ...attrs,
+  });
+  const other = element("other", tagged("o0"));
+  (win.document.body.children as unknown[]).push(other);
+  const open = bridge.openCheckout.bind(bridge);
+  const mine = element("mine", tagged("o1"));
+  bridge.openCheckout = (...a: unknown[]) => {
+    (win.document.body.children as unknown[]).push(element("untagged", {}));
+    (win.document.body.children as unknown[]).push(mine);
+    return open(...a);
+  };
+  page.open("o1", { title: "T" }, null);
+  assert.deepEqual([...new Set(guarded)], ["mine"]);
+  assert.deepEqual(warnings, [], "the host was found");
+  assert.equal(mine.attributes["data-scfg-overlay"], "o1", "the guard keeps the bridge's tag");
+  page.close("o1");
+  assert.equal(mine.attributes["data-scfg-overlay"], "o1");
+});
+
+test("anOverlayWithoutItsTaggedHostIsReportedOnce", () => {
+  // a bridge that adds no host tagged with the key (an older copy of the plugin's page): the
+  // overlay opens unguarded, which test play says once
+  const { page, warnings } = make();
+  page.install();
+  page.open("o1", { title: "T" }, null);
+  page.open("o2", { title: "T" }, null);
+  assert.equal(warnings.length, 1, `once (${warnings})`);
+  assert.match(warnings[0]!, /data-scfg-overlay/);
+  // and nothing for a bridge that is not there at all (install() already said so)
+  const blocked = make({ blocked: true });
+  blocked.page.install();
+  blocked.page.open("o1", { title: "T" }, null);
+  assert.equal(blocked.warnings.length, 1, `only the install warning (${blocked.warnings})`);
+});
+
 test("theOverlaysHostIsGuardedWhileItIsOpen", () => {
   // the element bridge.js adds for an opened checkout gets guardOverlay's listeners (its keys and
   // pointer events are the overlay's); close() takes them off again, the window's ones included
@@ -216,7 +271,7 @@ test("theOverlaysHostIsGuardedWhileItIsOpen", () => {
     removeEventListener: () => void listening[k]--,
   });
   const view = counter("window");
-  const host = { shadowRoot: {}, ownerDocument: { defaultView: view }, ...counter("host") };
+  const host = { shadowRoot: {}, ownerDocument: { defaultView: view }, ...counter("host"), ...tagged("o1") };
   const open = bridge.openCheckout.bind(bridge);
   bridge.openCheckout = (...a: unknown[]) => {
     (win.document.body.children as unknown[]).push(host);

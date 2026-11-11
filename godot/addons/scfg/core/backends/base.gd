@@ -57,7 +57,8 @@ func reverify(_receipt: Variant, _opts: Dictionary) -> Variant:
 
 ## Restore candidates for tx on this chain, or [] if the chain doesn't know it (Python's None: a
 ## null is what a coroutine aborted by a script error returns, and ScfgRestore.lookup fails on it).
-## A RestoreError ("tx_reverted" | "tx_not_a_payment"). `opts`: config, chain, rpc, receipts.
+## A RestoreError ("tx_reverted" | "tx_not_a_payment"). `opts`: config, chain, rpc, receipts,
+## on_error (a transfer that cannot be classified is skipped and reported: ScfgRestore.classify_or_skip).
 ## @fallible
 ## @coroutine
 func lookup(_tx: Variant, _opts: Dictionary) -> Variant:

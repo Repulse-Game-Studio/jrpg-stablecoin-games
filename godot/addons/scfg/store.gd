@@ -12,7 +12,9 @@
 ##   stores and a warning naming the file. The bad file is renamed to `<path>.corrupt` (then
 ##   `.corrupt.2`, `.corrupt.3`, ...: a later corruption never replaces an earlier copy), so the
 ##   next save cannot overwrite what support might still recover (receipts also come back through
-##   Restore). A file that exists but cannot be read right now (no permission, a sharing
+##   Restore). A bad file that cannot be moved aside (a read-only directory, a lock) is treated as
+##   unreadable instead (below): starting empty would let the next save replace it with nothing
+##   kept anywhere. A file that exists but cannot be read right now (no permission, a sharing
 ##   violation, an antivirus lock, an I/O error) is not corrupt: it is left where it is, and
 ##   `error` is a RuntimeError ScfgErr naming it. The caller must then not save over it this run
 ##   (the autoload starts no payments; the next launch reads it again).
@@ -56,6 +58,17 @@ static func _read(source: String) -> Variant:
 	return raw
 
 
+## Renames the bad file `source` (which `why` describes) to `aside`: null, or a RuntimeError
+## ScfgErr when it cannot be moved.
+## @fallible
+static func _move_aside(source: String, aside: String, why: String) -> Variant:
+	var moved := DirAccess.rename_absolute(source, aside)
+	if moved != OK:
+		return ScfgErr.make("RuntimeError", "the payment state file %s %s, and it could not be moved aside (%s)"
+			% [source, why, error_string(moved)])
+	return null
+
+
 ## The stores in `path` (see the header). Never fails: a bad file is a warning, an unreadable
 ## one an `error`.
 static func load(path: String) -> Dictionary:
@@ -89,10 +102,12 @@ static func load(path: String) -> Dictionary:
 	while _exists(aside):
 		n += 1
 		aside = "%s.corrupt.%d" % [path, n]
-	var kept := DirAccess.rename_absolute(source, aside) == OK
-	return _empty("the payment state file %s %s; starting with no receipts or pending payments (%s). "
-		% [source, why, "the file was kept as " + aside if kept else "it could not be moved aside"]
-		+ "Players can bring purchases back with Restore.")
+	var stuck: Variant = _move_aside(source, aside, why)
+	if stuck is ScfgErr:
+		# starting empty would let the next save replace it with nothing kept anywhere
+		return _empty(null, stuck)
+	return _empty("the payment state file %s %s; starting with no receipts or pending payments (the file was kept as %s). "
+		% [source, why, aside] + "Players can bring purchases back with Restore.")
 
 
 ## Writes the stores to `path` atomically (see the header).

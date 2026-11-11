@@ -6,14 +6,15 @@
  * that carry no code (e.g. an exchange sent a round 5.00) are ambiguous, so the player chooses
  * which item it paid for, or keeps it as a tip.
  *
- * Errors mirror Python: only RpcUnavailable/RpcError are swallowed by `lookup`; anything else
- * (a malformed log, a value of 10**32 units or more that `decode` refuses) rejects the whole lookup.
+ * Errors mirror Python: only RpcUnavailable/RpcError are swallowed by `lookup`; anything else (a
+ * malformed log) rejects the whole lookup, except a transfer of 10**32 units or more, which `decode`
+ * cannot price: that one is skipped and reported to `on_error` (classifyOrSkip).
  */
 import { decode, unitsToDecimal, type Units } from "./amounts.ts";
 import { backendFor } from "./backends/index.ts";
 import { parseTransfer, type Chain } from "./chains.ts";
 import { acceptedWallets, itemByCode, type Config } from "./config.ts";
-import { ValueError } from "./errors.ts";
+import { InvalidOperation, ValueError, printError } from "./errors.ts";
 import type { TransferLog } from "./evm.ts";
 import { hasOwn, pyTruthy } from "./pystr.ts";
 import { addReceipt, makeReceipt, receiptKey, type ReceiptJson } from "./receipts.ts";
@@ -61,9 +62,28 @@ export function classify(config: Config, value: Units): [string | null, string |
   return [null, null, [...affordable, TIP_CHOICE]];
 }
 
+/** Told of a contained crash (a transfer that cannot be classified); default: printError. */
+export type OnError = ((e: unknown) => void) | undefined;
+
+/**
+ * classify(), or null for a value decode() cannot price (10**32 units or more): such a transfer is
+ * skipped and reported to `on_error`; the rest of the transaction is still offered.
+ */
+export function classifyOrSkip(
+  config: Config, value: Units, on_error: OnError,
+): [string | null, string | null, string[]] | null {
+  try {
+    return classify(config, value);
+  } catch (e) {
+    if (!(e instanceof InvalidOperation)) throw e;
+    (on_error ?? printError)(e);
+    return null;
+  }
+}
+
 /** Candidates for a normalized tx hash on one EVM chain; null if the chain lacks it. */
 export async function lookupEvm(
-  tx_hash: string, args: { config: Config; chain: Chain; rpc: any; receipts: Record<string, unknown> },
+  tx_hash: string, args: { config: Config; chain: Chain; rpc: any; receipts: Record<string, unknown>; on_error?: OnError },
 ): Promise<RestoreCandidate[] | null> {
   const { config, chain, rpc, receipts } = args;
   const receipt = await rpc.getTransactionReceipt(tx_hash);
@@ -77,7 +97,9 @@ export async function lookupEvm(
   for (const log of pyTruthy(logs) ? asList(logs) : []) {
     const t = parseTransfer(chain, log as Record<string, any>);
     if (t === null || !byAddress.has(t.token) || t.value <= 0n || !wallets.includes(t.recipient)) continue;
-    const [kind, item, choices] = classify(config, t.value);
+    const classified = classifyOrSkip(config, t.value, args.on_error);
+    if (classified === null) continue;
+    const [kind, item, choices] = classified;
     out.push({
       chain: chain.key, token: byAddress.get(t.token)!, transfer: t, kind, item, choices,
       already_restored: hasOwn(receipts, receiptKey(chain.key, t.tx_hash, t.log_index)),
@@ -90,9 +112,12 @@ export async function lookupEvm(
 /** Find the chain that knows `tx_hash` and the candidates in it. */
 export async function lookup(
   tx_hash: string,
-  args: { config: Config; chains: ReadonlyMap<string, Chain>; rpc_for: (key: string) => any; receipts: Record<string, unknown> },
+  args: {
+    config: Config; chains: ReadonlyMap<string, Chain>; rpc_for: (key: string) => any; receipts: Record<string, unknown>;
+    on_error?: OnError;
+  },
 ): Promise<RestoreCandidate[]> {
-  const { config, chains, rpc_for, receipts } = args;
+  const { config, chains, rpc_for, receipts, on_error } = args;
   let networkTrouble = false;
   let understood = false;
   for (const [key, chain] of chains) {
@@ -107,7 +132,7 @@ export async function lookup(
     understood = true;
     let out: unknown[] | null;
     try {
-      out = await backend.lookup(tx, { config, chain, rpc: rpc_for(key), receipts });
+      out = await backend.lookup(tx, { config, chain, rpc: rpc_for(key), receipts, on_error });
     } catch (e) {
       if (e instanceof RpcUnavailable || e instanceof RpcError) {
         networkTrouble = true;

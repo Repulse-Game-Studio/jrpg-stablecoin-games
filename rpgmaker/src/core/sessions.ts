@@ -9,7 +9,7 @@
  * recorded draws. The draw order and sizes equal Python's: `randbelow(100)` for the nonce, then
  * `token_hex(8)` for the id (Solana's backend adds `token_bytes(32)` for its reference).
  */
-import { encode, parseAmount } from "./amounts.ts";
+import { encode, parseAmount, storedAmount } from "./amounts.ts";
 import { bytesToHex } from "./bytes.ts";
 import { Dec } from "./decimal.ts";
 import { KeyError, ValueError } from "./errors.ts";
@@ -183,7 +183,7 @@ export function pyDecimal(x: unknown): Dec {
   return d;
 }
 
-/** `Decimal(rec["price"])` */
+/** Python `stored_amount(rec["price"])`: a ValueError for a price out of the amount range. */
 export function sessionPrice(rec: SessionRecord): Dec {
-  return pyDecimal(pyGet(rec, "price"));
+  return storedAmount(pyGet(rec, "price"));
 }

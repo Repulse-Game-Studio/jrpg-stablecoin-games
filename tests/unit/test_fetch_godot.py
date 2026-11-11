@@ -11,6 +11,15 @@ spec = importlib.util.spec_from_file_location("fetch_godot", TOOL)
 fetch_godot = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(fetch_godot)
 
+@pytest.fixture(autouse=True)
+def unpinned(monkeypatch):
+    """Most tests use 4.3-stable as an unpinned version (checked against a fake SHA512-SUMS.txt);
+    the pinned tests set PINNED themselves."""
+    monkeypatch.setattr(fetch_godot, "PINNED", {})
+
+
+REAL_PINS = fetch_godot.PINNED  # the module's own table, read before any test replaces it
+
 SUMS = (
     "35802c61a20f30c3956b2753686c622e6c036d65639eb8bddeb3e876a033a3c59eb39a3c69de0e11e07ee8e753e5"
     "f754a7f7aaf0bcb10627e9974ba22540fbf2  Godot_v4.3-stable_linux.arm32.zip\n"
@@ -216,7 +225,10 @@ def test_templates_unpack_only_web_and_version(tmp_path, monkeypatch, capsys):
     assert sorted(p.name for p in out.iterdir()) == [
         "version.txt", "web_debug.zip", "web_nothreads_release.zip"]
     assert (out / "web_nothreads_release.zip").read_bytes() == b"web release"
-    assert sorted(p.name for p in cache.iterdir()) == [TPZ]  # kept for the next run
+    # kept for the next run, with the SHA-512 it was verified against (for an offline run)
+    assert sorted(p.name for p in cache.iterdir()) == [TPZ, TPZ + ".sha512"]
+    assert (cache / (TPZ + ".sha512")).read_text().strip() == hashlib.sha512(_tpz(
+        extra=[("templates/../evil", b"no")])).hexdigest()
     assert not (tmp_path / "evil").exists() and not (data / "godot" / "evil").exists()
     assert len(streamed) == 1
 
@@ -230,6 +242,49 @@ def test_templates_reuse_a_verified_cached_archive(tmp_path, monkeypatch):
     out = fetch_godot.fetch_templates("4.3-stable", tmp_path / "data", cache)
     assert (out / "version.txt").is_file()
     assert streamed == []
+
+
+def _offline(monkeypatch):
+    """SHA512-SUMS.txt cannot be downloaded (no network), and nothing may be streamed."""
+    def download(url):
+        raise fetch_godot.urllib.error.URLError("no network")
+
+    def open_url(url):
+        raise AssertionError(f"streamed {url} offline")
+
+    monkeypatch.setattr(fetch_godot, "download", download)
+    monkeypatch.setattr(fetch_godot, "open_url", open_url)
+
+
+def test_templates_offline_reuse_a_cached_archive_verified_earlier(tmp_path, monkeypatch, capsys):
+    data = _tpz()
+    cache = tmp_path / "cache"
+    _fake_templates_release(monkeypatch, data)
+    fetch_godot.fetch_templates("4.3-stable", tmp_path / "first", cache)  # online: verified, recorded
+    _offline(monkeypatch)
+    assert fetch_godot.main(["--version", "4.3-stable", "--templates", "--templates-dir",
+                             str(tmp_path / "data"), "--cache", str(cache)]) == 0
+    out = tmp_path / "data" / "godot" / "export_templates" / "4.3.stable"
+    captured = capsys.readouterr()
+    assert captured.out.strip().splitlines()[-1] == str(out)
+    assert (out / "web_nothreads_release.zip").read_bytes() == b"web release"
+    assert "SHA512-SUMS.txt could not be downloaded" in captured.err and "no network" in captured.err
+    assert "not a tampered one" in captured.err  # an unpinned version: corruption only
+
+
+def test_templates_offline_cache_is_reused_only_when_its_recorded_sha_matches(tmp_path, monkeypatch, capsys):
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    (cache / TPZ).write_bytes(_tpz())  # a cached archive with no recorded SHA-512 (never verified)
+    _offline(monkeypatch)
+    args = ["--version", "4.3-stable", "--templates", "--templates-dir", str(tmp_path / "data"),
+            "--cache", str(cache)]
+    assert fetch_godot.main(args) == 1
+    assert "no network" in capsys.readouterr().err
+    (cache / (TPZ + ".sha512")).write_text(hashlib.sha512(b"another archive").hexdigest() + "\n")
+    assert fetch_godot.main(args) == 1  # the archive changed since it was verified
+    assert "no network" in capsys.readouterr().err
+    assert not (tmp_path / "data").exists()
 
 
 def test_templates_replace_a_cached_archive_that_fails_the_check(tmp_path, monkeypatch):
@@ -289,3 +344,76 @@ def test_dest_is_required_without_templates(capsys):
     with pytest.raises(SystemExit):
         fetch_godot.main(["--version", "4.3-stable"])
     assert "--dest is required" in capsys.readouterr().err
+
+
+# --- pinned versions -------------------------------------------------------------------------
+
+
+def test_the_supported_versions_are_pinned():
+    assert sorted(REAL_PINS) == ["4.3-stable", "4.7.2-stable"]
+    for version, pins in REAL_PINS.items():
+        assert sorted(pins) == sorted([fetch_godot.zip_name(version), fetch_godot.templates_name(version)])
+        for digest in pins.values():
+            assert len(digest) == 128 and digest == digest.lower() and int(digest, 16) >= 0
+    # the 4.3 zip's pin is what that release's SHA512-SUMS.txt lists (the SUMS fixture above)
+    assert REAL_PINS["4.3-stable"]["Godot_v4.3-stable_linux.x86_64.zip"] == fetch_godot.parse_sums(SUMS)[
+        "Godot_v4.3-stable_linux.x86_64.zip"]
+
+
+def _pin(monkeypatch, filename, digest):
+    monkeypatch.setattr(fetch_godot, "PINNED", {"4.3-stable": {filename: digest}})
+
+
+def _serve(monkeypatch, files):
+    """download() serves only `files`: SHA512-SUMS.txt is never asked for a pinned version."""
+    def download(url):
+        assert not url.endswith("SHA512-SUMS.txt"), "a pinned version needs no SHA512-SUMS.txt"
+        return files[url]
+
+    monkeypatch.setattr(fetch_godot, "download", download)
+
+
+def test_a_pinned_binary_is_checked_against_the_pin_only(tmp_path, monkeypatch, capsys):
+    data = _godot_zip()
+    name = "Godot_v4.3-stable_linux.x86_64.zip"
+    _pin(monkeypatch, name, hashlib.sha512(data).hexdigest())
+    _serve(monkeypatch, {fetch_godot.release_url("4.3-stable", name): data})
+    assert fetch_godot.main(["--version", "4.3-stable", "--dest", str(tmp_path / "ok")]) == 0
+    assert (tmp_path / "ok" / "Godot_v4.3-stable_linux.x86_64").read_bytes() == b"\x7fELF fake godot"
+    _pin(monkeypatch, name, "0" * 128)  # a download that is not the pinned file
+    assert fetch_godot.main(["--version", "4.3-stable", "--dest", str(tmp_path / "bad")]) == 1
+    assert "SHA-512 mismatch" in capsys.readouterr().err
+    assert list((tmp_path / "bad").iterdir()) == []
+
+
+def test_a_pinned_template_archive_is_reused_offline_and_refetched_when_it_differs(tmp_path, monkeypatch):
+    data = _tpz()
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    (cache / TPZ).write_bytes(data)
+    _pin(monkeypatch, TPZ, hashlib.sha512(data).hexdigest())
+    _offline(monkeypatch)  # no SHA512-SUMS.txt, no stream: the pin is enough
+    out = fetch_godot.fetch_templates("4.3-stable", tmp_path / "data", cache)
+    assert (out / "web_debug.zip").read_bytes() == b"web debug"
+    assert sorted(p.name for p in cache.iterdir()) == [TPZ], "no record for a pinned version"
+    (cache / TPZ).write_bytes(b"tampered")
+    streamed = []
+
+    def open_url(url):
+        streamed.append(url)
+        return io.BytesIO(data)
+
+    monkeypatch.setattr(fetch_godot, "open_url", open_url)
+    fetch_godot.fetch_templates("4.3-stable", tmp_path / "data2", cache)
+    assert len(streamed) == 1 and (cache / TPZ).read_bytes() == data
+
+
+def test_a_pinned_template_download_must_match_the_pin(tmp_path, monkeypatch, capsys):
+    data = _tpz()
+    _fake_templates_release(monkeypatch, data)  # SHA512-SUMS.txt agrees with the download...
+    _pin(monkeypatch, TPZ, "0" * 128)  # ...but the pin does not
+    cache = tmp_path / "cache"
+    assert fetch_godot.main(["--version", "4.3-stable", "--templates", "--templates-dir",
+                             str(tmp_path / "data"), "--cache", str(cache)]) == 1
+    assert "SHA-512 mismatch" in capsys.readouterr().err
+    assert list(cache.iterdir()) == []

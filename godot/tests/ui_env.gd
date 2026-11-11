@@ -153,13 +153,23 @@ static func type_text(text: String) -> void:
 	await frames(3)
 
 
-## Moves the focus with ui_down (then ui_up) until the screen's control `key` has it; true when
-## it got there. Only the arrow actions are used, as a gamepad player would.
+## [toward, away]: `down` first when `target` is below the focused control in the screen's focus
+## order (or the focus is elsewhere), else `up` first: the nearer direction is tried first, the
+## other only when the first ends without reaching it.
+static func _directions(screen_node: Node, target: Control, down: Variant, up: Variant) -> Array:
+	var order: Array = screen_node.focus_order()
+	var at := order.find(focused())
+	return [up, down] if at >= 0 and order.find(target) >= 0 and order.find(target) < at else [down, up]
+
+
+## Moves the focus with ui_down or ui_up (the nearer direction first) until the screen's control
+## `key` has it; true when it got there. Only the arrow actions are used, as a gamepad player
+## would.
 static func focus_to(screen_node: Node, key: String) -> bool:
 	var target: Control = screen_node.control(key)
 	if target == null:
 		return false
-	for action: String in ["ui_down", "ui_up"]:
+	for action: String in _directions(screen_node, target, "ui_down", "ui_up"):
 		for i in 25:
 			if focused() == target:
 				return true
@@ -188,12 +198,13 @@ static func unbind_letters(added: Array[InputEvent]) -> void:
 		InputMap.action_erase_event(["ui_up", "ui_down"][i], added[i])
 
 
-## focus_to() with the real arrow keys (KEY_DOWN, then KEY_UP), as a keyboard player moves.
+## focus_to() with the real arrow keys (KEY_DOWN or KEY_UP, the nearer direction first), as a
+## keyboard player moves.
 static func key_to(screen_node: Node, key_name: String) -> bool:
 	var target: Control = screen_node.control(key_name)
 	if target == null:
 		return false
-	for code: Key in [KEY_DOWN, KEY_UP]:
+	for code: Key in _directions(screen_node, target, KEY_DOWN, KEY_UP):
 		for i in 25:
 			if focused() == target:
 				return true

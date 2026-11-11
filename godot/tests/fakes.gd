@@ -524,17 +524,50 @@ class PageWithPump:
 ## `answers` maps the start of a script (such as "scfgBridge.take(") to the values returned for
 ## the scripts that start with it, oldest first; any other script, and one whose answers have run
 ## out, returns null, as JavaScriptBridge.eval does for a script with no value.
+##
+## ScfgWebMirror's two scripts (READ_JS / WRITE_JS called on arguments) are kept apart, in
+## `storage_scripts`, and run on a fake localStorage: `local_storage` (key -> text; null when the
+## page has none). Their arguments are read as a JSON array, so a script whose arguments are not
+## JSON literals gets no answer. `storage_throws`: the error name every localStorage call throws
+## ("" for none: "SecurityError" is blocked site data); `write_throws`: only setItem throws
+## ("QuotaExceededError" is a full storage).
 class FakeJs:
 	extends RefCounted
 	var scripts: Array[String] = []
 	var answers: Dictionary = {}
+	var local_storage: Variant = {}
+	var storage_throws := ""
+	var write_throws := ""
+	var storage_scripts: Array[String] = []
 
 	func eval(code: String) -> Variant:
+		for op: String in [ScfgWebMirror.READ_JS, ScfgWebMirror.WRITE_JS]:
+			if code.begins_with(op + "(") and code.ends_with(")"):
+				storage_scripts.append(code)
+				return _storage(op == ScfgWebMirror.WRITE_JS, code.substr(op.length() + 1, code.length() - op.length() - 2))
 		scripts.append(code)
 		for prefix: String in answers:
 			if code.begins_with(prefix) and not (answers[prefix] as Array).is_empty():
 				return (answers[prefix] as Array).pop_front()
 		return null
+
+	func _storage(write: bool, arguments: String) -> Variant:
+		var json := JSON.new()
+		if json.parse("[" + arguments + "]") != OK or not json.data is Array:
+			return null  # (the page would throw a SyntaxError)
+		var args: Array = json.data
+		if args.size() != (2 if write else 1) or not args.all(func(a: Variant) -> bool: return a is String):
+			return null
+		if local_storage == null:
+			return JSON.stringify({"error": "no localStorage"})
+		if storage_throws != "":
+			return JSON.stringify({"error": storage_throws + ": the operation is insecure."})
+		if write:
+			if write_throws != "":
+				return JSON.stringify({"error": write_throws + ": the quota has been exceeded."})
+			(local_storage as Dictionary)[args[0]] = args[1]
+			return "{}"
+		return JSON.stringify({"value": (local_storage as Dictionary).get(args[0])})
 
 	## The scripts that start with `prefix`.
 	func scripts_for(prefix: String) -> Array[String]:
@@ -543,3 +576,111 @@ class FakeJs:
 			if s.begins_with(prefix):
 				out.append(s)
 		return out
+
+
+## A tiny HTTP/1.1 server on 127.0.0.1 at a free port, polled in its _process (add it under the
+## tree root, then start()): it answers each request by its path; `/slow` never answers. Records
+## every request. Used by test_http_transport.gd and test_scfg_api.gd.
+class Responder:
+	extends Node
+	const OK_BODY := "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x10\"}"
+	const RPC_ERROR_BODY := "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32600,\"message\":\"block range too large\"}}"
+	var server := TCPServer.new()
+	var port := 0
+	var conns: Array[Dictionary] = []
+	var requests: Array[Dictionary] = []
+	var host: Node  # the transport's host, to count its children while a request is in flight
+
+	func start() -> bool:
+		if server.listen(0, "127.0.0.1") != OK:
+			return false
+		port = server.get_local_port()
+		return true
+
+	func url(path: String) -> String:
+		return "http://127.0.0.1:%d%s" % [port, path]
+
+	func _process(_delta: float) -> void:
+		while server.is_connection_available():
+			conns.append({"peer": server.take_connection(), "buf": PackedByteArray(), "answered": -1})
+		for c in conns:
+			var peer: StreamPeerTCP = c["peer"]
+			peer.poll()
+			if c["answered"] == -2:
+				continue  # /slow
+			if c["answered"] >= 0:
+				c["answered"] += 1
+				if c["answered"] == 10:
+					peer.disconnect_from_host()
+				continue
+			if peer.get_status() != StreamPeerTCP.STATUS_CONNECTED:
+				continue
+			var n := peer.get_available_bytes()
+			if n > 0:
+				var got: Array = peer.get_data(n)
+				if got[0] == OK:
+					c["buf"] = (c["buf"] as PackedByteArray) + (got[1] as PackedByteArray)  # a value type: reassign
+			var req := _parse(c["buf"])
+			if req.is_empty():
+				continue
+			req["host_children"] = host.get_children().map(func(ch: Node) -> String: return ch.get_class()) if host else []
+			requests.append(req)
+			var answer := _answer(req["path"])
+			if answer.is_empty():
+				c["answered"] = -2  # /slow: never answers
+				continue
+			var body: PackedByteArray = answer[1]
+			var head := "HTTP/1.1 %d X\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" % [
+				answer[0], body.size()]
+			peer.put_data(head.to_ascii_buffer() + body)
+			c["answered"] = 0
+
+	## {method, path, headers (lowercase names), body} once the whole request arrived, else {}.
+	static func _parse(buf: PackedByteArray) -> Dictionary:
+		var text := buf.get_string_from_ascii()
+		var end := text.find("\r\n\r\n")
+		if end < 0:
+			return {}
+		var lines := text.substr(0, end).split("\r\n")
+		var first := lines[0].split(" ")
+		var headers := {}
+		for i in range(1, lines.size()):
+			var colon := lines[i].find(":")
+			headers[lines[i].substr(0, colon).to_lower()] = lines[i].substr(colon + 1).strip_edges()
+		var length := int(headers.get("content-length", "0"))
+		if buf.size() < end + 4 + length:
+			return {}
+		return {"method": first[0], "path": first[1], "headers": headers,
+			"body": buf.slice(end + 4, end + 4 + length).get_string_from_utf8()}
+
+	static func _answer(path: String) -> Array:
+		match path:
+			"/ok":
+				return [200, OK_BODY.to_utf8_buffer()]
+			"/rate":
+				return [429, "Too Many Requests".to_utf8_buffer()]
+			"/rpc-error":
+				return [400, RPC_ERROR_BODY.to_utf8_buffer()]
+			"/falsy-error":
+				return [500, "{\"error\": null, \"id\": 1}".to_utf8_buffer()]
+			"/empty-error":
+				return [400, "{\"error\": {}}".to_utf8_buffer()]
+			"/teapot-list":
+				return [418, "[1]".to_utf8_buffer()]
+			"/not-json":
+				return [200, "<html>oops</html>".to_utf8_buffer()]
+			"/bad-utf8":
+				return [200, PackedByteArray([0x7b, 0xff, 0x7d])]
+			"/bom":
+				return [200, PackedByteArray([0xef, 0xbb, 0xbf]) + "{}".to_utf8_buffer()]
+			"/nul":
+				return [200, "{}".to_utf8_buffer() + PackedByteArray([0])]
+			"/null":
+				return [200, "null".to_utf8_buffer()]
+			"/created-error":
+				return [201, RPC_ERROR_BODY.to_utf8_buffer()]
+			"/long-int":
+				return [200, ("{\"result\": " + "9".repeat(4301) + "}").to_utf8_buffer()]
+			"/long-int-error":
+				return [400, ("{\"error\": {\"code\": " + "9".repeat(4301) + ", \"message\": \"x\"}}").to_utf8_buffer()]
+		return []

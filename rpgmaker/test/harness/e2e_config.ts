@@ -1,11 +1,15 @@
 /**
  * TEST ONLY. Built to `dist/test/e2e_config.js` for the web e2e page (test/harness/e2e.html), never
- * into SCFG.js. It runs after js/plugins.js and before the engine (the shim) registers the plugin
- * parameters, as a developer's own edit of js/plugins.js would: `window.scfgE2EConfig`, when the
- * runner set it, is the JSON text of `{"parameters": {name: value}}`, and each value (a string, as
- * MZ's Plugin Manager stores parameters) replaces that parameter of the SCFG entry of `$plugins`.
- * The runner points the demo kit's parameters at its local chain this way: the wallet, the chains
- * and tokens, and the RPC URLs. A config it cannot read stops the page with an error.
+ * into SCFG.js. The page loads it after the demo kit's js/plugins.js and before the shim's script,
+ * whose install registers the `$plugins` parameters (as MZ's Plugin Manager does), so the change is
+ * what a developer's own edit of js/plugins.js would be: `window.scfgE2EConfig`, when the runner set
+ * it (an init script), is the JSON text of `{"parameters": {name: value}}`, and each value (a
+ * string, as MZ's Plugin Manager stores parameters) replaces that parameter of the SCFG entry of
+ * `$plugins`. The runner points the demo kit's parameters at its local chain this way: the wallet,
+ * the chains and tokens, and the RPC URLs. A config it cannot read throws here, before any game
+ * code runs: an uncaught error in the page (no MZ error screen, which is not listening yet), the
+ * game still boots on the demo kit's own parameters, and the runner fails the run on that page
+ * error (tools/run_rpgmaker_web_e2e.py fails on every console error and page error).
  */
 export {}; // a module: keeps `w` out of the global scope
 

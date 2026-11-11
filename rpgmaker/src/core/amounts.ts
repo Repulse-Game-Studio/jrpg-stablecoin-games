@@ -52,6 +52,9 @@ export function parseAmount(value: unknown): Dec {
   } else if (value instanceof Dec) {
     d = value;
   } else if (typeof value === "string") {
+    if (value.length > AMOUNT_TEXT_LIMIT) throw new ValueError(`amount text longer than ${AMOUNT_TEXT_LIMIT} characters`);
+    // Python refuses Decimal's digit-group underscores ("1_000") like any malformed amount.
+    if (value.includes("_")) throw new ValueError(`not a number: ${JSON.stringify(value)}`);
     let parsed: Dec | "nan" | "inf";
     try {
       parsed = Dec.parse(pyStrip(value));
@@ -64,11 +67,46 @@ export function parseAmount(value: unknown): Dec {
   } else {
     throw new TypeError(`unsupported amount type: ${value === null ? "NoneType" : typeof value}`);
   }
+  if (!inRange(d)) throw new ValueError("amount out of range");
   if (d.cmp(Dec.fromInt(0)) <= 0) throw new ValueError("amount must be positive");
   if (d.cmp(MAX_AMOUNT) > 0) throw new ValueError("amount too large");
   const q = d.quantize(CENT_EXP);
   if (q.cmp(d) !== 0) throw new ValueError("amount must have at most 2 decimals");
   return q;
+}
+
+/**
+ * The magnitude bound of every amount the core reads (Python's AMOUNT_EXPONENT_LIMIT): a nonzero
+ * amount's adjusted exponent must lie in [-40, 40], far beyond any token amount, so a near-Emax value
+ * (1E+999999) can neither overflow nor build a million-digit BigInt.
+ */
+export const AMOUNT_EXPONENT_LIMIT = 40;
+
+/** The longest amount text parseAmount and storedAmount parse (Python's AMOUNT_TEXT_LIMIT). */
+export const AMOUNT_TEXT_LIMIT = 100;
+
+function inRange(d: Dec): boolean {
+  return d.isZero() || Math.abs(d.adjusted()) <= AMOUNT_EXPONENT_LIMIT;
+}
+
+/**
+ * Python `stored_amount`: an amount read back from storage (a receipt's amount, a session's price),
+ * `Decimal(x)` when it is a finite number within the amount range, else a ValueError (a TypeError
+ * for a value Python's Decimal() does not take). A string takes any exponent libmpdec accepts.
+ */
+export function storedAmount(x: unknown): Dec {
+  let d: Dec | "nan" | "inf";
+  if (typeof x === "string") {
+    if (x.length > AMOUNT_TEXT_LIMIT) throw new ValueError(`amount text longer than ${AMOUNT_TEXT_LIMIT} characters`);
+    d = Dec.parse(x, { anyExponent: true });
+  }
+  else if (typeof x === "boolean") d = Dec.fromInt(x ? 1 : 0); // Decimal(True) == 1
+  else if (typeof x === "bigint") d = Dec.fromInt(x);
+  else if (typeof x === "number") d = Number.isFinite(x) ? Dec.fromNumber(x) : "inf";
+  else if (Array.isArray(x)) throw new TypeError("a stored amount is a number, not a list"); // Python refuses lists and tuples
+  else throw new TypeError(`conversion from ${x === null ? "NoneType" : typeof x} to Decimal is not supported`);
+  if (d === "nan" || d === "inf" || !inRange(d)) throw new ValueError(`amount out of range: ${JSON.stringify(String(x))}`);
+  return d;
 }
 
 function checkField(name: string, value: unknown): number {
@@ -100,12 +138,19 @@ export function decode(units: Units): [Dec, number, number] {
   return [price, Number((units / 100n) % 100n), Number(units % 100n)];
 }
 
+/** Base units -> token amount, exactly at any size (Python builds it from the digits, no 28-digit rounding). */
 export function unitsToDecimal(units: Units): Dec {
-  return Dec.fromInt(units).scaleb(-TOKEN_DECIMALS);
+  const d = Dec.fromInt(units);
+  return new Dec(d.coef, d.exp - TOKEN_DECIMALS, d.neg);
 }
 
+/**
+ * Token amount -> base units, exactly (no rounding to Decimal's 28 digits). ValueError for more than
+ * 6 decimals or an amount out of range.
+ */
 export function decimalToUnits(amount: Dec): Units {
-  const q = amount.scaleb(TOKEN_DECIMALS).integralValue();
+  if (!inRange(amount)) throw new ValueError(`amount out of range: ${amount}`);
+  const q = new Dec(amount.coef, amount.exp + TOKEN_DECIMALS, amount.neg).integralValue();
   if (q === null) throw new ValueError("more than 6 decimals");
   return asUnits(q);
 }

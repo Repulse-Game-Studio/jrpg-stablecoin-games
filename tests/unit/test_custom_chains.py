@@ -62,7 +62,9 @@ def test_build_chain_allows_plain_http_on_this_computer(url):
     dict(explorer_tx="https://snowtrace.io/tx/"), dict(explorer_tx="http://snowtrace.io/tx/{}"),
     dict(explorer_tx="https://x.example/{}/{}"), dict(explorer_tx="https://x.example/{0}{}"),
     dict(explorer_tx="https://x.example/{tx}?{}"),
-    dict(native_symbol=""), dict(native_symbol="A V"),
+    dict(native_symbol=""), dict(native_symbol="A V"), dict(native_symbol="AVAX\n"),
+    dict(key="avalanche\n"),       # full match: no trailing newline
+    dict(rpc="http://127.0.0.1:8545\n"), dict(rpc="http://localhost\n"),
     dict(fee_hint="cheap"), dict(max_log_range=5),
 ])
 def test_build_chain_rejects(kw):

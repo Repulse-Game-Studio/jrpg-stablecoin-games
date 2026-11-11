@@ -78,7 +78,7 @@ func _named_version(error: ScfgErr) -> Variant:
 ## Python's `re.search(r"version \((\d+)\)", message, re.IGNORECASE)` and int() of the group:
 ## the first match's number, or null. IGNORECASE as CPython applies it to these letters (ſ also
 ## matches s; İ and ı also match i), and \d is any Unicode decimal digit. A number beyond 18
-## digits is taken as no match (port limit: a request cannot carry it as an int).
+## significant digits is no match (Ruling 6: a request cannot carry it as an int). Linear.
 static func _search_version(message: String) -> Variant:
 	var n := message.length()
 	for start in n:
@@ -92,16 +92,11 @@ static func _search_version(message: String) -> Variant:
 		if not ok or i + 1 >= n or message[i] != " " or message[i + 1] != "(":
 			continue
 		i += 2
-		var digits := ""
-		while i < n and ScfgPy.decimal_digit(message.unicode_at(i)) >= 0:
-			digits += str(ScfgPy.decimal_digit(message.unicode_at(i)))
-			i += 1
-		if digits == "" or i >= n or message[i] != ")":
+		var run := ScfgPy.digit_run(message, i)
+		var end: int = run[0]
+		if end == i or end >= n or message[end] != ")":
 			continue
-		var sig := digits.lstrip("0")
-		if sig.length() > 18:
-			return null
-		return int(sig) if sig != "" else 0
+		return run[1]
 	return null
 
 

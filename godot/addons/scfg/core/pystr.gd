@@ -8,6 +8,9 @@
 class_name ScfgPy
 extends RefCounted
 
+## CPython's default `sys.get_int_max_str_digits()`: int(str) refuses more decimal digits.
+const INT_MAX_STR_DIGITS := 4300
+
 ## 2^53: integers below it in magnitude are exact as a float, a JSON number and a stored int. The
 ## core's one copy (watcher, evm and the Solana backend use it).
 const TWO_53 := 9007199254740992
@@ -49,6 +52,32 @@ static func py_strip(s: String) -> String:
 	while end > start and is_py_space(s.unicode_at(end - 1)):
 		end -= 1
 	return s.substr(start, end - start)
+
+
+## A digit run read out of a node's error message (an EVM range limit, a Solana transaction
+## version) is a number only up to this many significant digits (scfg_core/ints.py
+## DIGIT_RUN_LIMIT, Ruling 6): every range or version a request can carry is below 10**18.
+const DIGIT_RUN_LIMIT := 18
+
+
+## Python's ints.digit_run_value for the run of decimal digits (any script, Python's `\d+`) that
+## starts at `start` in `s`: `[end, value]`, `end` the index after the run and `value` its int, or
+## null beyond DIGIT_RUN_LIMIT significant digits. Linear: no text is built.
+static func digit_run(s: String, start: int) -> Array:
+	var n := s.length()
+	var i := start
+	var value := 0
+	var significant := 0
+	while i < n:
+		var d := decimal_digit(s.unicode_at(i))
+		if d < 0:
+			break
+		if significant > 0 or d > 0:
+			significant += 1
+			if significant <= DIGIT_RUN_LIMIT:
+				value = value * 10 + d
+		i += 1
+	return [i, value if significant <= DIGIT_RUN_LIMIT else null]
 
 
 ## The ASCII digit value of a Unicode decimal digit (any script), or -1.
@@ -707,19 +736,28 @@ static func _float_to_int(f: float) -> Variant:
 ## `"\x1c5".strip()` is `"5"`.
 ## @fallible
 static func _parse_int(s: String, base: int) -> Variant:
+	if base == 10 and s.length() > INT_MAX_STR_DIGITS:
+		# CPython's digit limit, counted first: the text is then never copied or converted
+		var count := 0
+		for i in s.length():
+			if decimal_digit(s.unicode_at(i)) >= 0:
+				count += 1
+		if count > INT_MAX_STR_DIGITS:
+			return ScfgErr.make("ValueError", "Exceeds the limit (%d digits) for integer string conversion" % INT_MAX_STR_DIGITS)
 	var bad := ScfgErr.make("ValueError", "invalid literal for int() with base %d: %s" % [base, _repr_str(s)])
-	var t := ""
+	var parts := PackedStringArray()  # joined once: String appends are not amortized
 	for i in s.length():
 		var c := s.unicode_at(i)
 		if c < 0x7f:
-			t += String.chr(c)
+			parts.append(String.chr(c))
 		elif is_py_space(c):
-			t += " "
+			parts.append(" ")
 		else:
 			var d := decimal_digit(c)
 			if d < 0:
 				return bad
-			t += String.chr(0x30 + d)
+			parts.append(String.chr(0x30 + d))
+	var t := "".join(parts)
 	var a := 0
 	var b := t.length()
 	while a < b and _is_ascii_space(t.unicode_at(a)):
@@ -740,7 +778,7 @@ static func _parse_int(s: String, base: int) -> Variant:
 		if body.begins_with("_"):
 			body = body.substr(1)
 	var digits := "0123456789" if base == 10 else "0123456789abcdefABCDEF"
-	var clean := ""
+	var kept := PackedStringArray()
 	var prev_digit := false
 	for i in body.length():
 		var ch := body[i]
@@ -749,12 +787,15 @@ static func _parse_int(s: String, base: int) -> Variant:
 				return bad
 			prev_digit = false
 		elif digits.contains(ch):
-			clean += ch
+			kept.append(ch)
 			prev_digit = true
 		else:
 			return bad
+	var clean := "".join(kept)
 	if clean == "" or (prefixed and not prev_digit):
 		return bad
+	if base == 10 and clean.length() > INT_MAX_STR_DIGITS:
+		return ScfgErr.make("ValueError", "Exceeds the limit (%d digits) for integer string conversion" % INT_MAX_STR_DIGITS)
 	var big: ScfgBigInt = (ScfgBigInt.from_decimal(clean) if base == 10
 		else ScfgBigInt.from_hex(clean))  # err-ok: ASCII digits of the base, checked above
 	return _normalize(big, negative)
@@ -782,27 +823,30 @@ static func _normalize(big: ScfgBigInt, negative: bool) -> Variant:
 
 
 static func _repr_str(s: String) -> String:
+	# Built as parts and joined once: appending to a String is not amortized (long input would
+	# make this quadratic, and error messages repr untrusted text).
 	var q := "\"" if s.contains("'") and not s.contains("\"") else "'"
-	var out := q
+	var out := PackedStringArray([q])
 	for i in s.length():
 		var c := s.unicode_at(i)
 		var ch := String.chr(c)
 		if ch == "\\" or ch == q:
-			out += "\\" + ch
+			out.append("\\" + ch)
 		elif c == 0x0a:
-			out += "\\n"
+			out.append("\\n")
 		elif c == 0x0d:
-			out += "\\r"
+			out.append("\\r")
 		elif c == 0x09:
-			out += "\\t"
+			out.append("\\t")
 		elif c < 0x20 or (c >= 0x7f and c <= 0xa0) or c == 0xad:
-			out += "\\x%02x" % c
+			out.append("\\x%02x" % c)
 		elif (c == 0x1680 or (c >= 0x2000 and c <= 0x200f) or (c >= 0x2028 and c <= 0x202f)
 				or (c >= 0x205f and c <= 0x2064) or c == 0x3000 or c == 0xfeff):
-			out += "\\u%04x" % c
+			out.append("\\u%04x" % c)
 		else:
-			out += ch
-	return out + q
+			out.append(ch)
+	out.append(q)
+	return "".join(out)
 
 
 static func _repr_bytes(b: PackedByteArray) -> String:

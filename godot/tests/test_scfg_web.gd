@@ -13,9 +13,11 @@ const FLOWS := preload("res://tests/test_scfg_flows.gd")
 const TX := "0xabababababababababababababababababababababababababababababababab"
 
 
-## FLOWS._make with the web platform and a fake js. `wallet`: what hasWallet answers.
-func _web(name: String, wallet: int = 1, persistent: bool = true) -> Dictionary:
-	var js := F.FakeJs.new()
+## FLOWS._make with the web platform and a fake js (`js`, or a new one). `wallet`: what
+## hasWallet answers.
+func _web(name: String, wallet: int = 1, persistent: bool = true, js: F.FakeJs = null) -> Dictionary:
+	if js == null:
+		js = F.FakeJs.new()
 	js.answers["scfgBridge.hasWallet("] = []
 	for i in 20:
 		js.answers["scfgBridge.hasWallet("].append(wallet)
@@ -91,6 +93,7 @@ func test_desktop_never_touches_the_page() -> bool:
 	s.open_explorer("https://arbiscan.io/tx/" + TX)
 	s.paste_into(ctl)
 	T.eq(js.scripts, [] as Array[String], "no script ran")
+	T.eq(js.storage_scripts, [] as Array[String], "and localStorage was never used")
 	T.eq(s._page, null, "and no page was built")
 	T.eq(env["platform"].clipboard, TX, "the engine's clipboard")
 	await _drop(env)
@@ -257,4 +260,265 @@ func test_the_web_overlay_gets_build_tx_and_the_clock() -> bool:
 			"a build request is a 404 there")
 		(evm as ScfgOverlayCheckout).stop()
 	await _drop(env)
+	return T.done()
+
+
+# --- the receipts' copy in localStorage (ScfgWebMirror) --------------------------------------
+
+
+const SCFG := preload("res://addons/scfg/scfg.gd")
+const TX_B := "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+
+
+static func _receipt(tx: String) -> Dictionary:
+	return {"chain": "arbitrum", "tx_hash": tx, "log_index": 3, "block": 990, "kind": "unlock", "item": "chapter2",
+		"amount": "4.99", "token": "USDC", "payer": "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed",
+		"recipient": FLOWS.DEV.to_lower(), "source": "payment"}
+
+
+static func _rkey(tx: String) -> String:
+	return "arbitrum:%s:3" % tx
+
+
+## The mirror's document in the fake localStorage (null when nothing is stored).
+static func _mirror(js: F.FakeJs) -> Variant:
+	var text: Variant = (js.local_storage as Dictionary).get(ScfgWebMirror.project_key())
+	return ScfgPy.from_json(JSON.parse_string(text)) if text is String else null
+
+
+## The storage scripts that write.
+static func _writes(js: F.FakeJs) -> Array:
+	return js.storage_scripts.filter(func(c: String) -> bool: return c.begins_with(ScfgWebMirror.WRITE_JS))
+
+
+## A configured web autoload on `path` whose Worker has not started: nothing has read the state.
+func _web_unstarted(path: String, js: F.FakeJs) -> Dictionary:
+	var tree := Engine.get_main_loop() as SceneTree
+	if not tree.root.is_inside_tree():
+		await tree.process_frame
+	var clock := F.FakeClock.new(1000.0)
+	var platform := FLOWS.FakePlatform.new()
+	platform.web = true
+	var factory := func(_chain: Dictionary) -> Variant: return F.FakeChain.new(1000)
+	var node: Node = SCFG.new()
+	node._setup({"store_path": path, "clock": clock.fn, "scheduler": FLOWS.ManualTimer.new(),
+		"transport": F.FakeTransport.new({}), "engine_opts": {"rpc_factory": factory, "clock": clock.fn},
+		"quiet": true, "platform": platform, "js": js})
+	tree.root.add_child(node)
+	T.eq(node.configure({"wallet": FLOWS.DEV}), null, "configure")
+	T.eq(node.add_item("chapter2", {"code": 37, "price": "4.99", "token": "USDC", "title": "Chapter 2"}), null, "add_item")
+	return {"node": node, "host": FLOWS.FakeHost.new(), "js": js}
+
+
+## Runs `fn(engine)` in one worker pass, then one pump frame.
+func _run(s: Node, fn: Callable) -> Variant:
+	var w: ScfgWorker = s._worker
+	var job := w.submit(fn)
+	await w.run_once()
+	s._pump()
+	return job.result()
+
+
+func _add_receipt(s: Node, tx: String) -> Variant:
+	return await _run(s, func(e: ScfgEngine) -> Variant:
+		return ScfgReceipts.add_receipt(e.receipts, _receipt(tx)))
+
+
+func test_every_web_save_mirrors_the_receipts_to_local_storage() -> bool:
+	var env := await _web("mirror_save")
+	var s: Node = env["node"]
+	var js: F.FakeJs = env["js"]
+	var key := ScfgWebMirror.project_key()
+	T.eq(_mirror(js), null, "no receipts yet: nothing to copy")
+	await _add_receipt(s, FLOWS.TX)
+	T.json_eq(_mirror(js), {"version": 1, "receipts": s.receipts()}, "a new receipt is copied with the save")
+	T.eq((s.receipts() as Dictionary).size(), 1, "(one receipt)")
+	var sid: Variant = (await _run(s, func(e: ScfgEngine) -> Variant:
+		return await e.start_session("unlock", "arbitrum", {"item": "chapter2"})))["id"]
+	T.ok((ScfgStore.load(s._store_path)["pending"] as Dictionary).has(sid), "a new session is saved to state.json")
+	T.eq((_mirror(js) as Dictionary).keys(), ["version", "receipts"], "the copy holds the receipts only")
+	T.eq(_writes(js).size(), 1, "a save that changed no receipt does not write the copy again")
+	var ops: Array = js.storage_scripts.map(func(c: String) -> String:
+		return "write" if c.begins_with(ScfgWebMirror.WRITE_JS) else "read")
+	T.ok(ops.size() >= 3 and ops[0] == "read" and ops.count("write") == 1
+		and range(ops.size()).all(func(i: int) -> bool: return ops[i] == "read" or (i > 0 and ops[i - 1] == "read")),
+		"each save reads the copy before it writes (%s)" % [ops])
+	await _add_receipt(s, TX_B)
+	T.json_eq(_mirror(js), {"version": 1, "receipts": s.receipts()}, "the next receipt too")
+	T.eq((_mirror(js)["receipts"] as Dictionary).size(), 2, "(two receipts)")
+	s.clear_local_data()
+	T.eq(_mirror(js), {"version": 1, "receipts": {}}, "clear_local_data() empties the copy too")
+	for code: String in js.storage_scripts:
+		T.ok(code == ScfgWebMirror.READ_JS + "(" + JSON.stringify(key) + ")"
+			or code.begins_with(ScfgWebMirror.WRITE_JS + "(" + JSON.stringify(key) + ", \""),
+			"every call is the constant code on JSON literals (%s)" % code.left(60))
+	T.eq(s._warnings, [] as Array[String], "no warning")
+	await _drop(env)
+	return T.done()
+
+
+## Another game on the same origin deleted state.json from IndexedDB (or changed it): the receipts
+## come back from the copy, merged into what state.json still holds, and are saved back at once.
+func test_receipts_lost_from_user_storage_come_back_from_the_mirror() -> bool:
+	var path: String = FLOWS.new()._path("mirror_merge")
+	var a := _receipt(FLOWS.TX)
+	var b := _receipt(TX_B)
+	var b_copy := b.duplicate()
+	b_copy["block"] = 991
+	var pending := {"ps_1": {"id": "ps_1", "state": "awaiting", "cursor": 900}}
+	T.eq(ScfgStore.save(path, pending, {_rkey(TX_B): b}), null, "state.json holds one receipt")
+	var js := F.FakeJs.new()
+	js.local_storage[ScfgWebMirror.project_key()] = JSON.stringify({"version": 1,
+		"receipts": {_rkey(FLOWS.TX): a, _rkey(TX_B): b_copy}})
+	var env := await _web_unstarted(path, js)
+	var s: Node = env["node"]
+	var want := {_rkey(TX_B): b, _rkey(FLOWS.TX): a}
+	T.eq(s.receipts(), want, "the copy's other receipt is added; state.json's wins a conflict")
+	T.eq((s.receipts() as Dictionary).keys(), want.keys(), "state.json's first, then the copy's")
+	T.eq(typeof(s.receipts()[_rkey(FLOWS.TX)]["block"]), TYPE_INT, "normalised: ints stay ints")
+	T.eq(s.owns("chapter2"), true, "owned before the Worker starts")
+	var disk := ScfgStore.load(path)
+	T.eq(disk["receipts"], want, "saved back to state.json at once")
+	T.eq(disk["pending"], pending, "with its pending sessions as they were")
+	T.eq(_mirror(js), {"version": 1, "receipts": want}, "and the copy now holds state.json's version")
+	T.eq(s._warnings, [] as Array[String], "no warning")
+	s._pump()
+	T.eq((s._worker as ScfgWorker).snapshot["receipts"], want, "the Engine starts with them")
+	await _drop(env)
+	# state.json gone altogether (pending sessions are not copied: Restore covers those)
+	DirAccess.remove_absolute(path)
+	var js2 := F.FakeJs.new()
+	js2.local_storage[ScfgWebMirror.project_key()] = JSON.stringify({"version": 1, "receipts": {_rkey(FLOWS.TX): a}})
+	var again := await _web_unstarted(path, js2)
+	T.eq(again["node"].receipts(), {_rkey(FLOWS.TX): a}, "a deleted state.json: the receipts come back")
+	T.eq(again["node"].pending(), {}, "(pending sessions do not)")
+	T.eq(ScfgStore.load(path)["receipts"], {_rkey(FLOWS.TX): a}, "and are saved to a new state.json")
+	await _drop(again)
+	return T.done()
+
+
+## A receipt from the copy is checked like any stored one: the launch re-verification removes it
+## when the chain does not have it, or when its own fields are invalid, and the copy follows.
+func test_merged_receipts_are_reverified_like_stored_ones() -> bool:
+	var js := F.FakeJs.new()
+	var bad := _receipt(TX_B)
+	bad["log_index"] = "three"
+	js.local_storage[ScfgWebMirror.project_key()] = JSON.stringify({"version": 1,
+		"receipts": {_rkey(FLOWS.TX): _receipt(FLOWS.TX), "bad": bad}})
+	var env := await _web("mirror_reverify", 1, true, js)  # the first pass re-verifies
+	var s: Node = env["node"]
+	T.eq(s.receipts(), {}, "both removed: the chain does not have the one, the other is malformed")
+	T.eq(_mirror(js), {"version": 1, "receipts": {}}, "and the copy follows")
+	T.eq(ScfgStore.load(s._store_path)["receipts"], {}, "as does state.json")
+	await _drop(env)
+	return T.done()
+
+
+func test_local_storage_trouble_never_breaks_saving() -> bool:
+	for trouble: Array in [["none", null, "", ""], ["blocked", {}, "SecurityError", ""], ["full", {}, "", "QuotaExceededError"]]:
+		var js := F.FakeJs.new()
+		js.local_storage = trouble[1]
+		js.storage_throws = trouble[2]
+		js.write_throws = trouble[3]
+		var env := await _web("mirror_trouble_" + trouble[0], 1, true, js)
+		var s: Node = env["node"]
+		await _add_receipt(s, FLOWS.TX)
+		await _add_receipt(s, TX_B)
+		T.eq((ScfgStore.load(s._store_path)["receipts"] as Dictionary).size(), 2, "%s: state.json is saved" % trouble[0])
+		T.eq(s._dirty, false, "%s: and clean" % trouble[0])
+		var about: Array = s._warnings.filter(func(w: String) -> bool: return w.contains("localStorage"))
+		T.eq(about.size(), 1, "%s: one warning (%s)" % [trouble[0], s._warnings])
+		T.eq(s._warnings.size(), 1, "%s: and no other" % trouble[0])
+		T.eq(s._reported, [] as Array[String], "%s: never an error" % trouble[0])
+		if trouble[0] != "full":
+			T.eq(_writes(js).size(), 0, "%s: no write is tried once the read failed" % trouble[0])
+		await _drop(env)
+	return T.done()
+
+
+func test_a_broken_copy_is_ignored_with_a_warning_and_replaced() -> bool:
+	var path: String = FLOWS.new()._path("mirror_broken")
+	T.eq(ScfgStore.save(path, {}, {_rkey(FLOWS.TX): _receipt(FLOWS.TX)}), null, "state.json holds one receipt")
+	var js := F.FakeJs.new()
+	js.local_storage[ScfgWebMirror.project_key()] = "{\"version\": 1, \"receipts\": "
+	var env := await _web_unstarted(path, js)
+	var s: Node = env["node"]
+	T.eq(s.receipts(), {_rkey(FLOWS.TX): _receipt(FLOWS.TX)}, "state.json's receipts")
+	T.eq(s._warnings.size(), 1, "one warning (%s)" % [s._warnings])
+	T.ok(s._warnings.size() == 1 and s._warnings[0].contains("ignored"), "it says the copy is ignored")
+	T.eq(_mirror(js), {"version": 1, "receipts": s.receipts()}, "the copy is written again from state.json")
+	await _drop(env)
+	return T.done()
+
+
+## A state.json that cannot be read right now is never saved over (store.gd); its receipts are
+## unknown, so the copy is neither merged nor replaced either.
+func test_an_unreadable_state_file_leaves_the_copy_alone() -> bool:
+	var path: String = FLOWS.new()._path("mirror_unreadable")
+	T.eq(ScfgStore.save(path, {}, {_rkey(TX_B): _receipt(TX_B)}), null, "a good file")
+	FileAccess.set_unix_permissions(path, 0)
+	if FileAccess.open(path, FileAccess.READ) != null:
+		FileAccess.set_unix_permissions(path, FileAccess.UNIX_READ_OWNER | FileAccess.UNIX_WRITE_OWNER)
+		T.skip("this process reads files without permission (root)")
+		return T.done()
+	var js := F.FakeJs.new()
+	var copy := JSON.stringify({"version": 1, "receipts": {_rkey(FLOWS.TX): _receipt(FLOWS.TX)}})
+	js.local_storage[ScfgWebMirror.project_key()] = copy
+	var env := await _web_unstarted(path, js)
+	var s: Node = env["node"]
+	s._pump()
+	T.eq(s._worker, null, "payments do not start")
+	s.clear_local_data()
+	s._dirty = true
+	await _drop(env)
+	FileAccess.set_unix_permissions(path, FileAccess.UNIX_READ_OWNER | FileAccess.UNIX_WRITE_OWNER)
+	T.eq(js.storage_scripts, [] as Array[String], "localStorage was not touched")
+	T.eq(js.local_storage[ScfgWebMirror.project_key()], copy, "the copy is as it was")
+	return T.done()
+
+
+static func _tx(c: String) -> String:
+	return "0x" + c.repeat(32)
+
+
+## Runs `fn(engine)` in one worker pass of `s`, then one pump frame.
+func _remove_receipt(s: Node, tx: String) -> void:
+	await _run(s, func(e: ScfgEngine) -> Variant:
+		e.receipts.erase(_rkey(tx))
+		return null)
+
+
+## One game open in two tabs: both loaded the same state. Each tab's save merges into the copy
+## instead of replacing it, so a receipt one tab saved survives the other tab's later saves; a
+## receipt a tab removed itself (re-verification, clear_local_data) leaves the copy.
+func test_two_tabs_of_one_game_keep_each_others_receipts_in_the_copy() -> bool:
+	var js_a := F.FakeJs.new()
+	var js_b := F.FakeJs.new()
+	js_b.local_storage = js_a.local_storage  # one origin: one localStorage
+	var a_env := await _web("tabs_a", 1, true, js_a)
+	var b_env := await _web("tabs_b", 1, true, js_b)
+	var a: Node = a_env["node"]
+	var b: Node = b_env["node"]
+	var r1 := _tx("11")
+	var r2 := _tx("22")
+	var x := _tx("33")
+	var r3 := _tx("44")
+	await _add_receipt(a, r1)
+	T.eq((_mirror(js_a)["receipts"] as Dictionary).keys(), [_rkey(r1)], "tab A saved R1")
+	await _add_receipt(b, r2)
+	T.eq((_mirror(js_a)["receipts"] as Dictionary).keys(), [_rkey(r1), _rkey(r2)],
+		"tab B, which never saw R1, keeps it while adding R2")
+	await _add_receipt(a, x)
+	await _remove_receipt(a, x)
+	T.eq((_mirror(js_a)["receipts"] as Dictionary).keys(), [_rkey(r1), _rkey(r2)],
+		"a receipt tab A removed itself leaves the copy, and B's R2 stays")
+	await _add_receipt(b, r3)
+	T.eq((_mirror(js_a)["receipts"] as Dictionary).keys(), [_rkey(r1), _rkey(r2), _rkey(r3)],
+		"B's next save still keeps A's R1")
+	T.json_eq(_mirror(js_a)["receipts"][_rkey(r2)], b.receipts()[_rkey(r2)], "each receipt as its tab saved it")
+	a.clear_local_data()
+	T.eq(_mirror(js_a), {"version": 1, "receipts": {}}, "clear_local_data() empties the copy")
+	T.eq(a._warnings + b._warnings, [] as Array[String], "no warning")
+	await _drop(a_env)
+	await _drop(b_env)
 	return T.done()

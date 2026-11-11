@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import functools
 import inspect
-import json
 from dataclasses import dataclass
+
+from .ints import int_from, json_loads
 
 
 class TransportError(Exception):
@@ -104,9 +105,9 @@ def response_from_envelope(envelope: dict):
     TransportError."""
     if "error" in envelope:
         raise TransportError(str(envelope["error"]))
-    status = int(envelope.get("status") or 0)
+    status = int_from(envelope.get("status") or 0)
     try:
-        body = json.loads(envelope.get("body") or "")
+        body = json_loads(envelope.get("body") or "")
     except ValueError:
         body = _UNREADABLE
     if not 200 <= status < 300:

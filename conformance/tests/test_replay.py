@@ -286,6 +286,7 @@ def test_clock_is_shared_by_solana_rpc_client():
 def _malformed_log(node):
     """A Transfer log without transactionHash: watcher.advance crashes on it (KeyError)."""
     node.logs.append({"address": USDC.lower(), "blockNumber": hex(node.head),
+                      "data": "0x" + "00" * 31 + "01",
                       "topics": [TRANSFER_TOPIC, address_topic(PAYER_EVM),
                                  address_topic(DEV_EVM)]})
 

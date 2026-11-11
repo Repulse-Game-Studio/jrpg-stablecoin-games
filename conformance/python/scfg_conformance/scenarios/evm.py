@@ -608,7 +608,7 @@ def _session_actions(s):
     "engine", "tick_survives_any_transport_exception_in_each_session"))
 def _crash_in_one_session(s):
     """An unexpected failure while advancing one session (here a node returning a log whose
-    data is `0xzz`, malformed hex that Tier 1 evm_address also pins as an error) is contained:
+    logIndex is `0xzz`, malformed hex that parse_transfer_log raises on) is contained:
     that session reports waiting with error internal_error, is counted in internal_errors,
     and the other sessions in the same tick still advance."""
     arb, arb_usdc = _mainnet(s, "arbitrum")
@@ -618,7 +618,7 @@ def _crash_in_one_session(s):
     fine = s.start_session("tip", "base", amount="3", token="USDC")
     log = arb.add_transfer(arb_usdc, PAYER_EVM, DEV_EVM, broken["units"], block=998,
                            tx_hash=tx_hash(1))
-    log["data"] = "0xzz"
+    log["logIndex"] = "0xzz"
     base.add_transfer(base_usdc, PAYER_EVM, DEV_EVM, fine["units"], block=998, tx_hash=tx_hash(2))
     outs = {o.session_id: o for o in s.expect("internal_error").tick()}
     assert s.steps[-1]["internal_errors"] == 1

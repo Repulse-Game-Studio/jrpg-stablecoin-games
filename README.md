@@ -77,7 +77,7 @@ Players can read how paying works, which wallets work and how to restore a purch
 
 ```bash
 uv sync                                   # Python 3.9 venv + dev tools
-uv run pytest                             # unit tests
+uv run pytest                             # unit tests (deselects the Node-dependent rpgmaker_ui and node_server tests)
 uv run ruff check .                       # lint
 
 # needs Foundry's `anvil` (https://getfoundry.sh) and Agave's `solana-test-validator`
@@ -98,7 +98,9 @@ uv run pytest -m live                     # pinned real Arc payments, read-only
 # (tests/integration/test_js_core.py) run with the integration tests above after `npm ci`
 (cd rpgmaker && npm ci && npm run typecheck && npm run build && npm test)
 # the RPG Maker sheet in headless Chrome (needs the npm ci above and Playwright's Chromium)
-uv run pytest tests/rpgmaker_ui
+uv run pytest tests/rpgmaker_ui           # (a plain `uv run pytest` deselects it; naming the directory or SCFG_REQUIRE_JS=1 runs it)
+# the Node half of the localhost checkout server security suite (the default run covers Python and, with SCFG_GODOT, Godot)
+uv run pytest tests/server_security       # naming the directory runs the Node third too (skips it without Node)
 # the RPG Maker plugin end to end on the MZ stand-in (anvil / solana-test-validator on PATH)
 uv run python tools/run_rpgmaker_web_e2e.py --family evm          # or arc
 uv run python tools/run_rpgmaker_desktop_e2e.py --family evm      # or arc, solana

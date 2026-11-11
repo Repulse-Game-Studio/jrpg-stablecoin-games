@@ -6,14 +6,96 @@
 ## frames), the deadlines, and invalid callbacks. The tests drive the server synchronously:
 ## clients are StreamPeerTCP sockets polled in the same loop, OS.delay_msec(1) lets the kernel
 ## move bytes between pumps, and a fake clock (`_clock`) stands in for the passing seconds.
+##
+## "Never waits" is checked by structure, not by timing a pump (a loaded machine makes any time
+## budget flaky): every accepted socket is used through a Recorder (the server's `_wrap_peer`
+## hook), and `_pump` checks that each pump made a bounded number of socket calls on each
+## connection (a loop waiting for bytes polls again and again), never read more than the socket
+## said it had, and never called a method that waits (get_data, put_data and the like).
 extends RefCounted
 
 const T := preload("res://tests/t.gd")
 
 const ACCOUNT := "CejwupnRUhnYHb72dZ8rqnWsvFw49MDYKZ2SvurkX4K3"
 const TX := "0xabababababababababababababababababababababababababababababababab"
-## One pump with nothing to do takes microseconds; anything near this means it waited.
-const PUMP_BUDGET_USEC := 20000
+## The socket calls one pump may make on one connection: read what is there (poll, status,
+## available, read), answer (at most WRITE_CHUNKS writes) and then poll, status and available
+## once more before it closes or lingers (disconnect).
+const MAX_CALLS_PER_PUMP := 8 + ScfgCheckoutServer.WRITE_CHUNKS
+
+
+## Calls without a reset (by _pump) after which the socket reports an error, so a loop waiting
+## on it ends instead of hanging the test.
+const HANG_GUARD := 1000000
+
+
+## What the server uses an accepted StreamPeerTCP through (its `_wrap_peer` test hook): the
+## non-blocking methods it may call, passed on and counted, and the blocking ones, recorded as
+## a violation and refused.
+class Recorder:
+	extends RefCounted
+	var peer: StreamPeerTCP
+	var calls := 0  # since _pump last reset it
+	var available := 0  # what get_available_bytes said last
+	var violations: Array[String] = []
+
+	func _init(p: StreamPeerTCP) -> void:
+		peer = p
+
+	func _count() -> bool:
+		calls += 1
+		return calls <= HANG_GUARD
+
+	func poll() -> Error:
+		return peer.poll() if _count() else ERR_CONNECTION_ERROR
+
+	func get_status() -> StreamPeerTCP.Status:
+		return peer.get_status() if _count() else StreamPeerTCP.STATUS_ERROR
+
+	func get_available_bytes() -> int:
+		available = peer.get_available_bytes() if _count() else 0
+		return available
+
+	func get_partial_data(n: int) -> Array:
+		if n > available:
+			violations.append("get_partial_data(%d) with %d available" % [n, available])
+		return peer.get_partial_data(n) if _count() else [ERR_CONNECTION_ERROR, PackedByteArray()]
+
+	func put_partial_data(data: PackedByteArray) -> Array:
+		return peer.put_partial_data(data) if _count() else [ERR_CONNECTION_ERROR, 0]
+
+	func disconnect_from_host() -> void:
+		peer.disconnect_from_host()
+
+	func _waits(name: String) -> Error:
+		violations.append(name + " (it waits)")
+		return ERR_UNAVAILABLE
+
+	func get_data(_n: int) -> Array:
+		return [_waits("get_data"), PackedByteArray()]
+
+	func put_data(_data: PackedByteArray) -> Error:
+		return _waits("put_data")
+
+	func get_string(_n: int = -1) -> String:
+		_waits("get_string")
+		return ""
+
+	func get_utf8_string(_n: int = -1) -> String:
+		_waits("get_utf8_string")
+		return ""
+
+	func get_var(_objects: bool = false) -> Variant:
+		return _waits("get_var")
+
+	func put_var(_v: Variant, _objects: bool = false) -> void:
+		_waits("put_var")
+
+	func put_string(_v: String) -> void:
+		_waits("put_string")
+
+	func put_utf8_string(_v: String) -> void:
+		_waits("put_utf8_string")
 
 
 ## A fake clock: `now[0]` seconds.
@@ -58,6 +140,12 @@ func _server(opts: Dictionary = {}) -> ScfgCheckoutServer:
 	var clock := Clock.new()
 	srv._clock = clock.read
 	srv.set_meta("clock", clock)
+	var recorders: Array[Recorder] = []
+	srv.set_meta("recorders", recorders)
+	srv._wrap_peer = func(peer: StreamPeerTCP) -> Object:
+		var r := Recorder.new(peer)
+		recorders.append(r)
+		return r
 	T.eq(srv.start(), null, "the server starts")
 	return srv
 
@@ -91,14 +179,21 @@ func _head(srv: ScfgCheckoutServer, method: String, sub: String, length: int = -
 	return h + "\r\n"
 
 
-## Pumps `frames` times (1 ms apart) and returns the slowest pump in microseconds.
+## Pumps `frames` times (1 ms apart) and returns the most socket calls one pump made on one
+## connection; every waiting call or over-long read so far is a failure.
 func _pump(srv: ScfgCheckoutServer, frames: int) -> int:
+	var recorders: Array[Recorder] = srv.get_meta("recorders")
 	var worst := 0
 	for i in frames:
-		var t0 := Time.get_ticks_usec()
+		for r in recorders:
+			r.calls = 0
 		srv.pump()
-		worst = maxi(worst, Time.get_ticks_usec() - t0)
+		for r in recorders:
+			worst = maxi(worst, r.calls)
 		OS.delay_msec(1)
+	for r in recorders:
+		T.eq(r.violations, [] as Array[String], "pump() never waits on a socket")
+		r.violations.clear()
 	return worst
 
 
@@ -193,7 +288,7 @@ func test_slow_client_does_not_block_the_frame() -> bool:
 		return T.done()
 	_send(c, "GET /c/%s/ HTTP/1.1\r\nHost: 127.0" % srv.secret)  # and never the rest
 	var worst := _pump(srv, 50)
-	T.ok(worst < PUMP_BUDGET_USEC, "pump() returns at once with a partial request (slowest %d us)" % worst)
+	T.ok(worst <= MAX_CALLS_PER_PUMP, "pump() returns at once with a partial request (at most %d socket calls)" % worst)
 	T.eq(srv._conns.size(), 1, "the connection is held before the deadline")
 	# another client is served meanwhile
 	var other := _connect(srv)
@@ -207,7 +302,7 @@ func test_slow_client_does_not_block_the_frame() -> bool:
 	T.eq(srv._conns.size(), 1, "the slow client is still held at 9.5 s")
 	_clock(srv).now += 1.0
 	worst = _pump(srv, 3)
-	T.ok(worst < PUMP_BUDGET_USEC, "dropping is immediate too (%d us)" % worst)
+	T.ok(worst <= MAX_CALLS_PER_PUMP, "dropping is immediate too (%d socket calls)" % worst)
 	T.ok(_closed(srv, c), "the slow client is dropped after the deadline")
 	srv.stop()
 	return T.done()
@@ -217,7 +312,7 @@ func test_a_partial_body_is_dropped_after_the_deadline() -> bool:
 	var srv := _server()
 	var c := _connect(srv)
 	_send(c, _head(srv, "POST", "tx", 100) + "{\"tx")
-	T.ok(_pump(srv, 30) < PUMP_BUDGET_USEC, "pump() does not wait for the body")
+	T.ok(_pump(srv, 30) <= MAX_CALLS_PER_PUMP, "pump() does not wait for the body")
 	T.eq(srv._conns.size(), 1, "held while the body may still come")
 	_clock(srv).now += ScfgCheckoutServer.DEADLINE_S + 0.1
 	T.ok(_closed(srv, c), "dropped after the deadline")
@@ -253,7 +348,7 @@ func test_a_client_that_never_reads_does_not_block_the_frame() -> bool:
 		OS.delay_msec(1)
 	T.eq(srv._conns[0].state if srv._conns.size() == 1 else null, ScfgCheckoutServer._State.WRITING, "answering")
 	var worst := _pump(srv, 40)
-	T.ok(worst < PUMP_BUDGET_USEC, "pump() writes what the socket takes and returns (slowest %d us)" % worst)
+	T.ok(worst <= MAX_CALLS_PER_PUMP, "pump() writes what the socket takes and returns (at most %d socket calls)" % worst)
 	T.eq(srv._conns.size(), 1, "still writing")
 	_clock(srv).now += ScfgCheckoutServer.DEADLINE_S + 0.1
 	srv.pump()
@@ -273,7 +368,7 @@ func test_build_waits_for_the_job_without_blocking() -> bool:
 	var body := JSON.stringify({"account": ACCOUNT})
 	_send(c, _head(srv, "POST", "build", body.length()) + body)
 	var worst := _pump(srv, 30)
-	T.ok(worst < PUMP_BUDGET_USEC, "pump() returns at once while the job runs (slowest %d us)" % worst)
+	T.ok(worst <= MAX_CALLS_PER_PUMP, "pump() returns at once while the job runs (at most %d socket calls)" % worst)
 	T.eq(asked, [ACCOUNT], "build_tx got the normalised account once")
 	c.poll()
 	T.eq(c.get_available_bytes(), 0, "no answer before the job finishes")
@@ -373,6 +468,9 @@ func test_invalid_callbacks_answer_without_a_script_error() -> bool:
 
 
 func test_logo_must_be_a_raster_image() -> bool:
+	var types: Array = ScfgCheckoutServer.RASTER_TYPES
+	T.eq(types.get_typed_builtin(), TYPE_STRING, "RASTER_TYPES is an Array[String]")
+	T.eq(types, ["image/png", "image/jpeg", "image/jpeg", "image/webp"], "the logo types ScfgConfig accepts")
 	for row: Array in [["image/png", 200], ["image/jpeg", 200], ["image/webp", 200],
 			["image/svg+xml", 404], ["text/html", 404], ["image/png\r\nX-Evil: 1", 404]]:
 		var ctype: String = row[0]

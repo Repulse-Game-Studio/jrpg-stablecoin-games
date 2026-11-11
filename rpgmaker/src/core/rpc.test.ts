@@ -234,6 +234,29 @@ test("test_suggested_range_uses_stated_limit_or_halves", () => {
   assert.equal(suggestedRange(new RpcError(-32005, "block range is too large"), 15), MIN_LOG_RANGE);
 });
 
+// Ruling 6 (tests/unit/test_rpc_client.py::test_suggested_range_ignores_numbers_beyond_18_digits):
+// a digit run beyond 18 significant digits is no number, and \d is any Unicode decimal digit
+// (Python's re), so the cores agree on every message.
+test("test_suggested_range_ignores_numbers_beyond_18_digits", () => {
+  const rows: [string, number, number][] = [
+    ["limited to 50 blocks; request " + "9".repeat(4301), 2000, 50],
+    ["block range too large: " + "9".repeat(4301), 5000, 2500],
+    ["block range too large: " + "9".repeat(1_000_000), 5000, 2500],
+    ["max " + "0".repeat(30) + "50 blocks", 2000, 50],
+    ["max " + "9".repeat(19) + " or 50", 2000, 50],
+    ["max \u0665\u0660 blocks", 2000, 50],
+    ["max " + "\u0660".repeat(25) + "\u0665\u0660", 2000, 50],
+    ["max " + "\u0660".repeat(1_000_000) + "\u0665\u0660", 2000, 50],
+    ["max \uff15\uff10", 2000, 50],
+    ["max \u096b\u0966 or \u09eb\u09e6", 2000, 50],
+    ["max \u{1d7d3}\u{1d7ce}", 2000, 50], // mathematical bold digits: outside the BMP
+    ["max \u{16ac5}\u{16ac0}", 2000, 1000], // Tangsa digits (Unicode 14): not digits in Python 3.9
+  ];
+  for (const [message, tried, expected] of rows) {
+    assert.equal(suggestedRange(new RpcError(-32005, message), tried), expected, message.slice(0, 40));
+  }
+});
+
 test("test_archive_message_counts_as_range_error", () => {
   assert.ok(isRangeError(new RpcError(-32602, "Archive requests require a personal token. Get one at x")));
 });

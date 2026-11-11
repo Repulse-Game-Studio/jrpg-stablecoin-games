@@ -29,6 +29,7 @@ import { createUtils } from "./utils.ts";
 import { createWindows } from "./windows.ts";
 
 export type { GamepadLike, PluginEntry, ShimOptions, StorageBackend } from "./context.ts";
+export { DEFAULT_GAME_ID } from "./context.ts";
 export type { EventCommand } from "./game_interpreter.ts";
 export { MemoryStorage } from "./storage_manager.ts";
 export { ENCRYPTION_HEADER, encryptForDeployment } from "./utils.ts";
@@ -143,6 +144,7 @@ export function installShim(target: any = globalThis, opts: ShimOptions = {}): S
     ...createWindows(ctx),
     // MZ declares the database null; DataManager.loadDatabase() (from Scene_Boot.create) fills it.
     $dataSystem: null,
+    $dataCommonEvents: null,
   };
   for (const name of GAME_GLOBALS) members[name] = null; // MZ declares them null until createGameObjects
   for (const [name, value] of Object.entries(members)) {
@@ -154,10 +156,17 @@ export function installShim(target: any = globalThis, opts: ShimOptions = {}): S
   // Node stands in for the browser: what the browser fires at `window` for an uncaught exception or
   // a rejection nobody handled ("error", "unhandledrejection"), so SceneManager.onError sees it.
   // (node:test still fails the test on its own; the monitor event leaves Node's crash as it is.)
+  // Before boot SceneManager.onReject does not listen yet (MZ: the browser prints the rejection and
+  // the page goes on). This listener keeps Node from crashing on it, so it is printed here and the
+  // process fails (its exit code 1): a plain Node driver never passes with a lost rejection.
   const proc = (globalThis as any).process;
   if (!dom && proc && typeof proc.on === "function" && typeof proc.removeListener === "function") {
     const onRejection = (reason: unknown, promise: unknown) => {
       win.dispatchEvent(makeEvent("unhandledrejection", { reason, promise }));
+      if (target.SceneManager?._shimHandlers) return;
+      console.error("mz shim: a Promise rejection nobody handled, before the game booted (no SceneManager.onReject yet):",
+        reason instanceof Error ? (reason.stack ?? describeError(reason)) : describeError(reason));
+      proc.exitCode = 1;
     };
     const onException = (error: unknown) => {
       win.dispatchEvent(makeEvent("error", { error, message: describeError(error) }));

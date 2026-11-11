@@ -57,6 +57,9 @@ test("test_missing_removed_field_is_fine", () => {
   assert.notEqual(parseTransferLog(log), null);
 });
 
-test("test_empty_data_means_zero_value", () => {
-  assert.equal(parseTransferLog(makeLog({ data: "0x" }))!.value, 0n);
+test("test_data_must_be_one_32_byte_word", () => {
+  for (const data of ["0x", "", null, 5, "0x01", "0x" + "00".repeat(31), "0x" + "00".repeat(33), "0xzz"]) {
+    assert.equal(parseTransferLog(makeLog({ data })), null, JSON.stringify(data));
+  }
+  assert.equal(parseTransferLog(makeLog({ data: "0x" + "00".repeat(32) }))!.value, 0n);
 });

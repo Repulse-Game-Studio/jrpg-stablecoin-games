@@ -11,7 +11,9 @@
  *   - `timeout` (seconds) bounds every wait on the socket, the connection and each read of the
  *     answer, not the whole exchange (urllib's socket timeout): a silent server is a
  *     TransportError("timed out");
- *   - a 2xx answer is decoded as UTF-8 JSON, else TransportError("invalid JSON response");
+ *   - a 2xx answer is decoded as UTF-8 JSON, else TransportError("invalid JSON response") (JSON as
+ *     the core's Python reads it, pystr.ts jsonLoads: an integer literal of more than 4300 digits
+ *     is not JSON);
  *   - any other status is TransportError("HTTP <status>", status), except a JSON object with a
  *     truthy "error" (a JSON-RPC error some providers send with a 4xx), which is returned;
  *   - a network failure (refused, DNS, TLS, cut off) is TransportError(<its message>).
@@ -26,7 +28,11 @@
  * certificate/TLS-trust error (TRUST_CODES) or a proxy-class failure (PROXY_CODES: the name does
  * not resolve, the network or host is unreachable, the connection is refused, reset or times out
  * at the OS level; or HTTP 407, a proxy asking for credentials) goes once more through it, and
- * the fallback's answer or failure is the request's. Every other failure is answered as before.
+ * the fallback's answer or failure is the request's. That failure is a TransportError like any
+ * other to the RPC client, which moves on to the next endpoint without reporting it; its message
+ * ends with Node's code ("Failed to fetch (Node's https failed first: CERT_HAS_EXPIRED)") and its
+ * `cause` is the fallback's own error (its stack), for whoever inspects it (a debugger, a wrapping
+ * transport's log). Every other failure is answered as before.
  * Our own read timeout ("timed out") is not retried: it would double the wait on a server that is
  * only slow.
  *
@@ -37,7 +43,7 @@
  * and TextDecoder come from Chromium on NW.js (Node 10/11+ globals).
  */
 import { TransportError, type Transport } from "../core/index.ts";
-import { pyTruthy } from "../core/pystr.ts";
+import { jsonLoads, pyTruthy } from "../core/pystr.ts";
 
 /** Node's `http` / `https` module, as far as the transport uses it. */
 export interface NodeHttpModule {
@@ -66,6 +72,22 @@ export const PROXY_CODES: ReadonlySet<string> = new Set([
 
 /** HTTP 407 Proxy Authentication Required. */
 const PROXY_AUTH = 407;
+
+/**
+ * The fallback's failure `f` after Node's `first`: a TransportError (fetch's say only "Failed to
+ * fetch") gets Node's code (its message for a 407) in its message, keeping its own status and
+ * code, with `f` itself (and its stack) as the `cause`; anything else (a bug, not a transport
+ * failure) is passed on as it is.
+ */
+function afterNode(f: unknown, first: TransportError): unknown {
+  if (!(f instanceof TransportError)) return f;
+  const err = new TransportError(`${f.message} (Node's https failed first: ${codeOf(first) ?? first.message})`, f.status);
+  const code = codeOf(f);
+  if (code !== null) Object.defineProperty(err, "code", { value: code, enumerable: true });
+  // ES2022's Error cause, set by hand (the bundle targets ES2020; NW.js's older Chromium lacks the option)
+  Object.defineProperty(err, "cause", { value: f, enumerable: false, writable: true, configurable: true });
+  return err;
+}
 
 /** True for a failure the fallback may get through (see the header). */
 export function trustOrProxyFailure(e: unknown): boolean {
@@ -104,7 +126,10 @@ export class NodeHttpsTransport implements Transport {
     if (fallback === null) return direct;
     return direct.catch((e: unknown) => {
       if (!trustOrProxyFailure(e)) throw e;
-      return fallback.postJson(url, payload, timeout); // once; its answer or failure is the request's
+      // once; its answer or failure is the request's, a failure naming why Node's went first
+      return fallback.postJson(url, payload, timeout).catch((f: unknown) => {
+        throw afterNode(f, e as TransportError);
+      });
     });
   }
 
@@ -206,7 +231,7 @@ function decode(status: number, raw: Uint8Array): unknown {
     // Pass those through so the client can react to the message.
     let body: unknown = null;
     try {
-      body = JSON.parse(UTF8().decode(raw));
+      body = jsonLoads(UTF8().decode(raw));
     } catch {
       body = null;
     }
@@ -217,7 +242,7 @@ function decode(status: number, raw: Uint8Array): unknown {
     throw new TransportError(`HTTP ${status}`, status);
   }
   try {
-    return JSON.parse(UTF8().decode(raw));
+    return jsonLoads(UTF8().decode(raw));
   } catch {
     throw new TransportError("invalid JSON response");
   }

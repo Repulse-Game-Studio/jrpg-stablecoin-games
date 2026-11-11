@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { FakeChain, transferLog } from "./chain_fakes.ts";
 import { FakeClock, FakeTransport } from "./rpc_fakes.ts";
-import { MemoryStorage, bootShim, installShim, type Shim } from "./mz_shim/index.ts";
+import { MemoryStorage, bootShim, installShim, type Shim, type ShimOptions } from "./mz_shim/index.ts";
 import { MAINNET, type Chain, type CheckoutController, type RestoreController } from "../src/core/index.ts";
 import { bootPlugin } from "../src/mz/boot.ts";
 import type { Scfg } from "../src/mz/scfg.ts";
@@ -99,12 +99,17 @@ export interface Glue {
 
 /**
  * Boot the plugin with these parameters (defaults: the demo's wallet on mainnet, chapter2 with
- * owned switch 1). With `storage` it boots on what an earlier run stored.
+ * owned switch 1). With `storage` it boots on what an earlier run stored; `commonEvents` are the
+ * database's common events (the shim's option).
  */
-export async function bootGlue(opts: { params?: Record<string, string>; storage?: MemoryStorage; start?: boolean } = {}): Promise<Glue> {
+export async function bootGlue(opts: {
+  params?: Record<string, string>; storage?: MemoryStorage; start?: boolean; commonEvents?: ShimOptions["commonEvents"];
+} = {}): Promise<Glue> {
   const storage = opts.storage ?? new MemoryStorage();
   const parameters = opts.params ?? { wallet: DEV, testnet: "false", items: encodeItems([CHAPTER2]) };
-  const shim = installShim(g, { nwjs: true, storage, options: ["test"], plugins: [{ name: "SCFG", status: true, parameters }] });
+  const shim = installShim(g, {
+    nwjs: true, storage, options: ["test"], plugins: [{ name: "SCFG", status: true, parameters }], commonEvents: opts.commonEvents,
+  });
   const chains: Record<string, FakeChain> = {};
   const clock = new FakeClock();
   const errors: string[] = [];

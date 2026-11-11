@@ -57,3 +57,21 @@ def test_a_godot_string_without_an_rm_text_is_reported(tool):
 
 def test_ids_are_unique_values_may_repeat(tool):
     assert tool.problems(texts={**tool.default_texts(), "restore_extra": "Cancel"}) == []
+
+
+def test_godot_messages_are_compared_by_id(tool):
+    # the restore screen's messages have ids in Godot (restore_flow.gd's MESSAGES): two RM texts
+    # swapped keep every English string somewhere, but each id now says the other's words
+    texts = dict(tool.default_texts())
+    texts["restore_tx_reverted"], texts["restore_tx_not_found"] = texts["restore_tx_not_found"], texts["restore_tx_reverted"]
+    found = tool.problems(texts=texts)
+    assert any("restore_tx_reverted" in p for p in found), found
+    assert any("restore_tx_not_found" in p for p in found), found
+
+
+def test_godot_sheet_strings_are_compared_by_value_only(tool, tmp_path):
+    # a sheet string has no id in Godot (its English is the tr() key): any RM text with that
+    # English will do, under whichever id (tmp_path: no sheet code asking for "cancel" by id)
+    texts = dict(tool.default_texts())
+    texts["extra_cancel_copy"] = texts.pop("cancel")
+    assert tool.problems(texts=texts, src=tmp_path) == []

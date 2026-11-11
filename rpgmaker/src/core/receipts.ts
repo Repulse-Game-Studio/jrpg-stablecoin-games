@@ -4,7 +4,7 @@
  * There is deliberately no "owned" flag anywhere. Ownership is always recomputed from
  * receipts, and receipts are re-checked against the chain at every launch.
  */
-import { unitsToDecimal } from "./amounts.ts";
+import { storedAmount, unitsToDecimal } from "./amounts.ts";
 import { Dec } from "./decimal.ts";
 import { ValueError } from "./errors.ts";
 import type { TransferLog } from "./evm.ts";
@@ -22,7 +22,7 @@ export interface ReceiptJson {
   item: string | null;
   amount: string;
   token: string;
-  payer: string | null; // the schema says str, but a Solana payment with no payer stores None
+  payer: string | null; // null: a Solana payment with no payer (the schema says str|null)
   recipient: string;
   source: string;
 }
@@ -65,30 +65,9 @@ export function removeReceipt(store: Record<string, ReceiptJson>, key: string): 
 }
 
 /**
- * Python `Decimal(x)` for a stored amount, or null where Python raises TypeError/InvalidOperation.
- * A string takes any exponent libmpdec accepts (the amount is only compared and summed).
- */
-function storedAmount(x: unknown): Dec | null {
-  if (typeof x === "string") {
-    try {
-      const d = Dec.parse(x, { anyExponent: true });
-      return d instanceof Dec ? d : null; // NaN and Infinity: not finite, skipped
-    } catch (e) {
-      if (e instanceof ValueError) return null;
-      throw e;
-    }
-  }
-  if (typeof x === "boolean") return Dec.fromInt(x ? 1 : 0); // Decimal(True) == 1
-  if (typeof x === "bigint") return Dec.fromInt(x);
-  if (typeof x === "number") return Number.isFinite(x) ? Dec.fromNumber(x) : null;
-  // Python: Decimal([...]) is a ValueError that compute_ownership does not catch; None and dict are TypeErrors.
-  if (Array.isArray(x)) throw new ValueError("argument must be a tuple of length 3");
-  return null;
-}
-
-/**
- * (owned item ids, total tipped). Malformed entries are skipped, never fatal. As in Python, the tip
- * total is a default-context Decimal sum, so a stored tip beyond Emax (999999) is an Overflow.
+ * (owned item ids, total tipped). Malformed entries are skipped, never fatal: a missing field, an
+ * amount that is not a number within the stored-amount range (storedAmount, so the tip total, a
+ * default-context Decimal sum as in Python, stays finite), an unhashable item.
  */
 export function computeOwnership(store: Record<string, unknown>, items: ReadonlyMap<string, Item>): [Set<string>, Dec] {
   const owned = new Set<string>();
@@ -98,17 +77,20 @@ export function computeOwnership(store: Record<string, unknown>, items: Readonly
     const rec = r as Record<string, unknown>;
     if (!hasOwn(rec, "kind") || !hasOwn(rec, "amount")) continue;
     const kind = rec["kind"];
-    const amount = storedAmount(rec["amount"]);
-    if (amount === null) continue;
+    let amount: Dec;
+    try {
+      amount = storedAmount(rec["amount"]);
+    } catch (e) {
+      if (e instanceof ValueError || e instanceof TypeError) continue;
+      throw e;
+    }
     if (kind === "unlock") {
       const key = rec["item"];
-      if (typeof key === "object" && key !== null) { // Python: items.get([...]) is not caught
-        throw new TypeError(`unhashable type: '${Array.isArray(key) ? "list" : "dict"}'`);
-      }
+      if (typeof key === "object" && key !== null) continue; // Python: items.get([...]) is a TypeError: skipped
       const item = typeof key === "string" ? items.get(key) : undefined;
       if (item !== undefined && amount.cmp(item.min_price) >= 0) owned.add(item.item_id);
     } else if (kind === "tip") {
-      tips = tips.addChecked(amount); // Python: `tips += amount`, decimal.Overflow not caught
+      tips = tips.addChecked(amount); // Python: `tips += amount` (bounded amounts: no Overflow)
     }
   }
   return [owned, tips];

@@ -5,7 +5,7 @@
  */
 import { AssertionError } from "node:assert";
 import {
-  asUnits, decimalToUnits, decode, encode, formatUnits, parseAmount, unitsToDecimal, type Units,
+  asUnits, decimalToUnits, decode, encode, formatUnits, parseAmount, storedAmount, unitsToDecimal, type Units,
 } from "../../rpgmaker/src/core/amounts.ts";
 import { normalizeAnyTx } from "../../rpgmaker/src/core/backends/index.ts";
 import { bytesToHex, hexToBytes } from "../../rpgmaker/src/core/bytes.ts";
@@ -22,6 +22,8 @@ import type { Item } from "../../rpgmaker/src/core/models.ts";
 import { parseBuildMessage, parseTxMessage } from "../../rpgmaker/src/core/page_messages.ts";
 import { eip681TransferUri, qrMatrix, qrRects } from "../../rpgmaker/src/core/paylinks.ts";
 import { pyInt } from "../../rpgmaker/src/core/pystr.ts";
+import { RpcError, suggestedRange } from "../../rpgmaker/src/core/rpc.ts";
+import { SolanaRpc } from "../../rpgmaker/src/core/solana/rpc.ts";
 import {
   addReceipt, computeOwnership, makeReceipt, receiptKey, removeReceipt,
 } from "../../rpgmaker/src/core/receipts.ts";
@@ -136,6 +138,12 @@ FUNCS["decimal_to_units"] = (i) => {
   return String(decimalToUnits(d));
 };
 FUNCS["format_units"] = (i) => formatUnits(unitsIn(i.units));
+FUNCS["stored_amount"] = (i) => {
+  // the JSON value itself; {"float": "<repr>"} is a float (an integral one is the same Decimal as the int)
+  const v = i.value;
+  const isFloat = typeof v === "object" && v !== null && !Array.isArray(v) && Object.keys(v).length === 1 && "float" in v;
+  return String(storedAmount(isFloat ? Number((v as { float: string }).float) : v));
+};
 
 // paylinks and qr
 FUNCS["eip681_transfer_uri"] = (i) => eip681TransferUri({
@@ -278,11 +286,20 @@ FUNCS["prepare_payment"] = (i) => {
   return toJsonable(preparePayment(config, i.kind, kw));
 };
 
+// rpc_errors: numbers read out of a node's error message
+FUNCS["suggested_range"] = (i) =>
+  suggestedRange(new RpcError(-32005, field(i, "message", "string")), field(i, "tried", "number"));
+FUNCS["named_version"] = (i) => {
+  const rpc = new SolanaRpc(null as never); // _namedVersion reads only tx_version
+  rpc.tx_version = field(i, "tx_version", "number");
+  return (rpc as any)._namedVersion(new RpcError(field(i, "code", "number"), field(i, "message", "string")));
+};
+
 /** Topics (vector file names without `.json`) whose adapters are all in FUNCS. */
 export const IMPLEMENTED: Set<string> = new Set([
   "keccak", "evm_address", "base58", "ed25519", "pda", "solana_tx",
   "amounts", "paylinks", "qr", "page_messages", "receipts", "tx_ids",
-  "chains", "config", "custom_chains", "items", "payments",
+  "chains", "config", "custom_chains", "items", "payments", "rpc_errors",
 ]);
 
 type Outcome = { out: unknown } | { error: string };

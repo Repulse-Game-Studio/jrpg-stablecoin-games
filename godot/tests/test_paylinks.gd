@@ -125,13 +125,14 @@ func test_qrcodegen_matches_the_vendored_python() -> bool:
 	return T.done()
 
 
-## The vendored Python lacks upstream's version-32 alignment fix (step 26); the port keeps that.
+## Version 32's alignment patterns are 26 modules apart (ISO/IEC 18004 Table E.1): the vendored
+## Python's step formula gives that without upstream v1.8.0's `ver == 32` special case.
 func test_qrcodegen_keeps_the_python_version_32_alignment() -> bool:
 	var qr: Variant = ScfgQrcodegen.QrCode.encode_text("a".repeat(1455), ScfgQrcodegen.Ecc.MEDIUM)
 	T.ok(qr is ScfgQrcodegen.QrCode, "1455 bytes")
 	if qr is ScfgQrcodegen.QrCode:
 		T.eq([qr.get_version(), qr.get_error_correction_level(), qr.get_mask()], [32, 1, 2], "version 32")
-		T.eq(qr._get_alignment_pattern_positions(), [6, 34, 60, 86, 112, 138], "the Python step (28), not 26")
+		T.eq(qr._get_alignment_pattern_positions(), [6, 34, 60, 86, 112, 138], "step 26, the standard's")
 		T.eq(_matrix_hash(qr), "b5ccf4bc7905828b2cab393a32a9a5827a3a90cbc865cc3d9ef02fead2c1d41e", "version 32 matrix")
 	return T.done()
 

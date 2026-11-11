@@ -18,7 +18,16 @@ from scfg_core.payments import prepare_payment
 from scfg_core.pump_worker import PumpWorker
 from scfg_core.web_page import WebPage
 
-from browser_mocks import install_mock_solana_wallet, install_mock_wallet
+from browser_mocks import (
+    NAMELESS_WALLETS,
+    THROWING_ETHEREUM,
+    assert_nothing_escaped,
+    install_malformed_extensions,
+    install_mock_solana_wallet,
+    install_mock_wallet,
+    record_escapes,
+    try_bad_wallets,
+)
 from conftest import mine
 
 pytestmark = pytest.mark.integration
@@ -162,6 +171,142 @@ def test_overlay_builds_and_pays_on_solana(solana_world, browser):
     pay_button.click()                       # the build request goes through the overlay queue
     frames(page, worker, ctl, lambda: ctl.state == "paid", timeout=120)
     assert len(sent) == 1 and ctl.hint_tx == sent[0]
+    ctl.close()
+
+
+def overlay_hosts(page):
+    """The overlay hosts bridge.js tagged: [key, ...]."""
+    return page.evaluate("[...document.querySelectorAll('[data-scfg-overlay]')]"
+                         ".filter((e) => e.shadowRoot).map((e) => e.getAttribute('data-scfg-overlay'))")
+
+
+def test_overlay_host_is_tagged_with_its_key(world, browser):
+    page = game_page(browser)
+    install_mock_wallet(page, world["rpc"], world["payer"])
+    web, worker, ctl = web_game(page, world["config"])
+    frames(page, worker, ctl, lambda: ctl.step == "method")
+    ctl.choose_method("browser")
+    ctl.open_browser()
+    assert overlay_hosts(page) == ["o1"]
+    assert page.evaluate("document.querySelector('[data-scfg-overlay=\"o1\"]')"
+                         " === document.querySelector('body > div')")
+    ctl.close()
+    assert overlay_hosts(page) == []
+
+
+def test_overlay_survives_malformed_extensions_and_pays_on_anvil(world, browser):
+    """Broken EIP-6963 announcements and Wallet Standard registrations in the game's page: the
+    game still sees the good wallet, the overlay shows each bad one as its wallet error, nothing
+    escapes into the game's page, and the good wallet pays."""
+    page = game_page(browser)
+    install_mock_wallet(page, world["rpc"], world["payer"])
+    errors = install_malformed_extensions(page)
+    web, worker, ctl = web_game(page, world["config"])
+    frames(page, worker, ctl, lambda: ctl.step == "method")
+    assert "browser" in ctl.methods()
+    ctl.choose_method("browser")
+    ctl.open_browser()
+    page.get_by_role("button", name="Pay with Mock Wallet").wait_for()
+    page.wait_for_timeout(700)                         # past the page's "no wallet" check
+    assert_nothing_escaped(page, errors)
+    try_bad_wallets(page, errors)
+    page.get_by_role("button", name="Pay with Mock Wallet").click()
+    pay_button = page.get_by_role("button", name=re.compile(r"^Pay \d"))
+    pay_button.wait_for()
+    pay_button.click()
+    frames(page, worker, ctl, lambda: ctl.hint_tx is not None)
+    mine(world["rpc"], 3)
+    frames(page, worker, ctl, lambda: ctl.state == "paid")
+    assert_nothing_escaped(page, errors)
+    ctl.close()
+
+
+def test_overlay_survives_malformed_extensions_and_pays_on_solana(solana_world, browser):
+    """The same on Solana, the broken wallets registering before the good one (the game's
+    wallet check must look past them)."""
+    w = solana_world
+    page = game_page(browser)
+    errors = install_malformed_extensions(page)
+    sent = install_mock_solana_wallet(page, w["cluster"], w["player"])
+    web, worker, ctl = web_game(page, w["config"])
+    frames(page, worker, ctl, lambda: ctl.step == "method", timeout=90)
+    assert "browser" in ctl.methods()
+    ctl.choose_method("browser")
+    ctl.open_browser()
+    page.get_by_role("button", name="Pay with Mock Solana Wallet").wait_for()
+    page.wait_for_timeout(700)
+    assert_nothing_escaped(page, errors)
+    try_bad_wallets(page, errors, family="solana")
+    page.get_by_role("button", name="Pay with Mock Solana Wallet").click()
+    pay_button = page.locator("#pay")
+    pay_button.wait_for()
+    pay_button.click()
+    frames(page, worker, ctl, lambda: ctl.state == "paid", timeout=120)
+    assert len(sent) == 1 and ctl.hint_tx == sent[0]
+    assert_nothing_escaped(page, errors)
+    ctl.close()
+
+
+def test_wallets_the_page_cannot_list_are_not_offered(world, browser):
+    """An announcement whose name is not a string: the overlay would list no wallet for it,
+    so the game offers no "Browser wallet"."""
+    page = game_page(browser)
+    errors = record_escapes(page)
+    page.add_init_script(NAMELESS_WALLETS)
+    web, worker, ctl = web_game(page, world["config"])
+    frames(page, worker, ctl, lambda: ctl.step != "network")
+    assert "browser" not in ctl.methods()
+    assert_nothing_escaped(page, errors)
+    ctl.close()
+
+
+def test_solana_wallets_the_page_cannot_list_are_not_offered(solana_world, browser):
+    page = game_page(browser)
+    errors = record_escapes(page)
+    page.add_init_script(NAMELESS_WALLETS)
+    web, worker, ctl = web_game(page, solana_world["config"])
+    frames(page, worker, ctl, lambda: ctl.step != "network", timeout=90)
+    assert "browser" not in ctl.methods()
+    assert_nothing_escaped(page, errors)
+    ctl.close()
+
+
+def test_a_throwing_window_ethereum_is_no_wallet(world, browser):
+    """window.ethereum whose getter throws: no wallet, answered quietly (the bridge logs
+    nothing, which it would for every failed call)."""
+    page = game_page(browser)
+    errors = record_escapes(page)
+    page.add_init_script(THROWING_ETHEREUM)
+    web, worker, ctl = web_game(page, world["config"])
+    frames(page, worker, ctl, lambda: ctl.step != "network")
+    assert "browser" not in ctl.methods()
+    assert_nothing_escaped(page, errors)
+    ctl.close()
+
+
+def test_a_hash_that_cannot_be_sent_to_the_game_is_found_by_reference(world, browser):
+    """The wallet sends the payment but answers its hash as a value with no JSON (a BigInt):
+    the overlay's request to the game fails as a request (the page says the game will find
+    the payment), nothing breaks the overlay's message queue, and the game finds it."""
+    page = game_page(browser)
+    install_mock_wallet(page, world["rpc"], world["payer"], odd_hash=True)
+    errors = record_escapes(page)
+    web, worker, ctl = web_game(page, world["config"])
+    frames(page, worker, ctl, lambda: ctl.step == "method")
+    ctl.choose_method("browser")
+    ctl.open_browser()
+    page.get_by_role("button", name="Pay with Mock Wallet").click()
+    pay_button = page.get_by_role("button", name=re.compile(r"^Pay \d"))
+    pay_button.wait_for()
+    pay_button.click()
+    page.wait_for_function(
+        "document.querySelector('[data-scfg-overlay]').shadowRoot.getElementById('status')"
+        ".textContent.includes('keep this page open')", timeout=10_000)
+    mine(world["rpc"], 3)
+    frames(page, worker, ctl, lambda: ctl.state == "paid")
+    assert ctl.hint_tx is None
+    assert worker.snapshot.owned == frozenset({"chapter2"})
+    assert_nothing_escaped(page, errors)
     ctl.close()
 
 

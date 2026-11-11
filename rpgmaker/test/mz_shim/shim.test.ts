@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MemoryStorage, bootShim, encryptForDeployment, installShim, resetShim, type Shim } from "./index.ts";
+import { DEFAULT_GAME_ID, MemoryStorage, bootShim, encryptForDeployment, installShim, resetShim, type Shim } from "./index.ts";
 import { DirStorage } from "./node_storage.ts";
 
 const g = globalThis as any;
@@ -149,7 +149,7 @@ test("storageManagerRoundTripsAnObjectInMemory", async () => {
   await g.StorageManager.saveObject("scfg", { version: 1, receipts: { "base:0xab:1": { amount: "4.993742" } } });
   assert.equal(g.StorageManager.exists("scfg"), true);
   assert.deepEqual(await g.StorageManager.loadObject("scfg"), { version: 1, receipts: { "base:0xab:1": { amount: "4.993742" } } });
-  assert.ok(shim.storage.has("rmmzsave.12345678.scfg")); // web mode: localforage key
+  assert.ok(shim.storage.has(`rmmzsave.${DEFAULT_GAME_ID}.scfg`)); // web mode: localforage key
   await g.StorageManager.remove("scfg");
   assert.equal(g.StorageManager.exists("scfg"), false);
   assert.equal(await g.StorageManager.loadObject("scfg"), null);
@@ -178,7 +178,7 @@ test("storageFailuresAndCorruptFilesCanBeInjected", async () => {
   shim.failNext("save");
   await assert.rejects(g.StorageManager.saveObject("scfg", {}));
   await g.StorageManager.saveObject("scfg", { ok: true });
-  shim.storage.write("rmmzsave.12345678.scfg", "{not json");
+  shim.storage.write(`rmmzsave.${DEFAULT_GAME_ID}.scfg`, "{not json");
   await assert.rejects(g.StorageManager.loadObject("scfg"));
 });
 
@@ -256,6 +256,108 @@ test("interpreterWaitsOnACustomWaitMode", async () => {
   assert.equal(after.length, 1);
   shim.frame(1);
   assert.equal(after.length, 2);
+});
+
+test("aCommonEventRunsInAChildInterpreterTheParentWaitsFor", async () => {
+  // MZ's command117 (Common Event): the event's list runs in a child interpreter (setupChild,
+  // depth + 1) that the parent updates first (updateChild) and waits for until it ends; the
+  // child's commands get the child as `this`, and its own wait modes hold only the child
+  const shim = installShim(g, {
+    commonEvents: [{
+      name: "Pay", list: [
+        { code: 357, indent: 0, parameters: ["SCFG", "tip", "Tip", {}] },
+        { code: 357, indent: 0, parameters: ["SCFG", "mark", "", { who: "child" }] },
+        { code: 0, indent: 0, parameters: [] },
+      ],
+    }],
+  });
+  let open = true;
+  const base = g.Game_Interpreter.prototype.updateWaitMode;
+  g.Game_Interpreter.prototype.updateWaitMode = function (this: any) {
+    if (this._waitMode !== "scfg") return base.call(this);
+    if (open) return true;
+    this._waitMode = "";
+    return false;
+  };
+  const marks: [string, number][] = [];
+  let waiting: any = null;
+  g.PluginManager.registerCommand("SCFG", "tip", function (this: any) {
+    waiting = this;
+    this.setWaitMode("scfg");
+  });
+  g.PluginManager.registerCommand("SCFG", "mark", (args: { who: string }) => void marks.push([args.who, g.Graphics.frameCount]));
+  assert.equal(g.$dataCommonEvents, null, "null until the database loads, as every $data*");
+  await shim.boot();
+  assert.deepEqual([g.$dataCommonEvents[0], g.$dataCommonEvents[1].id, g.$dataCommonEvents[1].name], [null, 1, "Pay"]);
+  const parent = g.$gameMap._interpreter;
+  parent.setup([
+    { code: 117, indent: 0, parameters: [1] },
+    { code: 117, indent: 0, parameters: [9] }, // no such common event: nothing runs
+    { code: 357, indent: 0, parameters: ["SCFG", "mark", "", { who: "parent" }] },
+    { code: 0, indent: 0, parameters: [] },
+  ], 7);
+  shim.frame(3);
+  assert.ok(waiting !== null && waiting !== parent, "the command ran in the child interpreter");
+  assert.ok(waiting instanceof g.Game_Interpreter);
+  assert.equal(waiting._depth, parent._depth + 1, "one level deeper");
+  assert.equal(waiting._eventId, 7, "the calling event's id (it is on the current map)");
+  assert.equal(parent._childInterpreter, waiting);
+  assert.equal(parent._waitMode, "", "the child waits, not the parent");
+  assert.deepEqual(marks, [], "the parent waits for its child");
+  assert.ok(g.$gameMap.isEventRunning());
+  open = false;
+  shim.frame(1);
+  const frame = g.Graphics.frameCount;
+  assert.deepEqual(marks, [["child", frame], ["parent", frame]], "the child ends and the parent goes on in the same update");
+  assert.equal(parent._childInterpreter, null);
+  shim.frame(1);
+  assert.ok(!g.$gameMap.isEventRunning());
+});
+
+test("saveGameMakesTheContentsBeforeTheNameAsMz", async () => {
+  await installShim(g).boot();
+  const order: string[] = [];
+  const dm = g.DataManager;
+  const contents = dm.makeSaveContents;
+  const name = dm.makeSavename;
+  dm.makeSaveContents = function (this: unknown) {
+    order.push("makeSaveContents");
+    return contents.call(this);
+  };
+  dm.makeSavename = function (this: unknown, id: number) {
+    order.push("makeSavename");
+    return name.call(this, id);
+  };
+  const saved = dm.saveGame(2);
+  assert.deepEqual(order, ["makeSaveContents", "makeSavename"], "MZ 1.x: the contents first, then the save name");
+  assert.equal(await saved, 0);
+  assert.ok(g.StorageManager.exists("file2"));
+});
+
+test("aRejectionBeforeBootIsReportedAndFailsThePlainNodeProcess", () => {
+  // Before boot no SceneManager.onReject listens (MZ: the browser prints the rejection and the
+  // page goes on). In Node the shim's process listener keeps Node from crashing on it, so it says
+  // it on the console and fails the process: a plain Node driver must not pass with it.
+  const theirs = process.listeners("unhandledRejection");
+  process.removeAllListeners("unhandledRejection");
+  const quiet = console.error;
+  const lines: string[] = [];
+  console.error = (...a: unknown[]) => void lines.push(a.map((x) => (x instanceof Error ? x.stack ?? x.message : String(x))).join(" "));
+  const exitCode = process.exitCode;
+  try {
+    const shim = installShim(g);
+    const early = new Error("rejected before boot");
+    process.emit("unhandledRejection", early, Promise.resolve());
+    assert.equal(lines.length, 1, lines.join("\n"));
+    assert.match(lines[0]!, /before the game booted/);
+    assert.match(lines[0]!, /rejected before boot/);
+    assert.equal(process.exitCode, 1, "the process fails");
+    assert.deepEqual([shim.stopped, shim.errors.length], [false, 0], "no game was running to stop");
+  } finally {
+    process.exitCode = exitCode;
+    console.error = quiet;
+    for (const fn of theirs) process.on("unhandledRejection", fn as (...a: unknown[]) => void);
+  }
 });
 
 test("switchesAndVariablesAreBoundedByTheDatabase", async () => {
@@ -376,13 +478,13 @@ test("databaseIsNullWhilePluginsLoadAndForageKeyThrows", async () => {
   assert.equal(g.$gameSwitches, null);
   await bootShim();
   assert.equal(g.DataManager.isDatabaseLoaded(), true);
-  assert.equal(g.StorageManager.forageKey("scfg"), "rmmzsave.12345678.scfg");
+  assert.equal(g.StorageManager.forageKey("scfg"), `rmmzsave.${DEFAULT_GAME_ID}.scfg`);
   assert.ok(g.SceneManager._scene instanceof g.Scene_Map);
 });
 
 test("webExistsAnswersFromForageKeysUpdatedAtBoot", async () => {
   const storage = new MemoryStorage();
-  storage.write("rmmzsave.12345678.scfg", JSON.stringify({ version: 1 }));
+  storage.write(`rmmzsave.${DEFAULT_GAME_ID}.scfg`, JSON.stringify({ version: 1 }));
   installShim(g, { storage });
   assert.equal(g.StorageManager.forageKeysUpdated(), false);
   g.DataManager.loadDatabase();

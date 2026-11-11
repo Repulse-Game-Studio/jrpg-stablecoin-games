@@ -104,6 +104,28 @@ def test_steps_follow_the_controller(make_game):
     assert box["done"] and box["result"]["status"] == "paid"
 
 
+def test_filled_buttons_show_no_border_and_keep_the_outlined_size(make_game):
+    """The primary and accent buttons are filled, with no visible border of their own colour
+    (theme.gd's ScfgPrimary and ScfgAccent draw none), and they are exactly as large as the
+    outlined buttons, as in Godot, where a border never adds to a button's size: the border's
+    width is kept, transparent, with the fill painted under it."""
+    game = make_game()
+    game.setup()
+    _to_manual(game)
+    color = "(el) => getComputedStyle(el).borderTopColor"
+    box = "(el) => { const r = el.getBoundingClientRect(); return [r.width, r.height]; }"
+    assert "accent" in game.key("forward").get_attribute("class").split()
+    assert "primary" in game.key("keep_playing").get_attribute("class").split()
+    for key in ("forward", "keep_playing"):
+        assert game.key(key).evaluate(color) == "rgba(0, 0, 0, 0)", f"{key}: no visible border"
+    assert game.key("cancel").evaluate(color) != "rgba(0, 0, 0, 0)", "an outlined button shows its border"
+    cancel_w, cancel_h = game.key("cancel").evaluate(box)
+    keep_w, keep_h = game.key("keep_playing").evaluate(box)
+    forward_h = game.key("forward").evaluate(box)[1]
+    assert keep_w == cancel_w and keep_h == cancel_h, "primary and outlined: the same size in their row"
+    assert forward_h == cancel_h, "accent and outlined: the same height"
+
+
 def test_back_arrow_hidden_once_tx_seen(make_game):
     game = make_game()
     game.setup()
@@ -624,7 +646,8 @@ def test_a_press_mz_saw_released_over_the_sheet_is_released_in_mz(make_game):
     game.frames(3)
     assert game.screen().count() == 0
     assert game.js("() => window.__clicks") == 0, "no click reached MZ"
-    # a touch the same way (touchstart on the canvas, touchend over the sheet)
+    # a touch MZ saw: the browser sends its touchend to the element it started on (the canvas,
+    # past the host), wherever the finger is lifted, so MZ sees it end
     game.js("""() => {
         const t = (type, target) => target.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, composed: true,
             changedTouches: [new Touch({ identifier: 1, target, pageX: 500, pageY: 360 })],
@@ -635,6 +658,45 @@ def test_a_press_mz_saw_released_over_the_sheet_is_released_in_mz(make_game):
     game.frames(2)
     assert game.js("() => TouchInput._screenPressed") is True, "MZ saw the touch"
     game.pay()
-    game.js("() => window.__touch('touchend', document.getElementById('scfg-host'))")
+    game.js("() => window.__touch('touchend', document.getElementById('gameCanvas'))")
     game.frames(2)
     assert game.js("() => TouchInput._screenPressed") is False, "MZ saw the touch end"
+    game.key("cancel").click()
+    game.frames(3)
+    assert game.screen().count() == 0
+
+
+def test_a_touch_that_began_on_the_sheet_never_reaches_mz(make_game):
+    """Only the mouse's releases pass the host while MZ holds a press: a touchend (or
+    touchcancel) at the host is of a touch that started on the sheet (the browser sends it to
+    the touch's start element), which MZ never saw, even while MZ holds a press of its own."""
+    game = make_game()
+    game.setup()
+    mouse = game.page.mouse
+    mouse.move(500, 360)
+    mouse.down()
+    game.frames(2)
+    assert game.js("() => TouchInput._mousePressed") is True, "MZ holds a press it saw on the canvas"
+    game.pay()
+    game.js("""() => {
+        window.__seen = [];
+        for (const name of ["_onTouchStart", "_onTouchEnd", "_onTouchCancel"]) {
+            const original = TouchInput[name];
+            TouchInput[name] = function (...args) { window.__seen.push(name); return original.apply(this, args); };
+        }
+        const host = document.getElementById("scfg-host");
+        for (const type of ["touchstart", "touchend", "touchstart", "touchcancel"]) {
+            host.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, composed: true,
+                changedTouches: [new Touch({ identifier: 2, target: host, pageX: 505, pageY: 362 })],
+                touches: type === "touchstart" ? [new Touch({ identifier: 2, target: host, pageX: 505, pageY: 362 })] : [] }));
+        }
+    }""")
+    game.frames(2)
+    assert game.js("() => window.__seen") == [], "no touch of the sheet reached MZ"
+    assert game.js("() => TouchInput._mousePressed") is True, "MZ's own press is untouched"
+    assert game.screen().count() == 1
+    mouse.up()
+    game.frames(2)
+    assert game.js("() => TouchInput._mousePressed") is False, "the mouse's release still reaches MZ"
+    game.key("cancel").click()
+    game.frames(3)

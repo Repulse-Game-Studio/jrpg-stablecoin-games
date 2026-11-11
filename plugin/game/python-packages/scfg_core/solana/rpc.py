@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 
+from ..ints import digit_run_value, int_from
 from ..rpc import RpcError, RpcUnavailable
 
 TX_VERSION = 1  # highest transaction version this build can read (only meta is used)
@@ -28,7 +29,7 @@ class SolanaRpc:
         return (yield from self.client.call(method, params))
 
     def get_slot(self, commitment: str = "confirmed"):
-        return int((yield from self.call("getSlot", [{"commitment": commitment}])))
+        return int_from((yield from self.call("getSlot", [{"commitment": commitment}])))
 
     def get_signatures_for_address(self, address: str, *, until=None, before=None,
                                    limit: int = 100, commitment: str = "confirmed"):
@@ -46,13 +47,15 @@ class SolanaRpc:
 
     def _named_version(self, error: RpcError) -> int | None:
         """The newer version a -32015 "Transaction version (N) is not supported" names.
-        Only meta, slot and accountKeys are read, so any version can be read."""
+        Only meta, slot and accountKeys are read, so any version can be read. A number of more
+        than 18 significant digits is no match (Ruling 6: a request cannot carry it as an int)."""
         if error.code != _UNSUPPORTED_VERSION:
             return None
         found = _NAMED_VERSION.search(error.message)
-        if found is None or int(found.group(1)) <= self.tx_version:
+        version = None if found is None else digit_run_value(found.group(1))
+        if version is None or version <= self.tx_version:
             return None
-        return int(found.group(1))
+        return version
 
     def _lower_version(self, error: RpcError) -> bool:
         """Older nodes reject a maxSupportedTransactionVersion they don't know (-32602)."""
@@ -76,7 +79,7 @@ class SolanaRpc:
     def _first_available(self, url: str):
         if url not in self._first_slot:
             try:
-                self._first_slot[url] = int((yield from self.client.call_at(
+                self._first_slot[url] = int_from((yield from self.client.call_at(
                     url, "getFirstAvailableBlock", [])))
             except (RpcUnavailable, RpcError, TypeError, ValueError):
                 return _UNKNOWN_HISTORY  # unknown: treat as pruned, ask again next time
@@ -131,13 +134,13 @@ class SolanaRpc:
         value = res["value"]
         if value is None:
             return 0
-        return int(value["data"]["parsed"]["info"]["tokenAmount"]["amount"])
+        return int_from(value["data"]["parsed"]["info"]["tokenAmount"]["amount"])
 
     def get_balance(self, address: str):
         res = yield from self.call("getBalance", [address, {"commitment": "confirmed"}])
-        return int(res["value"])
+        return int_from(res["value"])
 
     def get_priority_fee(self, accounts):
         rows = yield from self.call("getRecentPrioritizationFees", [list(accounts)])
-        fees = sorted(int(f["prioritizationFee"]) for f in rows or [])
+        fees = sorted(int_from(f["prioritizationFee"]) for f in rows or [])
         return fees[len(fees) // 2] if fees else 0

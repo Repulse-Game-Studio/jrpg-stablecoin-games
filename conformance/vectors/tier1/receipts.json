@@ -2063,6 +2063,169 @@
     ],
     "tip_total": "0"
    }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "a": {
+      "amount": "1E+999999",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     },
+     "b": {
+      "amount": "1E+41",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     },
+     "c": {
+      "amount": "9.999999999999999999999999999E+999999",
+      "kind": "tip"
+     },
+     "d": {
+      "amount": "9.999999999999999999999999999E+999999",
+      "kind": "tip"
+     },
+     "e": {
+      "amount": "-1E+41",
+      "kind": "tip"
+     },
+     "f": {
+      "amount": "1E+40",
+      "kind": "tip"
+     },
+     "g": {
+      "amount": "1E+40",
+      "kind": "tip"
+     },
+     "h": {
+      "amount": "4.990000",
+      "block": 1,
+      "chain": "ethereum",
+      "item": [
+       "chapter2"
+      ],
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     }
+    }
+   },
+   "out": {
+    "owned": [],
+    "tip_total": "2.000000000000000000000000000E+40"
+   }
+  },
+  {
+   "fn": "compute_ownership",
+   "in": {
+    "items": [
+     {
+      "code": 2,
+      "item_id": "chapter2",
+      "min_price": "4.99",
+      "price": "4.99",
+      "title": "Chapter 2",
+      "token": "USDC"
+     },
+     {
+      "code": 3,
+      "item_id": "pwyw",
+      "min_price": "2.00",
+      "price": "10.00",
+      "title": "Pay what",
+      "token": "USDC"
+     },
+     {
+      "code": 4,
+      "item_id": "dlc",
+      "min_price": "9.99",
+      "price": "9.99",
+      "title": "DLC",
+      "token": "USDT"
+     }
+    ],
+    "store": {
+     "k0": {
+      "amount": "1E+40",
+      "block": 1,
+      "chain": "ethereum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0xabababababababababababababababababababababababababababababababab"
+     },
+     "k1": {
+      "amount": "1E-40",
+      "block": 1,
+      "chain": "ethereum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 7,
+      "payer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x8888888888888888888888888888888888888888888888888888888888888888"
+     }
+    }
+   },
+   "out": {
+    "owned": [
+     "chapter2"
+    ],
+    "tip_total": "1E-40"
+   }
   }
  ],
  "tier": 1,

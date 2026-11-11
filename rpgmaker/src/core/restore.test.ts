@@ -90,8 +90,9 @@ function makeChains(receiptsByChain: Record<string, any> = {}) {
 
 function runLookup(
   chains: ReadonlyMap<string, Chain>, fakes: Record<string, FakeChain>, receipts: Record<string, unknown> = {}, tx = TX,
+  on_error?: (e: unknown) => void,
 ) {
-  return lookup(tx, { config: cfg(), chains, rpc_for: (k) => fakes[k], receipts });
+  return lookup(tx, { config: cfg(), chains, rpc_for: (k) => fakes[k], receipts, on_error });
 }
 
 const restoreCode = (code: string) => (e: unknown) => e instanceof RestoreError && e.code === code;
@@ -176,15 +177,26 @@ test("test_lookup_rules_out_solana_for_an_evm_hash_without_touching_it", async (
 test("test_lookup_malformed_log_rejects_the_whole_lookup", async () => {
   // Only RpcUnavailable / RpcError are swallowed (Python): a bad log is a plain error, not a RestoreError.
   const bad = transferLog(ARB_USDC, PAYER, DEV, 5_000_000, { block: 1, tx_hash: TX });
-  bad["data"] = "0xzz";
+  bad["logIndex"] = "0xzz";
   const { chains, fakes } = makeChains({ arbitrum: { status: "0x1", logs: [bad] } });
   await assert.rejects(runLookup(chains, fakes), (e: unknown) => e instanceof ValueError && !(e instanceof RestoreError));
 });
 
-test("test_lookup_value_decode_cannot_hold_rejects_the_lookup", async () => {
-  const huge = transferLog(ARB_USDC, PAYER, DEV, 10n ** 32n, { block: 1, tx_hash: TX });
-  const { chains, fakes } = makeChains({ arbitrum: { status: "0x1", logs: [huge] } });
-  await assert.rejects(runLookup(chains, fakes), (e: unknown) => e instanceof InvalidOperation && !(e instanceof ValueError));
+test("test_lookup_skips_a_transfer_too_large_to_decode", async () => {
+  // decode() cannot price 10**32 units or more: that transfer is skipped and reported, the rest offered.
+  let { chains, fakes } = makeChains({ arbitrum: { status: "0x1", logs: [
+    transferLog(ARB_USDC, PAYER, DEV, 10n ** 32n, { block: 50, tx_hash: TX, log_index: 1 }),
+    transferLog(ARB_USDC, PAYER, DEV, 4_993_742, { block: 50, tx_hash: TX, log_index: 2 })] } });
+  let errors: unknown[] = [];
+  const [c, ...rest] = await runLookup(chains, fakes, {}, TX, (e) => errors.push(e));
+  assert.deepEqual([rest.length, c!.transfer.log_index, c!.kind, c!.item], [0, 2, "unlock", "chapter2"]);
+  assert.equal(errors.length, 1);
+  assert.ok(errors[0] instanceof InvalidOperation && !(errors[0] instanceof ValueError));
+  ({ chains, fakes } = makeChains({ arbitrum: { status: "0x1", logs: [
+    transferLog(ARB_USDC, PAYER, DEV, 10n ** 40n, { block: 50, tx_hash: TX, log_index: 1 })] } }));
+  errors = [];
+  await assert.rejects(runLookup(chains, fakes, {}, TX, (e) => errors.push(e)), restoreCode("tx_not_a_payment"));
+  assert.equal(errors.length, 1);
 });
 
 test("test_lookup_non_dict_receipt_is_a_type_error", async () => {

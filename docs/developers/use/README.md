@@ -43,3 +43,4 @@ Rules:
 - Callbacks run on the main thread, for **side effects only**. Never call `jump`, `call` or `renpy.call_screen` inside one; change the story using `pay()`'s return value or `owns()`.
 - The receipt is saved **before** your callback runs. Ownership never depends on the callback.
 - A session can report `"cancelled"` or `"expired"` and **later** `"paid"` (the player paid late). Always treat `"paid"` as final.
+- A per-call `callback` is released once its payment is over: after its `"paid"` or `"underpaid"` result, or when the plugin stops watching an unpaid session (after 24 hours, or when the player switched networks).

@@ -429,6 +429,10 @@ test("runsOfLineEndsAndSpacesAreParsedInLinearTime", async () => {
     ["a CRLF run of continuation lines", `GET ${base(srv)} HTTP/1.1\r\n${host(srv)}X-A: a\r\n` + " \r\n".repeat(90) + "\r\n", 200],
     ["more continuation lines than headers allowed", `GET ${base(srv)} HTTP/1.1\r\n${host(srv)}X-A: a\r\n` + " \r\n".repeat(20000) + "\r\n", 431],
   ];
+  // Linear time is checked by an absolute bound only: a backtracking pattern on a 64 KiB run takes
+  // seconds (quadratic: some 2 billion steps), a linear scan well under a millisecond, so 1 s
+  // tells them apart on any machine; a ratio of two small timings would be scheduler noise on a
+  // loaded CI runner.
   for (const [what, data, status] of attacks) {
     const t0 = performance.now();
     const got = await talk(srv.port, data);
@@ -436,19 +440,6 @@ test("runsOfLineEndsAndSpacesAreParsedInLinearTime", async () => {
     assert.equal(statusOf(got.out), status, what);
     assert.ok(ms < 1000, `${what}: answered in ${ms.toFixed(0)} ms`);
   }
-  // linear: four times the run takes nowhere near sixteen times as long
-  const timed = async (n: number) => {
-    let best = Infinity;
-    for (let i = 0; i < 3; i++) {
-      const t0 = performance.now();
-      await talk(srv.port, "GET " + "\r".repeat(n) + " x\r\n\r\n");
-      best = Math.min(best, performance.now() - t0);
-    }
-    return best;
-  };
-  const small = await timed(16000);
-  const large = await timed(64000);
-  assert.ok(large < small * 8 + 50, `16 KiB: ${small.toFixed(1)} ms, 64 KiB: ${large.toFixed(1)} ms`);
 });
 
 test("bytesFromAnotherRealmAreServed", async () => {

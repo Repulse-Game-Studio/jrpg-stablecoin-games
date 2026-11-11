@@ -179,3 +179,11 @@ test("test_default_entropy_ranges", () => {
   assert.equal(defaultEntropy.randBelow(1), 0);
   assert.throws(() => defaultEntropy.randBelow(0), ValueError);
 });
+
+test("test_session_price_is_read_as_a_stored_amount", () => {
+  // tests/unit/test_sessions.py: a stored price out of the amount range is refused, like any unreadable price
+  assert.equal(String(sessionPrice({ price: "4.99" } as never)), "4.99");
+  for (const price of ["1E+999999", "1E+41", "Infinity"]) {
+    assert.throws(() => sessionPrice({ price } as never), ValueError, price);
+  }
+});

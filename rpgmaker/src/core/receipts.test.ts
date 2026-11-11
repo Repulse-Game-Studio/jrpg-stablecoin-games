@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { addReceipt, computeOwnership, makeReceipt, receiptKey, removeReceipt, type ReceiptJson } from "./receipts.ts";
 import { asUnits } from "./amounts.ts";
 import { Dec } from "./decimal.ts";
-import { ArithmeticError, Overflow, ValueError } from "./errors.ts";
+import { ValueError } from "./errors.ts";
 import type { Item } from "./models.ts";
 import type { Transfer } from "./transfers.ts";
 
@@ -100,52 +100,31 @@ test("test_item_lookup_ignores_prototype_names", () => {
   assert.equal(owned.size, 0);
 });
 
-// Carried from the M3 review: Python sums tips with `tips += amount` under the default decimal
-// context (28 digits, Emax 999999, Emin -999999) and does not catch decimal.Overflow, while a
-// literal libmpdec cannot hold is an InvalidOperation that compute_ownership skips. Every expected
-// value below is CPython's (`uv run python`, scfg_core.receipts.compute_ownership).
-const isOverflow = (e: unknown) => e instanceof Overflow && e instanceof ArithmeticError && !(e instanceof ValueError);
-
-test("test_tip_total_overflow_matches_python", () => {
+// Stored amounts are read with amounts.storedAmount (Python's stored_amount): a finite number whose
+// adjusted exponent is within +-40. Anything else neither owns nor tips, so the tip total stays finite.
+test("test_ownership_skips_amounts_out_of_range", () => {
   const tips = (...a: string[]) => String(computeOwnership(Object.fromEntries(a.map((x, i) => [`k${i}`, rec({ kind: "tip", amount: x })])), items)[1]);
+  const start = performance.now();
   for (const a of [["1E+1000000"], ["-1E+1000000"], ["1E+1000000", "-1E+1000000"],
     ["9.999999999999999999999999999E+999999", "9.999999999999999999999999999E+999999"],
-    ["1E+9999999999999999"], ["1E+999999999999999999"]]) {
-    assert.throws(() => tips(...a), isOverflow, a.join(" + "));
+    ["1E+9999999999999999"], ["1E+999999999999999999"], ["1E+41"], ["1E-41"], ["1E-1000030"],
+    ["1E-1999999999999999998"], ["1E+1000000000000000000"]]) {
+    assert.equal(tips(...a), "0", a.join(" + "));
   }
-  const cases: [string[], string][] = [
-    [["1E+999999"], "1.000000000000000000000000000E+999999"],
-    [["1E+200000", "1"], "1.000000000000000000000000000E+200000"],
-    [["1E-1000000"], "1E-1000000"],
-    [["1E-1000030"], "0E-1000026"],
-    [["5E-1000027"], "0E-1000026"],
-    [["1.5E-1000026"], "2E-1000026"],
-    [["2.5E-1000026"], "2E-1000026"],
-    [["1E-9999999999999999"], "0E-1000026"],
-    [["-1E-9999999999999999"], "-0E-1000026"],
-    [["5", "1E-9999999999999999"], "5.000000000000000000000000000"],
-    [["0E+9999999999999999"], "0"],
-    [["0E-9999999999999999"], "0E-1000026"],
-    [["1E-1999999999999999997"], "0E-1000026"],
-    [["1E-1999999999999999998"], "0"], // InvalidOperation: skipped
-    [["1E+1000000000000000000"], "0"], // InvalidOperation: skipped
-    [["12345678901234567890123456789"], "1.234567890123456789012345679E+28"],
-  ];
-  for (const [a, want] of cases) assert.equal(tips(...a), want, a.join(" + "));
+  assert.ok(performance.now() - start < 2000, "quickly");
+  assert.equal(tips("1E+40", "1E+40"), "2.000000000000000000000000000E+40"); // CPython: 0 + 1E+40 rounds to 28 digits
+  assert.equal(tips("5", "1E-40"), "5.000000000000000000000000000");
+  assert.equal(tips("12345678901234567890123456789"), "1.234567890123456789012345679E+28");
 });
 
-test("test_unlock_with_a_huge_amount_owns_without_overflow", () => {
-  // Only the tip sum runs in the context; `amount >= item.min_price` is an exact comparison.
-  for (const amount of ["1E+1000000", "1E+9999999999999999"]) {
-    const [owned] = computeOwnership({ a: rec({ amount }) }, items);
-    assert.deepEqual([...owned], ["chapter2"], amount);
+test("test_a_forged_out_of_range_unlock_owns_nothing", () => {
+  for (const amount of ["1E+1000000", "1E+9999999999999999", "1E+999999", "1E+41"]) {
+    assert.equal(computeOwnership({ a: rec({ amount }) }, items)[0].size, 0, amount);
   }
-  assert.equal(computeOwnership({ a: rec({ amount: "-1E+9999999999999999" }) }, items)[0].size, 0);
-  assert.equal(computeOwnership({ a: rec({ amount: "1E-9999999999999999" }) }, items)[0].size, 0);
+  assert.deepEqual([...computeOwnership({ a: rec({ amount: "1E+40" }) }, items)[0]], ["chapter2"]);
 });
 
-test("test_unhashable_item_of_an_unlock_is_a_type_error", () => {
-  // Python: `items.get(r.get("item"))` raises TypeError for a list or dict, outside the try.
-  for (const item of [["chapter2"], { a: 1 }]) assert.throws(() => computeOwnership({ a: rec({ item }) }, items), TypeError);
+test("test_unhashable_item_of_an_unlock_is_skipped", () => {
+  for (const item of [["chapter2"], { a: 1 }]) assert.equal(computeOwnership({ a: rec({ item }), b: rec({}) }, items)[0].size, 1);
   for (const item of [5, null, true]) assert.equal(computeOwnership({ a: rec({ item }) }, items)[0].size, 0);
 });

@@ -73,6 +73,11 @@ var data: Dictionary = {}
 ## `silence_misuse` to read them back here instead of printing an ERROR line.
 static var misuse: Array[String] = []
 static var silence_misuse: bool = false
+## Tests only: with `silence_printed` set, the contained errors report() would print (its
+## on_error not a valid Callable) are collected here instead, newest last; otherwise they are
+## printed and never kept.
+static var printed: Array[String] = []
+static var silence_printed: bool = false
 
 
 static func _report_misuse(message: String) -> void:
@@ -109,6 +114,19 @@ func is_a(k: String) -> bool:
 ## True when `v` is an ScfgErr (the same as `v is ScfgErr`).
 static func is_err(v: Variant) -> bool:
 	return v is ScfgErr
+
+
+## Python's `(on_error or print_error)(err)`: a crash the core contained (one stored receipt, one
+## restore candidate) goes to `on_error` when it is a valid Callable, else it is printed.
+static func report(on_error: Variant, err: ScfgErr) -> void:
+	if on_error is Callable and (on_error as Callable).is_valid():
+		(on_error as Callable).call(err)
+		return
+	var line := "scfg: contained error: %s" % str(err)
+	if silence_printed:
+		printed.append(line)  # tests only: a game never collects them
+	else:
+		printerr(line)
 
 
 ## `Kind: message`, `Kind(code): message` or `Kind(status=503): message`.

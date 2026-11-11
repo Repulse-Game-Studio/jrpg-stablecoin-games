@@ -10,7 +10,7 @@
 import type { Transport } from "./coio.ts";
 import { TransportError } from "./coio.ts";
 import { ValueError } from "./errors.ts";
-import { hasOwn, pyGet, pyTruthy } from "./pystr.ts";
+import { PY_DIGIT, digitRunValue, hasOwn, pyGet, pyTruthy } from "./pystr.ts";
 
 export const COOLDOWN_START = 30.0;
 export const COOLDOWN_MAX = 600.0;
@@ -63,13 +63,18 @@ export function isRangeError(err: RpcError): boolean {
   return RANGE_HINTS.some((h) => m.includes(h));
 }
 
+/** Python's `re.findall(r"\d+")`: every run of CPython 3.9's decimal digits (PY_DIGIT). */
+const PY_DIGITS = new RegExp(`${PY_DIGIT}+`, "gu");
+
 /**
  * Next eth_getLogs range to try after `err` rejected a `tried`-block request. Uses the limit
  * when the provider states one ("limited to 0 - 50 blocks range"), otherwise halves.
  */
 export function suggestedRange(err: RpcError, tried: number): number {
-  const stated = (err.message.match(/\d+/g) ?? []).map((n) => Number(n));
-  const candidates = stated.filter((n) => MIN_LOG_RANGE <= n && n < tried);
+  // Python's re.findall(r"\d+"): runs of any Unicode decimal digit; a run beyond 18 significant
+  // digits is no number (Ruling 6)
+  const stated = (err.message.match(PY_DIGITS) ?? []).map(digitRunValue);
+  const candidates = stated.filter((n): n is number => n !== null && MIN_LOG_RANGE <= n && n < tried);
   return candidates.length > 0 ? Math.max(...candidates) : Math.max(MIN_LOG_RANGE, Math.floor(tried / 2));
 }
 

@@ -31,11 +31,12 @@ test("test_checksum_rejects_malformed", () => {
   assert.throws(() => toChecksumAddress(null as any), ValueError);
 });
 
-test("python regex quirk: a trailing newline is accepted by to_checksum_address", () => {
-  assert.equal(
-    toChecksumAddress(EIP55[0] + "\n"),
-    "0x5aAeb6053F3E94C9b9a09f33669435E7ef1BEAed\n",
-  );
+test("test_checksum_rejects_a_trailing_newline", () => {
+  for (const bad of [EIP55[0] + "\n", EIP55[0]!.toLowerCase() + "\n", "\n" + EIP55[0], EIP55[0] + "\r\n"]) {
+    assert.throws(() => toChecksumAddress(bad), ValueError, JSON.stringify(bad));
+    assert.throws(() => normalizeAddress(bad), ValueError, JSON.stringify(bad));
+    assert.equal(isChecksumAddress(bad), false);
+  }
 });
 
 test("test_is_checksum_and_normalize", () => {
@@ -87,10 +88,17 @@ test("test_parse_transfer_log_filters", () => {
 });
 
 test("test_parse_transfer_log_values", () => {
-  assert.equal(parseTransferLog(log({ data: "0x" }))!.value, 0n);
-  assert.equal(parseTransferLog(log({ data: "" }))!.value, 0n);
+  assert.equal(parseTransferLog(log({ data: "0x" + "00".repeat(32) }))!.value, 0n);
   assert.equal(parseTransferLog(log({ data: "0x" + "ff".repeat(32) }))!.value, 2n ** 256n - 1n);
-  assert.throws(() => parseTransferLog(log({ data: "0xzz" })), ValueError);
+  assert.equal(parseTransferLog(log({ data: "0x" + "FF".repeat(32) }))!.value, 2n ** 256n - 1n);
+  // anything but one 32-byte word ("0x" + 64 hex digits) is not a transfer, never an error
+  for (const data of ["0x", "", null, undefined, 16, "0x01", "0xzz", "0x" + "00".repeat(31), "0x" + "00".repeat(33),
+    "0x" + "00".repeat(31) + "0", "0X" + "00".repeat(32), "00".repeat(33), "0x" + "0_".repeat(32), "0x" + "00".repeat(31) + " 1"]) {
+    assert.equal(parseTransferLog(log({ data })), null, JSON.stringify(data));
+  }
+  const noData = log();
+  delete noData["data"];
+  assert.equal(parseTransferLog(noData), null);
 });
 
 test("test_parse_transfer_log_rejects_missing_or_mistyped_fields", () => {
@@ -101,6 +109,5 @@ test("test_parse_transfer_log_rejects_missing_or_mistyped_fields", () => {
   }
   assert.throws(() => parseTransferLog(log({ logIndex: 10 })), TypeError);
   assert.throws(() => parseTransferLog(log({ blockNumber: 12345 })), TypeError);
-  assert.throws(() => parseTransferLog(log({ data: 16 })), TypeError);
   assert.throws(() => parseTransferLog(log({ logIndex: "0x" + "f".repeat(14) })), ValueError);
 });

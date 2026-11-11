@@ -60,9 +60,9 @@ def make_chains(**receipts_by_chain):
     return chains, fakes
 
 
-def run_lookup(chains, fakes, receipts=None, tx=TX):
+def run_lookup(chains, fakes, receipts=None, tx=TX, on_error=None):
     return drive(lookup(tx, config=cfg(), chains=chains, rpc_for=lambda k: fakes[k],
-                        receipts=receipts or {}))
+                        receipts=receipts or {}, on_error=on_error))
 
 
 def test_lookup_finds_chain_and_classifies():
@@ -97,6 +97,24 @@ def test_lookup_errors(receipt, code):
     with pytest.raises(RestoreError) as info:
         run_lookup(chains, fakes)
     assert info.value.code == code
+
+
+def test_lookup_skips_a_transfer_too_large_to_decode():
+    """decode() cannot price 10**32 units or more (Decimal's 28 digits): that transfer is
+    skipped and reported, the others in the transaction are still offered."""
+    chains, fakes = make_chains(arbitrum={"status": "0x1", "logs": [
+        transfer_log(ARB_USDC, PAYER, DEV, 10**32, block=50, tx_hash=TX, log_index=1),
+        transfer_log(ARB_USDC, PAYER, DEV, 4_993_742, block=50, tx_hash=TX, log_index=2)]})
+    errors = []
+    [c] = run_lookup(chains, fakes, on_error=errors.append)
+    assert (c.transfer.log_index, c.kind, c.item) == (2, "unlock", "chapter2")
+    assert len(errors) == 1
+    chains, fakes = make_chains(arbitrum={"status": "0x1", "logs": [
+        transfer_log(ARB_USDC, PAYER, DEV, 10**40, block=50, tx_hash=TX, log_index=1)]})
+    errors = []
+    with pytest.raises(RestoreError) as info:
+        run_lookup(chains, fakes, on_error=errors.append)
+    assert info.value.code == "tx_not_a_payment" and len(errors) == 1
 
 
 def test_lookup_not_found_anywhere():

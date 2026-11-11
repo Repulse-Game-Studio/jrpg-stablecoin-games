@@ -231,3 +231,36 @@ func test_py_iter_is_python_iteration() -> bool:
 	T.is_err(ScfgPy.py_iter(null), "TypeError", "None")
 	T.is_err(ScfgPy.py_iter(true), "TypeError", "a bool")
 	return T.done()
+
+
+# CPython's int(str) refuses more than 4300 digits (sys.get_int_max_str_digits()): a ValueError,
+# checked before any digit is converted.
+func test_py_int_digit_limit() -> bool:
+	T.eq(_s(ScfgPy.py_int("9".repeat(4300))), "9".repeat(4300), "4300 digits")
+	T.eq(_s(ScfgPy.py_int(" " + "1_".repeat(2000) + "1 ")), "1".repeat(2001), "underscores do not count")
+	for text: String in ["9".repeat(4301), "-" + "9".repeat(4301), "1_".repeat(4300) + "1", "9".repeat(100000)]:
+		var start := Time.get_ticks_msec()
+		T.is_err(ScfgPy.py_int(text), "ValueError", "%d characters" % text.length())
+		T.ok(Time.get_ticks_msec() - start < 2000, "refused at once")
+	return T.done()
+
+
+func _s(v: Variant) -> String:
+	if v is ScfgErr:
+		return "<%s>" % str(v)
+	if v is ScfgBigInt:
+		return (v as ScfgBigInt).to_decimal()
+	return str(v)
+
+
+# Port only: parsing and repr build their text in one join, so 100,000 characters of untrusted
+# input (an RPC's hex field, a stored or pasted id in an error message) cost milliseconds.
+func test_long_input_is_parsed_and_quoted_in_linear_time() -> bool:
+	var start := Time.get_ticks_msec()
+	T.ok(ScfgPy.py_hex_int("0x" + "f".repeat(100000)) is ScfgBigInt, "a 100,000-digit hex value")
+	T.is_err(ScfgPy.py_hex_int("0x" + "f".repeat(100000) + "z"), "ValueError", "a bad one")
+	T.eq(ScfgPy.py_int(" ".repeat(100000) + "5"), 5, "padded with 100,000 spaces")
+	T.eq(ScfgPy.py_repr("a".repeat(100000)).length(), 100002, "a long repr")
+	T.is_err(ScfgEvm.to_checksum_address("0x" + "a".repeat(100000)), "ValueError", "a long non-address")
+	T.ok(Time.get_ticks_msec() - start < 3000, "all within a generous bound")
+	return T.done()

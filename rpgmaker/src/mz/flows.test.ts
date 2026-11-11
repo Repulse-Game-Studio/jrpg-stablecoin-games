@@ -31,6 +31,7 @@ import {
   type RestoreResult, type ServerArgs,
 } from "../core/index.ts";
 import { addReceipt } from "../core/receipts.ts";
+import { makeStepOutcome } from "../core/watcher.ts";
 import { TX_CHARS, cleanPaste, scanPaste } from "./actions.ts";
 import { pageAsset } from "./assets.ts";
 import { installHooks } from "./boot.ts";
@@ -1090,7 +1091,9 @@ test("shutdownHooksFlushAndShutDownWithoutAWindowListener", async () => {
   env = await make({ beforeHooks: () => {
     g.SceneManager.terminate = () => void quits.push(JSON.parse(env.storage.read(STATE)!).pending);
   } });
-  pay(env.s, "unlock", { item: "chapter2" });
+  const atQuit: unknown[] = [];
+  env.s.onResult = (r) => void atQuit.push(r);
+  pay(env.s, "unlock", { item: "chapter2", callback: (r: PaymentResult) => void atQuit.push(r) });
   ctl = await session(env);
   env.clock.advance(1);
   env.chains["arbitrum"]!.head += 50;
@@ -1103,6 +1106,8 @@ test("shutdownHooksFlushAndShutDownWithoutAWindowListener", async () => {
   await tick();
   assert.equal(quits.length, 1, "then MZ's terminate runs");
   assert.deepEqual(env.host.notes, [], "nothing announced");
+  env.shim.frame(3);
+  assert.deepEqual(atQuit, [], "no callback and no onResult: nothing is delivered at the quit");
   assert.deepEqual((quits[0] as any)[ctl.sessionId].cursor, scanned, "with the scan progress stored");
   resetShim();
 
@@ -1148,4 +1153,157 @@ for (const nwjs of [false, true]) test(`aHiddenPageFlushes[${nwjs ? "nwjs" : "we
   await s._mirror.idle();
   assert.deepEqual(stored(), cursor, "hidden: flushed");
   assert.equal(s._checkouts.size, 1, "not shut down");
+});
+
+// --- the pay() callback map (Ren'Py's _state.callbacks; tests/unit/test_renpy_callbacks.py) ----------
+
+test("aDeliveredPaidResultDropsTheCallback", async () => {
+  const env = await make();
+  const { s, host } = env;
+  const called: PaymentResult[] = [];
+  pay(s, "unlock", { item: "chapter2", callback: (r: PaymentResult) => void called.push(r) });
+  const ctl = await session(env);
+  const sid = ctl.sessionId;
+  host.last.close("keep_playing");
+  await tick();
+  await pass(env);
+  assert.ok(s._callbacks.has(sid), "registered while the payment is pending");
+  await payOnChain(env, ctl);
+  assert.deepEqual(called.map((r) => r.status), ["paid"], "the callback got the final result");
+  assert.equal(s._callbacks.size, 0, "and is dropped: the session is over");
+  await pass(env);
+  assert.equal(s._callbacks.size, 0, "not registered again");
+});
+
+test("anExpiredSessionKeepsItsCallbackUntilItIsPaid", async () => {
+  const env = await make();
+  const { s, host } = env;
+  const called: PaymentResult[] = [];
+  pay(s, "unlock", { item: "chapter2", callback: (r: PaymentResult) => void called.push(r) });
+  const ctl = await session(env);
+  const sid = ctl.sessionId;
+  host.last.close("keep_playing");
+  await tick();
+  await pass(env);
+  env.clock.advance(31 * 60);
+  await pass(env);
+  assert.deepEqual(called.map((r) => r.status), ["expired"], "the window closed");
+  assert.equal(s._background.size, 0, "its controller is closed");
+  assert.ok(s._callbacks.has(sid), "the scan goes on: a later payment still reaches the callback");
+  await payOnChain(env, ctl);
+  assert.deepEqual(called.map((r) => r.status), ["expired", "paid"]);
+  assert.equal(s._callbacks.size, 0);
+});
+
+// A sheet left open on an expired session: once the session leaves the Engine at its scan horizon
+// the callback is dropped, and the sheet's controller, still polled by every pump, does not register
+// it again (no snapshot would ever list the session to prune it).
+test("anOpenSheetPastTheScanHorizonDoesNotRegisterItsCallbackAgain", async () => {
+  const env = await make();
+  const { s, host } = env;
+  pay(s, "unlock", { item: "chapter2", callback: () => undefined });
+  const ctl = await session(env);
+  const sid = ctl.sessionId!;
+  await pass(env);
+  env.clock.advance(31 * 60);
+  await pass(env);
+  assert.equal(String(ctl.state), "expired", "the open sheet shows the expired session");
+  assert.ok(s._callbacks.has(sid), "the scan goes on");
+  env.clock.advance(24 * 3600);
+  await pass(env);
+  await pass(env);
+  assert.ok(!(sid in s._worker!.snapshot.pending), "the session left the Engine");
+  assert.equal(s._callbacks.size, 0, "its callback is dropped");
+  await pass(env);
+  await pass(env);
+  assert.equal(s._callbacks.size, 0, "not registered again");
+  assert.equal(s._checkouts.size, 1, "the sheet is still open");
+  host.last.close("cancel");
+});
+
+test("aDiscardedSessionDropsItsCallback", async () => {
+  const env = await make();
+  const { s, host } = env;
+  pay(s, "unlock", { item: "chapter2", callback: () => undefined });
+  const ctl = await session(env);
+  const first = ctl.sessionId;
+  await pass(env);
+  assert.ok(s._callbacks.has(first));
+  ctl.chooseNetwork("base"); // the player switched networks: the unpaid session is discarded
+  await pass(env);
+  await pass(env);
+  const second = ctl.sessionId;
+  assert.ok(second && second !== first, "a new session");
+  assert.deepEqual([...s._callbacks.keys()], [second], "only the live session keeps a callback");
+  host.last.close("cancel");
+});
+
+test("aSessionPaidBeforeAnySnapshotListedItReleasesItsCallback", async () => {
+  // The state guard of _registerCallback: no snapshot ever lists the session (so _pruneCallbacks
+  // cannot drop it), and the paid controller is still polled in the pump that delivered the result.
+  const env = await make();
+  const { s, host } = env;
+  const worker = s._worker!;
+  const frozen = worker.snapshot;
+  const pass = async () => {
+    await worker.runOnce();
+    worker.snapshot = frozen; // no snapshot lists the session
+    env.shim.frame();
+  };
+  const called: PaymentResult[] = [];
+  pay(s, "unlock", { item: "chapter2", callback: (r: PaymentResult) => void called.push(r) });
+  const ctl = host.last.ctl;
+  ctl.chooseNetwork("arbitrum");
+  await pass();
+  const sid = ctl.sessionId;
+  assert.ok(sid && s._callbacks.has(sid), "registered");
+  host.last.close("keep_playing");
+  await tick();
+  const chain = env.chains["arbitrum"]!;
+  const block = chain.head + 1;
+  chain.logs.push(transferLog(USDC_ARB, PAYER, DEV, BigInt(ctl.session.units), { block, tx_hash: TX }));
+  chain.head = block;
+  await pass();
+  chain.head = block + 19;
+  await pass();
+  assert.deepEqual(called.map((r) => r.status), ["paid"]);
+  assert.equal(s._callbacks.size, 0, "released although no snapshot listed it");
+  await pass();
+  assert.equal(s._callbacks.size, 0);
+});
+
+test("theSnapshotIsReadBeforeTheOutcomesAreDrained", async () => {
+  // A pass landing between the drain and a later snapshot read: right after a drain that found
+  // nothing, the paid session leaves the snapshot and its outcome is queued for the next drain. A
+  // pump that read the snapshot after draining would drop the callback before the result arrived.
+  const env = await make();
+  const { s, host } = env;
+  const called: PaymentResult[] = [];
+  pay(s, "unlock", { item: "chapter2", callback: (r: PaymentResult) => void called.push(r) });
+  const ctl = await session(env);
+  const sid = ctl.sessionId;
+  host.last.close("keep_playing");
+  await tick();
+  await pass(env);
+  await pass(env); // listed by a snapshot: the callback could be pruned
+  const worker = s._worker!;
+  const drain = worker.drainOutcomes.bind(worker);
+  let armed = true;
+  worker.drainOutcomes = () => {
+    const out = drain();
+    if (armed && out.length === 0) {
+      armed = false;
+      const pending = { ...worker.snapshot.pending };
+      delete pending[sid];
+      worker.snapshot = { ...worker.snapshot, pending };
+      (worker as any)._outcomes.push(makeStepOutcome(sid, "paid", {
+        result: makePaymentResult({ status: "paid", kind: "unlock", item: "chapter2", session_id: sid }),
+      }));
+    }
+    return out;
+  };
+  env.shim.frame(); // drains nothing, then the pass lands
+  env.shim.frame(); // drains the paid outcome
+  assert.deepEqual(called.map((r) => r.status), ["paid"], "the paid result reached the callback");
+  assert.equal(s._callbacks.size, 0);
 });

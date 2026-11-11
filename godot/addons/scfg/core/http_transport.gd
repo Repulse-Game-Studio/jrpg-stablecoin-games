@@ -13,7 +13,7 @@
 ##
 ## Results follow ScfgCoio.response_for (rpc.UrllibTransport's rules). A request that gets no
 ## HTTP answer (refused, unresolvable, TLS, timeout) is a TransportError without a status. The
-## body is decoded as strict UTF-8 (ScfgCoio.parse_body).
+## body is decoded as strict UTF-8 (ScfgCoio.parse_rpc_body).
 ##
 ## THE HOST GOING AWAY. When the host is not in the tree (never added, removed, freed or queued
 ## for deletion), post_json returns an ScfgErr of kind HostGone at once and adds nothing to it.
@@ -117,7 +117,7 @@ func post_json(url: String, payload: Dictionary, timeout: float) -> Variant:
 	req.queue_free()
 	if result != HTTPRequest.RESULT_SUCCESS:
 		return ScfgCoio.transport_error(_result_message(result))
-	return ScfgCoio.response_for(got[1], ScfgCoio.parse_body(got[3]))
+	return ScfgCoio.response_for(got[1], ScfgCoio.parse_rpc_body(got[3]))
 
 
 static func _result_message(result: int) -> String:

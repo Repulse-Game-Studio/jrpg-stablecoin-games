@@ -5,6 +5,8 @@ The demo is played the way a player plays it, through godot/demo/e2e/e2e_driver.
 clicks the buttons on the sheet and in the game with mouse events (and presses input actions),
 and reports what the screen shows. Per run:
 
+  0. Broken e2e configs (bad JSON, a config configure() refuses): the demo quits with code 1 by
+     itself and runs nothing after that.
   1. Unlock Chapter 2 by manual transfer: copy the amount and address from the sheet, pay them
      from the chain side, wait for "Payment confirmed", check Scfg.owns("chapter2") and the
      receipt in user://scfg/state.json.
@@ -58,6 +60,9 @@ OVERRIDE = DEMO / "override.cfg"  # git-ignored; written for the run, removed af
 # refuses to start when one is already there, so a developer's own file is never deleted)
 DRIVER = "res://e2e/e2e_driver.gd"
 REPLY_PREFIX = b"SCFG-REPLY "
+# The driver prints this when the game quits on its own while its stdin reader waits: the runner
+# then closes the game's stdin, so the reader ends and the driver can join it (e2e_driver.gd).
+QUITTING = b"SCFG-QUITTING\n"
 REPLY_TIMEOUT = 30
 ITEM = "chapter2"
 ITEMS = {ITEM: {"code": 1, "price": "1.00", "token": "USDC", "title": "Chapter 2: The Fall"}}
@@ -66,7 +71,26 @@ UNLOCKED = "Chapter 2: unlocked. Thank you for supporting the game!"
 # Engine output that means something went wrong: Godot prints "ERROR:" / "SCRIPT ERROR:" for
 # push_error and script faults, "WARNING:" for push_warning, "leaked" for ObjectDB leaks at exit.
 BAD_OUTPUT = re.compile(r"SCRIPT ERROR|^ERROR:|^WARNING:|leaked", re.M)
-IMPORT_ERRORS = re.compile(r"SCRIPT ERROR|^ERROR:", re.M)
+# Godot 4.4+ warns once per script of the fresh addon copy (sync_godot leaves out *.uid) whose
+# UID its import cache still has; an "at:" line follows. The only warning an import may print.
+UID_WARNING = re.compile(
+    r'^WARNING: Missing \.uid file for path "res://[^"]+"\. The file was re-created from cache\.$'
+)
+
+
+def import_problems(log: str) -> list[str]:
+    """The lines of an import (or export) log that mean something went wrong: every error and
+    warning (BAD_OUTPUT) except the missing-.uid warning, with the "at:" line right under it."""
+    problems = []
+    after_uid_warning = False
+    for line in log.splitlines():
+        if after_uid_warning and line.lstrip().startswith("at: "):
+            after_uid_warning = False
+            continue
+        after_uid_warning = bool(UID_WARNING.match(line))
+        if not after_uid_warning and BAD_OUTPUT.search(line):
+            problems.append(line)
+    return problems
 
 
 class E2EError(Exception):
@@ -293,10 +317,34 @@ class Game:
             if out.startswith(REPLY_PREFIX):
                 break
             self._noise.append(out.decode(errors="replace"))
+            if out == QUITTING:
+                self._close_stdin()  # the game is quitting on its own: EOF follows
         reply = json.loads(out[len(REPLY_PREFIX) :])
         if "error" in reply:
             raise E2EError(f"{op} {args}: {reply['error']}")
         return reply["ok"]
+
+    def _close_stdin(self) -> None:
+        if self.proc.stdin and not self.proc.stdin.closed:
+            try:
+                self.proc.stdin.close()
+            except BrokenPipeError:
+                pass
+
+    def wait_exit(self, timeout: float) -> int:
+        """Wait for a game that quits on its own (closing its stdin when it asks); returns the
+        exit code."""
+        deadline = time.monotonic() + timeout
+        while (out := self._read_line(deadline)) is not None:
+            self._noise.append(out.decode(errors="replace"))
+            if out == QUITTING:
+                self._close_stdin()
+        try:
+            return self.proc.wait(max(deadline - time.monotonic(), 0.1))
+        except subprocess.TimeoutExpired:
+            raise E2EError(
+                f"the game did not quit within {timeout:g} s:\n{self.output()}"
+            ) from None
 
     def _read_line(self, deadline):
         fd = self.proc.stdout.fileno()
@@ -318,7 +366,7 @@ class Game:
     def quit(self) -> int:
         """Quit the normal way; returns the exit code."""
         self.call("quit")
-        self.proc.stdin.close()
+        self._close_stdin()
         try:
             code = self.proc.wait(30)
         except subprocess.TimeoutExpired:
@@ -340,8 +388,12 @@ class Game:
 
     def close(self) -> None:
         if self.proc.poll() is None:
-            self.proc.kill()
-            self.proc.wait()
+            self._close_stdin()  # a game waiting to join its stdin reader exits by itself
+            try:
+                self.proc.wait(5)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                self.proc.wait()
         self.proc.stdout.close()
         self._log.close()
 
@@ -495,6 +547,42 @@ def tip_by_browser_wallet(game: Game, fam, browser, state_file: Path) -> None:
     print("  tipped through the browser page; state.json holds both receipts")
 
 
+# Broken test hooks (the file's text, what the error printed for it says): the demo must refuse
+# each one and quit with exit code 1, never fall back to its built-in testnet config.
+BAD_HOOKS = (
+    ("[1, 2]", "not a JSON object"),
+    # a config configure() refuses (the addon prints "scfg: ...")
+    (json.dumps({"configure": {"wallet": "0x123"}, "items": {}}), "scfg: "),
+)
+
+
+def bad_hooks_quit_at_once(godot: str, env: dict, work: Path) -> None:
+    """The demo with each BAD_HOOKS config, driver loaded, as a failed run starts: it prints the
+    reason and quits with code 1 by itself (the driver joins its stdin reader: no kill, no thread
+    warning), and runs nothing after the quit (no "configure first" from the rest of _ready)."""
+    for i, (text, reason) in enumerate(BAD_HOOKS):
+        config = work / f"bad_hook_{i}.json"
+        config.write_text(text)
+        game = Game(godot, {**env, "SCFG_E2E_CONFIG": str(config)}, work / f"bad_hook_{i}.log")
+        try:
+            code = game.wait_exit(60)
+            out = game.output()
+        finally:
+            game.close()
+        bad = [line for line in out.splitlines() if BAD_OUTPUT.search(line)]
+        if (
+            code != 1
+            or not bad
+            or not all(reason in line for line in bad)
+            or "Scfg.configure(...) first" in out
+        ):
+            raise E2EError(
+                f"with the e2e config {text!r} the demo should print why ({reason!r}) "
+                f"and quit with code 1 (it exited with {code}):\n{out}"
+            )
+    print(f"0. bad e2e configs: the demo quits with code 1 ({len(BAD_HOOKS)} cases)")
+
+
 def still_owned_after_restart(game: Game) -> None:
     snap = wait_for(game, "the unlocked chapter", lambda s: UNLOCKED in s["game"]["texts"])
     if button(snap["game"], "Unlock") is not None or not game.call("owns", item=ITEM):
@@ -563,8 +651,7 @@ def run(godot: str, family: str) -> int:
             timeout=300,
         )
         log = imported.stdout + imported.stderr
-        # (Import warnings are allowed: 4.4+ warns that the fresh addon copy has no .uid files.)
-        if imported.returncode != 0 or IMPORT_ERRORS.search(log):
+        if imported.returncode != 0 or import_problems(log):
             raise E2EError(f"the demo did not import cleanly:\n{log[-4000:]}")
         outputs = []
         fam = fam_cls(exe, work)
@@ -578,6 +665,7 @@ def run(godot: str, family: str) -> int:
                 f'[autoload]\n\nScfgE2EDriver="*{DRIVER}"\n'
             )
         print(f"Godot e2e: {family} on {godot}")
+        bad_hooks_quit_at_once(godot, env, work)
         with sync_playwright() as p:
             browser = launch_chromium(p)
             game = Game(godot, env, work / "game1.log")

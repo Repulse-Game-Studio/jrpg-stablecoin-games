@@ -23,3 +23,9 @@
 3. Pay once with your wallet's own **Send** button on the Manual transfer step. This is a native USDC send, which reaches the game differently from the checkout's ERC-20 transfer.
 4. If your payout `wallet` is a smart-contract wallet (a Safe, a smart account), check it is deployed on Arc before you leave Arc on (see [Arc](configure/arc.md)).
 5. Run `scfg.clear_local_data()`, then restore with both transaction hashes.
+
+**Web build checklist** (a Ren'Py web build, see [Web builds](security/web-builds.md)):
+
+1. Upload the build to its real home (on itch.io: an HTML game) and pay a small amount with a browser wallet extension.
+2. Reload the page and check the purchase is still owned.
+3. Shared origin (not yet verified with Ren'Py): if the host serves other games from the same origin, buy something, open another Ren'Py web game on that origin in a second tab, save there and close it, then reload your game and check the purchase is still owned. If it is gone, **Restore purchases** with the transaction hash brings it back; please report it.

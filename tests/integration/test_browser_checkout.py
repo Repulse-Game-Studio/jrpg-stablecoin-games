@@ -18,7 +18,14 @@ from scfg_core.checkout import CheckoutController
 from scfg_core.local_server import CheckoutServer
 from scfg_core.payments import prepare_payment
 
-from browser_mocks import install_mock_wallet
+from browser_mocks import (
+    THROWING_ETHEREUM,
+    assert_nothing_escaped,
+    install_malformed_extensions,
+    install_mock_wallet,
+    record_escapes,
+    try_bad_wallets,
+)
 from conftest import mine, tick_until
 
 pytestmark = pytest.mark.integration
@@ -126,4 +133,52 @@ def test_page_handles_wallet_rejection(world, browser):
     page.wait_for_function("document.getElementById('status').textContent.includes('rejected')")
     assert pay_button.is_enabled()                      # player can try again
     assert world["engine"].pending[ctl.session_id]["hint_tx"] is None
+    ctl.close()
+
+
+def test_malformed_extensions_never_break_the_page(world, browser):
+    """Broken EIP-6963 announcements and a wallet rejecting with odd values: each is the page's
+    wallet error at worst, nothing escapes into the page, and the good wallet still pays."""
+    ctl, url = open_checkout(world)
+    page = new_page(browser, world, world["payer"])
+    errors = install_malformed_extensions(page)
+    page.goto(url)
+    assert page.locator("#title").inner_text() == "Chapter 2"
+    page.wait_for_function("document.getElementById('status').textContent === 'Choose your wallet.'")
+    page.wait_for_timeout(700)                         # past the page's "no wallet" check
+    assert_nothing_escaped(page, errors)
+    names = sorted(page.locator("#wallets button").all_inner_texts())
+    assert names == ["Pay with Bad Wallet", "Pay with Mock Wallet", "Pay with Trap Wallet"], names
+    try_bad_wallets(page, errors)
+
+    page.get_by_role("button", name="Pay with Mock Wallet").click()
+    pay_button = page.get_by_role("button", name=re.compile(r"^Pay \d"))
+    pay_button.wait_for()
+    pay_button.click()
+    deadline = time.time() + 10
+    while world["engine"].pending[ctl.session_id]["hint_tx"] is None:
+        assert time.time() < deadline, "page never reported the transaction"
+        time.sleep(0.05)
+    mine(world["rpc"], 3)
+    tick_until(world["engine"], "paid", on_outcome=ctl.on_outcome)
+    page.wait_for_function(
+        "document.getElementById('status').textContent.includes('Payment confirmed')",
+        timeout=10_000)
+    assert_nothing_escaped(page, errors)
+    ctl.close()
+
+
+def test_a_throwing_window_ethereum_is_no_wallet(world, browser):
+    """window.ethereum whose getter throws, and no EIP-6963 wallet: the page says it found no
+    wallet, and nothing escapes."""
+    ctl, url = open_checkout(world)
+    page = browser.new_page()
+    errors = record_escapes(page)
+    page.add_init_script(THROWING_ETHEREUM)
+    page.goto(url)
+    page.wait_for_function(
+        "document.getElementById('status').textContent.includes('No wallet extension found')")
+    assert page.locator("#status").get_attribute("class") == "warn"
+    assert page.locator("#wallets button").count() == 0
+    assert_nothing_escaped(page, errors)
     ctl.close()

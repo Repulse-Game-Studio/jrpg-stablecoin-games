@@ -31,7 +31,7 @@ def _snapshots():
 
 # Scenarios whose loaded state is deliberately not valid (garbage in the store that
 # re-verification must clear): only the snapshots after their steps must match the schema.
-INVALID_SETUP = {"reverify/malformed_entries_are_removed"}
+INVALID_SETUP = {"reverify/malformed_entries_are_removed", "reverify/invalid_receipts_are_removed"}
 
 
 @pytest.mark.parametrize("setup, snapshots", _snapshots())
@@ -128,6 +128,10 @@ def test_state_schema_accepts_a_good_snapshot():
     (lambda s: _receipt(s).update(kind="refund"), "kind: expected one of"),
     (lambda s: _receipt(s).update(log_index=1), "key does not match"),
     (lambda s: _receipt(s).update(item=None), None),
+    # a Solana transfer with no token-balance drop and no fee payer has no payer (None)
+    (lambda s: _receipt(s).update(payer=None), None),
+    (lambda s: _pending(s)["match"].update(payer=None), None),
+    (lambda s: _receipt(s).update(payer=5), "payer: expected str|null"),
 ])
 def test_state_schema_reports_problems(mutate, problem):
     snap = copy.deepcopy(_snapshot())

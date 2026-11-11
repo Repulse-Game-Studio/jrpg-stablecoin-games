@@ -196,6 +196,56 @@ func test_stop_closes_once_and_pump_does_nothing_after() -> bool:
 	return T.done()
 
 
+# tests/unit/test_overlay.py::test_a_build_handed_back_after_build_tx_stopped_the_overlay_is_cancelled
+func test_a_build_handed_back_after_build_tx_stopped_the_overlay_is_cancelled() -> bool:
+	var job := ScfgJob.new()
+	var holder := {}
+	var m := _make(func(_account: Variant) -> Variant:
+		(holder["o"] as ScfgOverlayCheckout).stop()
+		return job)
+	var o: ScfgOverlayCheckout = m["overlay"]
+	holder["o"] = o
+	var ui: FakeUi = m["ui"]
+	o.start()
+	ui.inbox = [{"type": "build", "id": 1, "body": {"account": SOL}}]
+	o.pump()
+	T.ok(job.cancelled(), "the build nobody answers must not run")
+	T.eq(ui.replies(), [], "no reply")
+	T.eq(o._builds, {}, "nothing kept for it")
+	holder.clear()  # the overlay holds the Callable that holds it: break the cycle
+	return T.done()
+
+
+# tests/unit/test_overlay.py::test_the_rest_of_a_batch_is_ignored_once_a_callback_stopped_the_overlay
+func test_the_rest_of_a_batch_is_ignored_once_a_callback_stopped_the_overlay() -> bool:
+	var ui := FakeUi.new()
+	var hints: Array = []
+	var built: Array = []
+	var status := {"state": "waiting"}
+	var holder := {}
+	var o := ScfgOverlayCheckout.new({"ui": ui, "key": "o1", "session_info": {"title": "Chapter 2"},
+		"on_tx": func(tx: Variant, _sender: Variant = null) -> void:
+			hints.append(tx)
+			(holder["o"] as ScfgOverlayCheckout).stop(),
+		"get_status": func() -> Dictionary: return status.duplicate(),
+		"build_tx": func(account: Variant) -> Variant:
+			built.append(account)
+			return ScfgJob.new(),
+		"clock": F.FakeClock.new(0.0).fn})
+	holder["o"] = o
+	o.start()
+	status["state"] = "confirming"
+	ui.inbox = [{"type": "tx", "body": {"tx_hash": TX}}, {"type": "tx", "body": {"tx_hash": "0x" + "cd".repeat(32)}},
+		{"type": "build", "id": 2, "body": {"account": SOL}}]
+	o.pump()
+	T.eq(hints, [TX], "only the first hint")
+	T.eq(built, [], "no build after stop")
+	T.eq(o._builds, {}, "nothing kept")
+	T.ok(not ui.calls.has(["status", "confirming"]), "no status pushed to a closed overlay")
+	holder.clear()  # the overlay holds the Callables that hold it: break the cycle
+	return T.done()
+
+
 # Godot only: the callbacks belong to a controller that may have been released; a freed one is
 # skipped, never a script error (README "M4 contracts").
 func test_callbacks_of_a_released_controller_are_skipped() -> bool:

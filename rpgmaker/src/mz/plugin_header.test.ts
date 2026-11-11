@@ -11,6 +11,7 @@ import { mzEncode, readHeader, structOf, type Header } from "../../test/mz_heade
 import { resetShim } from "../../test/mz_shim/index.ts";
 import { ITEM_FIELD, PARAM, TEXT_FIELD, parseParams } from "./params.ts";
 import { ARG, COMMAND, COMMAND_ARGS, PLUGIN_DESC, renderHeader } from "./plugin_header.ts";
+import { VERSION } from "./scfg.ts";
 
 const g = globalThis as any;
 
@@ -27,7 +28,7 @@ const names = (list: { name: string }[]) => list.map((p) => p.name).sort();
 test("headerDeclaresEveryCommandAndParam", async () => {
   const h = header();
   assert.deepEqual([h.meta["target"], h.meta["plugindesc"], h.meta["author"], h.meta["url"]],
-    ["MZ", PLUGIN_DESC, "Repulse Game Studio", "https://jrpg.com/stablecoinforgames/"]);
+    ["MZ", `${PLUGIN_DESC} v${VERSION}`, "Repulse Game Studio", "https://jrpg.com/stablecoinforgames/"]);
   // the parameters are exactly what params.ts reads, with the plan's display names as @text
   assert.deepEqual(names(h.params), Object.values(PARAM).sort());
   const text = Object.fromEntries(h.params.map((p) => [p.name, p.text]));
@@ -83,6 +84,14 @@ test("headerDeclaresEveryCommandAndParam", async () => {
     "Confirmations {", "Previous Wallets [", "Custom Chains:", "\"chain_id\"", "SCFG.configure({...}) again", "SCFG.addItem(id"]) {
     assert.ok(h.help.includes(needle), `the help mentions ${JSON.stringify(needle)}`);
   }
+});
+
+test("headerShowsTheVersion", () => {
+  // MZ has no @version tag: the Plugin Manager's description and the help's first line say it
+  const h = header();
+  assert.equal(h.meta["plugindesc"], `${PLUGIN_DESC} v${VERSION}`);
+  assert.equal(h.help.split("\n")[0], `Stablecoin for Games (SCFG) for RPG Maker MZ, v${VERSION}.`);
+  assert.equal(h.meta["plugindesc"]!.split("\n").length, 1, "one line");
 });
 
 test("headerParamsRoundTripThroughMzEncoding", () => {

@@ -444,6 +444,22 @@
     },
     "item": {
      "code": 1,
+     "item_id": "chapter-2\n",
+     "price": "4.99",
+     "title": "Chapter 2",
+     "token": "USDC"
+    }
+   }
+  },
+  {
+   "error": "item.invalid_id",
+   "fn": "add_item",
+   "in": {
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "item": {
+     "code": 1,
      "item_id": "Chapter",
      "price": "4.99",
      "title": "Chapter 2",

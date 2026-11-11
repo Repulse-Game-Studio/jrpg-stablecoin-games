@@ -1,8 +1,9 @@
 ## QR Code generator: a GDScript port of the vendored Python copy of the Project Nayuki
-## library, scfg_core/_qrcodegen.py (not of upstream v1.8.0: the vendored copy predates
-## upstream's version-32 alignment-pattern fix, and the conformance vectors come from it, so
-## this port keeps the vendored step formula). The port is line-for-line where it can be; the
-## GDScript differences are listed below. It produces bit-identical matrices.
+## library, scfg_core/_qrcodegen.py (not of upstream v1.8.0). The vendored copy computes the
+## alignment-pattern step with one formula that is right for every version, version 32 (step
+## 26) included, where v1.8.0 special-cases version 32: both give the standard's positions
+## (ISO/IEC 18004 Table E.1). The port is line-for-line where it can be; the GDScript
+## differences are listed below. It produces bit-identical matrices.
 ##
 ## Differences from the Python module, none of which changes a result:
 ## - Python's exceptions are ScfgErr values (ValueError, DataTooLongError, a ValueError) from the
@@ -533,7 +534,7 @@ class QrCode:
 	# Returns an ascending list of positions of alignment patterns for this version number.
 	# Each position is in the range [0,177), and are used on both the x and y axes.
 	# This could be implemented as lookup table of 40 variable-length lists of integers.
-	# (The vendored Python's step formula, without upstream's version-32 special case.)
+	# (The vendored Python's step formula: version 32 gets step 26 without a special case.)
 	func _get_alignment_pattern_positions() -> Array:
 		if _version == 1:
 			return []

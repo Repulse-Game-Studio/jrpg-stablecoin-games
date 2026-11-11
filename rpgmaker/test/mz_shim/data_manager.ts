@@ -6,11 +6,12 @@
  * for, as MZ); `loadGame(id)` recreates the game objects and hands the loaded contents to
  * `extractSaveContents`, the hook plugins alias to re-apply state after a load.
  *
- * Simplified: the database is only `$dataSystem`, built from the shim's options (the title,
- * switch and variable names, the start position, `advanced.gameId`, the encryption settings) and set on the next macrotask; the save
+ * Simplified: the database is only `$dataSystem` and `$dataCommonEvents`, built from the shim's
+ * options (the title, switch and variable names, the start position, `advanced.gameId`, the
+ * encryption settings; the common events' lists) and set on the next macrotask; the save
  * contents are only system, switches, variables, map and player; no autosave.
  */
-import type { Ctx } from "./context.ts";
+import { DEFAULT_GAME_ID, type Ctx } from "./context.ts";
 
 export function createDataManager(ctx: Ctx) {
   const g = ctx.g;
@@ -21,11 +22,15 @@ export function createDataManager(ctx: Ctx) {
     variables: ["", ...Array.from({ length: opts.variables ?? 20 }, (_, i) => `Variable ${i + 1}`)],
     gameTitle: opts.gameTitle ?? "Shim Game",
     startMapId: 1, startX: 8, startY: 6,
-    advanced: { gameId: opts.gameId ?? 12345678, screenWidth: opts.width ?? 816, screenHeight: opts.height ?? 624 },
+    advanced: { gameId: opts.gameId ?? DEFAULT_GAME_ID, screenWidth: opts.width ?? 816, screenHeight: opts.height ?? 624 },
     // the deployment's "Encrypt image files" / "Encrypt audio files" and the project's key
     hasEncryptedImages: !!opts.encryption?.images, hasEncryptedAudio: !!opts.encryption?.audio,
     encryptionKey: opts.encryption?.key ?? "",
   });
+  // data/CommonEvents.json, reduced: index 0 is null, as in MZ's database arrays
+  const commonEvents = () => [null, ...(opts.commonEvents ?? []).map((e, i) => ({
+    id: i + 1, name: e.name ?? `Common Event ${i + 1}`, trigger: 0, switchId: 1, list: e.list,
+  }))];
   return {
     _globalInfo: [] as unknown[],
     _lastAccessedId: 1,
@@ -33,7 +38,10 @@ export function createDataManager(ctx: Ctx) {
     // DataManager.loadDatabase(): every $data* to null, then each file arrives later
     loadDatabase(): void {
       g.$dataSystem = null;
+      g.$dataCommonEvents = null;
       setTimeout(() => {
+        g.$dataCommonEvents = commonEvents();
+        this.onLoad(g.$dataCommonEvents);
         g.$dataSystem = system();
         this.onLoad(g.$dataSystem);
       }, 0);
@@ -93,12 +101,13 @@ export function createDataManager(ctx: Ctx) {
       g.$gameMap = contents.map;
       g.$gamePlayer = contents.player;
     },
-    // DataManager.saveGame(savefileId) -> Promise of 0. Modelled behaviour: the save contents are
-    // written under "file<id>"; once written, the slot's info is recorded in the global info, which
-    // is saved too (not waited for).
+    // DataManager.saveGame(savefileId) -> Promise of 0. Modelled behaviour, in MZ 1.x's order: the
+    // save contents are made, then the save name; the contents are written under "file<id>"; once
+    // written, the slot's info is recorded in the global info, which is saved too (not waited for).
     saveGame(savefileId: number): Promise<number> {
-      return g.StorageManager.saveObject(this.makeSavename(savefileId), this.makeSaveContents())
-        .then(() => this._shimSlotWritten(savefileId));
+      const contents = this.makeSaveContents();
+      const saveName = this.makeSavename(savefileId);
+      return g.StorageManager.saveObject(saveName, contents).then(() => this._shimSlotWritten(savefileId));
     },
     // DataManager.loadGame(savefileId) -> Promise of 0. Modelled behaviour: the slot is read, then
     // the game objects are rebuilt and the loaded contents handed to extractSaveContents.

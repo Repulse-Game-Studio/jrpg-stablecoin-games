@@ -3,8 +3,8 @@
  * `js/plugins/SCFG.js`. The build (`build.mjs`) emits `renderHeader()` as the bundle's banner, so
  * it comes before the IIFE:
  *
- * - the `/*:` block: target, description, author, help, the plugin parameters (`@param`) and the
- *   plugin commands (`@command`, `@arg`);
+ * - the `/*:` block: target, description (with the version), author, help (its first line with the
+ *   version too), the plugin parameters (`@param`) and the plugin commands (`@command`, `@arg`);
  * - one `/*~struct~Name:` block per struct type (`Item`, `Text`).
  *
  * The parameter keys are the ones params.ts reads (PARAM, ITEM_FIELD, TEXT_FIELD; Ruling 4: the
@@ -16,11 +16,15 @@
  * real editor (no MZ here): see rpgmaker/demo/README.md.
  */
 import { DEFAULT_TIP_AMOUNT, DEFAULT_TIP_JAR_LABEL, ITEM_FIELD, PARAM, TEXT_FIELD } from "./params.ts";
+import { VERSION } from "./version.ts";
 
 /** The plugin's file and command name: `js/plugins/SCFG.js`, commands registered under "SCFG". */
 export const PLUGIN_NAME = "SCFG";
 
-/** The Plugin Manager's one-line description (`@plugindesc`). */
+/**
+ * The Plugin Manager's one-line description; `@plugindesc` adds ` v<VERSION>` (MZ has no version
+ * annotation, so the description and the help's first line show it; tools/package.py checks both).
+ */
 export const PLUGIN_DESC = "Stablecoin for Games (SCFG): USDC/USDT unlocks and tips paid straight to your wallet";
 
 /** The players' guide to wallets (the Wallet Help command opens it). */
@@ -148,7 +152,7 @@ const COMMANDS: Command[] = [
 ];
 
 const HELP = [
-  "Stablecoin for Games (SCFG) for RPG Maker MZ.",
+  `Stablecoin for Games (SCFG) for RPG Maker MZ, v${VERSION}.`,
   "",
   "Players pay for unlocks and tips in USDC or USDT, straight to your wallet:",
   "with a browser wallet, a phone wallet (QR code) or a manual transfer.",
@@ -255,7 +259,7 @@ function block(opening: string, lines: string[]): string {
 export function renderHeader(): string {
   const lines = [
     "@target MZ",
-    `@plugindesc ${PLUGIN_DESC}`,
+    `@plugindesc ${PLUGIN_DESC} v${VERSION}`,
     "@author Repulse Game Studio",
     "@url https://jrpg.com/stablecoinforgames/",
     "",

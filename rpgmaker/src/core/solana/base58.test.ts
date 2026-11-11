@@ -38,3 +38,30 @@ test("normalizePubkey strips Python whitespace, not JS-only", () => {
   assert.equal(normalizePubkey("\x1c" + TOKEN + "\u00a0\u3000"), TOKEN);
   assert.throws(() => normalizePubkey("\ufeff" + TOKEN), ValueError);
 });
+
+test("test_fixed_length_decoding_refuses_long_text_before_decoding", () => {
+  // tests/unit/test_solana_base58.py: text longer than the longest encoding (44 / 88 characters)
+  // is refused before decoding (decoding is quadratic: a crafted stored id must not freeze
+  // launch). Checked by the refusal, not the clock: it is the length's, also for a text whose
+  // first character is not base58 (decoding first would fail on that character instead).
+  const calls: [string, (t: string) => unknown][] = [
+    ["decodeFixed64", (t) => decodeFixed(t, 64)], ["decodeFixed32", (t) => decodeFixed(t, 32)],
+    ["normalizeSignature", normalizeSignature], ["normalizePubkey", normalizePubkey],
+  ];
+  for (const text of ["2".repeat(100_000), "1".repeat(100_000), "0" + "2".repeat(99_999), "z".repeat(89), " " + "2".repeat(89)]) {
+    for (const [name, call] of calls) {
+      assert.throws(() => call(text), (e: unknown) => e instanceof ValueError && /^too long for (32|64) bytes/.test(e.message),
+        `${name}(${text.slice(0, 5)}... x${text.length})`);
+    }
+  }
+});
+
+test("test_the_longest_encodings_still_decode", () => {
+  const sig = b58encode(new Uint8Array(64).fill(0xff));
+  const key = b58encode(new Uint8Array(32).fill(0xff));
+  assert.deepEqual([sig.length, key.length], [88, 44]);
+  assert.equal(normalizeSignature(sig), sig);
+  assert.equal(normalizePubkey(key), key);
+  assert.equal(normalizeSignature("1".repeat(64)), "1".repeat(64));
+  assert.throws(() => decodeFixed("1".repeat(89), 64), ValueError);
+});

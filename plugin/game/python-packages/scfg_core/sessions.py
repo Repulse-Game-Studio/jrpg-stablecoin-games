@@ -12,7 +12,7 @@ import secrets
 from collections.abc import MutableMapping
 from decimal import Decimal
 
-from .amounts import encode, parse_amount
+from .amounts import encode, parse_amount, stored_amount
 
 SESSION_WINDOW_S = 30 * 60
 SCAN_HORIZON_S = 24 * 3600
@@ -94,4 +94,4 @@ def is_past_horizon(rec: dict, now: float) -> bool:
 
 
 def session_price(rec: dict) -> Decimal:
-    return Decimal(rec["price"])
+    return stored_amount(rec["price"])

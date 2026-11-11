@@ -23,6 +23,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Callable
 
 from .coio import Request, TransportError  # noqa: F401  (re-exported)
+from .ints import digit_run_value, int_from, json_loads
 
 if TYPE_CHECKING:
     import ssl
@@ -60,10 +61,11 @@ def suggested_range(err: RpcError, tried: int) -> int:
     """Next eth_getLogs range to try after `err` rejected a `tried`-block request.
 
     Uses the limit when the provider states one ("limited to 0 - 50 blocks range"),
-    otherwise halves.
+    otherwise halves. A number of more than 18 significant digits is ignored (Ruling 6: it is
+    above any range, and converting a long digit run would cost quadratic time).
     """
-    stated = [int(n) for n in _NUMBER.findall(err.message)]
-    candidates = [n for n in stated if MIN_LOG_RANGE <= n < tried]
+    stated = [digit_run_value(n) for n in _NUMBER.findall(err.message)]
+    candidates = [n for n in stated if n is not None and MIN_LOG_RANGE <= n < tried]
     return max(candidates) if candidates else max(MIN_LOG_RANGE, tried // 2)
 
 
@@ -75,7 +77,7 @@ def _parse_error(e) -> RpcError:
     else:
         code, message = 0, e
     try:
-        code = int(code)
+        code = int_from(code)
     except (TypeError, ValueError):
         code = 0
     return RpcError(code, str(message))
@@ -117,7 +119,7 @@ class UrllibTransport:
             # Some providers send JSON-RPC errors (e.g. "range too large") with a 4xx
             # status. Pass those through so the client can react to the message.
             try:
-                body = json.loads(e.read().decode("utf-8"))
+                body = json_loads(e.read().decode("utf-8"))
             except Exception:
                 body = None
             if isinstance(body, dict) and body.get("error"):
@@ -126,7 +128,7 @@ class UrllibTransport:
         except (urllib.error.URLError, OSError) as e:
             raise TransportError(str(e)) from None
         try:
-            return json.loads(raw.decode("utf-8"))
+            return json_loads(raw.decode("utf-8"))
         except ValueError:
             raise TransportError("invalid JSON response") from None
 

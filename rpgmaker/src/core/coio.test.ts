@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
 import { FetchTransport, TransportError } from "./coio.ts";
+import { jsonLoads } from "./pystr.ts";
 
 type Handler = (body: string, res: http.ServerResponse) => void;
 
@@ -99,4 +100,42 @@ test("a timeout aborts the request as a TransportError", async () => {
 test("TransportError defaults status to null", () => {
   assert.equal(new TransportError("x").status, null);
   assert.equal(new TransportError("x", 500).status, 500);
+});
+
+// Ruling 6 (tests/unit/test_coio.py::test_an_overlong_json_integer_is_invalid_json): Python reads
+// JSON integer literals with ints.int_from, so one of more than 4300 digits is not JSON. JSON.parse
+// would read it as a float (Infinity); jsonLoads refuses it as Python does.
+const LONG = "9".repeat(4301);
+
+test("an overlong JSON integer is 'invalid JSON response'", async () => {
+  let reply: [number, string] = [200, `{"result": ${LONG}}`];
+  await withServer((_b, res) => {
+    res.statusCode = reply[0];
+    res.end(reply[1]);
+  }, async (url) => {
+    await assert.rejects(new FetchTransport().postJson(url, {}, 5), (e: unknown) => {
+      assert.ok(e instanceof TransportError);
+      assert.equal(e.message, "invalid JSON response");
+      return true;
+    });
+    reply = [400, `{"error": {"code": ${LONG}, "message": "x"}}`];
+    await assert.rejects(new FetchTransport().postJson(url, {}, 5), (e: unknown) => {
+      assert.ok(e instanceof TransportError);
+      assert.equal(e.status, 400);
+      return true;
+    });
+  });
+});
+
+test("jsonLoads refuses integer literals of more than 4300 digits, as Python's json with int_from", () => {
+  for (const text of [`{"result": ${LONG}}`, `[1, -${LONG}]`, `${LONG}`, `{"a": "x\\", "b": ${LONG}}`]) {
+    assert.throws(() => jsonLoads(text), SyntaxError, text.slice(0, 30));
+  }
+  assert.deepEqual(jsonLoads(`{"r": ${"9".repeat(4300)}}`), { r: Infinity }, "4300 digits are read (as a float)");
+  assert.deepEqual(jsonLoads(`[-${"9".repeat(4300)}]`), [-Infinity]);
+  // only integer literals count: strings (escaped quotes included), fractions and exponents do not
+  assert.deepEqual(jsonLoads(`{"s": "${LONG}", "t": "\\"${LONG}", "f": 1.${LONG}, "e": 1e-${LONG}, "g": 1E+${LONG}}`),
+    { s: LONG, t: `"${LONG}`, f: 2, e: 0, g: Infinity }); // 1.999... rounds to 2.0, in Python too
+  assert.throws(() => jsonLoads("not json"), SyntaxError);
+  assert.deepEqual(jsonLoads('{"a": [1, 2.5, -3e2, "4"]}'), { a: [1, 2.5, -300, "4"] });
 });

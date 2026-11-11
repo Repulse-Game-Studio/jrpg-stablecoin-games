@@ -152,6 +152,23 @@ func test_tip_amount_step_applies_a_typed_amount() -> bool:
 	return T.done()
 
 
+## tests/unit/test_checkout_steps.py::test_a_typed_amount_is_stripped_as_str_strip_does
+func test_a_typed_amount_is_stripped_as_str_strip_does() -> bool:
+	var ctl: ScfgCheckoutController = _setup({"kind": "tip"})["ctl"]
+	ctl.custom_amount = char(0x85) + char(0x1c)
+	T.eq(ctl.next_step(), true)
+	T.eq(ctl.step, "network")
+	ctl = _setup({"kind": "tip"})["ctl"]
+	ctl.custom_amount = char(0xfeff) + "7.50"
+	T.eq(ctl.next_step(), false)
+	T.eq(ctl.error, "invalid_amount")
+	T.eq(ctl.apply_custom_amount(), false)
+	ctl.custom_amount = char(0x85) + "7.50" + char(0x1c)
+	T.eq(ctl.apply_custom_amount(), true)
+	T.eq(str(ctl.amount), "7.50")
+	return T.done()
+
+
 # --- skipping single-option steps -------------------------------------------------------
 
 func test_single_network_is_skipped_for_unlocks() -> bool:

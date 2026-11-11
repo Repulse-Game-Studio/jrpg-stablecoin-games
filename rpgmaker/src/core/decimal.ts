@@ -6,8 +6,9 @@
  * Differences from CPython, all outside any realistic amount: exponents beyond +-2^53 are a
  * ValueError (Python accepts up to +-999999999999999999), `add` refuses operands whose
  * exponents are more than 100000 apart, and the context's Emin/Emax overflow traps are not
- * modelled. `addChecked` is the exception: it is Python's context addition exactly (Emax
- * overflow, subnormal rounding at Etiny), for sums of stored, untrusted amounts.
+ * modelled by `add`, `mulInt` and `quantize`. `addChecked` and `scaleb` are the exceptions: they
+ * are Python's context arithmetic exactly (Emax overflow, subnormal rounding at Etiny), for stored,
+ * untrusted amounts.
  */
 import { Overflow, ValueError } from "./errors.ts";
 import { pyStrip, toAsciiDigits } from "./pystr.ts";
@@ -58,9 +59,10 @@ export class Dec {
    *
    * `anyExponent`: accept every exponent libmpdec accepts (a literal beyond its limits is Python's
    * InvalidOperation, a ValueError here, like a malformed literal) instead of refusing those beyond
-   * +-2^53. Exponents beyond +-2^50 are then clamped to +-2^50: the value compares and sums
-   * (`addChecked`) as Python's does, but its `toString`, `quantize`, `scaleb` and
-   * `integralValue` are not Python's. Only for values that are compared or summed.
+   * +-2^53. Exponents beyond +-2^50 are then clamped to +-2^50: the value compares, sums
+   * (`addChecked`) and scales (`scaleb` by a small n: an Overflow, or a subnormal zero) as Python's
+   * does, but its `toString`, `quantize` and `integralValue` are not Python's. Only for values
+   * that are compared, summed or scaled.
    */
   static parse(text: string, opts: { anyExponent?: boolean } = {}): Dec | "nan" | "inf" {
     if (typeof text !== "string") throw new ValueError("Decimal() needs a string");
@@ -115,8 +117,14 @@ export class Dec {
     return this.coef === 0n;
   }
 
+  /** Python `adjusted()`: the exponent of the leading digit (exp + digits - 1; a zero's is its exp). */
+  adjusted(): number {
+    return this.exp + digitCount(this.coef) - 1;
+  }
+
   /** The value as an integer if it is integral, else null (Python `q == q.to_integral_value()` then `int(q)`). */
   integralValue(): bigint | null {
+    if (this.coef === 0n) return 0n; // whatever the exponent (0E+999999): no power of ten to build
     let mag: bigint;
     if (this.exp >= 0) {
       mag = this.coef * pow10(this.exp);
@@ -156,9 +164,12 @@ export class Dec {
     return new Dec(coef, exp, this.neg);
   }
 
-  /** Python `scaleb(n)` for an int `n`. */
+  /**
+   * Python `scaleb(n)` for an int `n` under the default context (`_fix`): 28-digit rounding,
+   * subnormal rounding at Etiny, and an Overflow (the trapped decimal.Overflow) above Emax.
+   */
   scaleb(n: number): Dec {
-    return new Dec(this.coef, this.exp + n, this.neg).fixed();
+    return new Dec(this.coef, this.exp + n, this.neg).fixContext();
   }
 
   add(other: Dec): Dec {

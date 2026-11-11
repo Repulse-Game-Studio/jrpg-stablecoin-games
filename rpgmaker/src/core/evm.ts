@@ -4,8 +4,10 @@ import { asciiBytes, bytesToHex } from "./bytes.ts";
 import { ValueError } from "./errors.ts";
 import { keccak256 } from "./keccak.ts";
 
-// Python's `$` also matches before one trailing newline, so `to_checksum_address` accepts it.
-const HEX40 = /^0x[0-9a-fA-F]{40}\n?$/;
+// The whole string (Python's fullmatch): a trailing newline is not part of an address.
+const HEX40 = /^0x[0-9a-fA-F]{40}$/;
+// One 32-byte ABI word, as a Transfer log carries its uint256 value.
+const WORD = /^0x[0-9a-fA-F]{64}$/;
 
 export const TRANSFER_TOPIC: string =
   "0x" + bytesToHex(keccak256(asciiBytes("Transfer(address,address,uint256)")));
@@ -103,12 +105,13 @@ export function parseTransferLog(log: Record<string, any>): RawTransferLog | nul
   const topics: string[] = log["topics"] || [];
   if (log["removed"]) return null;
   if (topics.length !== 3 || topics[0]!.toLowerCase() !== TRANSFER_TOPIC) return null;
-  const data: unknown = log["data"] || "0x";
+  const data: unknown = log["data"];
+  if (typeof data !== "string" || !WORD.test(data)) return null; // not exactly the 32-byte value: not an ERC-20 Transfer
   return {
     token: toChecksumAddress(log["address"]),
     sender: topicToAddress(topics[1]!),
     recipient: topicToAddress(topics[2]!),
-    value: data !== "0x" && data !== "" ? parseHex(data) : 0n,
+    value: BigInt(data),
     tx_hash: lowerString(log["transactionHash"], "transactionHash"),
     log_index: safeNumber(parseHex(log["logIndex"]), "logIndex"),
     block_number: safeNumber(parseHex(log["blockNumber"]), "blockNumber"),

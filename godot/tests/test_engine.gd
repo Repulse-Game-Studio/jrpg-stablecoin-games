@@ -341,7 +341,7 @@ func test_tick_contains_a_session_crash() -> bool:
 	var c: Variant = await e.start_session("unlock", "arbitrum", {"item": "chapter2"})
 	var bad := F.transfer_log(ScfgChains.MAINNET["base"]["tokens"]["USDC"]["address"], PAYER, DEV, 1,
 		{"block": 999, "tx_hash": TX})
-	bad["data"] = "0xzz"
+	bad["logIndex"] = "0xzz"
 	(r[1]["base"] as F.FakeChain).logs.append(bad)
 	var out: Variant = await e.tick()
 	T.eq((out as Array).map(func(o: Dictionary) -> String: return o["session_id"]), [a["id"], b["id"], c["id"]],
@@ -350,7 +350,7 @@ func test_tick_contains_a_session_crash() -> bool:
 		"error": "internal_error", "hint_tx": null}, "the contained outcome")
 	T.eq([out[0]["status"], out[2]["status"]], ["waiting", "waiting"], "the others advanced")
 	T.eq(errors.size(), 1, "on_error once")
-	T.is_err(errors[0] if errors.size() > 0 else null, "ValueError", "the hex parse of data 0xzz")
+	T.is_err(errors[0] if errors.size() > 0 else null, "ValueError", "the hex parse of logIndex 0xzz")
 	T.ok(e.pending.has(b["id"]), "the session is kept")
 	T.eq(e.pending[b["id"]]["cursor"], 995, "and untouched")
 	return T.done()
@@ -487,6 +487,52 @@ func test_reverify_uses_accepted_wallets() -> bool:
 	T.eq(await e.reverify(), ["k"], "no matching log in the fake chain -> revoked")
 	T.eq(seen, ["arbitrum"], "only the receipt's chain was asked (readiness needs no client for EVM)")
 	T.eq(e.receipts, {}, "removed")
+	return T.done()
+
+
+func test_reverify_reports_to_the_on_error_set_mid_pass() -> bool:
+	# The Godot autoload replaces the Engine's on_error in _exit_tree while a pass may be in
+	# flight; a receipt's contained error reported after that must reach the new handler.
+	var first := []
+	var second := []
+	var box := {}
+	var r := _make_engine({}, {"on_error": func(x: Variant) -> void: first.append(x),
+		"rpc_factory": func(_c: Dictionary) -> Variant:
+			(box["e"] as ScfgEngine).on_error = func(x: Variant) -> void: second.append(x)
+			return ScfgErr.make("RuntimeError", "boom")})
+	var e: ScfgEngine = r[0]
+	box["e"] = e
+	e.receipts["k"] = {"chain": "arbitrum", "tx_hash": TX, "log_index": 0, "block": 900, "amount": "1.000000",
+		"token": "USDC", "kind": "tip", "item": null}
+	T.eq(await e.reverify(), [], "an unverifiable receipt is kept")
+	T.eq(first, [], "not told to the handler the pass started with")
+	T.eq(second.map(func(x: Variant) -> String: return x.kind if x is ScfgErr else str(x)), ["RuntimeError"],
+		"told to the current one")
+	box.clear()
+	return T.done()
+
+
+## An on_error that is no longer a valid Callable (its object freed, or never set) when a pass
+## reports: the error is printed (ScfgErr.report's fallback), not called into the void.
+func test_reverify_prints_when_on_error_is_not_a_valid_callable() -> bool:
+	var r := _make_engine({}, {"rpc_factory": func(_c: Dictionary) -> Variant:
+		return ScfgErr.make("RuntimeError", "boom")})
+	var e: ScfgEngine = r[0]
+	e.receipts["k"] = {"chain": "arbitrum", "tx_hash": TX, "log_index": 0, "block": 900, "amount": "1.000000",
+		"token": "USDC", "kind": "tip", "item": null}
+	var gone := Node.new()
+	var dead := gone.queue_free  # a Callable of an object that is freed below
+	gone.free()
+	for handler: Callable in [Callable(), dead]:
+		e.on_error = handler
+		ScfgErr.silence_printed = true
+		ScfgErr.printed.clear()
+		T.eq(await e.reverify(), [], "an unverifiable receipt is kept")
+		T.eq(ScfgErr.printed.size(), 1, "printed instead (%s)" % [ScfgErr.printed])
+		T.ok(ScfgErr.printed.size() == 1 and "RuntimeError" in ScfgErr.printed[0] and "boom" in ScfgErr.printed[0],
+			"naming the error (%s)" % [ScfgErr.printed])
+		ScfgErr.silence_printed = false
+	ScfgErr.printed.clear()
 	return T.done()
 
 

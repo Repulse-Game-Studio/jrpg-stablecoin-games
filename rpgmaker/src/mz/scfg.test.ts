@@ -454,8 +454,9 @@ for (const nwjs of [true, false]) {
   });
 }
 
-test("storedTipBeyondDecimalRangeIsKeptAsideAndStartsEmpty", async () => {
-  // Python parity: a stored tip above Emax makes Engine.snapshot() (so new Worker()) throw Overflow.
+test("storedTipBeyondTheAmountRangeIsIgnoredThenRemoved", async () => {
+  // Python parity: a stored amount out of the amount range (|adjusted exponent| > 40) neither owns
+  // nor tips, so the state is used as it is, and the launch re-verification removes that receipt.
   const storage = new MemoryStorage();
   const text = JSON.stringify({
     version: 1, pending: {}, receipts: { "arbitrum:0xab:3": receipt("0x" + "ab".repeat(32), { kind: "tip", item: null, amount: "1E+1000000" }) },
@@ -463,16 +464,14 @@ test("storedTipBeyondDecimalRangeIsKeptAsideAndStartsEmpty", async () => {
   storage.write(STATE, text);
   const env = await configured({ storage });
   const { s } = env;
-  assert.ok(s._worker !== null, "payments started (no boot crash)");
-  assert.deepEqual([s.receipts(), s.tipTotal(), s.hasTipped()], [[], "0", false], "from empty stores");
-  assert.equal(storage.read("save/scfg_corrupt_1.rmmzsave"), text, "the stored state is kept aside");
-  assert.ok(env.errors.some((l) => l.includes("cannot be used (Overflow") && l.includes("save/scfg_corrupt_1.rmmzsave")),
-    env.errors.join("\n"));
-  assert.equal(env.notices.length, 1, "shown in test play");
+  assert.ok(s._worker !== null, "payments started from the stored state");
+  assert.deepEqual([s.tipTotal(), s.hasTipped()], ["0", false], "the tip does not count");
+  assert.equal(storage.has("save/scfg_corrupt_1.rmmzsave"), false, "nothing is kept aside");
   await start(s);
-  await addTx(env, "0x" + "cd".repeat(32));
   await settle(env);
-  assert.equal(Object.keys(onDisk(env).receipts).length, 1, "a fresh state is saved");
+  assert.deepEqual(s.receipts(), [], "removed by the launch re-verification");
+  assert.ok(env.errors.some((l) => l.includes("is invalid and was removed")), env.errors.join("\n"));
+  assert.equal(Object.keys(onDisk(env).receipts).length, 0, "and from the stored state");
 });
 
 test("stateTheEngineRefusesAtStartIsKeptAside", async () => {
@@ -483,7 +482,7 @@ test("stateTheEngineRefusesAtStartIsKeptAside", async () => {
   storage.write(STATE, text);
   const env = make({ storage });
   await bootShim(); // read, not configured yet: no Worker
-  env.s._mirror.doc!.receipts["x"] = receipt("0x" + "ee".repeat(32), { kind: "tip", item: null, amount: "1E+1000000" });
+  Object.defineProperty(env.s._mirror.doc!.receipts, "x", { enumerable: true, get() { throw new Error("unreadable entry"); } });
   env.s.configure({ wallet: DEV });
   env.s.addItem("chapter2", CHAPTER2);
   assert.doesNotThrow(() => env.shim.frame());
@@ -493,7 +492,7 @@ test("stateTheEngineRefusesAtStartIsKeptAside", async () => {
   assert.ok(env.s._worker !== null, "started empty on a later frame");
   assert.deepEqual(env.s.receipts(), []);
   assert.equal(storage.read("save/scfg_corrupt_1.rmmzsave"), text, "the stored state is kept aside");
-  assert.ok(env.errors.some((l) => l.includes("cannot be used (Overflow")), env.errors.join("\n"));
+  assert.ok(env.errors.some((l) => l.includes("cannot be used (Error: unreadable entry")), env.errors.join("\n"));
 });
 
 test("unreadableStateIsNeverOverwritten", async () => {
@@ -702,18 +701,17 @@ for (const nwjs of [true, false]) {
 }
 
 test("refusedStateThatCannotBeKeptAsideStartsNoPayments", async () => {
-  // the core refuses the stored state (Overflow) and the copy cannot be written: no empty state that
-  // a later save would write over the player's receipts
+  // the core refuses the stored state (an entry it cannot read) and the copy cannot be written: no
+  // empty state that a later save would write over the player's receipts
   const storage = new MemoryStorage();
-  const text = JSON.stringify({
-    version: 1, pending: {}, receipts: { "arbitrum:0xab:3": receipt("0x" + "ab".repeat(32), { kind: "tip", item: null, amount: "1E+1000000" }) },
-  });
+  const text = JSON.stringify({ version: 1, pending: {}, receipts: { "arbitrum:0xab:3": receipt("0x" + "ab".repeat(32)) } });
   storage.write(STATE, text);
   const env = make({ storage });
   env.shim.failNext("save", new Error("EIO: i/o error, write"));
+  await bootShim(); // read, not configured yet: no Worker
+  Object.defineProperty(env.s._mirror.doc!.receipts, "x", { enumerable: true, get() { throw new Error("unreadable entry"); } });
   env.s.configure({ wallet: DEV });
   env.s.addItem("chapter2", CHAPTER2);
-  await bootShim();
   env.shim.frame(3);
   await settle(env);
   assert.equal(env.s._worker, null, "payments do not start");
@@ -774,6 +772,23 @@ test("defaultRpcFactoryUsesTheMonotonicClock", async () => {
     else assert.ok(Math.abs(rpc.clock() - now) < 5, `the client reads performance.now() / 1000 (${rpc.clock()} vs ${now})`);
     resetShim();
   }
+});
+
+test("theEnginesAndTheWorkersErrorsAreReportedOnTheConsole", async () => {
+  // the Engine's on_error (a crash it contains: one stored receipt's re-verification) and the
+  // Worker's (a pass that failed) are the glue's report, "scfg: worker error:" on console.error
+  const env = await configured();
+  await start(env.s);
+  const engine = env.s._engine as any;
+  engine.receipts["k"] = receipt("0x" + "cd".repeat(32));
+  engine._rpcs.clear();
+  engine._rpc_factory = () => {
+    throw new Error("boom");
+  };
+  assert.deepEqual(await engine.reverify(), [], "an unverifiable receipt is kept");
+  assert.deepEqual(env.errors, ["scfg: worker error: Error: boom"]);
+  env.s._worker!.on_error(new Error("the pass failed"));
+  assert.deepEqual(env.errors, ["scfg: worker error: Error: boom", "scfg: worker error: Error: the pass failed"]);
 });
 
 test("truncatedStateFileOnDesktopFallsBackToMzsBackup", async () => {

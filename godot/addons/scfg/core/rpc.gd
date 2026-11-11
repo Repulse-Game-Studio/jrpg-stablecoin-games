@@ -142,21 +142,20 @@ static func suggested_range(err: ScfgErr, tried: int) -> int:
 	return maxi(MIN_LOG_RANGE, floori(tried / 2.0) if tried < 0 else tried / 2)
 
 
-## The numbers `\d+` finds in `s`. A run beyond 18 significant digits is skipped: it is above
-## every range a caller can try (a range is an int).
+## The numbers `\d+` finds in `s`. A run beyond 18 significant digits is skipped (Ruling 6): it is
+## above every range a caller can try (a range is an int). Linear (ScfgPy.digit_run).
 static func _numbers(s: String) -> Array[int]:
 	var out: Array[int] = []
-	var digits := ""
-	for i in s.length() + 1:
-		var d := ScfgPy.decimal_digit(s.unicode_at(i)) if i < s.length() else -1
-		if d >= 0:
-			digits += str(d)
+	var n := s.length()
+	var i := 0
+	while i < n:
+		if ScfgPy.decimal_digit(s.unicode_at(i)) < 0:
+			i += 1
 			continue
-		if digits != "":
-			var sig := digits.lstrip("0")
-			if sig.length() <= 18:
-				out.append(int(sig) if sig != "" else 0)
-			digits = ""
+		var run := ScfgPy.digit_run(s, i)
+		i = run[0]
+		if run[1] != null:
+			out.append(run[1])
 	return out
 
 

@@ -91,6 +91,18 @@ def test_godot_zip_carries_the_vendored_notice_and_a_readme():
             assert target[1:] in anchors, target
 
 
+def test_godot_guide_opens_with_the_landing_page_and_keeps_its_sections():
+    """docs/developers/godot/README.md (the sidebar category's landing page) is the guide's
+    intro; Install and the API reference stay top-level sections under the title."""
+    guide = package.godot_guide()
+    lines = guide.splitlines()
+    assert lines[0] == "# Stablecoin for Games: Godot Developer Guide"
+    assert "For Godot developers" not in guide  # the README's own title is replaced
+    assert "[Install](#install-godot)" in guide and "[API reference](#api-reference-godot)" in guide
+    tops = [h for h in lines if h.startswith("## ")]
+    assert tops[:2] == ["## Install (Godot)", "## API reference (Godot)"], tops
+
+
 def test_renpy_developer_guide_does_not_include_the_godot_pages():
     guide = package.developer_guide()
     assert "Godot" not in guide.splitlines()[0]
@@ -113,12 +125,21 @@ def test_build_godot_zip_writes_the_versioned_archive(tmp_path):
 # --- the RPG Maker MZ release zip --------------------------------------------------------------
 
 
+def plugin_text(version):
+    """What a built SCFG.js starts with (its header showing `version`), then an empty IIFE."""
+    return ("/*:\n * @target MZ\n"
+            f" * @plugindesc Stablecoin for Games (SCFG): payments v{version}\n"
+            " * @author Repulse Game Studio\n *\n"
+            f" * @help\n * Stablecoin for Games (SCFG) for RPG Maker MZ, v{version}.\n *\n"
+            " * More help.\n */\n(() => {})();\n")
+
+
 @pytest.fixture
 def fake_plugin(tmp_path):
     """A stand-in for the built SCFG.js, so the layout tests need no Node."""
     path = tmp_path / "built" / "SCFG.js"
     path.parent.mkdir()
-    path.write_text("/*:\n * @target MZ\n */\n(() => {})();\n", encoding="utf-8")
+    path.write_text(plugin_text(package.__version__), encoding="utf-8")
     return path
 
 
@@ -149,6 +170,28 @@ def test_rpgmaker_zip_refuses_a_plugin_version_that_differs_from_the_core(tmp_pa
     with pytest.raises(ValueError, match="0.1.4|!= scfg_core 9.9.9"):
         package.build_rpgmaker_zip(tmp_path / "dist", plugin=fake_plugin)
     assert not (tmp_path / "dist" / "scfg-rpgmaker-mz-9.9.9.zip").exists()
+
+
+@pytest.mark.parametrize("where", ["plugindesc", "help"])
+def test_rpgmaker_zip_refuses_a_header_that_shows_another_version(tmp_path, where):
+    path = tmp_path / "SCFG.js"
+    text = plugin_text(package.__version__)
+    line = "@plugindesc" if where == "plugindesc" else "for RPG Maker MZ,"
+    lines = [ln.replace(f"v{package.__version__}", "v9.9.9") if line in ln else ln for ln in text.splitlines()]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="header"):
+        package.build_rpgmaker_zip(tmp_path / "dist", plugin=path)
+    assert not (tmp_path / "dist").exists() or not list((tmp_path / "dist").iterdir())
+
+
+def test_rpgmaker_header_version_check_reads_only_the_header():
+    v = package.__version__
+    assert package.rpgmaker_header_problems(plugin_text(v), v) == []
+    no_header = f"(() => {{ /* @plugindesc x v{v} */ }})();\n"
+    assert package.rpgmaker_header_problems(no_header, v) != []
+    # the version elsewhere in the bundle (VERSION = "...") does not count for the header
+    bare = plugin_text("0.0.0") + f'const VERSION = "{v}";\n'
+    assert len(package.rpgmaker_header_problems(bare, v)) == 2
 
 
 def test_rpgmaker_plugin_version_is_read_from_the_source():
@@ -191,6 +234,7 @@ def test_rpgmaker_zip_builds_the_real_plugin(tmp_path):
         plugin = zf.read("js/plugins/SCFG.js").decode()
     assert plugin.startswith("/*:\n * @target MZ")
     assert "@plugindesc Stablecoin for Games (SCFG)" in plugin
+    assert package.rpgmaker_header_problems(plugin, package.__version__) == []
     assert f'VERSION = "{package.__version__}"' in plugin
 
 

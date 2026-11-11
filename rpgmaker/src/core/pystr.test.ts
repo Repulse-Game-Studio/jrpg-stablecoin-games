@@ -126,3 +126,27 @@ test("test_py_int_whitespace_edges_are_unchanged", () => {
   assert.throws(() => pyInt("1 2"), ValueError);
   assert.equal(pyStrip("\x1c\x1d x \x1e\x1f"), "x"); // strip() removes \x1c-\x1f, int() does not
 });
+
+test("test_py_int_digit_limit", () => {
+  // CPython's int(str) refuses more than 4300 digits (sys.get_int_max_str_digits()): a ValueError, at once
+  assert.equal(pyInt("9".repeat(4300)), 10n ** 4300n - 1n);
+  assert.equal(pyInt(" " + "1_".repeat(2000) + "1 "), BigInt("1".repeat(2001)));
+  for (const text of ["9".repeat(4301), "-" + "9".repeat(4301), "1_".repeat(4300) + "1", "9".repeat(100_000)]) {
+    const start = performance.now();
+    assert.throws(() => pyInt(text), ValueError, `${text.length} characters`);
+    assert.ok(performance.now() - start < 500);
+  }
+});
+
+// The digits are CPython 3.9's (Unicode 13.0.0, the project's interpreter), not the JS engine's
+// \p{Nd}: the sets Unicode added later (Garay, Myanmar Pa-O, Kirat Rai, Tangsa, Kawi, Nag Mundari, ...)
+// are not digits for Python 3.9's int() and re's \d (tests/unit/test_digit_tables.py checks the table).
+test("test_digits_are_python_39s", () => {
+  for (const zero of [0x10d40, 0x116d0, 0x16d70, 0x16ac0, 0x11f50, 0x1e4f0, 0x1ccf0]) {
+    const five = String.fromCodePoint(zero + 5);
+    assert.equal(toAsciiDigits(five), five, zero.toString(16));
+    assert.throws(() => pyInt(five), ValueError, zero.toString(16));
+  }
+  assert.equal(toAsciiDigits("\u0665\u{1d7ff}\u{1fbf9}\uff10"), "5990");
+  assert.equal(pyInt("\u{11d57}"), 7n);
+});

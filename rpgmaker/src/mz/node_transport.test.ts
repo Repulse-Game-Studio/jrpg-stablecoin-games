@@ -121,6 +121,20 @@ test("invalidJsonIsATransportError", async () => {
   await assert.rejects(transport().postJson(url, {}, 5), isTransportError(null, /^invalid JSON response$/));
 });
 
+test("anOverlongJsonIntegerIsInvalidJson", async () => {
+  // tests/unit/test_urllib_transport.py::test_an_overlong_json_integer_is_invalid_json (Ruling 6)
+  let reply: [number, string] = [200, `{"jsonrpc": "2.0", "id": 1, "result": ${"9".repeat(4301)}}`];
+  const { url } = await serve((_req, res) => {
+    res.writeHead(reply[0], { "Content-Type": "application/json" });
+    res.end(reply[1]);
+  });
+  await assert.rejects(transport().postJson(url, {}, 5), isTransportError(null, /^invalid JSON response$/));
+  reply = [400, `{"error": {"code": ${"9".repeat(4301)}, "message": "x"}}`];
+  await assert.rejects(transport().postJson(url, {}, 5), isTransportError(400, /^HTTP 400$/));
+  reply = [200, `{"result": ${"9".repeat(4300)}}`];
+  assert.deepEqual(await transport().postJson(url, {}, 5), { result: Infinity }, "4300 digits are read");
+});
+
 test("networkFailuresAreTransportErrors", async () => {
   const { port } = await serve(() => undefined);
   const s = servers.pop()!;
@@ -322,12 +336,24 @@ test("otherFailuresAreNotRetriedAndTheFallbacksOwnFailureIsTheAnswer", async () 
     await assert.rejects(t.postJson("https://rpc.example/", {}, 5), (e: unknown) => e instanceof TransportError, JSON.stringify(failure));
     assert.equal(fallback.calls.length, 0, `${JSON.stringify(failure)}: not retried`);
   }
-  // the fallback failing too: its error (fetch's, also a TransportError) is the answer, once
+  // the fallback failing too: its failure (fetch's, also a TransportError) is the answer, once,
+  // and its message keeps Node's original code (fetch's own says only "Failed to fetch")
   const down = new TransportError("Failed to fetch");
   const fallback = fallbackTransport(down);
   const t = new NodeHttpsTransport({ https: failingModule({ code: "CERT_HAS_EXPIRED" }).module, fallback });
-  await assert.rejects(t.postJson("https://rpc.example/", {}, 5), (e: unknown) => e === down);
+  await assert.rejects(t.postJson("https://rpc.example/", {}, 5), (e: unknown) => e instanceof TransportError
+    && e.message === "Failed to fetch (Node's https failed first: CERT_HAS_EXPIRED)" && (e as { code?: unknown }).code === undefined
+    && (e as { cause?: unknown }).cause === down, "fetch's own error (and its stack) is the cause");
   assert.equal(fallback.calls.length, 1);
+  // a proxy's 407 has no code: its message is kept instead; a fallback failure's own code stays
+  const coded = Object.assign(new TransportError("connect ECONNREFUSED"), { code: "ECONNREFUSED" });
+  const viaProxy = new NodeHttpsTransport({ https: failingModule({ status: 407 }).module, fallback: fallbackTransport(coded) });
+  await assert.rejects(viaProxy.postJson("https://rpc.example/", {}, 5), (e: unknown) => e instanceof TransportError
+    && e.message === "connect ECONNREFUSED (Node's https failed first: HTTP 407)" && (e as { code?: unknown }).code === "ECONNREFUSED");
+  // what is not a TransportError (a bug in the fallback) is passed on as it is
+  const bug = new TypeError("not a function");
+  const buggy = new NodeHttpsTransport({ https: failingModule({ code: "ENOTFOUND" }).module, fallback: fallbackTransport(bug) });
+  await assert.rejects(buggy.postJson("https://rpc.example/", {}, 5), (e: unknown) => e === bug);
   // without a fallback nothing changes: Node's failure as a TransportError, with its code
   const bare = new NodeHttpsTransport({ https: failingModule({ code: "CERT_HAS_EXPIRED" }).module });
   await assert.rejects(bare.postJson("https://rpc.example/", {}, 5), (e: unknown) => e instanceof TransportError && (e as { code?: unknown }).code === "CERT_HAS_EXPIRED");

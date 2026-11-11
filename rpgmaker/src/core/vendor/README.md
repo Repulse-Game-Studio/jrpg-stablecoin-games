@@ -22,8 +22,9 @@ printf '\nexport { qrcodegen };\n' | tee -a qrcodegen.js >> qrcodegen.d.ts
 
 ## Relation to the Python twin
 
-`scfg_core/_qrcodegen.py` is Nayuki's Python library between v1.7.0 and v1.8.0. Compared with v1.8.0 it
-lacks one fix: the alignment-pattern step of version 32 (`26 if ver == 32`). Every other difference is
-typing or naming. Version 32 needs a payload of roughly 1000 bytes at ECC medium, far beyond any
-payment link (the longest is under 300 bytes), so the two agree on every input the core produces.
-The `qr` vectors pass bit for bit.
+`scfg_core/_qrcodegen.py` is Nayuki's Python library between v1.7.0 and v1.8.0. It computes the
+alignment-pattern step as `(ver * 8 + numalign * 3 + 5) // (numalign * 4 - 4) * 2`, which gives
+every version the positions of ISO/IEC 18004 Table E.1; v1.8.0 here writes
+`(ver == 32) ? 26 : ceil((ver * 4 + 4) / (numalign * 2 - 2)) * 2`, which gives the same step for all
+40 versions (version 32 included: 26). Every other difference is typing or naming, so the two agree on
+every input. The `qr` vectors pass bit for bit, `version_32` (1453 bytes) included.

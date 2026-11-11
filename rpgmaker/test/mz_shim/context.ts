@@ -33,6 +33,9 @@ export interface NavigatorLike {
   getGamepads?(): ArrayLike<GamepadLike | null> | null;
 }
 
+/** `$dataSystem.advanced.gameId` when the options name none (`ShimOptions.gameId`). */
+export const DEFAULT_GAME_ID = 12345678;
+
 export interface ShimOptions {
   /** `Utils.isNwjs()` and `StorageManager.isLocalMode()`: desktop (NW.js) instead of a browser. Default false. */
   nwjs?: boolean;
@@ -46,8 +49,13 @@ export interface ShimOptions {
   /** Switches / variables in the database (`$dataSystem.switches.length - 1`). Default 20 each. */
   switches?: number;
   variables?: number;
-  /** `$dataSystem.advanced.gameId`, part of the localforage key on the web. Default 12345678. */
+  /** `$dataSystem.advanced.gameId`, part of the localforage key on the web. Default DEFAULT_GAME_ID (12345678). */
   gameId?: number;
+  /**
+   * The database's common events (`$dataCommonEvents`), common event 1 first: each one's command
+   * list (and name), which `command117` (Common Event) runs in a child interpreter. Default: none.
+   */
+  commonEvents?: { name?: string; list: { code: number; indent: number; parameters: any[] }[] }[];
   /** `$dataSystem.gameTitle`. Default "Shim Game". */
   gameTitle?: string;
   /** Where StorageManager keeps saves. Default: a fresh in-memory `MemoryStorage`. */

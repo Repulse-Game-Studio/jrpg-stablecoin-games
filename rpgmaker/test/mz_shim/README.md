@@ -28,8 +28,10 @@ glue against it in Node, and the harness page (`test/harness/`) loads its browse
     `mzShim.errors` hold what stopped it, `shim.frame()` throws from then on, and `resetShim()` throws it, so an
     afterEach fails the test (`shim.takeErrors()` takes an expected one). In Node there is no window: the
     shim turns the process's `unhandledRejection` and `uncaughtExceptionMonitor` events into those window
-    events (node:test also fails the test by itself). The member names and that chain are from memory of
-    MZ 1.x; MZ's other handlers there (F5, F8, unload) are not modelled.
+    events (node:test also fails the test by itself). Before boot nothing listens there yet (in a browser
+    the rejection is only printed): the shim prints it with `console.error` and sets the process's exit
+    code to 1, so a plain Node driver fails instead of losing it. The member names and that chain are
+    from memory of MZ 1.x; MZ's other handlers there (F5, F8, unload) are not modelled.
   - Encrypted deployments ("Encrypt image files"): `Scene_Boot.onDatabaseLoaded` -> `setEncryptionInfo` hands
     `$dataSystem.hasEncryptedImages`, `hasEncryptedAudio` and `encryptionKey` to `Utils.setEncryptionInfo`;
     `Utils.hasEncryptedImages()` answers from them and `Utils.decryptArrayBuffer(buffer)` turns a shipped
@@ -73,8 +75,8 @@ until `updateForageKeys()` has completed; every save and remove refreshes the ca
 
 Each mirrored member carries a comment naming the MZ class and member it imitates. Everything else
 is simplified on purpose and said so in the module comments: no rendering, audio, events on the
-map, walking animation, title screen or battle; the database is only `$dataSystem`, built from the
-shim's options; save data is stored as JSON text (MZ compresses it); JsonEx tags class instances
+map, walking animation, title screen or battle; the database is only `$dataSystem` and
+`$dataCommonEvents`, built from the shim's options; save data is stored as JSON text (MZ compresses it); JsonEx tags class instances
 with `"@"` and refuses `maxDepth` (100) levels of nesting as MZ, but MZ's `"@a"` arrays are not
 reproduced.
 
@@ -93,7 +95,7 @@ resetShim();        // in afterEach: removes the globals and listeners
 
 Options (`ShimOptions` in `context.ts`): `nwjs` (desktop: save files instead of localforage keys),
 `mobile`, `options` (`Utils.isOptionValid`, e.g. `["test"]`), `switches`/`variables` (database
-size), `encryption` (`{images, audio, key}`: an encrypted deployment's database settings), `storage` (a `StorageBackend`; `node_storage.ts` has `DirStorage` for a temp dir),
+size), `encryption` (`{images, audio, key}`: an encrypted deployment's database settings), `storage` (a `StorageBackend`; `node_storage.ts` has `DirStorage` for a temp dir, whose `keys()` list every file, MZ's `<name>.rmmzsave_` backups included), `commonEvents` (`$dataCommonEvents`: each common event's `list`, run by command 117 in a child interpreter as MZ's `setupChild`/`updateChild`), `gameId` (default `DEFAULT_GAME_ID`),
 `plugins`, `document`/`window`/`navigator`, `width`/`height`. The handle also offers
 `boot`, `keyUp`, `pointer` (mouse events), `gamepads` (what `navigator.getGamepads()` returns in
 Node), `failNext("save" | "load" | "remove")` and `crashNextSave()` (the next NW.js save stops

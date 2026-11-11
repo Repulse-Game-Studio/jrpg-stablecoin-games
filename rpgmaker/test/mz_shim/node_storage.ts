@@ -1,6 +1,11 @@
 /**
  * A StorageBackend on a directory (Node only): NW.js save files land at `<dir>/save/<name>.rmmzsave`
  * and web keys at `<dir>/<key>`. For drivers that restart on the same storage. Not part of MZ.
+ *
+ * Every file under the directory is a key, and `keys()` lists them all but this class's own
+ * half-written files (`TEMP`). That includes keys ending in `_`: MZ's backup of a save being
+ * written (`save/<name>.rmmzsave_`, which the shim's StorageManager makes and removes as MZ 1.x
+ * does). It is a key like any other, never hidden, so a test sees the backup a crash left behind.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, normalize } from "node:path";

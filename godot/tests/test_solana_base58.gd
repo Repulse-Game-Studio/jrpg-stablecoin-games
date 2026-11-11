@@ -89,3 +89,39 @@ func test_fixed_lengths() -> bool:
 	T.is_err(ScfgSolanaBase58.normalize_signature(TOKEN), "ValueError", "a pubkey is not a signature")
 	T.is_err(ScfgSolanaBase58.normalize_signature(3), "ValueError", "int signature")
 	return T.done()
+
+
+# tests/unit/test_solana_base58.py::test_fixed_length_decoding_refuses_long_text_before_decoding
+# Text longer than the longest encoding (44 / 88 characters) is refused at once: base58 decoding
+# is quadratic, and a crafted stored id must not freeze the launch re-verification.
+func test_fixed_length_decoding_refuses_long_text_before_decoding() -> bool:
+	# The refusal is the length's, also for a text whose first character is not base58 (decoding
+	# first would fail on that character instead): the length is checked before any decoding.
+	for text: String in ["2".repeat(100000), "1".repeat(100000), "0" + "2".repeat(99999), "z".repeat(89), " " + "2".repeat(89)]:
+		var label := "%s... x%d" % [text.substr(0, 3), text.length()]
+		var start := Time.get_ticks_msec()
+		for got: Variant in [ScfgSolanaBase58.decode_fixed(text, 64), ScfgSolanaBase58.decode_fixed(text, 32),
+				ScfgSolanaBase58.normalize_signature(text), ScfgSolanaBase58.normalize_pubkey(text)]:
+			T.is_err(got, "ValueError", label)
+			T.ok(got is ScfgErr and (got as ScfgErr).message.begins_with("too long for "), "%s: refused for its length (%s)" % [
+				label, (got as ScfgErr).message.substr(0, 40) if got is ScfgErr else got])
+		T.ok(Time.get_ticks_msec() - start < 2000, "%s: refused at once" % label)
+	return T.done()
+
+
+# tests/unit/test_solana_base58.py::test_the_longest_encodings_still_decode
+func test_the_longest_encodings_still_decode() -> bool:
+	var ff64 := PackedByteArray()
+	ff64.resize(64)
+	ff64.fill(0xff)
+	var ff32 := PackedByteArray()
+	ff32.resize(32)
+	ff32.fill(0xff)
+	var sig := ScfgSolanaBase58.b58encode(ff64)
+	var key := ScfgSolanaBase58.b58encode(ff32)
+	T.eq([sig.length(), key.length()], [88, 44], "the longest encodings")
+	T.eq(ScfgSolanaBase58.normalize_signature(sig), sig, "an 88-character signature")
+	T.eq(ScfgSolanaBase58.normalize_pubkey(key), key, "a 44-character key")
+	T.eq(ScfgSolanaBase58.normalize_signature("1".repeat(64)), "1".repeat(64), "64 zero bytes")
+	T.is_err(ScfgSolanaBase58.decode_fixed("1".repeat(89), 64), "ValueError", "89 characters")
+	return T.done()

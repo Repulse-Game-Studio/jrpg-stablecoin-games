@@ -27,9 +27,11 @@ func _store_with(o: Dictionary = {}) -> Dictionary:
 	return store
 
 
-func _run(store: Dictionary, chain: F.FakeChain, wallets: Variant = [DEV]) -> Variant:
-	return await ScfgReverify.reverify_receipts(store, {"rpc_for": func(_k: Variant) -> Variant: return chain,
-		"chains": ScfgChains.MAINNET, "wallets": wallets})
+func _run(store: Dictionary, chain: F.FakeChain, wallets: Variant = [DEV], on_error: Variant = null) -> Variant:
+	var opts := {"rpc_for": func(_k: Variant) -> Variant: return chain, "chains": ScfgChains.MAINNET, "wallets": wallets}
+	# quiet by default: removals and failed checks are reported
+	opts["on_error"] = on_error if on_error != null else func(_e: Variant) -> void: pass
+	return await ScfgReverify.reverify_receipts(store, opts)
 
 
 func _genuine(chain: F.FakeChain, o: Dictionary = {}) -> void:
@@ -167,9 +169,12 @@ func test_malformed_field_forms_follow_python_int_and_decimal() -> bool:
 		var is_dropped := i < dropped.size()
 		var rec: Dictionary = dropped[i] if is_dropped else parsed[i - dropped.size()]
 		var store := {"k": rec}
+		var errors: Array = []
 		var removed: Variant = await ScfgReverify.reverify_receipts(store, {"rpc_for": func(_k: Variant) -> Variant: return null,
-			"chains": ScfgChains.MAINNET, "wallets": {"evm": [], "solana": []}})
+			"chains": ScfgChains.MAINNET, "wallets": {"evm": [], "solana": []},
+			"on_error": func(e: Variant) -> void: errors.append(e)})
 		T.eq(removed, ["k"] if is_dropped else [], str(rec))
+		T.eq(errors.size(), 1 if is_dropped else 0, "%s: a removal is reported with its reason" % str(rec))
 	return T.done()
 
 
@@ -180,22 +185,84 @@ func test_a_receipt_that_is_not_a_dict_is_dropped() -> bool:
 	return T.done()
 
 
-## Python: chain.tokens.get([..]) raises TypeError outside the try, so the whole run is rejected.
-func test_unhashable_token_name_escapes_the_net() -> bool:
-	T.is_err(await _run({"k": _good({"token": ["USDC"]})}, F.FakeChain.new(1000)), "TypeError", "a list token")
-	T.is_err(await _run({"k": _good({"token": {}})}, F.FakeChain.new(1000)), "TypeError", "a dict token")
+func test_a_hashable_unknown_token_name_is_dropped() -> bool:
 	T.eq(await _run({"k": _good({"token": 5})}, F.FakeChain.new(1000)), ["k"], "hashable but unknown: dropped")
 	T.eq(await _run({"k": _good({"token": null})}, F.FakeChain.new(1000)), ["k"], "None: dropped")
 	return T.done()
 
 
-## Python: int(Decimal("Infinity")) is an OverflowError, which the net does not list.
-func test_infinite_amount_escapes_the_net() -> bool:
-	var store := {"k": _good({"amount": "Infinity"})}
-	T.is_err(await _run(store, F.FakeChain.new(1000)), "OverflowError", "Infinity")
-	T.is_err(await _run({"k": _good({"amount": "-Infinity"})}, F.FakeChain.new(1000)), "OverflowError", "-Infinity")
-	T.eq(store.size(), 1, "the store is not touched by the failing run")
-	T.is_err(await _run({"k": _good({"log_index": INF})}, F.FakeChain.new(1000)), "OverflowError", "int(inf)")
+## tests/unit/test_reverify.py::test_a_receipt_with_invalid_fields_is_removed_and_reported: a receipt
+## whose own fields are invalid is removed with its reason reported to on_error, whatever chain it
+## names; the run goes on.
+func test_a_receipt_with_invalid_fields_is_removed_and_reported() -> bool:
+	for corrupt: Dictionary in [{"amount": "Infinity"}, {"amount": "-Infinity"}, {"amount": "1E+999999"},
+			{"amount": "1E+999993"}, {"amount": "-1E+999995"}, {"amount": "1E+9999999999999999"}, {"amount": "1E+41"},
+			{"token": ["USDC"]}, {"token": {}}, {"item": ["chapter2"]}, {"chain": ["arbitrum"]}, {"tx_hash": 5},
+			{"log_index": INF}, {"block": "0x10"}]:
+		var chain := F.FakeChain.new(1000)
+		_genuine(chain)
+		var bad := _good(corrupt)
+		var store := {"a:corrupt": bad}
+		store.merge(_store_with({"log_index": 2}))
+		store.merge(_store_with({"log_index": 3}))
+		var errors: Array = []
+		var label := ScfgPy.py_repr(corrupt)
+		var start := Time.get_ticks_msec()
+		T.eq(await _run(store, chain, [DEV], func(e: Variant) -> void: errors.append(e)),
+			["a:corrupt", "arbitrum:%s:3" % TX], label)
+		T.ok(Time.get_ticks_msec() - start < 5000, "%s: quickly" % label)
+		T.eq(store.keys(), ["arbitrum:%s:2" % TX], "%s: removed, the genuine one kept" % label)
+		T.eq(errors.size(), 1, "%s: reported" % label)
+		if errors.size() == 1:
+			T.ok(errors[0] is ScfgErr and (errors[0] as ScfgErr).is_a("ValueError") and str(errors[0]).contains("a:corrupt"),
+				"%s: the reason names the receipt (%s)" % [label, str(errors[0])])
+	return T.done()
+
+
+## tests/unit/test_reverify.py::test_a_type_valid_but_malformed_receipt_is_removed_before_any_rpc
+func test_a_type_valid_but_malformed_receipt_is_removed_before_any_rpc() -> bool:
+	for row: Array in [["arbitrum", {"tx_hash": "0x123"}], ["arbitrum", {"tx_hash": "0x" + "zz".repeat(32)}],
+			["arbitrum", {"tx_hash": "ab".repeat(32)}], ["arbitrum", {"tx_hash": TX + " "}],
+			["arbitrum", {"tx_hash": "0x" + "ab".repeat(33)}], ["arbitrum", {"log_index": -1}],
+			["arbitrum", {"log_index": "-1"}], ["arbitrum", {"block": -5}], ["solana", {"tx_hash": TX}],
+			["arbitrum", {"log_index": "9".repeat(4301)}], ["arbitrum", {"block": "9".repeat(100000)}],
+			["solana", {"tx_hash": "2".repeat(100000)}],
+			["solana", {"tx_hash": "0OIl".repeat(22)}], ["solana", {"tx_hash": "1".repeat(63)}],
+			# str.strip() whitespace that JS trim() keeps (TS twin)
+			["arbitrum", {"tx_hash": TX + char(0x85)}], ["arbitrum", {"tx_hash": TX + char(0x1c)}],
+			["arbitrum", {"tx_hash": char(0x1f) + TX}], ["solana", {"tx_hash": "1".repeat(64) + char(0x85)}]]:
+		var node := F.FakeChain.new(1000)
+		var bad := _good(row[1])
+		bad["chain"] = row[0]
+		var store := {"bad": bad}
+		var errors: Array = []
+		var label := "%s %s" % [row[0], ScfgPy.py_repr(row[1]).substr(0, 60)]
+		T.eq(await _run(store, node, [DEV], func(e: Variant) -> void: errors.append(e)), ["bad"], label)
+		T.eq(errors.size(), 1, "%s: reported" % label)
+		T.eq(node.calls, [], "%s: judged without the network" % label)
+	return T.done()
+
+
+## tests/unit/test_reverify.py::test_a_malformed_receipt_on_an_unknown_chain_is_kept
+func test_a_malformed_receipt_on_an_unknown_chain_is_kept() -> bool:
+	var store := {"old": _good({"chain": "tron", "tx_hash": "0x123"})}
+	T.eq(await _run(store, F.FakeChain.new(1000)), [], "kept: the chain cannot be checked")
+	T.eq(store.size(), 1, "still stored")
+	return T.done()
+
+
+## tests/unit/test_reverify.py::test_a_forged_out_of_range_receipt_no_longer_unlocks
+func test_a_forged_out_of_range_receipt_no_longer_unlocks() -> bool:
+	var forged := _good({"amount": "1E+999999"})
+	forged["kind"] = "unlock"
+	forged["item"] = "chapter2"
+	var store := {"forged": forged}
+	var items := {"chapter2": {"item_id": "chapter2", "code": 37, "price": ScfgDec.parse("4.99"), "token": "USDC",
+		"title": "Chapter 2", "min_price": ScfgDec.parse("4.99")}}
+	var owned: Variant = ScfgReceipts.compute_ownership(store, items)
+	T.ok(owned is Array and (owned[0] as Array).is_empty(), "owns nothing")
+	T.eq(await _run(store, F.FakeChain.new(1000), [DEV], func(_e: Variant) -> void: pass), ["forged"], "removed")
+	T.eq(store, {}, "gone")
 	return T.done()
 
 
@@ -212,15 +279,21 @@ func test_removed_keys_come_back_in_store_order() -> bool:
 	return T.done()
 
 
-func test_a_failing_backend_check_fails_the_run() -> bool:
-	# the backend's own errors are not part of the net: a malformed log stops everything
+## tests/unit/test_reverify.py::test_a_receipt_whose_check_crashes_is_kept_and_reported
+func test_a_failing_backend_check_skips_that_receipt() -> bool:
+	# a malformed log crashes the backend's check: that receipt is kept and reported, the next judged
 	var store := _store_with()
+	store.merge(_store_with({"log_index": 3}))
 	var chain := F.FakeChain.new(1000)
 	var bad := F.transfer_log(USDC, PAYER, DEV, 1, {"block": 900, "tx_hash": TX})
-	bad["data"] = "0xzz"
+	bad["logIndex"] = "0xzz"
 	chain.logs.append(bad)
-	T.is_err(await _run(store, chain), "ValueError", "a malformed log")
-	T.eq(store.size(), 1, "nothing was removed")
+	var errors: Array = []
+	T.eq(await _run(store, chain, [DEV], func(e: Variant) -> void: errors.append(e)), [], "nothing removed")
+	T.eq(store.size(), 2, "both kept")
+	T.eq(errors.size(), 2, "each crashed check reported")
+	if errors.size() == 2:
+		T.is_err(errors[0], "ValueError", "the malformed log")
 	return T.done()
 
 
@@ -258,7 +331,7 @@ func test_reverify_keeps_receipts_of_a_family_without_wallets() -> bool:
 func test_check_evm_receipt_stops_parsing_at_the_first_match() -> bool:
 	var receipt: Dictionary = _store_with().values()[0]
 	var bad := F.transfer_log(USDC, PAYER, DEV, 1, {"block": 900, "tx_hash": TX, "log_index": 9})
-	bad["data"] = "0xzz"
+	bad["logIndex"] = "0xzz"
 	var chain := F.FakeChain.new(1000)
 	_genuine(chain)
 	chain.logs.append(bad)

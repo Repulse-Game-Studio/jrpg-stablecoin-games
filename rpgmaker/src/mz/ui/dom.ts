@@ -85,7 +85,12 @@ function applyAccent(): void {
   mounted.host.style.setProperty("--scfg-on-accent", textOn(accent));
 }
 
-/** The developer's accent (#rrggbb; anything else keeps the default) and the text colour on it (`textOn`). */
+/**
+ * The developer's accent and the text colour on it (`textOn`). The sheet host passes the
+ * configured `accent`, which the core already normalised to lowercase `#rrggbb` (config.ts
+ * `accentArg`: `#abc` expanded, an alpha `#rrggbbaa` dropped, none = DEFAULT_ACCENT); anything
+ * else (not a `#rrggbb` string) keeps the default here.
+ */
 export function setAccent(color: string | null | undefined): void {
   accent = typeof color === "string" && HEX.test(color) ? color.toLowerCase() : DEFAULT_ACCENT;
   applyAccent();

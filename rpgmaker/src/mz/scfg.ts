@@ -71,10 +71,12 @@ import { isSheetHandle, type SheetHandle, type SheetHost } from "./sheet_host.ts
 import { DefaultSheetHost } from "./ui/default_sheet_host.ts";
 import { resolveText } from "./texts.ts";
 import { ScfgStore, messageOf, plainCopy, type StateDoc } from "./store.ts";
-import { WebPage } from "./web_page.ts";
+import { LogoWaitUi, WebPage } from "./web_page.ts";
+import { VERSION } from "./version.ts";
 
-/** The plugin's version: scfg_core's `__version__` (a test keeps them equal). */
-export const VERSION = "0.1.4";
+export { VERSION } from "./version.ts";
+/** Web: how long (seconds) Open wallet waits for a logo still being read before it opens the overlay without it. */
+export const LOGO_WAIT_S = 1;
 /** exportReceipts() on desktop: this file in MZ's save folder. */
 export const EXPORT_NAME = "scfg-receipts.json";
 /** The logo option names a file in this folder of the game (`img/scfg/logo.png` for "logo"). */
@@ -133,6 +135,8 @@ interface Unavailable {
 export class ScreenCheckout extends CheckoutController {
   cid = "";
   callback: ((result: PaymentResult) => void) | null = null;
+  /** the session id _registerCallback registered `callback` for */
+  callbackSid: string | null = null;
 }
 
 /** A restore screen's controller, with its id. */
@@ -235,7 +239,10 @@ export class Scfg {
   /** "Keep playing" controllers, whose browser page still answers until the session is final. */
   _background = new Map<string, ScreenCheckout>();
   _restores = new Map<string, ScreenRestore>();
+  /** session id -> the pay() callback, until the session is over (see _pruneCallbacks) */
   _callbacks = new Map<string, (result: PaymentResult) => void>();
+  /** the callbacks' session ids the last snapshot listed as pending */
+  _seenPending = new Set<string>();
   _restoreCallbacks = new Map<string, (result: RestoreResult) => void>();
   _lastSnapshot: Snapshot | null = null;
   _warnedUnready = "";
@@ -553,8 +560,8 @@ export class Scfg {
       worker = new Worker(engine, { interval: () => this._interval(), on_error: this._logError, ...this._hooks.worker_opts });
     } catch (e) {
       if (Object.keys(m.doc.pending).length > 0 || Object.keys(m.doc.receipts).length > 0) {
-        // The core refuses the stored state (a tip beyond Decimal's range is an Overflow in
-        // snapshot()): kept aside as corrupt; a later frame starts from the empty state.
+        // The core refuses the stored state (anything it cannot use when the Engine is built from
+        // it): kept aside as corrupt; a later frame starts from the empty state.
         void m.setAside(e);
         return null;
       }
@@ -603,6 +610,8 @@ export class Scfg {
     const worker = this._ensureStarted();
     if (worker === null) return;
     this._pumpPage();
+    // Read before draining: every outcome of the pass that made this snapshot is queued.
+    const outcomesSnap = worker.snapshot;
     const controllers = [...this._checkouts.values(), ...this._background.values()];
     for (const outcome of worker.drainOutcomes()) {
       for (const c of controllers) c.onOutcome(outcome);
@@ -612,6 +621,7 @@ export class Scfg {
       c.poll();
       this._registerCallback(c);
     }
+    this._pruneCallbacks(outcomesSnap);
     this._openWhenListening();
     const timeout = Number(this._config.methods["browser"]?.["timeout_min"]) * 60;
     const now = this._engine!.clock();
@@ -674,9 +684,37 @@ export class Scfg {
     }
   }
 
+  /**
+   * Remember the pay() callback of the controller's session, once per session: then _deliver (its
+   * final result) or _pruneCallbacks (it left the Engine) drops it for good. Registering again each
+   * pump would bring back the callback of a sheet left open on an expired session past its scan
+   * horizon, which no snapshot lists to prune any more. Not at all once the session's final result
+   * (paid / underpaid) was delivered.
+   */
   _registerCallback(c: ScreenCheckout): void {
     const sid = c.sessionId;
-    if (sid && typeof c.callback === "function") this._callbacks.set(sid, c.callback);
+    if (sid && typeof c.callback === "function" && sid !== c.callbackSid
+      && c.state !== "paid" && c.state !== "underpaid") {
+      this._callbacks.set(sid, c.callback);
+      c.callbackSid = sid;
+    }
+  }
+
+  /**
+   * Drop the callbacks of sessions that left the Engine since a snapshot listed them (closed at
+   * their scan horizon, or discarded): no result can reach them any more. Results still can while
+   * a session is pending, also after it expired ("keep playing"). `snap` was read before this pump
+   * drained the outcomes, so a session that left because it was paid had its result delivered
+   * first. A session id no snapshot listed yet (just started) is kept.
+   */
+  _pruneCallbacks(snap: Snapshot): void {
+    const pending = snap.pending;
+    const seen = new Set<string>();
+    for (const sid of [...this._callbacks.keys()]) {
+      if (Object.prototype.hasOwnProperty.call(pending, sid)) seen.add(sid);
+      else if (this._seenPending.has(sid)) this._callbacks.delete(sid);
+    }
+    this._seenPending = seen;
   }
 
   /** A session's result: to its pay() callback, else to `onResult`. A paid one is announced when `notify` is on. */
@@ -1001,14 +1039,18 @@ export class Scfg {
    * `build_tx` stays undefined on EVM, so the page has no /build route there, as in Python. The
    * logo is read here, once (an unreadable one is reported and the page has no logo).
    * Web: the in-page overlay over the page's bridge (Ren'Py's WEB `_server_factory`), under a new
-   * key, with the logo as a data: URL when it has been read, and the glue's clock for the build timeout.
+   * key, with the logo as a data: URL, and the glue's clock for the build timeout. pay() started
+   * reading the logo; one still being read is waited for, at most LOGO_WAIT_S (LogoWaitUi), and
+   * the overlay opens without it after that.
    */
   _platformServer(args: ServerArgs): CheckoutServer {
     if (!this._platform.isNwjs()) {
       const page = this._webPage();
       if (page === null || !page.available) throw new Error("the page's checkout bridge is not available here");
+      const reading = this._logoRead === undefined && this._logoUrl !== null;
+      const ui = reading ? new LogoWaitUi(page, () => this._logoRead, this._clock() + LOGO_WAIT_S, this._clock) : page;
       return new OverlayCheckout({
-        ui: page, key: this._newId("o"), session_info: args.session_info,
+        ui, key: this._newId("o"), session_info: args.session_info,
         on_tx: (tx, sender) => args.on_tx(tx, sender), get_status: args.get_status,
         logo_url: this._logoRead ?? null, build_tx: args.build_tx ?? null, clock: this._clock,
       });

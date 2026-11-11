@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 _INDEX = {c: i for i, c in enumerate(ALPHABET)}
 
@@ -29,7 +31,23 @@ def b58decode(text: str) -> bytes:
     return b"\0" * zeros + body
 
 
+def max_encoded_length(length: int) -> int:
+    """The longest base58 text of `length` bytes: 44 characters for 32, 88 for 64."""
+    return math.ceil(length * math.log(256) / math.log(58))
+
+
 def decode_fixed(text: str, length: int) -> bytes:
+    """`length` bytes from base58 `text`. Decoding is quadratic in the text's length, so text
+    longer than any encoding of `length` bytes is refused before it is decoded. Bad input is a
+    ValueError, a `length` that is not an int (a bool, a float, a str, ...) included."""
+    if isinstance(length, bool) or not isinstance(length, int):
+        raise ValueError(f"not a byte count: {length!r}")
+    try:
+        limit = max_encoded_length(length)
+    except OverflowError:  # beyond a float: no text is that long
+        raise ValueError(f"not a byte count: {length!r}") from None
+    if isinstance(text, str) and len(text) > limit:
+        raise ValueError(f"too long for {length} bytes: {len(text)} characters")
     raw = b58decode(text)
     if len(raw) != length:
         raise ValueError(f"expected {length} bytes, got {len(raw)}: {text!r}")

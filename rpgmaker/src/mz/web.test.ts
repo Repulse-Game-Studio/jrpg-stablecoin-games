@@ -19,7 +19,7 @@ import { MemoryStorage, bootShim, installShim, resetShim, type Shim } from "../.
 import { BUILD_TIMEOUT_S, OverlayCheckout, Job, type Chain, type CheckoutController, type RestoreController } from "../core/index.ts";
 import { installHooks } from "./boot.ts";
 import { webStoragePersists } from "./platform.ts";
-import { Scfg, type ScfgHooks } from "./scfg.ts";
+import { LOGO_WAIT_S, Scfg, type ScfgHooks } from "./scfg.ts";
 import type { SheetHandle, SheetHost } from "./sheet_host.ts";
 
 const g = globalThis as any;
@@ -314,6 +314,97 @@ test("theOverlayGetsTheLogoAsADataUrl", async () => {
     const [, info, logo] = env.bridge.callsTo("openCheckout")[0]!;
     assert.equal((info as Record<string, unknown>)["logo"], true);
     assert.equal(logo, "data:image/png;base64,iVBORw==", "a PNG data url");
+  } finally {
+    g.fetch = realFetch;
+  }
+});
+
+test("theLogoIsReadWhenPayStartsSoItIsThereBeforeOpenWallet", async () => {
+  // the overlay takes the logo as it is when it opens: pay() starts reading it at once (before
+  // the sheet's first step), so a read beside index.html is done long before "Open wallet"
+  const fetched: string[] = [];
+  const realFetch = g.fetch;
+  let answer: (() => void) | null = null;
+  g.fetch = (url: string) => {
+    fetched.push(url);
+    return new Promise((resolve) => {
+      answer = () => resolve({ ok: true, status: 200, arrayBuffer: async () => new Uint8Array([0xff, 0xd8]).buffer });
+    });
+  };
+  try {
+    const env = await make({ config: { logo: "brand.jpg" } });
+    assert.deepEqual(fetched, [], "not read before a payment");
+    void env.s.pay("unlock", { item: "chapter2" });
+    assert.deepEqual(fetched, ["img/scfg/brand.jpg"], "pay() asked for the logo before returning");
+    answer!();
+    await tick();
+    const ctl = env.host.last.ctl;
+    ctl.chooseNetwork("arbitrum");
+    await pass(env);
+    env.s.openBrowser(ctl);
+    const [, , logo] = env.bridge.callsTo("openCheckout")[0]!;
+    assert.equal(logo, "data:image/jpeg;base64,/9g=", "the overlay opened with it");
+    void env.s.pay("tip", { amount: "1.00", token: "USDC" });
+    assert.equal(fetched.length, 1, "read once per configuration");
+  } finally {
+    g.fetch = realFetch;
+  }
+});
+
+test("aLogoStillBeingReadAtOpenWalletIsWaitedForBriefly", async () => {
+  // Open wallet while the logo read is still in flight: the overlay waits for it, at most
+  // LOGO_WAIT_S on the glue's clock, then opens with the logo or, past that, without it
+  const realFetch = g.fetch;
+  const answers: (() => void)[] = [];
+  g.fetch = () => new Promise((resolve) => {
+    answers.push(() => resolve({ ok: true, status: 200, arrayBuffer: async () => new Uint8Array([0xff, 0xd8]).buffer }));
+  });
+  try {
+    // the read arrives within the bound: the overlay opens with it, and gets the status it missed
+    let env = await make({ config: { logo: "brand.jpg" } });
+    let ctl = await session(env);
+    env.s.openBrowser(ctl);
+    env.shim.frame();
+    assert.equal(env.bridge.callsTo("openCheckout").length, 0, "not opened while the logo is read");
+    env.clock.advance(LOGO_WAIT_S / 2);
+    answers.shift()!();
+    await tick();
+    env.shim.frame();
+    let opens = env.bridge.callsTo("openCheckout");
+    assert.equal(opens.length, 1, "opened once the logo is there");
+    assert.equal(opens[0]![2], "data:image/jpeg;base64,/9g=", "with the logo");
+    assert.ok(env.bridge.callsTo("setStatus").length > 0, "and the status");
+    const sets = env.bridge.calls.map((c) => c[0]);
+    assert.ok(sets.indexOf("openCheckout") < sets.indexOf("setStatus"), "the status after the open");
+    resetShim();
+    // the read takes longer than the bound: the overlay opens without a logo, nothing is reported
+    env = await make({ config: { logo: "brand.jpg" } });
+    ctl = await session(env);
+    env.s.openBrowser(ctl);
+    env.shim.frame();
+    assert.equal(env.bridge.callsTo("openCheckout").length, 0);
+    env.clock.advance(LOGO_WAIT_S);
+    env.shim.frame();
+    opens = env.bridge.callsTo("openCheckout");
+    assert.deepEqual([opens.length, opens[0]![2]], [1, null], "opened without the logo");
+    answers.shift()!();
+    await tick();
+    env.shim.frame();
+    assert.equal(env.bridge.callsTo("openCheckout").length, 1, "a late logo opens nothing again");
+    assert.deepEqual([env.errors, env.warnings.filter((w) => w.includes("logo"))], [[], []], "no error");
+    resetShim();
+    // cancelled while it waits: the overlay is never opened (nor closed)
+    env = await make({ config: { logo: "brand.jpg" } });
+    ctl = await session(env);
+    env.s.openBrowser(ctl);
+    env.host.last.close("cancel");
+    await tick();
+    env.shim.frame();
+    answers.shift()!();
+    await tick();
+    env.clock.advance(LOGO_WAIT_S);
+    env.shim.frame();
+    assert.deepEqual([env.bridge.callsTo("openCheckout").length, env.bridge.callsTo("closeCheckout").length], [0, 0]);
   } finally {
     g.fetch = realFetch;
   }

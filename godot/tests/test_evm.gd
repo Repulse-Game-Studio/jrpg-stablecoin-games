@@ -57,11 +57,13 @@ func test_checksum_rejects_malformed() -> bool:
 	return T.done()
 
 
-## Python's `$` also matches before one trailing newline, so the regex accepts it, and the newline
-## is carried through (the output keeps it). Pinned from the Tier 1 vector.
-func test_checksum_keeps_a_trailing_newline() -> bool:
-	T.eq(ScfgEvm.to_checksum_address("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed\n"),
-		"0x5aAeb6053F3E94C9b9a09f33669435E7ef1BEAed\n", "trailing newline kept, checksum over 41 chars")
+## The whole string must be the address (Python's fullmatch): a trailing newline is refused.
+func test_checksum_rejects_a_trailing_newline() -> bool:
+	for bad: String in ["0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed\n", "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed\n",
+			"\n0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed", "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed\r\n"]:
+		T.is_err(ScfgEvm.to_checksum_address(bad), "ValueError", "to_checksum_address(%s)" % ScfgPy.py_repr(bad))
+		T.is_err(ScfgEvm.normalize_address(bad), "ValueError", "normalize_address(%s)" % ScfgPy.py_repr(bad))
+		T.eq(ScfgEvm.is_checksum_address(bad), false, "is_checksum_address(%s)" % ScfgPy.py_repr(bad))
 	return T.done()
 
 
@@ -145,23 +147,23 @@ func test_parse_transfer_log_skips_other_events() -> bool:
 
 func test_parse_transfer_log_data() -> bool:
 	var l := _log()
-	for d: Variant in ["0x", "", null, 0, false]:
+	# anything but one 32-byte word ("0x" + 64 hex digits) is not a transfer, never an error
+	for d: Variant in ["0x", "", null, 0, false, 5, "0x01", "0xzz", "zz", "0x 1", "1.5", "0x1g",
+			"0x" + "00".repeat(31), "0x" + "00".repeat(33), "0X" + "00".repeat(32), "00".repeat(33),
+			"0x" + "0_".repeat(32), "0x" + "00".repeat(31) + " 1", &"0x01", ["0x" + "00".repeat(32)]]:
 		l["data"] = d
-		var t: Variant = ScfgEvm.parse_transfer_log(l)
-		T.ok(t is Dictionary and t["value"] is ScfgBigInt and (t["value"] as ScfgBigInt).is_zero(),
-			"data %s is value 0" % ScfgPy.py_repr(d))
-	l["data"] = "0x01"
-	T.eq((ScfgEvm.parse_transfer_log(l)["value"] as ScfgBigInt).to_decimal(), "1", "0x01")
+		T.eq(ScfgEvm.parse_transfer_log(l), null, "data %s" % ScfgPy.py_repr(d))
+	l.erase("data")
+	T.eq(ScfgEvm.parse_transfer_log(l), null, "no data")
+	l["data"] = "0x" + "0".repeat(64)
+	T.ok((ScfgEvm.parse_transfer_log(l)["value"] as ScfgBigInt).is_zero(), "a zero word")
+	l["data"] = "0x" + "F".repeat(64)
+	T.eq((ScfgEvm.parse_transfer_log(l)["value"] as ScfgBigInt).to_hex(), "f".repeat(64), "upper-case hex")
 	l["data"] = "0x" + "f".repeat(64)
 	T.eq((ScfgEvm.parse_transfer_log(l)["value"] as ScfgBigInt).to_decimal(),
 		"115792089237316195423570985008687907853269984665640564039457584007913129639935", "uint256 max")
 	l["data"] = "0x000000000000000000000000ffffffffffffffffffffffffffffffffffffffff"
 	T.eq((ScfgEvm.parse_transfer_log(l)["value"] as ScfgBigInt).to_hex(), "f".repeat(40), "a 160-bit value")
-	for bad: Variant in ["0xzz", "zz", "0x 1", "1.5", "0x1g"]:
-		l["data"] = bad
-		T.is_err(ScfgEvm.parse_transfer_log(l), "ValueError", "data %s" % ScfgPy.py_repr(bad))
-	l["data"] = 5
-	T.is_err(ScfgEvm.parse_transfer_log(l), "TypeError", "a truthy non-string data")
 	return T.done()
 
 

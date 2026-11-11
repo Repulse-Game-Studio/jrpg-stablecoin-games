@@ -129,3 +129,23 @@ def test_an_http_error_keeps_its_status():
     with pytest.raises(TransportError) as e:
         response_from_envelope({"status": 502, "body": ""})
     assert e.value.status == 502
+
+
+_LONG = "9" * 4301
+
+
+def test_an_overlong_json_integer_is_invalid_json(interpreter):
+    """Ruling 6: json.loads reads integer literals with ints.int_from, so one of more than 4300
+    digits makes the body unreadable on every interpreter (CPython 3.9.25's own behaviour)."""
+    with pytest.raises(TransportError, match="invalid JSON response"):
+        response_from_envelope({"status": 200, "body": '{"result": ' + _LONG + "}"})
+    with pytest.raises(TransportError, match="invalid JSON response"):
+        response_from_envelope({"status": 200, "body": "[1, -" + _LONG + "]"})
+    with pytest.raises(TransportError, match="HTTP 400"):
+        response_from_envelope({"status": 400, "body": '{"error": {"code": ' + _LONG + "}}"})
+    assert response_from_envelope({"status": 200, "body": '{"r": ' + "9" * 4300 + "}"}) == {
+        "r": 10**4300 - 1}
+    # only integer literals count: strings, fractions and exponents do not
+    body = f'{{"s": "{_LONG}", "f": 1.{_LONG}, "e": 1e-{_LONG}}}'
+    assert response_from_envelope({"status": 200, "body": body}) == {
+        "s": _LONG, "f": float("1." + _LONG), "e": 0.0}

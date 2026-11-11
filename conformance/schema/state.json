@@ -2,7 +2,7 @@
  "match": {
   "block": "int",
   "log_index": "int",
-  "payer": "str",
+  "payer": "str|null",
   "recipient": "str",
   "tx_hash": "str",
   "value": "int"
@@ -61,7 +61,7 @@
    "tip"
   ],
   "log_index": "int",
-  "payer": "str",
+  "payer": "str|null",
   "recipient": "str",
   "source": [
    "enum",

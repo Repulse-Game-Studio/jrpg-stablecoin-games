@@ -17,14 +17,15 @@
  * answers a paste or a transaction build later, and the glue polls for it each frame. (Ren'Py's
  * post/result request bridge has no twin: the core's FetchTransport already uses fetch.)
  *
- * The overlay's host element (what bridge.js adds to the body for an opened checkout) gets
- * `guardOverlay` (ui/input.ts): its keys and pointer events are the overlay's, so MZ's document
+ * The overlay's host element (what bridge.js adds to the body for an opened checkout, tagged
+ * `data-scfg-overlay="<key>"`) gets `guardOverlay` (ui/input.ts): its keys and pointer events are the overlay's, so MZ's document
  * listeners neither preventDefault them (Tab, the arrows, the wheel) nor turn them into the
  * game's or the sheet's input. Opening or showing an overlay gives the focus to its first control,
  * so the keyboard drives the overlay rather than the sheet hidden under it.
  */
+import type { OverlayUi } from "../core/index.ts";
 import { pageAsset, type PageFile } from "./assets.ts";
-import { guardOverlay } from "./ui/input.ts";
+import { guardOverlay, OVERLAY_ATTR } from "./ui/input.ts";
 
 /** The page's scripts, in order: bridge.js first (it marks the page as embedded for app.js). */
 export const SCRIPTS: readonly PageFile[] = ["bridge.js", "evm.js", "solana.js", "app.js"];
@@ -48,6 +49,9 @@ const NO_PAGE = "there is no page document to add the checkout page's scripts to
   + "(players can still pay by phone wallet or manual transfer).";
 const NOT_RUN = "the checkout page's scripts did not run in this page (does a Content-Security-Policy block inline scripts?), "
   + "so the browser wallet checkout is off (players can still pay by phone wallet or manual transfer).";
+
+const NO_HOST = "the checkout overlay has no host element tagged data-scfg-overlay (is another, older copy of the "
+  + "checkout page's bridge in this page?), so its keys and clicks also reach the game.";
 
 const NO_ANSWER = Symbol("no answer");
 
@@ -136,15 +140,14 @@ export class WebPage {
   // --- checkout overlay (core OverlayCheckout's ui) ------------------------------------------------
 
   open(key: string, sessionInfo: Record<string, unknown>, logoUrl: string | null): void {
-    const body = this._win?.document?.body;
-    const children = (): any[] => (body && body.children ? Array.from(body.children as ArrayLike<any>) : []);
-    const before = new Set(children());
     this._call("openCheckout", [key, sessionInfo, logoUrl], undefined);
-    // the overlay's host: the element with a shadow root that bridge.js added to the body just now
-    const host = children().find((el) => !before.has(el) && el && el.shadowRoot);
-    if (host !== undefined && !this._guards.has(key) && typeof host.addEventListener === "function") {
+    const host = this._overlayHost(key);
+    if (host !== null && !this._guards.has(key) && typeof host.addEventListener === "function") {
       this._guards.set(key, guardOverlay(host));
       this._hosts.set(key, host);
+    } else if (host === null && !this._guards.has(key) && this.available && !this._warned.has("overlayHost")) {
+      this._warned.add("overlayHost");
+      this._warn(NO_HOST);
     }
     this._focus(key);
   }
@@ -223,6 +226,23 @@ export class WebPage {
     }
   }
 
+  /**
+   * The overlay's host: the element bridge.js tagged `data-scfg-overlay="<key>"` (compared as a
+   * value, so no key needs escaping in a selector), with its shadow root; else null.
+   */
+  private _overlayHost(key: string): any {
+    const doc = this._win?.document;
+    if (!doc || typeof doc.querySelectorAll !== "function") return null;
+    try {
+      for (const el of Array.from(doc.querySelectorAll(`[${OVERLAY_ATTR}]`) as ArrayLike<any>)) {
+        if (el && el.shadowRoot && el.getAttribute(OVERLAY_ATTR) === key) return el;
+      }
+    } catch {
+      // no overlay found: it still works, unguarded
+    }
+    return null;
+  }
+
   private _bridge(): Record<string, unknown> | null {
     let b: unknown;
     try {
@@ -256,5 +276,84 @@ export class WebPage {
     } catch {
       // advice only
     }
+  }
+}
+
+/**
+ * The overlay's page while the logo is still being read (web; Scfg._platformServer): the
+ * overlay's open waits for the read, at most until `deadline` (on `clock`), then opens with the
+ * logo, or without it once the deadline passed (a later logo is not used). The overlay polls
+ * (take) every frame, which is when the wait is checked. Meanwhile its latest status is kept for
+ * the open, show is moot (the open shows it), take answers nothing, and a close cancels the open.
+ */
+export class LogoWaitUi implements OverlayUi {
+  private readonly _page: OverlayUi;
+  private readonly _logo: () => string | null | undefined;
+  private readonly _deadline: number;
+  private readonly _clock: () => number;
+  private _pending: { key: string; info: Record<string, unknown> } | null = null;
+  private _status: Record<string, unknown> | null = null;
+  private _opened = false;
+
+  /** `logo()`: the read logo's data: URL, null (none, or unreadable), undefined while it is read. */
+  constructor(page: OverlayUi, logo: () => string | null | undefined, deadline: number, clock: () => number) {
+    this._page = page;
+    this._logo = logo;
+    this._deadline = deadline;
+    this._clock = clock;
+  }
+
+  open(key: string, sessionInfo: Record<string, unknown>, _logoUrl: string | null): void {
+    this._pending = { key, info: sessionInfo };
+    this._status = null;
+    this._opened = false;
+    this._settle();
+  }
+
+  /** Open the waiting overlay once the logo is read or the deadline passed. */
+  private _settle(): void {
+    const waiting = this._pending;
+    if (waiting === null) return;
+    const logo = this._logo();
+    if (logo === undefined && this._clock() < this._deadline) return;
+    this._pending = null;
+    this._opened = true;
+    this._page.open(waiting.key, waiting.info, logo ?? null);
+    const status = this._status;
+    this._status = null;
+    if (status !== null) this._page.setStatus(waiting.key, status);
+  }
+
+  show(key: string): void {
+    this._settle();
+    if (this._opened) this._page.show(key);
+  }
+
+  close(key: string): void {
+    if (this._pending !== null) {
+      this._pending = null; // never opened: nothing to close
+      this._status = null;
+      return;
+    }
+    this._opened = false;
+    this._page.close(key);
+  }
+
+  take(key: string): unknown[] {
+    this._settle();
+    return this._opened ? this._page.take(key) : [];
+  }
+
+  setStatus(key: string, status: Record<string, unknown>): void {
+    if (this._pending !== null) {
+      this._status = status;
+      this._settle();
+      return;
+    }
+    this._page.setStatus(key, status);
+  }
+
+  reply(key: string, id: number, status: number, body: Record<string, unknown>): void {
+    this._page.reply(key, id, status, body); // only for a message take() handed over: opened
   }
 }

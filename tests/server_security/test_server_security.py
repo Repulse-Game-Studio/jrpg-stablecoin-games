@@ -14,8 +14,6 @@ from solders.keypair import Keypair
 from scfg_core.local_server import MAX_BODY
 from scfg_core.solana.base58 import b58encode
 
-from server_handles import PythonServer
-
 TX = "0x" + "ab" * 32
 SIG = b58encode((7).to_bytes(64, "big"))
 DEV = str(Keypair().pubkey())
@@ -227,11 +225,7 @@ def test_every_answer_carries_the_security_headers_and_no_cors(make_server):
                                               413, 200, 501]
     for resp, _ in answers:
         assert not [h for h, _ in resp.getheaders() if h.lower().startswith("access-control-")]
-    # Python's 501 comes from BaseHTTPRequestHandler.send_error, which adds none of them (a gap
-    # of scfg_core's server, kept as it is here); the GDScript and the Node server send them on
-    # every answer
-    checked = answers[:-1] if isinstance(srv, PythonServer) else answers
-    for resp, _ in checked:
+    for resp, _ in answers:
         for name, value in SECURITY_HEADERS.items():
             assert resp.getheader(name) == value, (resp.status, name)
 
@@ -300,6 +294,8 @@ def test_secret_is_checked_after_the_host(server):
 def test_other_methods_are_501(server, method):
     resp, data = request(server, method, base(server))
     assert resp.status == 501
+    for name, value in SECURITY_HEADERS.items():
+        assert resp.getheader(name) == value, (method, name)
     if method == "HEAD":
         assert data == b""
 
@@ -383,6 +379,17 @@ def test_bare_lf_line_endings_are_accepted(server):
     status, _, body = raw(server, b"GET " + base(server).encode() + b" HTTP/1.1\nHost: 127.0.0.1:"
                           + str(server.port).encode() + b"\n\n")
     assert (status, body) == (200, b"<html>page</html>")
+
+
+def test_a_bare_cr_inside_a_header_line_ends_a_header(server):
+    # http.client reads the head line by line at LF, but the email parser it hands the block to
+    # splits it again at a bare CR (feedparser's universal newlines)
+    start = b"GET " + base(server).encode() + b" HTTP/1.1\r\n"
+    host = b"Host: 127.0.0.1:" + str(server.port).encode()
+    assert raw(server, start + b"X-A: 1\r" + host + b"\r\n\r\n")[0] == 200
+    assert raw(server, start + host + b"\rX-B: 2\r\n\r\n")[0] == 200
+    assert raw(server, start + b"Host: evil.example\r" + host + b"\r\n\r\n")[0] == 403
+    assert raw(server, start + b"X-A: 1\r\r" + host + b"\r\n\r\n")[0] == 403  # a blank line ends the block
 
 
 @pytest.mark.parametrize("length, status", [

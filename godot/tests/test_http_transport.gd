@@ -1,5 +1,5 @@
 ## ScfgHttpTransport (http_transport.gd) against a tiny HTTP/1.1 responder that runs inside the
-## test, on a TCPServer bound to 127.0.0.1 at a free port.
+## test, on a TCPServer bound to 127.0.0.1 at a free port (fakes.gd's Responder).
 ##
 ## Getting a Node in the tree: the runner (run.gd) is a SceneTree script, so
 ## `Engine.get_main_loop()` is that SceneTree and its `root` Viewport is inside the tree and
@@ -9,109 +9,9 @@
 extends RefCounted
 
 const T := preload("res://tests/t.gd")
+const F := preload("res://tests/fakes.gd")
 
-const _OK_BODY := "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x10\"}"
-const _RPC_ERROR_BODY := "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32600,\"message\":\"block range too large\"}}"
-
-
-## Answers each request by its path; `/slow` never answers. Records every request.
-class Responder:
-	extends Node
-	var server := TCPServer.new()
-	var port := 0
-	var conns: Array[Dictionary] = []
-	var requests: Array[Dictionary] = []
-	var host: Node  # the transport's host, to count its children while a request is in flight
-
-	func start() -> bool:
-		if server.listen(0, "127.0.0.1") != OK:
-			return false
-		port = server.get_local_port()
-		return true
-
-	func url(path: String) -> String:
-		return "http://127.0.0.1:%d%s" % [port, path]
-
-	func _process(_delta: float) -> void:
-		while server.is_connection_available():
-			conns.append({"peer": server.take_connection(), "buf": PackedByteArray(), "answered": -1})
-		for c in conns:
-			var peer: StreamPeerTCP = c["peer"]
-			peer.poll()
-			if c["answered"] == -2:
-				continue  # /slow
-			if c["answered"] >= 0:
-				c["answered"] += 1
-				if c["answered"] == 10:
-					peer.disconnect_from_host()
-				continue
-			if peer.get_status() != StreamPeerTCP.STATUS_CONNECTED:
-				continue
-			var n := peer.get_available_bytes()
-			if n > 0:
-				var got: Array = peer.get_data(n)
-				if got[0] == OK:
-					c["buf"] = (c["buf"] as PackedByteArray) + (got[1] as PackedByteArray)  # a value type: reassign
-			var req := _parse(c["buf"])
-			if req.is_empty():
-				continue
-			req["host_children"] = host.get_children().map(func(ch: Node) -> String: return ch.get_class()) if host else []
-			requests.append(req)
-			var answer := _answer(req["path"])
-			if answer.is_empty():
-				c["answered"] = -2  # /slow: never answers
-				continue
-			var body: PackedByteArray = answer[1]
-			var head := "HTTP/1.1 %d X\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" % [
-				answer[0], body.size()]
-			peer.put_data(head.to_ascii_buffer() + body)
-			c["answered"] = 0
-
-	## {method, path, headers (lowercase names), body} once the whole request arrived, else {}.
-	static func _parse(buf: PackedByteArray) -> Dictionary:
-		var text := buf.get_string_from_ascii()
-		var end := text.find("\r\n\r\n")
-		if end < 0:
-			return {}
-		var lines := text.substr(0, end).split("\r\n")
-		var first := lines[0].split(" ")
-		var headers := {}
-		for i in range(1, lines.size()):
-			var colon := lines[i].find(":")
-			headers[lines[i].substr(0, colon).to_lower()] = lines[i].substr(colon + 1).strip_edges()
-		var length := int(headers.get("content-length", "0"))
-		if buf.size() < end + 4 + length:
-			return {}
-		return {"method": first[0], "path": first[1], "headers": headers,
-			"body": buf.slice(end + 4, end + 4 + length).get_string_from_utf8()}
-
-	static func _answer(path: String) -> Array:
-		match path:
-			"/ok":
-				return [200, _OK_BODY.to_utf8_buffer()]
-			"/rate":
-				return [429, "Too Many Requests".to_utf8_buffer()]
-			"/rpc-error":
-				return [400, _RPC_ERROR_BODY.to_utf8_buffer()]
-			"/falsy-error":
-				return [500, "{\"error\": null, \"id\": 1}".to_utf8_buffer()]
-			"/empty-error":
-				return [400, "{\"error\": {}}".to_utf8_buffer()]
-			"/teapot-list":
-				return [418, "[1]".to_utf8_buffer()]
-			"/not-json":
-				return [200, "<html>oops</html>".to_utf8_buffer()]
-			"/bad-utf8":
-				return [200, PackedByteArray([0x7b, 0xff, 0x7d])]
-			"/bom":
-				return [200, PackedByteArray([0xef, 0xbb, 0xbf]) + "{}".to_utf8_buffer()]
-			"/nul":
-				return [200, "{}".to_utf8_buffer() + PackedByteArray([0])]
-			"/null":
-				return [200, "null".to_utf8_buffer()]
-			"/created-error":
-				return [201, _RPC_ERROR_BODY.to_utf8_buffer()]
-		return []
+const _RPC_ERROR_BODY := F.Responder.RPC_ERROR_BODY
 
 
 ## [host, responder, transport]. A coroutine: the runner starts in SceneTree._initialize, before
@@ -124,7 +24,7 @@ func _setup() -> Array:
 		await tree.process_frame
 	var host := Node.new()
 	root.add_child(host)
-	var responder := Responder.new()
+	var responder := F.Responder.new()
 	responder.host = host
 	root.add_child(responder)
 	T.ok(responder.start(), "the responder listens")
@@ -132,7 +32,7 @@ func _setup() -> Array:
 
 
 func _teardown(env: Array) -> void:
-	var responder: Responder = env[1]
+	var responder: F.Responder = env[1]
 	for c in responder.conns:
 		(c["peer"] as StreamPeerTCP).disconnect_from_host()
 	responder.server.stop()
@@ -152,7 +52,7 @@ func _status_of(v: Variant) -> Variant:
 func test_200_json_is_the_parsed_body() -> bool:
 	var env := await _setup()
 	var host: Node = env[0]
-	var responder: Responder = env[1]
+	var responder: F.Responder = env[1]
 	var tr: ScfgHttpTransport = env[2]
 	var got: Variant = await tr.post_json(responder.url("/ok"), _payload(), 5.0)
 	T.json_eq(got, {"jsonrpc": "2.0", "id": 1, "result": "0x10"}, "the body")
@@ -176,7 +76,7 @@ func test_200_json_is_the_parsed_body() -> bool:
 
 func test_429_is_a_transport_error_with_its_status() -> bool:
 	var env := await _setup()
-	var got: Variant = await (env[2] as ScfgHttpTransport).post_json((env[1] as Responder).url("/rate"), _payload(), 5.0)
+	var got: Variant = await (env[2] as ScfgHttpTransport).post_json((env[1] as F.Responder).url("/rate"), _payload(), 5.0)
 	T.is_err(got, "TransportError", "429")
 	T.eq(_status_of(got), 429, "status")
 	T.eq((got as ScfgErr).message if got is ScfgErr else "", "HTTP 429", "message")
@@ -187,7 +87,7 @@ func test_429_is_a_transport_error_with_its_status() -> bool:
 func test_4xx_with_a_jsonrpc_error_body_is_the_body() -> bool:
 	var env := await _setup()
 	var tr: ScfgHttpTransport = env[2]
-	var responder: Responder = env[1]
+	var responder: F.Responder = env[1]
 	var got: Variant = await tr.post_json(responder.url("/rpc-error"), _payload(), 5.0)
 	T.json_eq(got, JSON.parse_string(_RPC_ERROR_BODY), "passed through")
 	got = await tr.post_json(responder.url("/created-error"), _payload(), 5.0)
@@ -204,7 +104,7 @@ func test_4xx_with_a_jsonrpc_error_body_is_the_body() -> bool:
 func test_non_json_body_is_invalid_json_response() -> bool:
 	var env := await _setup()
 	var tr: ScfgHttpTransport = env[2]
-	var responder: Responder = env[1]
+	var responder: F.Responder = env[1]
 	for path: String in ["/not-json", "/bad-utf8", "/bom", "/nul"]:
 		var got: Variant = await tr.post_json(responder.url(path), _payload(), 5.0)
 		T.is_err(got, "TransportError", path)
@@ -215,11 +115,36 @@ func test_non_json_body_is_invalid_json_response() -> bool:
 	return T.done()
 
 
+# tests/unit/test_urllib_transport.py::test_an_overlong_json_integer_is_invalid_json (Ruling 6)
+func test_an_overlong_json_integer_is_invalid_json() -> bool:
+	var env := await _setup()
+	var tr: ScfgHttpTransport = env[2]
+	var responder: F.Responder = env[1]
+	var got: Variant = await tr.post_json(responder.url("/long-int"), _payload(), 5.0)
+	T.is_err(got, "TransportError", "/long-int")
+	T.eq((got as ScfgErr).message if got is ScfgErr else "", "invalid JSON response", "/long-int message")
+	got = await tr.post_json(responder.url("/long-int-error"), _payload(), 5.0)
+	T.is_err(got, "TransportError", "/long-int-error")
+	T.eq(_status_of(got), 400, "/long-int-error status")
+	await _teardown(env)
+	return T.done()
+
+
+## Waits until a frame begins whose time since the last one is all its own. HTTPRequest's timeout
+## counts the process delta of the frames it runs in, and the first frame after a long one (a slow
+## test before this one, a busy machine) carries all of that frame's time: a timeout measured from
+## it ends early. The second frame from now has a fresh delta.
+static func _fresh_frame() -> void:
+	for i in 2:
+		await (Engine.get_main_loop() as SceneTree).process_frame
+
+
 func test_timeout_is_a_transport_error() -> bool:
 	var env := await _setup()
 	var host: Node = env[0]
+	await _fresh_frame()
 	var start := Time.get_ticks_msec()
-	var got: Variant = await (env[2] as ScfgHttpTransport).post_json((env[1] as Responder).url("/slow"), _payload(), 0.5)
+	var got: Variant = await (env[2] as ScfgHttpTransport).post_json((env[1] as F.Responder).url("/slow"), _payload(), 0.5)
 	var took := (Time.get_ticks_msec() - start) / 1000.0
 	T.is_err(got, "TransportError", "timed out")
 	T.eq(_status_of(got), null, "no status")
@@ -232,7 +157,7 @@ func test_timeout_is_a_transport_error() -> bool:
 
 func test_connection_refused_is_a_transport_error() -> bool:
 	var env := await _setup()
-	var responder: Responder = env[1]
+	var responder: F.Responder = env[1]
 	var url := responder.url("/ok")
 	responder.server.stop()
 	var got: Variant = await (env[2] as ScfgHttpTransport).post_json(url, _payload(), 5.0)
@@ -264,7 +189,7 @@ func _start_block_number(client: ScfgRpcClient, box: Dictionary) -> void:
 	run.call()
 
 
-func _wait_for(responder: Responder, box: Dictionary, what: String) -> void:
+func _wait_for(responder: F.Responder, box: Dictionary, what: String) -> void:
 	var tree := Engine.get_main_loop() as SceneTree
 	for i in 300:
 		if (what == "request" and responder.requests.size() > 0) or (what == "done" and box.get("done", false)):
@@ -278,7 +203,7 @@ func test_host_freed_mid_request_is_host_gone_not_a_cooldown() -> bool:
 	# the healthy endpoints in cooldown.
 	var env := await _setup()
 	var host: Node = env[0]
-	var responder: Responder = env[1]
+	var responder: F.Responder = env[1]
 	var client := ScfgRpcClient.new([responder.url("/slow"), responder.url("/ok")], {"transport": env[2]})
 	var box := {}
 	_start_block_number(client, box)
@@ -301,7 +226,7 @@ func test_host_freed_mid_request_is_host_gone_not_a_cooldown() -> bool:
 func test_host_removed_mid_request_is_host_gone() -> bool:
 	var env := await _setup()
 	var host: Node = env[0]
-	var responder: Responder = env[1]
+	var responder: F.Responder = env[1]
 	var box := {}
 	var client := ScfgRpcClient.new([responder.url("/slow"), responder.url("/ok")], {"transport": env[2]})
 	_start_block_number(client, box)
@@ -325,7 +250,7 @@ func test_close_ends_requests_in_flight_with_host_gone() -> bool:
 	# at exit", found by the Godot e2e). close() ends them at once.
 	var env := await _setup()
 	var host: Node = env[0]
-	var responder: Responder = env[1]
+	var responder: F.Responder = env[1]
 	var transport: ScfgHttpTransport = env[2]
 	var client := ScfgRpcClient.new([responder.url("/slow"), responder.url("/ok")], {"transport": transport})
 	var box := {}
@@ -347,7 +272,7 @@ func test_close_ends_requests_in_flight_with_host_gone() -> bool:
 	return T.done()
 
 
-func _teardown_without_host(responder: Responder) -> void:
+func _teardown_without_host(responder: F.Responder) -> void:
 	for c in responder.conns:
 		(c["peer"] as StreamPeerTCP).disconnect_from_host()
 	responder.server.stop()
@@ -358,7 +283,7 @@ func _teardown_without_host(responder: Responder) -> void:
 ## The whole path: ScfgRpcClient over the real transport, with failover and a JSON-RPC error.
 func test_rpc_client_over_http() -> bool:
 	var env := await _setup()
-	var responder: Responder = env[1]
+	var responder: F.Responder = env[1]
 	var c := ScfgRpcClient.new([responder.url("/rate"), responder.url("/ok")], {"transport": env[2]})
 	T.eq(await c.block_number(), 16, "failover from the 429 endpoint")
 	T.eq(c.live_urls(), [responder.url("/ok")], "the 429 endpoint cools down")
@@ -369,4 +294,48 @@ func test_rpc_client_over_http() -> bool:
 		T.eq((got as ScfgErr).code, -32600, "an int code")
 		T.eq((got as ScfgErr).data, {"url": responder.url("/rpc-error")}, "url")
 	await _teardown(env)
+	return T.done()
+
+
+# tests/unit/test_coio.py::test_an_overlong_json_integer_is_invalid_json: the integer literals of an
+# RPC body as Python's json reads them with ints.int_from (strings, fractions, exponents aside).
+# Bodies that Godot's JSON would warn about ("Exponent too high") are checked with the scanner.
+func test_parse_rpc_body_refuses_an_overlong_integer() -> bool:
+	var long := "9".repeat(4301)
+	for text: String in ["{\"result\": %s}" % long, "[1, -%s]" % long, long, "{\"a\": \"x\\\\\", \"b\": %s}" % long]:
+		T.eq(ScfgCoio.parse_rpc_body(text.to_utf8_buffer()), [false, null], text.substr(0, 30))
+		T.ok(ScfgCoio._has_overlong_int(text.to_utf8_buffer()), "scanner: %s" % text.substr(0, 30))
+	T.ok(not ScfgCoio._has_overlong_int(("{\"r\": %s}" % "9".repeat(4300)).to_utf8_buffer()), "4300 digits are read")
+	var body := "{\"s\": \"%s\", \"t\": \"\\\"%s\", \"f\": 1.%s, \"e\": 1e-%s, \"g\": 1E+%s}" % [long, long, long, long, long]
+	T.ok(not ScfgCoio._has_overlong_int(body.to_utf8_buffer()), "strings, fractions and exponents are not integers")
+	var strings := "{\"s\": \"%s\", \"t\": \"\\\"%s\"}" % [long, long]
+	var parsed: Array = ScfgCoio.parse_rpc_body(strings.to_utf8_buffer())
+	T.eq(parsed[0], true, "digits in strings are text")
+	if parsed[0]:
+		T.eq((parsed[1] as Dictionary)["t"], "\"" + long, "the string after an escaped quote")
+	T.eq(ScfgCoio.parse_rpc_body("not json".to_utf8_buffer()), [false, null], "not JSON")
+	T.eq(ScfgCoio.parse_rpc_body("[1, 2.5]".to_utf8_buffer()), [true, [1.0, 2.5]], "short bodies as parse_body")
+	T.eq(ScfgCoio.parse_rpc_body(PackedByteArray([0x5b, 0xff]) + long.to_utf8_buffer() + PackedByteArray([0x5d])),
+		[false, null], "not UTF-8, without an engine error")
+	var start := Time.get_ticks_msec()
+	var big := "[" + ", ".join(PackedStringArray(Array(range(20000)).map(func(i: int) -> String: return str(i)))) + ", " + long + "]"
+	T.eq(ScfgCoio.parse_rpc_body(big.to_utf8_buffer()), [false, null], "a long body")
+	T.ok(Time.get_ticks_msec() - start < 3000, "scanned in linear time")
+	return T.done()
+
+
+## A body of many digit runs just under the limit is prefiltered in linear time: the regex tries a
+## match only where a run starts (an unanchored `[0-9]{4301}` retried at every digit of every run,
+## about 2.4 s for this 860 KB body). Strings, so Godot's JSON parses it without a warning.
+func test_parse_rpc_body_is_linear_on_many_long_digit_runs() -> bool:
+	var run := "\"" + "9".repeat(4300) + "\""
+	var runs := PackedStringArray()
+	for i in 200:
+		runs.append(run)
+	var raw := ("[" + ",".join(runs) + "]").to_utf8_buffer()
+	var start := Time.get_ticks_usec()
+	var parsed: Array = ScfgCoio.parse_rpc_body(raw)
+	var took := (Time.get_ticks_usec() - start) / 1000.0
+	T.eq(parsed[0], true, "200 strings of 4300 digits are JSON")
+	T.ok(took < 500.0, "prefiltered in linear time (%.0f ms)" % took)
 	return T.done()

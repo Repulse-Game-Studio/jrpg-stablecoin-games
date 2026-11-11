@@ -434,6 +434,37 @@ func test_suggested_range_reads_like_python() -> bool:
 	return T.done()
 
 
+# tests/unit/test_rpc_client.py::test_suggested_range_ignores_numbers_beyond_18_digits (Ruling 6): a
+# run beyond 18 significant digits is no number.
+func test_suggested_range_ignores_numbers_beyond_18_digits() -> bool:
+	var rows := [["limited to 50 blocks; request " + "9".repeat(4301), 2000, 50],
+		["block range too large: " + "9".repeat(4301), 5000, 2500], ["max " + "0".repeat(30) + "50 blocks", 2000, 50],
+		["max " + "9".repeat(19) + " or 50", 2000, 50], ["max " + "٠".repeat(25) + "٥٠", 2000, 50],
+		["max ５０", 2000, 50], ["max ५० or ৫০", 2000, 50]]
+	for row: Array in rows:
+		T.eq(ScfgRpcClient.suggested_range(_rpc_err(-32005, row[0]), row[1]), row[2], (row[0] as String).substr(0, 40))
+	return T.done()
+
+
+# tests/unit/test_rpc_client.py::test_suggested_range_reads_18_significant_digits_not_19
+func test_suggested_range_reads_18_significant_digits_not_19() -> bool:
+	var tried := 9 * 1000000000000000000
+	T.eq(ScfgRpcClient.suggested_range(_rpc_err(0, "max " + "9".repeat(18)), tried), 999999999999999999, "18 digits")
+	T.eq(ScfgRpcClient.suggested_range(_rpc_err(0, "max 00000" + "9".repeat(18)), tried), 999999999999999999,
+		"18 significant digits")
+	T.eq(ScfgRpcClient.suggested_range(_rpc_err(0, "max 1" + "0".repeat(18)), tried), tried / 2, "19 digits: halve")
+	return T.done()
+
+
+## A long digit run is read in linear time (no String appends: they are not amortized in GDScript).
+func test_a_long_digit_run_is_read_in_linear_time() -> bool:
+	var start := Time.get_ticks_msec()
+	T.eq(ScfgRpcClient.suggested_range(_rpc_err(-32005, "too large: " + "9".repeat(200000)), 5000), 2500, "digits")
+	T.eq(ScfgRpcClient.suggested_range(_rpc_err(-32005, "max " + "0".repeat(200000) + "50"), 5000), 50, "zeros")
+	T.ok(Time.get_ticks_msec() - start < 2000, "200,000-digit runs are read at once")
+	return T.done()
+
+
 func test_archive_message_counts_as_range_error() -> bool:
 	T.ok(ScfgRpcClient.is_range_error(_rpc_err(-32602, "Archive requests require a personal token. Get one at x")),
 		"archive")

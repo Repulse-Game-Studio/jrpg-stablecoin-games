@@ -57,3 +57,38 @@ def test_renpy_copies_plugin_and_packages_without_caches(sync, tmp_path):
 def test_default_engine_is_renpy(sync):
     assert sync.parse_args([]).engine == "renpy"
     assert sync.parse_args(["--engine", "godot"]).engine == "godot"
+
+
+@pytest.mark.parametrize(
+    "argv, called",
+    [([], "renpy"), (["--engine", "renpy"], "renpy"), (["--engine", "godot"], "godot")],
+)
+def test_main_runs_the_engine_it_is_given(sync, monkeypatch, argv, called):
+    calls = []
+    monkeypatch.setattr(sync, "sync_renpy", lambda: calls.append("renpy"))
+    monkeypatch.setattr(sync, "sync_godot", lambda: calls.append("godot"))
+    sync.main(argv)
+    assert calls == [called]
+
+
+def test_main_refuses_an_unknown_engine(sync, monkeypatch):
+    monkeypatch.setattr(sync, "sync_renpy", lambda: pytest.fail("ran"))
+    monkeypatch.setattr(sync, "sync_godot", lambda: pytest.fail("ran"))
+    with pytest.raises(SystemExit):
+        sync.main(["--engine", "unity"])
+
+
+def test_default_paths_are_the_repository_folders(sync):
+    assert sync.ROOT == ROOT
+    assert (sync.RENPY_SRC, sync.RENPY_DST) == (
+        ROOT / "plugin" / "game",
+        ROOT / "examples" / "demo_game" / "game",
+    )
+    assert (sync.GODOT_SRC, sync.GODOT_DST) == (
+        ROOT / "godot" / "addons" / "scfg",
+        ROOT / "godot" / "demo" / "addons" / "scfg",
+    )
+    assert (sync.GODOT_SRC / "scfg.gd").is_file() and (sync.RENPY_SRC / "scfg").is_dir()
+    # the functions copy between them when called without arguments
+    assert sync.sync_godot.__defaults__ == (sync.GODOT_SRC, sync.GODOT_DST)
+    assert sync.sync_renpy.__defaults__ == (sync.RENPY_SRC, sync.RENPY_DST)

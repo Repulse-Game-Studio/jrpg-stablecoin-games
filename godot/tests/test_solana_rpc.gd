@@ -351,6 +351,34 @@ func test_named_version_matches_like_python_re() -> bool:
 	return T.done()
 
 
+# tests/unit/test_solana_rpc.py::test_named_version_ignores_numbers_beyond_18_digits (Ruling 6)
+func test_named_version_ignores_numbers_beyond_18_digits() -> bool:
+	var rows := [["Transaction version (" + "9".repeat(19) + ") is not supported", null],
+		["Transaction version (" + "9".repeat(4301) + ") is not supported", null],
+		["Transaction version (" + "9".repeat(18) + ") is not supported", 999999999999999999],
+		["Transaction version (" + "0".repeat(30) + "3) is not supported", 3],
+		["version (" + "9".repeat(19) + ") version (5)", null], ["version (12 version (5)", 5]]
+	for row: Array in rows:
+		var rpc: ScfgSolanaRpc = _client({})[0]
+		T.eq(rpc._named_version(ScfgRpcClient.rpc_error(-32015, row[0])), row[1], (row[0] as String).substr(0, 40))
+	var start := Time.get_ticks_msec()
+	var rpc2: ScfgSolanaRpc = _client({})[0]
+	T.eq(rpc2._named_version(ScfgRpcClient.rpc_error(-32015, "version (" + "9".repeat(200000) + ")")), null, "200,000 digits")
+	T.eq(rpc2._named_version(ScfgRpcClient.rpc_error(-32015, "version (" + "0".repeat(200000) + "4)")), 4, "200,000 zeros")
+	T.ok(Time.get_ticks_msec() - start < 2000, "read in linear time")
+	return T.done()
+
+
+# tests/unit/test_solana_rpc.py::test_an_overlong_named_version_raises_the_node_error
+func test_an_overlong_named_version_raises_the_node_error() -> bool:
+	var r := _client({A: F.always(F.err(-32015, _V2.replace("(2)", "(" + "9".repeat(4301) + ")")))})
+	var rpc: ScfgSolanaRpc = r[0]
+	var got: Variant = await rpc.get_transaction("SIG")
+	T.is_err(got, "RpcError", "the node's error")
+	T.eq((r[1] as F.FakeTransport).calls.size(), 1, "one request")
+	return T.done()
+
+
 ## Review Focus 2 for the Solana requests: every int parameter is an int (see test_rpc_client).
 func test_requests_carry_ints_not_floats() -> bool:
 	var h := func(m: String, p: Array) -> Variant:

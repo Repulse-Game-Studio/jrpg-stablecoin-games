@@ -6,8 +6,8 @@ const T := preload("res://tests/t.gd")
 const Vectors := preload("res://tests/vectors.gd")
 const Tier2 := preload("res://tests/tier2.gd")
 
-## Every Tier 2 vector (M1: 118): the count of conformance/vectors/tier2/**/*.json, pinned.
-const ENABLED_COUNT := 118
+## Every Tier 2 vector (M1: 118, fix-up: 121): the count of conformance/vectors/tier2/**/*.json, pinned.
+const ENABLED_COUNT := 121
 
 
 func _vectors() -> Array:

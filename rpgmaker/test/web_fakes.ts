@@ -60,6 +60,10 @@ export class FakeElement {
     this.attributes[name] = String(value);
   }
 
+  getAttribute(name: string): string | null {
+    return name in this.attributes ? this.attributes[name]! : null;
+  }
+
   appendChild(el: FakeElement): FakeElement {
     this.children.push(el);
     this._added(el);
@@ -73,7 +77,11 @@ export class FakeElement {
 
 /** A page's window: `document` with a head and a body, and `scfgBridge` once bridge.js "ran". */
 export interface FakePageWindow {
-  document: { head: FakeElement; body: FakeElement; createElement(tag: string): FakeElement };
+  document: {
+    head: FakeElement; body: FakeElement; createElement(tag: string): FakeElement;
+    /** Only `[attribute]` selectors, over the body's children (what web_page.ts asks). */
+    querySelectorAll(selector: string): unknown[];
+  };
   scfgBridge?: FakeBridge;
   /** Every `<script>` element added, in order. */
   scripts: FakeElement[];
@@ -90,10 +98,16 @@ export function fakePageWindow(bridge: FakeBridge, opts: { bridgeText: (text: st
     win.scripts.push(el);
     if (!opts.blocked && opts.bridgeText(el.textContent)) win.scfgBridge = bridge;
   };
+  const body = new FakeElement("body", added);
   win.document = {
     head: new FakeElement("head", added),
-    body: new FakeElement("body", added),
+    body,
     createElement: (tag: string) => new FakeElement(tag, added),
+    querySelectorAll: (selector: string) => {
+      const name = /^\[([\w-]+)\]$/.exec(selector)?.[1];
+      if (name === undefined) throw new Error(`the fake document cannot select ${selector}`);
+      return (body.children as unknown[]).filter((el: any) => typeof el?.getAttribute === "function" && el.getAttribute(name) !== null);
+    },
   };
   return win;
 }

@@ -38,6 +38,6 @@ test("an unimplemented fn is reported, not passed", () => {
 });
 
 test("test_every_topic_implemented", () => {
-  assert.equal(topics.length, 17);
+  assert.equal(topics.length, 18);
   assert.deepEqual([...IMPLEMENTED].sort(), topics.map((t) => t.topic).sort());
 });

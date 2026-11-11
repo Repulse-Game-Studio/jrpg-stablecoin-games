@@ -76,3 +76,22 @@ func test_unknown_kind_is_a_programming_error() -> bool:
 	T.eq(ScfgErr.misuse.size(), 0, "every known kind is accepted")
 	ScfgErr.silence_misuse = false
 	return T.done()
+
+
+## `ScfgErr.printed` collects only while a test sets `silence_printed`: otherwise report()'s
+## fallback prints the line (one expected line in the runner's output) and keeps nothing, so a
+## game never accumulates its contained errors in memory.
+func test_report_keeps_nothing_when_not_silenced() -> bool:
+	var was := ScfgErr.silence_printed
+	ScfgErr.silence_printed = false
+	ScfgErr.printed.clear()
+	ScfgErr.report(Callable(), ScfgErr.make("RuntimeError",
+		"boom (expected: test_err::test_report_keeps_nothing_when_not_silenced)"))
+	T.eq(ScfgErr.printed.size(), 0, "printed, not kept (%s)" % [ScfgErr.printed])
+	# a valid handler is called and nothing is printed or kept either
+	var told := []
+	ScfgErr.report(func(x: Variant) -> void: told.append(x), ScfgErr.make("RuntimeError", "told"))
+	T.eq(told.size(), 1, "the handler is called")
+	T.eq(ScfgErr.printed.size(), 0, "still nothing kept (%s)" % [ScfgErr.printed])
+	ScfgErr.silence_printed = was
+	return T.done()

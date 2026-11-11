@@ -7,9 +7,9 @@ receipts, and receipts are re-checked against the chain at every launch.
 from __future__ import annotations
 
 from collections.abc import MutableMapping
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
-from .amounts import units_to_decimal
+from .amounts import stored_amount, units_to_decimal
 from .evm import TransferLog
 from .models import Item
 from .transfers import Transfer
@@ -48,19 +48,19 @@ def remove_receipt(store: MutableMapping, key: str) -> None:
 
 
 def compute_ownership(store: MutableMapping, items: dict[str, Item]) -> tuple[set[str], Decimal]:
-    """(owned item ids, total tipped). Malformed entries are skipped, never fatal."""
+    """(owned item ids, total tipped). Malformed entries are skipped, never fatal: a missing
+    field, an amount that is not a number within the stored-amount range (amounts.stored_amount,
+    so the tip total stays finite), an unhashable item."""
     owned: set[str] = set()
     tips = Decimal(0)
     for r in store.values():
         try:
             kind = r["kind"]
-            amount = Decimal(r["amount"])
-        except (KeyError, TypeError, InvalidOperation):
-            continue
-        if not amount.is_finite():
+            amount = stored_amount(r["amount"])
+            item = items.get(r.get("item")) if kind == "unlock" else None
+        except (KeyError, TypeError, ValueError, AttributeError):
             continue
         if kind == "unlock":
-            item = items.get(r.get("item"))
             if item is not None and amount >= item.min_price:
                 owned.add(item.item_id)
         elif kind == "tip":

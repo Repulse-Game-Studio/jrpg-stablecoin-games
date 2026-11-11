@@ -30,7 +30,7 @@ import { RpcUnavailable } from "./rpc.ts";
 import { solanaPayUri } from "./solana/paylinks.ts";
 import type { StepOutcome } from "./watcher.ts";
 import type { Job } from "./worker.ts";
-import { hasOwn } from "./pystr.ts";
+import { hasOwn, pyStrip } from "./pystr.ts";
 
 export const FINAL_STATES: readonly string[] = ["paid", "underpaid", "expired"];
 // Errors that judge the reported transaction (the hint) and drop it.
@@ -332,7 +332,7 @@ export class CheckoutController {
   /** Leave the amount step (tips), applying a typed amount first. */
   nextStep(): boolean {
     if (this.step !== "amount") return false;
-    if (this.custom_amount.trim() && !this.applyCustomAmount()) return false;
+    if (pyStrip(this.custom_amount) && !this.applyCustomAmount()) return false;
     this._enterNetwork();
     return true;
   }
@@ -385,7 +385,7 @@ export class CheckoutController {
   }
 
   applyCustomAmount(): boolean {
-    return this.setTipAmount(this.custom_amount.trim());
+    return this.setTipAmount(pyStrip(this.custom_amount)); // str.strip(), not JS trim()
   }
 
   submitHash(text?: string | null): boolean {

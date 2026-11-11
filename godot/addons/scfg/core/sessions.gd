@@ -249,16 +249,11 @@ static func is_past_horizon(rec: Variant, now: Variant) -> Variant:
 	return now - t >= SCAN_HORIZON_S
 
 
-## `Decimal(rec["price"])`. Port limit: a stored NaN or Infinity (the core never stores one) is
-## a ValueError, as in the TypeScript core.
+## Python `stored_amount(rec["price"])` (ScfgAmounts.stored_amount): a ValueError for a price that
+## is not a finite number within the amount range.
 ## @fallible
 static func session_price(rec: Variant) -> Variant:
 	var price: Variant = ScfgPy.py_get(rec, "price")
 	if price is ScfgErr:
 		return price
-	var d: Variant = ScfgDec.from_value(price)
-	if d is ScfgErr:
-		return d
-	if not d is ScfgDec:
-		return ScfgErr.make("ValueError", "not a finite decimal: %s" % ScfgPy.py_repr(price))
-	return d
+	return ScfgAmounts.stored_amount(price)  # Python: stored_amount(rec["price"])

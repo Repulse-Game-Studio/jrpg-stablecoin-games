@@ -27,7 +27,7 @@ import { hasOwn, pyGet, pyTruthy } from "./pystr.ts";
 import { addReceipt, makeReceipt, receiptKey } from "./receipts.ts";
 import { RpcError, RpcUnavailable } from "./rpc.ts";
 import {
-  HINT_TIMEOUT_S, clearHint, isPastHorizon, numField, pyDecimal, removeSession, type SessionRecord, type SessionStore,
+  HINT_TIMEOUT_S, clearHint, isPastHorizon, numField, pyDecimal, removeSession, sessionPrice, type SessionRecord, type SessionStore,
 } from "./sessions.ts";
 
 export const SCAN_STEP_BLOCKS = 10_000; // upper bound on blocks scanned per advance()
@@ -77,7 +77,7 @@ export function minAmount(rec: SessionRecord, items: ReadonlyMap<string, Item>):
   if (pyGet(rec, "kind") === "unlock") {
     const key = pyGet(rec, "item");
     const item = typeof key === "string" ? items.get(key) : undefined;
-    return item ? item.min_price : pyDecimal(pyGet(rec, "price"));
+    return item ? item.min_price : sessionPrice(rec);
   }
   return pyDecimal("0.000001");
 }

@@ -205,6 +205,34 @@ test("eachCommandWaitsOnItsOwnInterpreter", async () => {
   assert.deepEqual([g.$gameVariables.value(8), parallel.isRunning()], [STATUS.cancelled, false]);
 });
 
+test("aCommandInACommonEventWaitsOnTheChildInterpreter", async () => {
+  // an event calls a common event (MZ's command 117) that runs Unlock Item: the command's `this`
+  // is the common event's child interpreter, which waits in the "scfg" mode; the calling event
+  // waits for its child and goes on once the command stored its code
+  const after: number[] = [];
+  const glue = await bootGlue({
+    commonEvents: [{ name: "Buy Chapter 2", list: unlock("5").slice(0, 1).concat(pluginCommand("Mark", {}).slice(0, 1), [{ code: 0, indent: 0, parameters: [] }]) }],
+  });
+  g.PluginManager.registerCommand("SCFG", "Mark", () => void after.push(g.$gameVariables.value(5)));
+  const { host } = glue;
+  const parent = run([{ code: 117, indent: 0, parameters: [1] }, { code: 0, indent: 0, parameters: [] }]);
+  const child = parent._childInterpreter;
+  assert.ok(child instanceof g.Game_Interpreter && child !== parent, "the common event runs in a child interpreter");
+  assert.equal(child._waitMode, WAIT_MODE, "the child waits in the scfg mode");
+  assert.equal(parent._waitMode, "", "not the calling event's own interpreter");
+  assert.deepEqual(host.sheets.map((x) => x.kind), ["payment"], "the sheet is shown");
+  parent.update();
+  parent.update();
+  assert.deepEqual([parent.isRunning(), after], [true, []], "the calling event waits for its child");
+  host.last.close("cancel");
+  await tick();
+  assert.equal(g.$gameVariables.value(5), STATUS.cancelled, "the code is stored");
+  parent.update();
+  assert.deepEqual(after, [STATUS.cancelled], "the common event goes on after the command");
+  assert.deepEqual([parent._childInterpreter, parent.isRunning()], [null, false], "and the calling event ends with it");
+  assert.deepEqual(glue.errors, []);
+});
+
 test("aSaveMadeWhileWaitingLoadsWithoutWaitingForever", async () => {
   // The decision: a run's Promise lives in this session only. A save made while an event waits
   // stores the variable as 0 and the interpreter in the scfg wait mode; after loading it, that

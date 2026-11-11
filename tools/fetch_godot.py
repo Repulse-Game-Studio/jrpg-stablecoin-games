@@ -3,9 +3,10 @@
 
     python tools/fetch_godot.py --version 4.3-stable --dest /tmp/godot
 
-The zip comes from the godotengine/godot GitHub release of that tag and is checked against
-the release's SHA512-SUMS.txt before the binary is extracted. If the binary is already in
---dest, nothing is downloaded.
+The zip comes from the godotengine/godot GitHub release of that tag and is checked before the
+binary is extracted: for the versions the repository supports (PINNED: 4.3-stable and
+4.7.2-stable) against the SHA-512 recorded here, else against the release's SHA512-SUMS.txt. If
+the binary is already in --dest, nothing is downloaded.
 
 With --templates it installs that release's web export templates instead and prints their
 directory:
@@ -13,11 +14,15 @@ directory:
     python tools/fetch_godot.py --version 4.3-stable --templates [--templates-dir DIR]
 
 The export templates archive (about 1 GB, Godot_v<version>_export_templates.tpz) is streamed
-to --cache (default /tmp/godot-templates) and checked against SHA512-SUMS.txt while it
-downloads; a verified copy there is reused. Only the web templates (web_*) and version.txt are
-unpacked, into <data>/godot/export_templates/<version.txt>/, where <data> is --templates-dir,
-else $XDG_DATA_HOME, else ~/.local/share. Godot finds them there when it runs with
-XDG_DATA_HOME=<data>.
+to --cache (default /tmp/godot-templates) and checked while it downloads, against the pinned
+SHA-512 or else SHA512-SUMS.txt; a copy there that passes the same check is reused. A pinned
+version needs no SHA512-SUMS.txt, so it also works offline. For an unpinned version, when
+SHA512-SUMS.txt cannot be downloaded (offline), the cached copy is checked against the SHA-512
+recorded beside it (`<archive>.sha512`) when it was verified: that only guards against a
+corrupted copy, not against one tampered with together with its record. Only the web templates
+(web_*) and version.txt are unpacked, into <data>/godot/export_templates/<version.txt>/, where
+<data> is --templates-dir, else $XDG_DATA_HOME, else ~/.local/share. Godot finds them there when
+it runs with XDG_DATA_HOME=<data>.
 """
 
 from __future__ import annotations
@@ -40,6 +45,27 @@ _SUM_LINE = re.compile(r"^([0-9a-fA-F]{128}) [ *](\S+)$")
 # version.txt in the templates archive, such as "4.3.stable": the templates directory's name.
 _TEMPLATES_VERSION = re.compile(r"^\d+\.\d+(\.\d+)*\.[a-z]+\d*$")
 TEMPLATES_CACHE = Path("/tmp/godot-templates")
+# The SHA-512 of the downloads of the Godot versions the repository supports (CI and the e2e
+# runs), copied from each release's SHA512-SUMS.txt on 2026-11-11. A pinned file is checked
+# against this, never against a SHA512-SUMS.txt fetched at run time.
+PINNED = {
+    "4.3-stable": {
+        "Godot_v4.3-stable_linux.x86_64.zip":
+            "fd52bb4ba8acc30ca5accd1c566d470ad7282f891ccc0995dfafabcf92bcf762"
+            "80ce182bf9d80ebd885f3ed2165d01e1fc3f2928436b15498dfbd98656c2a45a",
+        "Godot_v4.3-stable_export_templates.tpz":
+            "476366caf0fd45a8f24136cf9cf1dc0bc2b96f7c82d53e5f82200b55aefd07b2"
+            "86d283fd6f1ce29e0de70648c5a51d3b12f96c6d4fafd4e8c4878ecda6406d6a",
+    },
+    "4.7.2-stable": {
+        "Godot_v4.7.2-stable_linux.x86_64.zip":
+            "9aa00f7a605200940bce3027a567b782f49bd8e940dd06ae9e987bd65aee1b14"
+            "67edd56ed84fcdcbdd44354bf613bdbb4e5d2913e925850368e150c59ed54c65",
+        "Godot_v4.7.2-stable_export_templates.tpz":
+            "ca4d71c4d7b81dfc15d1a98baa07534aa95b03fdda78a0075b06672e1648d2e5"
+            "f40980c9adc28d23e1b92e732ee7bf3461997aa804af74ec2fcd7a93ccb84079",
+    },
+}
 CHUNK = 1 << 20
 
 
@@ -143,6 +169,21 @@ def file_sha512(path: Path) -> str:
     return digest.hexdigest()
 
 
+def pinned_sha512(version: str, filename: str) -> str | None:
+    """The SHA-512 PINNED for this download, or None (an unpinned version)."""
+    return PINNED.get(version, {}).get(filename)
+
+
+def release_sha512(version: str, filename: str) -> str:
+    """The SHA-512 a download must have: the pinned one, else the one the release's
+    SHA512-SUMS.txt lists (downloaded)."""
+    pinned = pinned_sha512(version, filename)
+    if pinned:
+        return pinned
+    sums = parse_sums(download(release_url(version, SUMS_FILE)).decode("utf-8"))
+    return expected_sha512(sums, filename)
+
+
 def fetch(version: str, dest: Path) -> Path:
     check_version(version)
     dest = Path(dest)
@@ -150,8 +191,7 @@ def fetch(version: str, dest: Path) -> Path:
     if binary.is_file():
         return binary
     dest.mkdir(parents=True, exist_ok=True)
-    sums = parse_sums(download(release_url(version, SUMS_FILE)).decode("utf-8"))
-    expected = expected_sha512(sums, zip_name(version))
+    expected = release_sha512(version, zip_name(version))
     data = download(release_url(version, zip_name(version)))
     verify_sha512(data, expected)
     return extract_binary(data, binary_name(version), dest)
@@ -201,20 +241,58 @@ def unpack_web_templates(tpz: Path, root: Path) -> Path:
     return out
 
 
+def _recorded_sha512(path: Path) -> str | None:
+    """The SHA-512 written beside a cached archive when it was verified, or None."""
+    try:
+        text = Path(path).read_text(encoding="ascii").strip().lower()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return text if re.fullmatch(r"[0-9a-f]{128}", text) else None
+
+
+def _record_sha512(path: Path, digest: str) -> None:
+    path = Path(path)
+    tmp = path.with_name(path.name + ".part")
+    try:
+        tmp.write_text(digest.lower() + "\n", encoding="ascii")
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def fetch_templates(version: str, templates_dir=None, cache: Path = TEMPLATES_CACHE) -> Path:
     """Install the web export templates of `version` (see the module doc); returns their
-    directory. A verified archive in `cache` is reused; one that fails the check is fetched
-    again."""
+    directory. An archive in `cache` that passes the check (the pinned SHA-512, else
+    SHA512-SUMS.txt) is reused; one that fails it is fetched again. For an unpinned version the
+    SHA-512 an archive was verified against is kept beside it (`<archive>.sha512`): when
+    SHA512-SUMS.txt cannot be downloaded (offline), a cached archive that still has that SHA-512
+    is reused, with a note on stderr (a guard against corruption only, not tampering)."""
     check_version(version)
     name = templates_name(version)
-    sums = parse_sums(download(release_url(version, SUMS_FILE)).decode("utf-8"))
-    expected = expected_sha512(sums, name)
     cache = Path(cache)
-    cache.mkdir(parents=True, exist_ok=True)
     tpz = cache / name
+    recorded = cache / (name + ".sha512")
+    expected = pinned_sha512(version, name)
+    if expected is None:
+        try:
+            sums = parse_sums(download(release_url(version, SUMS_FILE)).decode("utf-8"))
+        except OSError as e:  # URLError is an OSError
+            known = _recorded_sha512(recorded)
+            if not (known and tpz.is_file() and file_sha512(tpz) == known):
+                raise
+            print(f"fetch_godot: {SUMS_FILE} could not be downloaded ({e}); reusing {tpz}, which "
+                  "still has the SHA-512 it was verified against (an unpinned version: this guards "
+                  "against a corrupted copy, not a tampered one)", file=sys.stderr)
+            return unpack_web_templates(tpz, data_dir(templates_dir))
+        expected = expected_sha512(sums, name)
+    cache.mkdir(parents=True, exist_ok=True)
     if not (tpz.is_file() and file_sha512(tpz) == expected):
         tpz.unlink(missing_ok=True)
+        recorded.unlink(missing_ok=True)
         download_verified(release_url(version, name), tpz, expected)
+    if pinned_sha512(version, name) is None:
+        _record_sha512(recorded, expected)
     return unpack_web_templates(tpz, data_dir(templates_dir))
 
 

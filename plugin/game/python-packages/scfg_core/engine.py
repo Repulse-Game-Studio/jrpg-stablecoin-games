@@ -13,9 +13,7 @@ tests).
 from __future__ import annotations
 
 import copy
-import sys
 import time
-import traceback
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Callable
@@ -26,7 +24,7 @@ from .backends.evm import START_BLOCK_MARGIN
 from .chains import Chain
 from .coio import run_sync
 from .config import Config, enabled_chains
-from .errors import ConfigError
+from .errors import ConfigError, print_error
 from .models import PaymentResult
 from .payments import MIN_TIP, prepare_payment
 from .receipts import compute_ownership
@@ -54,8 +52,7 @@ class Snapshot:
     unready: frozenset = frozenset()
 
 
-def _print_error(exc: BaseException) -> None:
-    traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
+_print_error = print_error
 
 
 class _LazyRpc:
@@ -205,7 +202,7 @@ class Engine:
         chains = {k: self.chain(k) for k in self.config.registry}
         wallets = {f: self.config.accepted_wallets_for(f) for f in ("evm", "solana")}
         removed = yield from reverify_receipts(self.receipts, rpc_for=self.rpc, chains=chains,
-                                               wallets=wallets)
+                                               wallets=wallets, on_error=self._report)
         yield from self._check_ready()
         return removed
 
@@ -232,7 +229,16 @@ class Engine:
         ordered = list(self.config.chains) + [k for k in registry if k not in self.config.chains]
         chains = {k: self.chain(k) for k in ordered}
         return (yield from restore_mod.lookup(tx_hash, config=self.config, chains=chains,
-                                              rpc_for=self.rpc, receipts=self.receipts))
+                                              rpc_for=self.rpc, receipts=self.receipts,
+                                              on_error=self._report))
+
+    def _report(self, exc: BaseException) -> None:
+        """The on_error handed to reverify and restore_lookup, which report as they go: it calls
+        `on_error` as it is when the error is reported, not as it was when the pass started
+        (the Godot autoload replaces its handler at quit, with a pass possibly in flight). A
+        handler unset by then (None, or anything falsy) prints the error, as `on_error or
+        print_error` does."""
+        (self.on_error or _print_error)(exc)
 
     def restore_apply(self, candidates, choices: dict | None = None) -> list[dict]:
         return restore_mod.apply(self.receipts, candidates, choices)

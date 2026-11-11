@@ -130,33 +130,38 @@ func test_ownership_skips_malformed_entries() -> bool:
 	for junk: Variant in [{}, {"kind": "unlock"}, {"kind": "unlock", "item": "chapter2", "amount": "lots"},
 			{"kind": "unlock", "item": "chapter2", "amount": null}, {"kind": "tip", "amount": "NaN"},
 			{"kind": "weird", "amount": "1"}, null, "text", [], 5, {"kind": ["tip"], "amount": "1"},
-			{"kind": "tip", "amount": {}}, {"kind": "tip", "amount": "-Infinity"}]:
+			{"kind": "tip", "amount": {}}, {"kind": "tip", "amount": "-Infinity"},
+			{"kind": "unlock", "item": "chapter2", "amount": "1E+999999"}, {"kind": "unlock", "item": "chapter2", "amount": "1E+41"},
+			{"kind": "unlock", "item": ["chapter2"], "amount": "4.993742"}, {"kind": "tip", "amount": "9E+999999"},
+			{"kind": "tip", "amount": "-1E+41"}, {"kind": "tip", "amount": []}]:
 		var store := {"junk": junk}
 		ScfgReceipts.add_receipt(store, _receipt())
 		T.eq(_owned(store, _items()), [["chapter2"], "0"], "skips %s" % ScfgPy.py_repr(junk))
 	return T.done()
 
 
-## What Python does not skip: Decimal([...]) is a ValueError and an unhashable item a TypeError
-## (neither is caught by compute_ownership); a bool or number amount is Decimal(True) / exact.
+## A bool or number amount is Decimal(True) / exact.
 func test_ownership_mirrors_python_on_odd_values() -> bool:
-	T.is_err(ScfgReceipts.compute_ownership({"a": {"kind": "tip", "amount": []}}, _items()), "ValueError",
-		"Decimal([]) is not caught")
-	T.is_err(ScfgReceipts.compute_ownership({"a": {"kind": "unlock", "item": ["x"], "amount": "5"}}, _items()),
-		"TypeError", "items.get([...]): unhashable")
 	T.eq(_owned({"a": {"kind": "tip", "amount": true}, "b": {"kind": "tip", "amount": 4.0},
 		"c": {"kind": "tip", "amount": 0.5}, "d": {"kind": "tip", "amount": [0, [2, 5], -1]}}, _items()),
-		[[], "8.0"], "True + 4 + 0.5 + Decimal((0, (2, 5), -1))")
-	# Python: compute_ownership raises decimal.Overflow (uncaught) for these stored tips
-	T.is_err(ScfgReceipts.compute_ownership({"a": {"kind": "tip", "amount": "1E+1000000"}}, _items()), "Overflow",
-		"one tip above Emax")
-	T.is_err(ScfgReceipts.compute_ownership({"a": {"kind": "tip", "amount": "9E+999999"},
-		"b": {"kind": "tip", "amount": "9E+999999"}}, _items()), "Overflow", "two tips whose sum passes Emax")
-	T.eq(_owned({"a": {"kind": "tip", "amount": "9E+999999"}}, _items()), [[], "9.000000000000000000000000000E+999999"],
-		"one 9E+999999 tip is still a value")
+		[[], "5.5"], "True + 4 + 0.5; a list amount is skipped (a stored amount is a number)")
+	T.eq(_owned({"a": {"kind": "tip", "amount": "1E+40"}, "b": {"kind": "tip", "amount": "1E+40"}}, _items()),
+		[[], "2.000000000000000000000000000E+40"], "the largest amounts still sum (CPython's 28 digits)")
 	T.eq(_owned({"a": {"kind": "tip", "amount": "1.5"}, "b": {"kind": "tip", "amount": "0"}}, _items()),
 		[[], "1.5"], "a Decimal sum keeps the widest exponent")
 	T.eq(_owned({"b": {"kind": "unlock", "item": "ost", "amount": "2"}, "a": {"kind": "unlock", "item": "chapter2",
 		"amount": "5"}, "c": {"kind": "unlock", "item": "ost", "amount": "9"}}, _items())[0], ["chapter2", "ost"],
 		"owned ids are a set, returned sorted")
+	return T.done()
+
+
+# tests/unit/test_receipts.py::test_ownership_of_forged_huge_amounts_is_nothing_and_quick
+func test_ownership_of_forged_huge_amounts_is_nothing_and_quick() -> bool:
+	var store := {"u": {"kind": "unlock", "item": "chapter2", "amount": "1E+999999"}, "f": {"kind": "tip", "amount": "1E+40"},
+		"g": {"kind": "tip", "amount": "1E+40"}}
+	for i in 3:
+		store["t%d" % i] = {"kind": "tip", "amount": "9.999999999999999999999999999E+999999"}
+	var start := Time.get_ticks_msec()
+	T.eq(_owned(store, _items()), [[], "2.000000000000000000000000000E+40"], "nothing owned, a finite tip total")
+	T.ok(Time.get_ticks_msec() - start < 2000, "quickly")
 	return T.done()

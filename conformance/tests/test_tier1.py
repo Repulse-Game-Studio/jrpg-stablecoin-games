@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TIER1_DIR = ROOT / "conformance" / "vectors" / "tier1"
 TOPICS = ["keccak", "evm_address", "base58", "ed25519", "pda", "solana_tx", "amounts",
           "paylinks", "qr", "page_messages", "receipts", "tx_ids",
-          "chains", "config", "custom_chains", "items", "payments"]
+          "chains", "config", "custom_chains", "items", "payments", "rpc_errors"]
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
 
@@ -204,6 +204,8 @@ def test_amounts_required_inputs():
         assert json.dumps({"type": "str", "value": text}, sort_keys=True) in parse, text
     assert parse[json.dumps({"type": "int", "value": 5}, sort_keys=True)]["out"] == "5.00"
     assert parse[json.dumps({"type": "float"}, sort_keys=True)]["error"] == "invalid"
+    underscored = json.dumps({"type": "str", "value": "1_000"}, sort_keys=True)
+    assert parse[underscored]["error"] == "invalid"
     for code_nonce in (0, 99):
         assert any(c["in"]["code"] == code_nonce and "out" in c
                    for c in _fn_cases("amounts", "encode"))
@@ -216,6 +218,7 @@ def test_amounts_required_inputs():
     assert outs["4990000"] == "4.990000"
     assert outs[str(10**12)] == "1000000.000000"
     assert outs[str(10**18 // 10**12)] == "1.000000"
+    assert outs[str(10**28 + 1)] == "10000000000000000000000.000001"  # exact, no rounding
     assert any(c.get("error") == "invalid" for c in _fn_cases("amounts", "decimal_to_units"))
     assert _fn_cases("amounts", "format_units")
 
@@ -230,7 +233,7 @@ def test_paylinks_uri_encoding():
 
 def test_qr_inputs_and_shapes():
     cases = _fn_cases("qr", "qr_matrix")
-    assert len(cases) == 6
+    assert len(cases) == 7
     sizes = {len(c["in"]["text"]): len(c["out"]) for c in cases}
     for c in cases:
         n = len(c["out"])
@@ -241,6 +244,8 @@ def test_qr_inputs_and_shapes():
     texts = {c["in"]["text"]: len(c["out"]) for c in cases}
     boundary = [t for t in texts if t.isascii() and len(t) == 15]
     assert boundary and texts[boundary[0]] == 25
+    # one case needs version 32 (145 modules): its alignment-pattern step (26) is easy to get wrong
+    assert 17 + 4 * 32 in texts.values()
     assert len(_fn_cases("qr", "qr_rects")) == 2
     for c in _fn_cases("qr", "qr_rects"):
         assert c["in"]["border"] == 2
@@ -265,6 +270,17 @@ def test_tx_ids_cases():
     for fn in ("normalize_tx_hash", "normalize_signature", "normalize_any_tx"):
         cs = _fn_cases("tx_ids", fn)
         assert any("out" in c for c in cs) and any("error" in c for c in cs), fn
+
+
+def test_rpc_errors_cases():
+    """Numbers past 18 significant digits are no number: the overlong cases halve or name no
+    version, and nothing is an error."""
+    ranges, versions = _fn_cases("rpc_errors", "suggested_range"), _fn_cases("rpc_errors",
+                                                                            "named_version")
+    assert all("out" in c for c in ranges + versions)
+    assert any(len(c["in"]["message"]) > 4301 and c["out"] == c["in"]["tried"] // 2 for c in ranges)
+    assert any(len(c["in"]["message"]) > 4301 and c["out"] is None for c in versions)
+    assert any(c["out"] == 999_999_999_999_999 for c in versions)
 
 
 def test_amount_codec_matches_core_directly():

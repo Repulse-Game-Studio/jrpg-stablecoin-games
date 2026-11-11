@@ -170,6 +170,22 @@ def _restore_lookup(s):
     assert not [c for c in s.steps[-1]["calls"] if c["url"] in node.urls]
 
 
+@scenario("solana/restore_too_large_to_decode_is_skipped", covers=covers(
+    "solana_backend", "lookup_skips_a_value_decode_cannot_price"))
+def _restore_too_large(s):
+    """A node reporting a token-balance gain of 10**32 units or more (SPL amounts are u64, so
+    only a broken node does) gives a transfer decode cannot price: it is skipped as one internal
+    error, and the transaction pays nothing the game knows (tx_not_a_payment)."""
+    s.config(solana_wallet=DEV_SOL)
+    s.item(**CHAPTER2)
+    node = s.solana()
+    mint = s.chain("solana").tokens["USDC"].address
+    tx = pay(node, mint, 1, 1, slot=950)
+    tx["meta"]["postTokenBalances"][1]["uiTokenAmount"]["amount"] = str(10**32)
+    s.expect("internal_error").restore_lookup(signature(1))
+    assert raised(s) == "tx_not_a_payment" and s.steps[-1]["internal_errors"] == 1
+
+
 # --- re-verification ---
 
 

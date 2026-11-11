@@ -10,33 +10,27 @@
  *
  * Only a *definitive* mismatch removes a receipt; network trouble never does.
  *
- * Pinned quirks of the Python reference: the removed keys come back in store order (insertion
- * order here; receipt keys start with a chain id, so they are never integer-like and JS keeps
- * insertion order); a stored amount of "Infinity" escapes Python's malformed-entry net as an
- * OverflowError (`int(Decimal("Infinity"))`) and rejects the whole run here too.
+ * As in Python, the removed keys come back in store order (insertion order here; receipt keys start
+ * with a chain id, so they are never integer-like and JS keeps insertion order). A stored entry whose
+ * own fields are invalid (a missing field, a chain, token or item that cannot be a key, a tx hash that
+ * is not a str, a log index or block that is not an int, an amount that is not a number of base units
+ * within the stored-amount range) is removed whatever chain it names, with the reason reported to
+ * `on_error`: a forged receipt cannot escape verification by making its check fail. A check that fails
+ * on what a node returned keeps that receipt as unverifiable, reports the failure, and the run goes on.
  */
-import { decimalToUnits, type Units } from "./amounts.ts";
+import { decimalToUnits, storedAmount, type Units } from "./amounts.ts";
 import { backendFor } from "./backends/index.ts";
 import { logSource, parseTransfer, type Chain } from "./chains.ts";
-import { Dec } from "./decimal.ts";
-import { KeyError, ValueError } from "./errors.ts";
+import { ArithmeticError, KeyError, ValueError, printError } from "./errors.ts";
 import { TRANSFER_TOPIC, addressTopic, parseTransferLog, type RawTransferLog } from "./evm.ts";
-import { hasOwn, pyGet, pyIntNumber } from "./pystr.ts";
+import { hasOwn, pyGet, pyIntNumber, pyStrip } from "./pystr.ts";
 import { RpcError, RpcUnavailable } from "./rpc.ts";
 
 export const FUTURE_TOLERANCE_BLOCKS = 10_000;
 
-/** `decimal_to_units(Decimal(x))` for a stored amount. */
+/** `decimal_to_units(stored_amount(x))` for a stored amount: ValueError / TypeError when it is invalid. */
 export function amountUnits(x: unknown): Units {
-  let d: Dec | "nan" | "inf";
-  if (typeof x === "string") d = Dec.parse(x);
-  else if (typeof x === "boolean") d = Dec.fromInt(x ? 1 : 0);
-  else if (typeof x === "bigint") d = Dec.fromInt(x);
-  else if (typeof x === "number") d = Dec.fromNumber(x);
-  else throw new TypeError("conversion to Decimal is not supported");
-  if (d === "nan") throw new ValueError("more than 6 decimals"); // NaN != NaN
-  if (d === "inf") throw new Error("OverflowError: cannot convert Infinity to integer");
-  return decimalToUnits(d);
+  return decimalToUnits(storedAmount(x));
 }
 
 export interface ReverifyArgs {
@@ -44,6 +38,8 @@ export interface ReverifyArgs {
   chains: Record<string, Chain>;
   /** a sequence (the developer's wallets, for every family) or family -> sequence */
   wallets: readonly string[] | Record<string, readonly string[]>;
+  /** told of each receipt whose check crashed (kept as unverifiable); default: printError */
+  on_error?: ((e: unknown) => void) | undefined;
 }
 
 /**
@@ -51,48 +47,80 @@ export interface ReverifyArgs {
  * keeps its receipts: they cannot be judged.
  */
 export async function reverifyReceipts(receipts: Record<string, any>, args: ReverifyArgs): Promise<string[]> {
-  const { rpc_for, chains, wallets } = args;
+  const report = args.on_error ?? printError;
   const removed: string[] = [];
-  const drop = (key: string): void => {
-    delete receipts[key];
-    removed.push(key);
-  };
   for (const [key, r] of Object.entries(receipts)) {
-    let chain: Chain | undefined;
-    let tokenName: unknown;
-    try {
-      const chainKey = pyGet(r, "chain");
-      if (typeof chainKey === "object" && chainKey !== null) throw new TypeError("unhashable chain key");
-      chain = typeof chainKey === "string" && hasOwn(chains, chainKey) ? chains[chainKey] : undefined;
-      // Malformed receipts are dropped here; the backend then reads the same fields.
-      const tx = pyGet(r, "tx_hash");
-      if (typeof tx !== "string") throw new TypeError("tx_hash must be a string");
-      pyIntNumber(pyGet(r, "log_index"));
-      pyIntNumber(pyGet(r, "block"));
-      amountUnits(pyGet(r, "amount"));
-      tokenName = pyGet(r, "token");
-    } catch (e) {
-      // KeyError, TypeError, ValueError (AttributeError / InvalidOperation in Python): drop.
-      if (e instanceof KeyError || e instanceof TypeError || e instanceof ValueError) {
-        drop(key);
-        continue;
-      }
-      throw e;
-    }
-    if (chain === undefined) continue; // chain unknown to this build: cannot judge, keep
-    if (typeof tokenName === "object" && tokenName !== null) throw new TypeError("unhashable token name");
-    if (typeof tokenName !== "string" || !hasOwn(chain.tokens, tokenName)) {
-      drop(key);
+    const problem = invalidFields(r, args.chains);
+    if (problem !== null) {
+      delete receipts[key];
+      removed.push(key);
+      report(new ValueError(`stored receipt ${JSON.stringify(key)} is invalid and was removed: ${String(problem)}`));
       continue;
     }
-    const familyWallets = Array.isArray(wallets)
-      ? wallets as readonly string[]
-      : (hasOwn(wallets, chain.family) ? (wallets as Record<string, readonly string[]>)[chain.family]! : []);
-    if (familyWallets.length === 0) continue; // no wallet of this family configured any more: cannot judge, keep
-    const verdict = await backendFor(chain).reverify(r, { rpc: rpc_for(chain.key), chain, wallets: [...familyWallets] });
-    if (verdict === "drop") drop(key);
+    let verdict: string;
+    try {
+      verdict = await judge(r, args);
+    } catch (e) {
+      report(e); // node data the check could not read: unverifiable, kept, the rest still checked
+      continue;
+    }
+    if (verdict === "drop") {
+      delete receipts[key];
+      removed.push(key);
+    }
   }
   return removed;
+}
+
+/** A dict key or set member: Python's `hash(v)` fails for a list or dict. */
+function hashable(v: unknown, name: string): void {
+  if (typeof v === "object" && v !== null) throw new TypeError(`unhashable ${name}`);
+}
+
+/**
+ * Why the stored entry `r` is not a receipt the checks can read (Python's KeyError, TypeError,
+ * ValueError, AttributeError, ArithmeticError), or null. The backends then read the same fields.
+ */
+function invalidFields(r: unknown, chains: Record<string, Chain>): unknown {
+  try {
+    const chainKey = pyGet(r, "chain");
+    hashable(chainKey, "chain");
+    hashable(pyGet(r, "token"), "token name");
+    hashable(isObject(r) && hasOwn(r, "item") ? r["item"] : null, "item");
+    const tx = pyGet(r, "tx_hash");
+    if (typeof tx !== "string") throw new TypeError("tx_hash must be a string");
+    if (pyIntNumber(pyGet(r, "log_index")) < 0 || pyIntNumber(pyGet(r, "block")) < 0) {
+      throw new ValueError("log index and block must be >= 0");
+    }
+    amountUnits(pyGet(r, "amount"));
+    // On a chain this build knows, the tx id must be one of its family's, as stored (no whitespace
+    // that Python's str.strip() removes: JS trim() keeps \x1c-\x1f and \x85, and removes U+FEFF).
+    if (typeof chainKey === "string" && hasOwn(chains, chainKey)) {
+      if (tx !== pyStrip(tx)) throw new ValueError(`tx id with surrounding whitespace: ${JSON.stringify(tx)}`);
+      backendFor(chains[chainKey]!).normalizeTx(tx);
+    }
+  } catch (e) {
+    if (e instanceof KeyError || e instanceof TypeError || e instanceof ValueError || e instanceof ArithmeticError) return e;
+    throw e;
+  }
+  return null;
+}
+
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** A well-formed receipt's verdict: "drop" or "keep". */
+async function judge(r: Record<string, any>, args: ReverifyArgs): Promise<string> {
+  const { rpc_for, chains, wallets } = args;
+  const chainKey = pyGet(r, "chain");
+  const chain = typeof chainKey === "string" && hasOwn(chains, chainKey) ? chains[chainKey]! : undefined;
+  if (chain === undefined) return "keep"; // chain unknown to this build: cannot judge, keep
+  const tokenName = pyGet(r, "token");
+  if (typeof tokenName !== "string" || !hasOwn(chain.tokens, tokenName)) return "drop";
+  const familyWallets = Array.isArray(wallets)
+    ? wallets as readonly string[]
+    : (hasOwn(wallets, chain.family) ? (wallets as Record<string, readonly string[]>)[chain.family]! : []);
+  if (familyWallets.length === 0) return "keep"; // no wallet of this family configured any more: cannot judge, keep
+  return await backendFor(chain).reverify(r, { rpc: rpc_for(chain.key), chain, wallets: [...familyWallets] });
 }
 
 /** Judge one stored EVM receipt: "drop" if the chain contradicts it, else "keep". */

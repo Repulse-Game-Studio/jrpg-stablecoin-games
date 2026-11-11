@@ -216,3 +216,50 @@ def make_game(browser, server):
         problems.extend(f"the game stopped on an error (SceneManager.onError): {e}" for e in stopped)
         context.close()
     assert not problems, "the page reported errors:\n" + "\n".join(problems)
+
+
+@pytest.hookimpl(tryfirst=True)   # before -m deselects
+def pytest_collection_modifyitems(items):
+    """Mark every test here `rpgmaker_ui`: the default run deselects them (they have their own
+    CI job, with SCFG_REQUIRE_JS=1); run them with `pytest -m rpgmaker_ui`."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for item in items:
+        if str(item.path).startswith(here + os.sep):
+            item.add_marker(pytest.mark.rpgmaker_ui)
+
+
+def _explicit_markexpr(config):
+    """Whether `-m` was given on the command line (not only by pyproject's addopts)."""
+    return any(a == "-m" or a.startswith("-m") for a in config.invocation_params.args)
+
+
+def pytest_configure(config):
+    """The default `-m` (pyproject addopts) deselects `rpgmaker_ui` tests, which have their own CI
+    job. Naming this directory (or a file in it) on the command line, or SCFG_REQUIRE_JS=1,
+    runs them; an explicit `-m` from the command line is left alone."""
+    term = " and not rpgmaker_ui"
+    if term not in (config.option.markexpr or "") or _explicit_markexpr(config):
+        return
+    here = Path(__file__).resolve().parent
+    named = False
+    for arg in config.args:
+        path = Path(config.invocation_params.dir, arg.split("::")[0]).resolve()
+        if path == here or here in path.parents:
+            named = True
+    if named or os.environ.get("SCFG_REQUIRE_JS") == "1":
+        config.option.markexpr = config.option.markexpr.replace(term, "")
+
+
+def pytest_terminal_summary(terminalreporter, config):
+    """A run that ran nothing because the default `-m` deselected it says how to select the
+    rpgmaker_ui tests; not after --collect-only or a `-m` of the caller's own."""
+    if config.option.collectonly or _explicit_markexpr(config):
+        return
+    if config.option.markexpr and "not rpgmaker_ui" in config.option.markexpr:
+        stats = terminalreporter.stats
+        if stats.get("deselected") and not any(
+            stats.get(k) for k in ("passed", "failed", "skipped", "error")
+        ):
+            terminalreporter.write_line(
+                "hint: the rpgmaker_ui tests are deselected by default; run them with "
+                "`pytest -m rpgmaker_ui`", yellow=True)

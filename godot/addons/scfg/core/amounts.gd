@@ -16,6 +16,13 @@ const TOKEN_DECIMALS := 6
 const _CENT_EXP := -2
 ## Python's MAX_AMOUNT = Decimal("1000000").
 static var MAX_AMOUNT: ScfgDec = ScfgDec.parse("1000000")  # err-ok: a valid literal
+## The magnitude bound of every amount the core reads (Python's AMOUNT_EXPONENT_LIMIT): a nonzero
+## amount's adjusted exponent must lie in [-40, 40], far beyond any token amount, so a near-Emax
+## value (1E+999999) can neither overflow nor build a huge ScfgBigInt.
+const AMOUNT_EXPONENT_LIMIT := 40
+## The longest amount text parse_amount and stored_amount parse (Python's AMOUNT_TEXT_LIMIT): far
+## beyond any amount, and it keeps the (quadratic) digit parsing cheap.
+const AMOUNT_TEXT_LIMIT := 100
 ## 10^28: decode's limit on units // 10000 (Python's 28-digit precision).
 static var _TEN_28: ScfgBigInt = ScfgBigInt.from_decimal("1" + "0".repeat(28))  # err-ok: ASCII digits
 
@@ -34,6 +41,10 @@ static func parse_amount(value: Variant) -> Variant:
 		TYPE_INT:
 			d = ScfgDec.from_int(value)  # err-ok: an int is always accepted
 		TYPE_STRING, TYPE_STRING_NAME:
+			if str(value).length() > AMOUNT_TEXT_LIMIT:
+				return ScfgErr.make("ValueError", "amount text longer than %d characters" % AMOUNT_TEXT_LIMIT)
+			if str(value).contains("_"):  # Decimal's digit-group underscores ("1_000") are refused
+				return ScfgErr.make("ValueError", "not a number: %s" % ScfgPy.py_repr(str(value)))
 			var parsed: Variant = ScfgDec.parse(ScfgPy.py_strip(str(value)))
 			if parsed is ScfgErr:
 				return ScfgErr.make("ValueError", "not a number: %s" % ScfgPy.py_repr(str(value)))
@@ -47,6 +58,8 @@ static func parse_amount(value: Variant) -> Variant:
 				d = value
 	if d == null:
 		return ScfgErr.make("TypeError", "unsupported amount type: %s" % ScfgPy.py_type(value))
+	if not _in_range(d):
+		return ScfgErr.make("ValueError", "amount out of range")
 	if d.cmp(ScfgDec.from_int(0)) <= 0:  # err-ok: an int is always accepted
 		return ScfgErr.make("ValueError", "amount must be positive")
 	if d.cmp(MAX_AMOUNT) > 0:
@@ -102,36 +115,55 @@ static func decode(units: Variant) -> Variant:
 	return [ScfgDec.from_parts(cents, _CENT_EXP, false), low / 100, low % 100]
 
 
-## Python `Decimal(units).scaleb(-TOKEN_DECIMALS)` for an int (or ScfgBigInt, or bool): 4990000
-## -> 4.990000. A non-int is a TypeError.
+## Base units (an int, ScfgBigInt or bool) -> token amount, exactly at any size: 4990000 ->
+## 4.990000 (Python builds it from the digits, no 28-digit rounding). A non-int is a TypeError.
 ## @fallible
 static func units_to_decimal(units: Variant) -> Variant:
 	var d: Variant = ScfgDec.from_int(units)
 	if d is ScfgErr:
 		return d
 	var dec: ScfgDec = d
-	return dec.scaleb(-TOKEN_DECIMALS)
+	return ScfgDec.from_parts(dec.coef, dec.exponent - TOKEN_DECIMALS, dec.neg)
 
 
-## Python `int(Decimal(amount).scaleb(TOKEN_DECIMALS))` when that is a whole number, else a
-## ValueError ("more than 6 decimals"). `amount` is anything Python's Decimal() takes (see
-## ScfgDec.from_value): an ScfgDec, a str, an int. NaN is that ValueError (NaN != NaN); an
-## Infinity is Python's OverflowError from int(). (A signalling NaN is Python's
-## InvalidOperation; the port reads it as NaN.) The result is an int or ScfgBigInt.
+## Whether a finite amount is within the amount range (AMOUNT_EXPONENT_LIMIT).
+static func _in_range(d: ScfgDec) -> bool:
+	return d.is_zero() or absi(d.adjusted()) <= AMOUNT_EXPONENT_LIMIT
+
+
+## Python `stored_amount`: an amount read back from storage (a receipt's amount, a session's
+## price), `Decimal(value)` (ScfgDec.from_value) when it is a finite number within the amount
+## range, else a ValueError (a TypeError or InvalidOperation as Decimal() raises for the value:
+## Python turns an InvalidOperation into a ValueError here, and so does the port).
+## @fallible
+static func stored_amount(value: Variant) -> Variant:
+	if value is Array:  # Decimal() reads a (sign, digits, exponent) list; a stored amount never is one
+		return ScfgErr.make("TypeError", "a stored amount is a number, not a list")
+	if (value is String or value is StringName) and str(value).length() > AMOUNT_TEXT_LIMIT:
+		return ScfgErr.make("ValueError", "amount text longer than %d characters" % AMOUNT_TEXT_LIMIT)
+	var d: Variant = ScfgDec.from_value(value)
+	if d is ScfgErr:
+		if (d as ScfgErr).is_a("InvalidOperation"):
+			return ScfgErr.make("ValueError", "not a number: %s" % ScfgPy.py_repr(value))
+		return d
+	if not d is ScfgDec or not _in_range(d):
+		return ScfgErr.make("ValueError", "amount out of range: %s" % ScfgPy.py_repr(value))
+	return d
+
+
+## Python `decimal_to_units`: the amount times 10^6 exactly (no rounding to 28 digits) when that is
+## a whole number, else a ValueError ("more than 6 decimals"), and a ValueError for an amount that
+## is not finite or out of the amount range. `amount` is anything Python's Decimal() takes (see ScfgDec.from_value):
+## an ScfgDec, a str, an int. The result is an int or ScfgBigInt.
 ## @fallible
 static func decimal_to_units(amount: Variant) -> Variant:
 	var d: Variant = ScfgDec.from_value(amount)
 	if d is ScfgErr:
 		return d
-	if d is String:
-		if d == "inf":
-			return ScfgErr.make("OverflowError", "cannot convert Infinity to integer")
-		return ScfgErr.make("ValueError", "more than 6 decimals")
+	if not d is ScfgDec or not _in_range(d):
+		return ScfgErr.make("ValueError", "amount out of range: %s" % ScfgPy.py_repr(amount))
 	var dec: ScfgDec = d
-	var q: Variant = dec.scaleb(TOKEN_DECIMALS)
-	if q is ScfgErr:
-		return q
-	var scaled: ScfgDec = q
+	var scaled := ScfgDec.from_parts(dec.coef, dec.exponent + TOKEN_DECIMALS, dec.neg)  # exact: no rounding
 	if not scaled.is_integral():
 		return ScfgErr.make("ValueError", "more than 6 decimals")
 	return scaled.to_py_int()

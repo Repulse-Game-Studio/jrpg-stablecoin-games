@@ -51,23 +51,46 @@ export const pyStrip = (s: string): string => stripWith(s, PY_WS_CHAR);
 const INT_WS = "\\t\\n\\v\\f\\r\\x20\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000";
 const INT_WS_CHAR = new RegExp(`^[${INT_WS}]$`);
 
-const ND = /^\p{Nd}$/u;
+/**
+ * The zero of every run of ten Unicode decimal digits (category Nd) in CPython 3.9's unicodedata
+ * (Unicode 13.0.0), the project's interpreter (.python-version), as godot/addons/scfg/core/pystr.gd
+ * _ND_ZEROS. Not the JS engine's `\p{Nd}`: Node's newer Unicode tables (17.0 in Node 24) hold 11
+ * more digit sets (Tangsa, Kawi, Nag Mundari, ...) that Python 3.9's int() and re's \d refuse,
+ * and an older NW.js has fewer. So the TS core reads exactly the digits the Python reference reads.
+ */
+const ND_ZEROS: readonly number[] = [
+  0x30, 0x660, 0x6f0, 0x7c0, 0x966, 0x9e6, 0xa66, 0xae6, 0xb66, 0xbe6, 0xc66, 0xce6, 0xd66,
+  0xde6, 0xe50, 0xed0, 0xf20, 0x1040, 0x1090, 0x17e0, 0x1810, 0x1946, 0x19d0, 0x1a80, 0x1a90,
+  0x1b50, 0x1bb0, 0x1c40, 0x1c50, 0xa620, 0xa8d0, 0xa900, 0xa9d0, 0xa9f0, 0xaa50, 0xabf0,
+  0xff10, 0x104a0, 0x10d30, 0x11066, 0x110f0, 0x11136, 0x111d0, 0x112f0, 0x11450, 0x114d0,
+  0x11650, 0x116c0, 0x11730, 0x118e0, 0x11950, 0x11c50, 0x11d50, 0x11da0, 0x16a60, 0x16b50,
+  0x1d7ce, 0x1d7d8, 0x1d7e2, 0x1d7ec, 0x1d7f6, 0x1e140, 0x1e2f0, 0x1e950, 0x1fbf0,
+];
 
 /**
- * Replace every Unicode decimal digit (category Nd) by its ASCII digit, as Python's `int()` and
- * `Decimal()` do. Nd digits come in contiguous runs of ten starting at zero.
+ * A regex character class (for a `u`-flag RegExp) of exactly those digits: Python 3.9's `\d`.
+ * Use it instead of `\p{Nd}`.
+ */
+export const PY_DIGIT =
+  "[" + ND_ZEROS.map((z) => "\\u{" + z.toString(16) + "}-\\u{" + (z + 9).toString(16) + "}").join("") + "]";
+
+/** The value of a Python 3.9 decimal digit (any script) at code point `cp`, or -1. */
+export function decimalDigit(cp: number): number {
+  if (cp >= 0x30 && cp <= 0x39) return cp - 0x30;
+  if (cp < 0x660) return -1;
+  for (const z of ND_ZEROS) if (cp >= z && cp < z + 10) return cp - z;
+  return -1;
+}
+
+/**
+ * Replace every Unicode decimal digit (Python 3.9's set, ND_ZEROS) by its ASCII digit, as
+ * Python's `int()` and `Decimal()` do. Nd digits come in contiguous runs of ten starting at zero.
  */
 export function toAsciiDigits(s: string): string {
   let out = "";
   for (const ch of s) {
-    const cp = ch.codePointAt(0)!;
-    if (cp < 0x80 || !ND.test(ch)) {
-      out += ch;
-      continue;
-    }
-    let start = cp;
-    while (ND.test(String.fromCodePoint(start - 1))) start--;
-    out += String((cp - start) % 10);
+    const d = decimalDigit(ch.codePointAt(0)!);
+    out += d < 0 ? ch : String(d);
   }
   return out;
 }
@@ -81,6 +104,9 @@ export function toAsciiDigits(s: string): string {
  *   - anything else is a TypeError; a malformed string or a non-finite number is a ValueError.
  * Only ValueError and TypeError are thrown.
  */
+/** CPython's default `sys.get_int_max_str_digits()`. */
+export const INT_MAX_STR_DIGITS = 4300;
+
 export function pyInt(x: unknown): bigint {
   if (typeof x === "boolean") return x ? 1n : 0n;
   if (typeof x === "bigint") return x;
@@ -91,7 +117,85 @@ export function pyInt(x: unknown): bigint {
   if (typeof x !== "string") throw new TypeError(`int() argument must be a string or a number, not '${pyType(x)}'`);
   const t = toAsciiDigits(stripWith(x, INT_WS_CHAR));
   if (!/^[+-]?[0-9]+(_[0-9]+)*$/.test(t)) throw new ValueError(`invalid literal for int(): ${JSON.stringify(x)}`);
-  return BigInt(t.replace(/_/g, "").replace(/^\+/, ""));
+  const body = t.replace(/_/g, "").replace(/^\+/, "");
+  // CPython's int(str) limit (sys.get_int_max_str_digits(), 4300): more digits is a ValueError
+  if (body.replace(/^-/, "").length > INT_MAX_STR_DIGITS) {
+    throw new ValueError(`Exceeds the limit (${INT_MAX_STR_DIGITS} digits) for integer string conversion`);
+  }
+  return BigInt(body);
+}
+
+/**
+ * A digit run read out of a node's error message is a number only up to this many significant
+ * digits (scfg_core/ints.py DIGIT_RUN_LIMIT, Ruling 6): every range or version a request can
+ * carry is below 10**18.
+ */
+export const DIGIT_RUN_LIMIT = 18;
+
+/**
+ * Python's `ints.digit_run_value`: a run of Unicode decimal digits (what `PY_DIGIT+` matches, as
+ * Python's `\d+`) as a number, or null beyond DIGIT_RUN_LIMIT significant digits. Linear, and
+ * it stops at the 19th significant digit. Above 2**53 the number is the nearest float (a port
+ * limit: no real range or version gets there).
+ */
+export function digitRunValue(run: string): number | null {
+  const memo = new Map<string, string>();
+  let digits = "";
+  for (const ch of run) {
+    let d = memo.get(ch);
+    if (d === undefined) {
+      d = toAsciiDigits(ch);
+      memo.set(ch, d);
+    }
+    if (digits === "" && d === "0") continue;
+    if (digits.length === DIGIT_RUN_LIMIT) return null;
+    digits += d;
+  }
+  return digits === "" ? 0 : Number(digits);
+}
+
+/**
+ * Python's `json.loads(text)` as the core calls it (`ints.json_loads`, Ruling 6): an integer
+ * literal of more than INT_MAX_STR_DIGITS digits makes the text invalid JSON (a SyntaxError,
+ * as JSON.parse throws), where JSON.parse alone would read it as a float (Infinity). Other
+ * numbers are JSON.parse's floats, as before. Linear.
+ */
+export function jsonLoads(text: string): unknown {
+  if (text.length > INT_MAX_STR_DIGITS && hasOverlongJsonInt(text)) {
+    throw new SyntaxError(`a JSON integer has more than ${INT_MAX_STR_DIGITS} digits`);
+  }
+  return JSON.parse(text);
+}
+
+/**
+ * True when JSON text holds an integer literal (no fraction, no exponent) of more than
+ * INT_MAX_STR_DIGITS digits outside strings. Only meaningful for text JSON.parse accepts.
+ */
+function hasOverlongJsonInt(text: string): boolean {
+  const n = text.length;
+  const isDigit = (c: number) => c >= 0x30 && c <= 0x39;
+  let i = 0;
+  while (i < n) {
+    const c = text.charCodeAt(i);
+    if (c === 0x22) { // a string: skip to its closing quote, past escapes
+      i++;
+      while (i < n && text.charCodeAt(i) !== 0x22) i += text.charCodeAt(i) === 0x5c ? 2 : 1;
+      i++;
+    } else if (isDigit(c)) {
+      const start = i;
+      while (i < n && isDigit(text.charCodeAt(i))) i++;
+      const next = text.charCodeAt(i);
+      if (next === 0x2e || next === 0x65 || next === 0x45) { // . e E: a float, skip the rest of it
+        i++;
+        while (i < n && (isDigit(text.charCodeAt(i)) || "+-eE".includes(text[i]!))) i++;
+      } else if (i - start > INT_MAX_STR_DIGITS) {
+        return true;
+      }
+    } else {
+      i++;
+    }
+  }
+  return false;
 }
 
 /** `pyInt(x)` as a JS number, for values a JSON number holds (slots, blocks, log indexes). */

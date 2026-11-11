@@ -42,8 +42,25 @@ test("test_config_error_codes", () => {
   assert.equal(code(() => buildConfig({ wallet: W, rpc_urls: { base: "http://example.org" } })), "rpc.not_https");
   assert.equal(code(() => buildConfig({ wallet: W, confirmations: { base: true } as never })), "confirmations.invalid");
   assert.equal(code(() => buildConfig({ wallet: W, accent: "red" })), "accent.invalid");
+  // the patterns match the whole string (Python's fullmatch): no trailing newline
+  assert.equal(code(() => buildConfig({ wallet: W, accent: "#0e7c74\n" })), "accent.invalid");
+  assert.equal(code(() => buildConfig({ wallet: W, accent: "#abc\n" })), "accent.invalid");
+  assert.equal(code(() => buildConfig({ wallet: W, rpc_urls: { base: "http://127.0.0.1:8545\n" } })), "rpc.not_https");
+  assert.equal(code(() => buildConfig({ wallet: W, rpc_urls: { base: "http://localhost\n" } })), "rpc.not_https");
   assert.equal(code(() => buildConfig({ wallet: W, logo: "a.svg" })), "logo.bad_type");
   assert.equal(code(() => buildConfig({ wallet: W, methods: { qr: { colour: 1 } } })), "methods.unknown_option");
+});
+
+test("test_local_http_port_digits_are_python_39s", () => {
+  // the plain-http exception's port is Python's \d: CPython 3.9's digits (Unicode 13), not the
+  // JS engine's \p{Nd}. A digit of a set Unicode added later (Tangsa, U+16AC0.., Unicode 14; Nag
+  // Mundari, U+1E4F0.., Unicode 15) is no digit there: the URL is refused, as by Python 3.9.
+  const rpc = (u: string) => buildConfig({ wallet: W, rpc_urls: { base: u } }).rpc_urls;
+  for (const u of ["http://127.0.0.1:\u{16ac5}\u{16ac0}", "http://localhost:\u{16ac5}/", "http://127.0.0.1:\u{1e4f5}"]) {
+    assert.equal(code(() => rpc(u)), "rpc.not_https", JSON.stringify(u));
+  }
+  // a digit Python 3.9 knows (Arabic-Indic) is one, as there
+  assert.deepEqual(rpc("http://127.0.0.1:\u0668\u0665/"), { base: ["http://127.0.0.1:\u0668\u0665/"] });
 });
 
 test("test_unknown_option_is_a_type_error", () => {
@@ -71,6 +88,8 @@ test("test_custom_chain_in_default_order", () => {
 
 test("test_build_chain_errors", () => {
   assert.equal(code(() => buildChain("Avalanche", AVAX)), "chain.invalid_key");
+  assert.equal(code(() => buildChain("avalanche\n", AVAX)), "chain.invalid_key");
+  assert.notEqual(code(() => buildChain("a", { ...AVAX, native_symbol: "AVAX\n" })), "<ok>");
   assert.equal(code(() => buildChain("a", { ...AVAX, explorer_tx: "https://x.io/{x}/{}" })), "chain.bad_explorer_tx_braces");
   assert.equal(code(() => buildChain("a", { ...AVAX, explorer_tx: "https://x.io/{}/{}" })), "chain.bad_explorer_tx");
   assert.equal(code(() => buildChain("a", { ...AVAX, max_log_range: 9 })), "int.below_minimum");
@@ -98,6 +117,7 @@ test("test_add_item", () => {
   assert.equal(code(() => addItem(c, "chapter-2", { code: 2, price: "1", token: "USDC", title: "x" })), "item.duplicate_id");
   assert.equal(code(() => addItem(c, "b", { code: 1, price: "1", token: "USDC", title: "x" })), "item.duplicate_code");
   assert.equal(code(() => addItem(c, "b", { code: 2, price: "abc", token: "USDC", title: "x" })), "item.invalid_price");
+  assert.notEqual(code(() => addItem(c, "b\n", { code: 2, price: "1", token: "USDC", title: "x" })), "<ok>");
   assert.equal(code(() => addItem(c, "b", { code: 2, price: 1.5, token: "USDC", title: "x" })), "item.invalid_price");
   assert.equal(code(() => addItem(c, "b", { code: 2, price: "1", min_price: "2", token: "USDC", title: "x" })), "item.min_price_above_price");
   assert.equal(code(() => addItem(c, "b", { code: 2, price: "1", token: "DAI", title: "x" })), "token.unavailable");

@@ -1,6 +1,8 @@
 // Stablecoin for Games checkout page: Solana. Finds wallet extensions through the Wallet Standard
 // (Phantom, Solflare, Backpack, ...), asks the game to build the transfer, has the wallet
 // sign and send it, and reports the signature to the game, which verifies it on-chain.
+// What an extension registers or throws is never trusted to be well-formed: a broken wallet
+// is left out or shown as a wallet error, never thrown into the page.
 "use strict";
 
 (function () {
@@ -21,6 +23,18 @@
     return out;
   }
 
+  // Can this Wallet Standard wallet pay on `chain`, as this page lists it? Twin of bridge.js
+  // canPaySolana(): the game offers "Browser wallet" for exactly the wallets this page shows.
+  function canPay(w, chain) {
+    try {
+      return !!(w && Array.isArray(w.chains) && w.chains.includes(chain) &&
+        w.features && w.features["standard:connect"] &&
+        w.features["solana:signAndSendTransaction"] && typeof w.name === "string");
+    } catch (err) {
+      return false;                   // a wallet whose fields throw can't pay
+    }
+  }
+
   function fromBase64(text) {
     const bin = atob(text);
     const out = new Uint8Array(bin.length);
@@ -29,26 +43,49 @@
   }
 
   function start(ctx) {
-    const { session, $, setStatus } = ctx;
-    const wallets = [];
+    const { session, $, setStatus, field } = ctx;
+    const wallets = [];   // { wallet, name, icon }: the name and icon read once
     let wallet = null;
     let account = null;
 
+    // The wallet as { wallet, name, icon } if it can pay on this chain, else null (also for
+    // one whose fields throw).
     function usable(w) {
-      return w && Array.isArray(w.chains) && w.chains.includes(session.wallet_chain) &&
-        w.features && w.features["standard:connect"] &&
-        w.features["solana:signAndSendTransaction"];
+      if (!canPay(w, session.wallet_chain)) return null;
+      try {
+        const { name, icon } = w;
+        if (typeof name !== "string") return null;   // a getter that changed its mind
+        return { wallet: w, name, icon: typeof icon === "string" ? icon : "" };
+      } catch (err) {
+        return null;
+      }
     }
 
+    // The Wallet Standard's register(): a wallet calls it, so it never throws.
     function register(...list) {
-      for (const w of list) if (usable(w) && !wallets.includes(w)) wallets.push(w);
-      render();
+      try {
+        for (const w of list) {
+          if (wallets.some((e) => e.wallet === w)) continue;
+          const entry = usable(w);
+          if (entry) wallets.push(entry);
+        }
+        render();
+      } catch (err) { /* the wallets registered so far stay */ }
       return () => {};
     }
 
+    // A click handler: whatever the flow throws ends as the wallet error state.
+    function guarded(flow) {
+      return (...args) => {
+        flow(...args).catch((err) => {
+          if (!ctx.isSent()) setStatus(walletError(err), "bad");
+        });
+      };
+    }
+
     function walletError(err) {
-      const msg = (err && err.message) || String(err);
-      if ((err && err.code === 4001) || /reject/i.test(msg)) {
+      const msg = ctx.errorText(err);
+      if (field(err, "code") === 4001 || /reject/i.test(msg)) {
         return "You rejected the request in your wallet. You can try again.";
       }
       if (/blockhash|expired/i.test(msg)) return "The request timed out. Click Pay to try again.";
@@ -59,17 +96,17 @@
       const list = $("wallets");
       list.textContent = "";
       if (ctx.isSent()) return;
-      for (const w of wallets) {
+      for (const { wallet: w, name, icon } of wallets) {
         const b = document.createElement("button");
         b.type = "button";
-        if (typeof w.icon === "string" && w.icon.startsWith("data:image/")) {
+        if (icon.startsWith("data:image/")) {
           const img = document.createElement("img");
-          img.src = w.icon;
+          img.src = icon;
           img.alt = "";
           b.appendChild(img);
         }
-        b.appendChild(document.createTextNode("Pay with " + w.name));
-        b.addEventListener("click", () => connect(w));
+        b.appendChild(document.createTextNode("Pay with " + name));
+        b.addEventListener("click", guarded(() => connect(w)));
         list.appendChild(b);
       }
       if (wallets.length > 0 && !account) setStatus("Choose your wallet.");
@@ -97,11 +134,13 @@
       const button = $("pay");
       if (ctx.isSent()) return;
       button.disabled = true;
-      let built;
+      let built, balance, solBalance;
       try {
         setStatus("Preparing the payment…");
         built = await ctx.postJSON("build", { account: account.address });
         if (!built) throw new Error("empty reply");
+        balance = BigInt(built.token_balance);
+        solBalance = BigInt(built.sol_balance);
       } catch (err) {
         if (ctx.isSent()) return;
         setStatus("The game couldn't prepare the payment. Check your connection and try again.", "bad");
@@ -111,14 +150,13 @@
       // The payment was found while the game was building (e.g. an earlier send landed
       // late): never ask the wallet to sign a second one.
       if (ctx.isSent()) return;
-      const balance = BigInt(built.token_balance);
       if (balance < BigInt(session.amount_units)) {
         setStatus("This wallet has " + ctx.formatUnits(balance, session.decimals) + " " +
           session.token + " on " + session.chain_name + ". You need " + session.amount_text + ".", "bad");
         button.disabled = false;
         return;
       }
-      if (BigInt(built.sol_balance) < 10000n) {
+      if (solBalance < 10000n) {
         setStatus("Warning: you have almost no SOL for the network fee. The transaction will probably fail.", "warn");
       } else {
         setStatus("Confirm the payment in your wallet…");
@@ -163,9 +201,12 @@
     }
 
     ctx.onRetry = retry;
-    $("pay").addEventListener("click", pay);
+    $("pay").addEventListener("click", guarded(pay));
     window.addEventListener("wallet-standard:register-wallet", (event) => {
-      try { event.detail({ register }); } catch (err) { /* a broken wallet must not break the page */ }
+      // a broken wallet must not break the page: neither its callback's throw nor its rejection
+      try {
+        Promise.resolve(event.detail({ register })).catch(() => {});
+      } catch (err) { /* nothing registered */ }
     });
     window.dispatchEvent(new CustomEvent("wallet-standard:app-ready", { detail: { register } }));
     setTimeout(() => {

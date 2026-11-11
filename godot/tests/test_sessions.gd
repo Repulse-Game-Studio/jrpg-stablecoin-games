@@ -199,3 +199,13 @@ func test_default_entropy_ranges() -> bool:
 	T.ok((e.token_hex(4) as String).length() == 8, "token_hex(4)")
 	T.is_err(e.randbelow(0), "ValueError", "randbelow(0)")
 	return T.done()
+
+
+# tests/unit/test_sessions.py::test_session_price_is_read_as_a_stored_amount
+func test_session_price_is_read_as_a_stored_amount() -> bool:
+	T.eq(str(ScfgSessions.session_price({"price": "4.99"})), "4.99", "a price")
+	for price: String in ["1E+999999", "1E+41", "Infinity"]:
+		T.is_err(ScfgSessions.session_price({"price": price}), "ValueError", price)
+		T.is_err(ScfgWatcher.min_amount({"kind": "unlock", "item": "gone", "price": price}, {}), "ValueError",
+			"min_amount %s" % price)
+	return T.done()

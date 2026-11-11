@@ -33,7 +33,7 @@ The sheet's DOM tests and the checkout server's security suite (from the reposit
     SCFG_REQUIRE_JS=1 uv run pytest tests/server_security            # the Node server next to the Python (and, with SCFG_GODOT, the GDScript) one
     uv run python tools/check_text_ids.py --check                    # the sheet's text ids against the shared messages and the Godot template
 
-Releasing and the docs: `uv run python tools/package.py --engine rpgmaker` runs `npm run build` and writes `dist/scfg-rpgmaker-mz-<version>.zip` (`js/plugins/SCFG.js`, `img/scfg/README.txt`, `scfg-README.md` joined from `docs/developers/rpgmaker/`, `scfg-LICENSE.txt`, `scfg-NOTICES.txt` with the Nayuki and Keccak notices). It refuses when `VERSION` in `src/mz/scfg.ts` differs from `scfg_core.__version__`. The plugin is tested on the shim only, not yet on real RPG Maker MZ; the docs say so. CI (`.github/workflows/test.yml`) runs all of the above, and builds twice and compares to keep `SCFG.js` reproducible.
+Releasing and the docs: `uv run python tools/package.py --engine rpgmaker` runs `npm run build` and writes `dist/scfg-rpgmaker-mz-<version>.zip` (`js/plugins/SCFG.js`, `img/scfg/README.txt`, `scfg-README.md` joined from `docs/developers/rpgmaker/`, `scfg-LICENSE.txt`, `scfg-NOTICES.txt` with the Nayuki and Keccak notices). It refuses when `VERSION` in `src/mz/version.ts` differs from `scfg_core.__version__`, or when the built plugin header does not show it (MZ has no version annotation: `@plugindesc ... v<version>` and the first `@help` line, both generated from `VERSION`). The plugin is tested on the shim only, not yet on real RPG Maker MZ; the docs say so. CI (`.github/workflows/test.yml`) runs all of the above, and builds twice and compares to keep `SCFG.js` reproducible.
 
 ## Real-MZ campaign checklist
 
@@ -66,6 +66,10 @@ not yet seen in the real thing:
    file must be named `SCFG.js` for its parameters to be found.
 10. **Demo kit.** `demo/data/Map001.json`, `MapInfos.json` and `js/plugins.js` open in the editor as the README says
     (event command codes, plugin command parameter format, switch and variable numbering).
+11. **Two games on one origin.** Two web deployments served from one origin (one host, two paths) with different
+    `advanced.gameId` values keep separate `rmmzsave.<gameId>.scfg` entries in localforage and never see each
+    other's receipts (the shim models MZ's `StorageManager.forageKey`); check where the editor sets `advanced.gameId`
+    for a new project and whether a copied project keeps it.
 
 ## Using the core (for M2)
 

@@ -20,7 +20,12 @@ from scfg_core.checkout import CheckoutController
 from scfg_core.local_server import CheckoutServer
 from scfg_core.payments import prepare_payment
 
-from browser_mocks import install_mock_solana_wallet
+from browser_mocks import (
+    assert_nothing_escaped,
+    install_malformed_extensions,
+    install_mock_solana_wallet,
+    try_bad_wallets,
+)
 
 pytestmark = pytest.mark.integration
 playwright_api = pytest.importorskip("playwright.sync_api")
@@ -337,4 +342,27 @@ def test_session_json_is_solana_shaped(solana_world, browser):
     session = page.evaluate("fetch('session.json').then(r => r.json())")
     assert session["family"] == "solana"
     assert session["wallet_chain"] == "solana:devnet"
+    ctl.close()
+
+
+def test_malformed_extensions_never_break_the_page(solana_world, browser):
+    """Broken Wallet Standard registrations and a wallet rejecting with odd values: each is the
+    page's wallet error at worst, nothing escapes into the page, and the good wallet still pays."""
+    w = solana_world
+    ctl, url = open_checkout(w)
+    page, sent = new_page(browser, w)
+    errors = install_malformed_extensions(page)
+    page.goto(url)
+    assert page.locator("#title").inner_text() == "Chapter 2"
+    page.wait_for_function("document.getElementById('status').textContent === 'Choose your wallet.'")
+    page.wait_for_timeout(700)                         # past the page's "no wallet" check
+    assert_nothing_escaped(page, errors)
+    names = sorted(page.locator("#wallets button").all_inner_texts())
+    assert names == ["Pay with Bad Solana Wallet", "Pay with Mock Solana Wallet"], names
+    try_bad_wallets(page, errors, family="solana")
+
+    connect_wallet(page).click()
+    pump_until_page_says(page, "Payment confirmed", w["engine"], ctl)
+    assert len(sent) == 1 and ctl.result.tx_hash == sent[0]
+    assert_nothing_escaped(page, errors)
     ctl.close()

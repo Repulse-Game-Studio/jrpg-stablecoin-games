@@ -108,7 +108,9 @@ A runner, per vector:
   as `returns` of step `from_step` (`transfer.class` is `Transfer` or `TransferLog`); `choices` keys are
   candidate indexes as strings. A float argument is written `{"float": "<repr>"}`.
 - Compares `raises`, then `returns` (null when it raised), then `internal_errors` (crashes the Engine
-  swallowed while stepping one session; their type is never recorded), then `snapshot` (`owned` sorted,
+  contained or reported to its `on_error`: while stepping one session, removing an invalid stored receipt
+  or checking one on node data in `reverify`, or classifying one transfer in `restore_lookup`; their type
+  is never recorded), then `snapshot` (`owned` sorted,
   `tip_total` the Decimal as a string, `unready` sorted `[chain, token]` pairs).
 
 `schema/state.json` freezes the receipt and pending-session format (`state_schema.check`), and
@@ -177,17 +179,59 @@ and a runner must feed exactly those draws, in order. At generation time entropy
 - **Big file.** `tier2/solana/scan_far_behind.json` is about 0.5 MB by necessity: `SIG_PAGE` and
   `MAX_SIG_PAGES` are module constants, so reaching the page bound takes that many recorded signatures.
 - **Reference quirks pinned as behaviour.** These are not bugs to fix in a port, and a port must not "improve" them:
-  - `parse_amount("1_000")` is `1000.00` and Unicode whitespace around a number is stripped (`str.strip`).
+  - Unicode whitespace around a `parse_amount` number is stripped (`str.strip`); an underscore anywhere
+    (`"1_000"`, Decimal's digit grouping) is refused.
   - `compute_ownership` `tip_total` is a Python `Decimal` sum: the result carries the most fraction digits
     among the summed amounts (`"1.5"` plus `"0"` is `"1.5"`, `"1.000000"` stays six digits) and no tips gives
     `"0"`. Ports must not format it with fixed decimals.
-  - `units_to_decimal` inputs beyond 28 significant digits are deliberately absent: Python's default
-    `Decimal` precision rounds them and the result is not a stable contract.
-  - `parse_transfer_log` accepts short `data` (`"0x01"` is 1).
+  - `units_to_decimal` is exact at any size (it does not round to Decimal's 28 digits), and so are
+    `format_units` and `decimal_to_units` (within the amount range below).
+  - The config patterns (item id, chain key, native symbol, colour, the plain-http localhost RPC URL)
+    match the whole string: a trailing newline is refused.
+  - Input lengths are bounded before quadratic decoding: `decode_fixed` (so `normalize_pubkey` and
+    `normalize_signature`) refuses text longer than the longest base58 encoding of its byte count
+    (44 characters for 32 bytes, 88 for 64); `parse_amount` and `stored_amount` refuse text longer
+    than 100 characters (`AMOUNT_TEXT_LIMIT`); `int(str)` refuses more than 4300 digits (CPython's
+    `sys.get_int_max_str_digits()`; the Python core enforces it itself, `ints.int_from`, so it holds on an
+    interpreter without the limit, and the ports apply it too). `decode_fixed` with a `length` that is not a
+    number (a str, null, a bool, a list) is `"invalid"`.
+  - Numbers in a node's error message (`tier1/rpc_errors`): the eth_getLogs range a provider states
+    (`suggested_range`) and the transaction version a Solana -32015 names (`named_version`) are runs of any
+    Unicode decimal digit (Python's `\d`: CPython 3.9's set, Unicode 13.0.0, which `pystr.gd` and `pystr.ts`
+    hold as a table rather than trusting the engine's own, newer, `\p{Nd}`; `named_version` matches `version (N)` with Python's IGNORECASE, so
+    `ſ` matches s and `İ`, `ı` match i). A run of more than 18 significant digits (`DIGIT_RUN_LIMIT`;
+    leading zeros do not count) is no number: `suggested_range` ignores it, and `named_version` finds no
+    version (the node's error is raised), so no long run is ever converted. JS numbers hold such values
+    exactly only below 2**53, so no vector names a range or version above that.
+  - An RPC answer whose JSON holds an integer literal (no fraction, no exponent) of more than 4300 digits
+    is `invalid JSON response` (a 2xx) or `HTTP <status>` (an error status), as CPython's json refuses
+    it: the Python core reads integers with `ints.int_from` (`ints.json_loads`), and the TS (`jsonLoads`)
+    and GDScript (`ScfgCoio.parse_rpc_body`) transports refuse it before JSON.parse. Tested natively in each
+    transport, not by vectors (Tier 2 replays parsed answers). A shorter integer beyond a float's range
+    (309 to 4300 digits) is still a float (Infinity) in TS and GDScript where Python reads an int: a port
+    difference only a malicious node can reach.
+  - `parse_transfer_log` needs `data` to be exactly `0x` and 64 hex digits; anything else (empty, short,
+    long, malformed, missing) is not a transfer (`null`), never an error.
+  - Amounts read back from storage (`stored_amount`: receipt amounts, session prices), `parse_amount`
+    and `decimal_to_units` are bounded: a nonzero amount's adjusted exponent must lie in [-40, 40]
+    (`AMOUNT_EXPONENT_LIMIT`); anything else, and any non-finite value, is a ValueError, and a list
+    (which Python's Decimal() would read as a tuple) is a TypeError in `stored_amount`. So
+    `compute_ownership` skips such entries (and unhashable items) and its tip total stays finite.
+  - `reverify` removes an entry whose own fields are invalid (a missing field, a chain, token or item
+    that cannot be a key, a non-str tx hash, a log index or block that is not an int >= 0, an amount out of
+    range, and on a chain the build knows a tx id that is not its family's: 0x and 64 hex digits for EVM,
+    64 base58 bytes for Solana, no surrounding whitespace), and reports the reason; a receipt naming a chain
+    the build does not know is kept, its family fields unchecked: one internal error each (`reverify/invalid_receipts_are_removed`,
+    `reverify/malformed_entries_are_removed`). A check that fails on node data keeps the receipt, also
+    as one internal error.
+  - `restore_lookup` skips a transfer `decode` cannot price (10**32 units or more) as one internal error
+    (`restore/too_large_to_decode_is_skipped`).
   - `normalize_pubkey` strips whitespace, `decode_fixed` does not.
   - Solana hints expire after `SOLANA_HINT_TIMEOUT_S = 180` seconds, EVM hints after `HINT_TIMEOUT_S = 1800`.
   - A Decimal zero at 6 decimals is `"0.000000"`.
-- **QR.** The longest-URI QR input assumes a 64-character label; the Python code has no such cap.
+- **QR.** The longest-URI QR input assumes a 64-character label; the Python code has no such cap. The
+  `version_32` input (1453 bytes) pins version 32's alignment-pattern step (26, not the 28 a naive
+  formula gives); all three encoders get it right.
 - **GDScript runner.** Run `godot --headless --path godot --import` once per fresh checkout (it registers the
   `class_name` globals; re-run after adding one). Every test method must end with `return T.done()`: a runtime
   script error only aborts the erroring function, so the runner fails any method that does not return `true`.
