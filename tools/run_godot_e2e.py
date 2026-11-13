@@ -20,7 +20,8 @@ They need `anvil` (Foundry) or `solana-test-validator` (Agave) on PATH, Playwrig
 and `solders` (a dev dependency, so run it with `uv run`).
 
 The game runs headless; with SCFG_E2E_VIDEODRIVER=x11 it opens a window instead, as the Ren'Py
-e2e does. Its user data (HOME, XDG_*) lives in a temporary directory, never the developer's.
+e2e does, on the OpenGL compatibility renderer (Xvfb has no Vulkan). Its user data (HOME,
+XDG_*) lives in a temporary directory, never the developer's.
 
     uv run python tools/run_godot_e2e.py --godot /path/to/Godot_v4.3 [--family arc|solana]
 """
@@ -284,7 +285,17 @@ class Game:
     def __init__(self, godot: str, env: dict, log: Path):
         windowed = os.environ.get("SCFG_E2E_VIDEODRIVER", "")
         display = (
-            ["--display-driver", windowed, "--audio-driver", "Dummy"]
+            [
+                "--display-driver",
+                windowed,
+                "--audio-driver",
+                "Dummy",
+                # Xvfb (CI) has no Vulkan; Forward+ would crash before the driver loads
+                "--rendering-method",
+                "gl_compatibility",
+                "--rendering-driver",
+                "opengl3",
+            ]
             if windowed
             else ["--headless"]
         )
