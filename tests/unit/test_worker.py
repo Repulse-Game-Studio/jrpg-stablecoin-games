@@ -75,6 +75,15 @@ def test_submitted_commands_run_before_tick_and_resolve_futures():
         bad.result(timeout=0)
 
 
+def test_a_command_submitted_by_a_command_runs_before_the_same_tick():
+    e = FakeEngine()
+    w = Worker(e)
+    inner = []
+    w.submit(lambda eng: inner.append(w.submit(lambda eng2: eng2.ticks)))
+    w.run_once()
+    assert inner[0].result(timeout=0) == 0
+
+
 def test_cancelled_future_is_skipped():
     w = Worker(FakeEngine())
     ran = []

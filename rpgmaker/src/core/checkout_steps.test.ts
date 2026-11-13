@@ -126,6 +126,15 @@ test("test_ive_sent_it_moves_qr_and_manual_to_waiting", async () => {
   }
 });
 
+test("test_ive_sent_it_clears_a_bad_hash_error", async () => {
+  const { ctl } = await onMethodStep();
+  ctl.chooseMethod("manual");
+  ctl.submitHash("garbage");
+  assert.equal(ctl.error, "invalid_hash");
+  ctl.markSent();
+  assert.ok(ctl.step === "waiting" && ctl.error === null);
+});
+
 test("test_tip_amount_step_applies_a_typed_amount", () => {
   const { ctl } = setup({ kind: "tip" });
   ctl.custom_amount = "0.10";

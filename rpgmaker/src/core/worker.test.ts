@@ -118,6 +118,17 @@ test("test_submitted_commands_run_before_tick_and_resolve_jobs", async () => {
   assert.throws(() => bad.result(), RangeError);
 });
 
+test("test_a_command_submitted_by_a_command_runs_before_the_same_tick", async () => {
+  const e = new FakeEngine();
+  const w = new Worker(asEngine(e));
+  const inner: Job<number>[] = [];
+  w.submit(() => {
+    inner.push(w.submit((eng) => (eng as unknown as FakeEngine).ticks));
+  });
+  await w.runOnce();
+  assert.equal(inner[0]!.result(), 0); // drained in the same pass, as in Python
+});
+
 test("test_cancelled_job_is_skipped", async () => {
   const w = new Worker(asEngine(new FakeEngine()));
   const ran: number[] = [];
@@ -291,7 +302,7 @@ test("pump: stop cancels queued commands and runs nothing more", async () => {
   assert.equal(e.ticks, 0);
 });
 
-// --- the brief's named tests ------------------------------------------------------------
+// --- ordering and follow-ups -------------------------------------------------------------
 
 test("test_commands_never_interleave_with_a_tick", async () => {
   const e = new FakeEngine();

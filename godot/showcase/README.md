@@ -36,8 +36,8 @@ To pay for real on a testnet:
 2. Get testnet USDC from [Circle's faucet](https://faucet.circle.com/) into a second wallet (the player's).
 3. Press **Unlock**, pick a network and a method:
    - **Browser wallet** opens a checkout page in your browser.
-   - **Scan a QR code** suits a phone wallet.
-   - **Send it yourself** shows the exact amount and address.
+   - **Phone wallet** shows a QR code to scan.
+   - **Manual transfer** shows the exact amount and address.
 4. The item unlocks once the payment is confirmed on the chain.
 
 Then try **Clear local data** and **Restore purchases** with the transaction hash: the purchase comes back.

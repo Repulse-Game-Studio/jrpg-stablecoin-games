@@ -65,14 +65,16 @@ test("test_py_format1_raises_what_str_format_raises", () => {
   assert.equal(pyFormat1("{0}{{}}", "a"), "a{}");
   assert.equal(pyFormat1("{!r}", "a"), "'a'");
   assert.throws(() => pyFormat1("{1}", "a"), IndexError);
+  assert.throws(() => pyFormat1("https://x/{}{!r}", "a"), IndexError);
+  assert.throws(() => pyFormat1("{}{}", "a"), IndexError);
+  assert.throws(() => pyFormat1("{0}{}", "a"), ValueError);
   assert.throws(() => pyFormat1("{name}", "a"), KeyError);
   assert.throws(() => pyFormat1("{", "a"), ValueError);
   assert.throws(() => pyFormat1("}", "a"), ValueError);
 });
 
-// CPython's int() maps non-ASCII whitespace to a space but leaves ASCII
-// characters as they are, then skips only ASCII whitespace (Py_ISSPACE). So \x1c-\x1f, which
-// str.strip() removes, make int() fail: int("\x1c5") is a ValueError while Decimal("\x1c5") is 5.
+// CPython's int() skips only ASCII whitespace (Py_ISSPACE) after mapping non-ASCII whitespace to a
+// space, so \x1c-\x1f, which str.strip() removes, make int() fail while Decimal("\x1c5") is 5.
 // The table is str.isspace() for every code point (CPython 3.9.25, `uv run python`).
 const PY_ISSPACE = [
   0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003,

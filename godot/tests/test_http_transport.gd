@@ -130,6 +130,36 @@ func test_an_overlong_json_integer_is_invalid_json() -> bool:
 	return T.done()
 
 
+## Godot only (urllib reads any body): a body over `body_size_limit` is dropped, a TransportError
+## without a status, so ScfgRpcClient cools the endpoint down and tries the next one.
+func test_a_response_over_the_size_limit_is_a_transport_error() -> bool:
+	var env := await _setup()
+	var host: Node = env[0]
+	var tr: ScfgHttpTransport = env[2]
+	var responder: F.Responder = env[1]
+	T.eq(tr.body_size_limit, 16 * 1024 * 1024, "16 MiB by default")
+	T.eq(tr.body_size_limit, ScfgHttpTransport.MAX_BODY_BYTES, "MAX_BODY_BYTES")
+	var size := F.Responder.OK_BODY.to_utf8_buffer().size()
+	tr.body_size_limit = size - 1
+	var got: Variant = await tr.post_json(responder.url("/ok"), _payload(), 5.0)
+	T.is_err(got, "TransportError", "one byte over")
+	T.eq((got as ScfgErr).message if got is ScfgErr else "", "response too large", "its message")
+	T.eq(_status_of(got), null, "no status")
+	# without a Content-Length the body is counted as it arrives
+	got = await tr.post_json(responder.url("/ok-chunked"), _payload(), 5.0)
+	T.is_err(got, "TransportError", "one byte over, no Content-Length")
+	T.eq((got as ScfgErr).message if got is ScfgErr else "", "response too large", "its message (no Content-Length)")
+	await (Engine.get_main_loop() as SceneTree).process_frame
+	T.eq(host.get_child_count(), 0, "the HTTPRequest is freed")
+	tr.body_size_limit = size
+	T.json_eq(await tr.post_json(responder.url("/ok"), _payload(), 5.0),
+		{"jsonrpc": "2.0", "id": 1, "result": "0x10"}, "a body of exactly the limit is read")
+	T.json_eq(await tr.post_json(responder.url("/ok-chunked"), _payload(), 5.0),
+		{"jsonrpc": "2.0", "id": 1, "result": "0x10"}, "also without a Content-Length")
+	await _teardown(env)
+	return T.done()
+
+
 ## Waits until a frame begins whose time since the last one is all its own. HTTPRequest's timeout
 ## counts the process delta of the frames it runs in, and the first frame after a long one (a slow
 ## test before this one, a busy machine) carries all of that frame's time: a timeout measured from
@@ -198,9 +228,8 @@ func _wait_for(responder: F.Responder, box: Dictionary, what: String) -> void:
 
 
 func test_host_freed_mid_request_is_host_gone_not_a_cooldown() -> bool:
-	# A fixed bug: the waiting coroutine used to resume inside the exit-tree notification,
-	# fail over to the next endpoint with add_child on the dying host (engine errors) and put
-	# the healthy endpoints in cooldown.
+	# Resuming inside the exit-tree notification would fail over with add_child on the dying
+	# host (engine errors) and put the healthy endpoints in cooldown.
 	var env := await _setup()
 	var host: Node = env[0]
 	var responder: F.Responder = env[1]
@@ -246,8 +275,8 @@ func test_host_removed_mid_request_is_host_gone() -> bool:
 
 func test_close_ends_requests_in_flight_with_host_gone() -> bool:
 	# At a real quit the tree is torn down with no further frame, so the deferred tree_exiting
-	# never resumes a waiting caller: its suspended coroutines leaked ("ObjectDB instances leaked
-	# at exit", found by the Godot e2e). close() ends them at once.
+	# never resumes a waiting caller and its coroutines leak ("ObjectDB instances leaked at
+	# exit"). close() ends them at once.
 	var env := await _setup()
 	var host: Node = env[0]
 	var responder: F.Responder = env[1]

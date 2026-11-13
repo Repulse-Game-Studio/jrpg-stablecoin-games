@@ -120,6 +120,33 @@ func test_real_arrow_keys_leave_and_reenter_the_hash_field() -> bool:
 	return T.done()
 
 
+## A rebuild while the hash field has the focus (here: Enter on a bad hash shows the error) builds
+## a new field with the same text. Its caret must be at the end of that text (LineEdit.text = ...
+## leaves it at 0), or what the player types next would land in front of it.
+func test_typing_goes_on_at_the_end_of_the_field_after_a_rebuild() -> bool:
+	var env := await UI.make("restore_caret")
+	var s: Node = env["node"]
+	var box := UI.restore(s)
+	await UI.frames(2)
+	var screen: Node = UI.screen(s)
+	var ctl: ScfgRestoreController = screen.controller
+	await UI.type_text("0x12")
+	var before: Control = screen.control("tx_input")
+	await UI.key(KEY_ENTER)
+	T.eq([ctl.state, ctl.error], ["input", "invalid_hash"], "Enter checked it: not a hash")
+	var field := screen.control("tx_input") as LineEdit
+	T.ok(field != null and field != before, "the screen rebuilt the field")
+	T.ok(UI.focused() == field, "the new field keeps the focus (%s)" % [UI.focused()])
+	T.eq(field.caret_column if field != null else -1, 4, "its caret is at the end of the text")
+	await UI.type_text("34")
+	T.eq(ctl.tx_input, "0x1234", "typing goes on at the end")
+	await UI.act("ui_cancel")
+	var r: ScfgRestoreResult = box.get("result")
+	T.eq(r.status if r != null else null, "cancelled", "closed")
+	await UI.drop(env)
+	return T.done()
+
+
 ## Stands in for the autoload in _signature(): counts receipts() calls.
 class CountingScfg:
 	extends RefCounted

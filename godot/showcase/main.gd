@@ -172,6 +172,7 @@ func _export() -> void:
 func _clear() -> void:
 	Scfg.clear_local_data()
 	_log("clear_local_data(): receipts forgotten on this device. Restore brings them back.")
+	_refresh()  # receipts_changed only comes when there were receipts; the pending payments go too
 
 
 ## Runs a payment or restore flow with the game paused. The sheet takes focus but does not stop

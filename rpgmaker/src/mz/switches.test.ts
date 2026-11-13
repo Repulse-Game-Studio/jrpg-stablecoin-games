@@ -53,6 +53,19 @@ test("ownedSwitchesSurviveNewGameAndLoad", async () => {
   assert.deepEqual(next.errors, []);
 });
 
+test("ownedSwitchesAreSetInTheEditorsBattleTestAndEventTest", async () => {
+  // MZ's DataManager.setupBattleTest / setupEventTest make the game objects without setupNewGame
+  const glue = await bootGlue({ params: PARAMS });
+  glue.s._worker!.submit((e) => addReceipt(e.receipts, receipt("chapter2")));
+  await pass(glue);
+  assert.equal(g.$gameSwitches.value(1), true);
+  g.DataManager.setupBattleTest();
+  assert.deepEqual([g.$gameSwitches.value(1), g.$gameSwitches.value(3)], [true, false], "Battle Test: each switch = owns()");
+  g.DataManager.setupEventTest();
+  assert.deepEqual([g.$gameSwitches.value(1), g.$gameSwitches.value(3)], [true, false], "event Test: each switch = owns()");
+  assert.deepEqual(glue.errors, []);
+});
+
 test("switchTurnsOnWhenAReceiptArrivesMidMap", async () => {
   const glue = await bootGlue({ params: PARAMS });
   const { s, host } = glue;

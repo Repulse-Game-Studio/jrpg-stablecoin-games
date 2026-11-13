@@ -211,6 +211,15 @@ test("test_get_logs_null_result_counts_as_empty", async () => {
   assert.deepEqual(await c.getLogs("0xt", [], 1, 2), []);
 });
 
+test("test_get_logs_empty_object_result_counts_as_empty", async () => {
+  // Python: `out.extend(logs or [])`; an empty dict is falsy there (a JS `{}` is truthy and not iterable)
+  const { c } = client({ [A]: () => ok({}) });
+  assert.deepEqual(await c.getLogs("0xt", [], 1, 2), []);
+  // a dict that is not empty extends with its keys, as Python iterates a dict
+  const { c: d } = client({ [A]: () => ok({ a: 1 }) });
+  assert.deepEqual(await d.getLogs("0xt", [], 1, 1), ["a"]);
+});
+
 test("test_log_range_is_remembered_per_endpoint", async () => {
   let aDown = false;
   const seen: Array<[number, number]> = [];

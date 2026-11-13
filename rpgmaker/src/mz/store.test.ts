@@ -77,7 +77,7 @@ test("otherVersionsAndShapesAreCorrupt", async () => {
     [JSON.stringify({ version: 1, pending: [], receipts: {} }), "has no pending/receipts objects"],
     [JSON.stringify({ pending: {}, receipts: {} }), "has an unknown version undefined"],
     ["null", "is not a JSON object"],
-  ]) {
+  ] as const) {
     const { storage, store } = await env(true, { "save/scfg.rmmzsave": text });
     const got = await store.load();
     assert.ok(!("error" in got) && got.warning!.includes(why), `${text}: ${JSON.stringify(got)}`);
@@ -116,9 +116,8 @@ test("setAsideKeepsWhatWasLoaded", async () => {
 // --- MZ's save backup after a crash, and state that cannot be kept aside -------------------------
 
 test("backupLeftByACrashMidSaveIsRecovered", async () => {
-  // MZ's saveToLocalFile renames scfg.rmmzsave to scfg.rmmzsave_ before it writes the new file, and
-  // unlinks scfg.rmmzsave_ at the start of the next save. A hard crash in between leaves only the
-  // backup: it is renamed back before the state is read.
+  // MZ's saveToLocalFile keeps scfg.rmmzsave_ while it writes the new file; a hard crash in between
+  // leaves only the backup, which is renamed back before the state is read.
   const good = JSON.stringify({ version: 1, pending: {}, receipts: { k: RECEIPT } });
   const { storage, store } = await env(true, { "save/scfg.rmmzsave_": good });
   assert.deepEqual(await store.load(), { pending: {}, receipts: { k: RECEIPT }, warning: null }, "read from the backup");

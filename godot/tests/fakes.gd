@@ -632,6 +632,11 @@ class Responder:
 			var body: PackedByteArray = answer[1]
 			var head := "HTTP/1.1 %d X\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" % [
 				answer[0], body.size()]
+			if req["path"] == "/ok-chunked":  # no Content-Length: the body arrives in two chunks
+				head = "HTTP/1.1 200 X\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n"
+				var cut := body.size() / 2
+				body = ("%x\r\n" % cut).to_ascii_buffer() + body.slice(0, cut) + ("\r\n%x\r\n" % (body.size() - cut)).to_ascii_buffer() \
+					+ body.slice(cut) + "\r\n0\r\n\r\n".to_ascii_buffer()
 			peer.put_data(head.to_ascii_buffer() + body)
 			c["answered"] = 0
 
@@ -655,7 +660,7 @@ class Responder:
 
 	static func _answer(path: String) -> Array:
 		match path:
-			"/ok":
+			"/ok", "/ok-chunked":
 				return [200, OK_BODY.to_utf8_buffer()]
 			"/rate":
 				return [429, "Too Many Requests".to_utf8_buffer()]

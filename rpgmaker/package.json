@@ -7,12 +7,15 @@
   },
   "scripts": {
     "build": "node build.mjs",
+    "lint": "oxlint --type-aware --deny-warnings --report-unused-disable-directives src test",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && tsc -p tsconfig.mz.json && tsc -p tsconfig.mz.test.json",
     "test": "node --test \"src/**/*.test.ts\" \"test/**/*.test.ts\" \"../conformance/js/**/*.test.ts\""
   },
   "devDependencies": {
     "@types/node": "24.19.2",
     "esbuild": "0.28.2",
+    "oxlint": "1.90.0",
+    "oxlint-tsgolint": "7.0.2005",
     "typescript": "7.0.2"
   }
 }

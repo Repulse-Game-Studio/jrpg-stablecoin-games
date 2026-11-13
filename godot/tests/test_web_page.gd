@@ -90,7 +90,7 @@ func test_values_reach_js_as_json_literals() -> bool:
 	page.copy(HOSTILE)
 	page.open_url(HOSTILE)
 	page.reply("k", 3, 200, {"error": HOSTILE})
-	for s in js.scripts.slice(1):
+	for s: String in js.scripts.slice(1):
 		T.ok(not s.contains(HOSTILE), "no raw hostile text in: %s" % s)
 	T.eq(js.scripts[2], "scfgBridge.copy(%s)" % JSON.stringify(HOSTILE), "copy")
 	T.eq(js.scripts[3], "scfgBridge.openUrl(%s)" % JSON.stringify(HOSTILE), "open_url")

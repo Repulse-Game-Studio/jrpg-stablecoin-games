@@ -358,3 +358,64 @@ test("otherFailuresAreNotRetriedAndTheFallbacksOwnFailureIsTheAnswer", async () 
   const bare = new NodeHttpsTransport({ https: failingModule({ code: "CERT_HAS_EXPIRED" }).module });
   await assert.rejects(bare.postJson("https://rpc.example/", {}, 5), (e: unknown) => e instanceof TransportError && (e as { code?: unknown }).code === "CERT_HAS_EXPIRED");
 });
+
+// --- the response size cap (coio.ts MAX_RESPONSE_BYTES; UrllibTransport has none) ---
+
+test("theCapDefaultsToTheCoresAndAnAnswerAtItIsRead", async () => {
+  const body = JSON.stringify({ result: "é".repeat(50) });
+  const size = Buffer.byteLength(body);
+  const { url } = await serve((_req, res) => {
+    res.write(body.slice(0, 7)); // chunked: counted as the bytes arrive
+    res.end(body.slice(7));
+  });
+  assert.deepEqual(await transport().postJson(url, {}, 5), JSON.parse(body), "the default (16 MiB)");
+  assert.deepEqual(await new NodeHttpsTransport({ https, http, max_response_bytes: size }).postJson(url, {}, 5), JSON.parse(body));
+  await assert.rejects(new NodeHttpsTransport({ https, http, max_response_bytes: size - 1 }).postJson(url, {}, 5),
+    isTransportError(null, /^response too large$/));
+});
+
+test("anEndlessAnswerIsCutOffAtTheCap", async () => {
+  let sent = 0;
+  let closed = false;
+  const { url } = await serve((_req, res) => {
+    const chunk = Buffer.alloc(16 * 1024, 0x20);
+    const pump = (): void => {
+      if (closed) return;
+      sent += chunk.length;
+      if (res.write(chunk)) setImmediate(pump);
+      else res.once("drain", pump);
+    };
+    res.on("close", () => { closed = true; });
+    pump();
+  });
+  const fallback = fallbackTransport({ never: true });
+  const t = new NodeHttpsTransport({ https, http, max_response_bytes: 64 * 1024, fallback });
+  await assert.rejects(within(t.postJson(url, {}, 5), 4000), isTransportError(null, /^response too large$/));
+  assert.equal(fallback.calls.length, 0, "not a trust or proxy failure: no second request");
+  for (let i = 0; i < 200 && !closed; i++) await new Promise((r) => setTimeout(r, 10));
+  assert.ok(closed, "the request was destroyed");
+  assert.ok(sent < 64 * 1024 * 1024, `the server stopped sending (${sent} bytes)`);
+});
+
+test("aDeclaredLengthOverTheCapIsRefusedBeforeTheBody", async () => {
+  let closed = false;
+  const { url } = await serve((_req, res) => {
+    res.on("close", () => { closed = true; });
+    res.writeHead(200, { "Content-Length": "1000000" });
+    res.write("x"); // the rest never comes: only the header can refuse it
+  });
+  const t = new NodeHttpsTransport({ https, http, max_response_bytes: 999999 });
+  await assert.rejects(within(t.postJson(url, {}, 5), 4000), isTransportError(null, /^response too large$/));
+  for (let i = 0; i < 200 && !closed; i++) await new Promise((r) => setTimeout(r, 10));
+  assert.ok(closed, "the request was destroyed");
+});
+
+test("anOversizedErrorAnswerIsTooLarge", async () => {
+  const { url } = await serve((_req, res) => {
+    res.writeHead(400);
+    res.write('{"error":{"code":-32005,');
+    res.end(`"message":"${"x".repeat(200)}"}}`);
+  });
+  await assert.rejects(new NodeHttpsTransport({ https, http, max_response_bytes: 100 }).postJson(url, {}, 5),
+    isTransportError(null, /^response too large$/));
+});

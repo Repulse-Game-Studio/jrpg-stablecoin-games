@@ -63,8 +63,9 @@ export function keccak256(data: Uint8Array): Uint8Array {
   }
   const last = new Uint8Array(RATE_BYTES);
   last.set(data.subarray(off));
-  last[data.length - off] ^= KECCAK_SUFFIX;
-  last[RATE_BYTES - 1] ^= 0x80;
+  // both indexes are below RATE_BYTES: the loop above leaves data.length - off < RATE_BYTES
+  last[data.length - off]! ^= KECCAK_SUFFIX;
+  last[RATE_BYTES - 1]! ^= 0x80;
   xorBlock(lanes, last);
   keccakF1600(lanes);
   const out = new Uint8Array(32);

@@ -344,7 +344,10 @@ export class CheckoutController {
 
   /** The player says they sent the payment from the QR or manual page. */
   markSent(): void {
-    if (this.step === "qr" || this.step === "manual") this._go("waiting", 1);
+    if (this.step === "qr" || this.step === "manual") {
+      this.error = null;
+      this._go("waiting", 1);
+    }
   }
 
   /** Browser page: start the localhost page and move to waiting; returns its URL. */

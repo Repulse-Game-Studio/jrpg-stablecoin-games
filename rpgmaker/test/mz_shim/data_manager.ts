@@ -1,10 +1,8 @@
 /**
  * DataManager (rmmz_managers.js): the database, new game, save and load, as plugins hook them.
- * Written from MZ's documented behaviour. `loadDatabase()` (called by Scene_Boot.create, after
- * every plugin script has run) loads `$dataSystem` asynchronously, as MZ's XHR loads do; until
- * then `$dataSystem` is null and `isDatabaseLoaded()` false. `saveGame(id)` writes save "file<id>" then the "global" info (not waited
- * for, as MZ); `loadGame(id)` recreates the game objects and hands the loaded contents to
- * `extractSaveContents`, the hook plugins alias to re-apply state after a load.
+ * Written from MZ's documented behaviour. `loadDatabase()` (from Scene_Boot.create, after every
+ * plugin script has run) loads `$dataSystem` asynchronously, as MZ's XHR loads do; until then it
+ * is null. `extractSaveContents` is the hook plugins alias to re-apply state after a load.
  *
  * Simplified: the database is only `$dataSystem` and `$dataCommonEvents`, built from the shim's
  * options (the title, switch and variable names, the start position, `advanced.gameId`, the
@@ -72,6 +70,15 @@ export function createDataManager(ctx: Ctx) {
       steps.forEach((step) => step());
       g.Graphics.frameCount = 0;
     },
+    // DataManager.setupBattleTest() / setupEventTest(): fresh game objects without setupNewGame,
+    // as MZ; their party, troop and transfer set-up is not modelled.
+    setupBattleTest(): void {
+      this.createGameObjects();
+    },
+    setupEventTest(): void {
+      this.createGameObjects();
+      this.selectSavefileForNewGame();
+    },
     // DataManager.selectSavefileForNewGame()
     selectSavefileForNewGame(): void {
       this._lastAccessedId = 1;
@@ -101,9 +108,8 @@ export function createDataManager(ctx: Ctx) {
       g.$gameMap = contents.map;
       g.$gamePlayer = contents.player;
     },
-    // DataManager.saveGame(savefileId) -> Promise of 0. Modelled behaviour, in MZ 1.x's order: the
-    // save contents are made, then the save name; the contents are written under "file<id>"; once
-    // written, the slot's info is recorded in the global info, which is saved too (not waited for).
+    // DataManager.saveGame(savefileId) -> Promise of 0. In MZ 1.x's order: contents, then save
+    // name; once "file<id>" is written, the global info is saved too (not waited for).
     saveGame(savefileId: number): Promise<number> {
       const contents = this.makeSaveContents();
       const saveName = this.makeSavename(savefileId);

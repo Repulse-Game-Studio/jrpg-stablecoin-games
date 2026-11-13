@@ -27,6 +27,72 @@ func test_wrong_length_is_not_on_curve() -> bool:
 	return T.done()
 
 
+## scfg_core/solana/ed25519.py as written: invert v, then Euler's criterion on u/v (two powers).
+func _python_is_on_curve(point: PackedByteArray) -> bool:
+	var p: ScfgBigInt = ScfgBigInt.from_hex(ScfgEd25519.P_HEX)  # err-ok: literal
+	var d: ScfgBigInt = ScfgBigInt.from_hex(ScfgEd25519.D_HEX)  # err-ok: literal
+	var one: ScfgBigInt = ScfgBigInt.from_int(1)  # err-ok: literal
+	var two: ScfgBigInt = ScfgBigInt.from_int(2)  # err-ok: literal
+	var masked := point.duplicate()
+	masked[31] = masked[31] & 0x7f
+	var y: ScfgBigInt = ScfgBigInt.from_bytes_le(masked).mod(p)  # err-ok: p != 0
+	var yy: ScfgBigInt = y.mul(y).mod(p)  # err-ok: p != 0
+	var u: ScfgBigInt = yy.add(p).sub(one).mod(p)  # err-ok: p != 0
+	var v: ScfgBigInt = d.mul(yy).add(one).mod(p)  # err-ok: p != 0
+	var x2: ScfgBigInt = u.mul(v.pow_mod(p.sub(two), p)).mod(p)  # err-ok: p != 0
+	return x2.is_zero() or x2.pow_mod(p.sub(one).divmod(two)[0], p).cmp(one) == 0  # err-ok: p != 0
+
+
+## The port tests u*v with one modular power where Python tests u/v with two: the same answer for
+## the edge encodings (y = 0, 1, p - 1, the non-canonical p, p + 1 and 2^255 - 1, the sign bit) and
+## for hashes, which land on and off the curve.
+func test_is_on_curve_matches_pythons_two_power_formula() -> bool:
+	var points: Array[PackedByteArray] = []
+	for hex: String in [
+			"00".repeat(32), "01" + "00".repeat(31), "01" + "00".repeat(30) + "80",
+			"ec" + "ff".repeat(30) + "7f", "ed" + "ff".repeat(30) + "7f", "ee" + "ff".repeat(30) + "7f",
+			"ff".repeat(31) + "7f", "ff".repeat(32), "02" + "00".repeat(31), "ec" + "ff".repeat(31)]:
+		points.append(ScfgBytes.hex_to_bytes(hex))  # err-ok: test literals
+	var digest := "is_on_curve".to_ascii_buffer()
+	for i in 24:
+		digest = ScfgSha256.sha256(digest)
+		points.append(digest)
+	var on := 0
+	for point: PackedByteArray in points:
+		var want := _python_is_on_curve(point)
+		T.eq(ScfgEd25519.is_on_curve(point), want, "is_on_curve(%s)" % point.hex_encode())
+		on += int(want)
+	T.ok(on >= 8 and points.size() - on >= 8, "both outcomes are covered (%d on the curve of %d)" % [on, points.size()])
+	T.eq(ScfgEd25519.is_on_curve(points[1]), true, "y = 1 (u = 0) is on the curve")
+	return T.done()
+
+
+## The result is kept per (owner, mint): the same answer again, errors never kept, and the cache
+## never grows past its bound.
+func test_associated_token_address_is_memoised_and_bounded() -> bool:
+	ScfgSolanaPda._ata_cache.clear()
+	var first: Variant = ScfgSolanaPda.associated_token_address(OWNER, USDC)
+	T.eq(first, "3wvJdyFnGvaMWpbq93NU91SggiVRveULUXL6iX5VZDGP", "computed")
+	T.eq(ScfgSolanaPda._ata_cache, {[OWNER, USDC]: first}, "kept under [owner, mint]")
+	var start := Time.get_ticks_usec()
+	for i in 200:
+		T.eq(ScfgSolanaPda.associated_token_address(OWNER, USDC), first, "the same address again")
+	T.ok(Time.get_ticks_usec() - start < 200 * 1000, "200 repeats take no search")
+	T.is_err(ScfgSolanaPda.associated_token_address("abc", USDC), "ValueError", "bad owner")
+	T.is_err(ScfgSolanaPda.associated_token_address(OWNER, 5), "ValueError", "a mint that is not text")
+	T.eq(ScfgSolanaPda._ata_cache.size(), 1, "errors are not kept")
+	T.ok(ScfgSolanaPda.associated_token_address(USDC, OWNER) is String, "the swapped pair")
+	T.ok(ScfgSolanaPda._ata_cache.has([USDC, OWNER]) and ScfgSolanaPda._ata_cache[[USDC, OWNER]] != first, "(mint, owner) is another entry")
+	for i in ScfgSolanaPda._ATA_CACHE_MAX:
+		ScfgSolanaPda._ata_cache[["owner %d" % i, USDC]] = "x"
+	T.ok(ScfgSolanaPda._ata_cache.size() > ScfgSolanaPda._ATA_CACHE_MAX, "(overfilled by the test)")
+	T.eq(ScfgSolanaPda.associated_token_address(USDC, USDC), ScfgSolanaPda.associated_token_address(USDC, USDC), "a new pair")
+	T.eq(ScfgSolanaPda._ata_cache.keys(), [[USDC, USDC]], "a full cache is emptied before the new pair is kept")
+	ScfgSolanaPda._ata_cache.clear()
+	T.eq(ScfgSolanaPda.associated_token_address(OWNER, USDC), first, "and recomputed the same")
+	return T.done()
+
+
 # solders: Pubkey.find_program_address([seed], ATA program) for each seed
 func test_find_program_address_matches_solders() -> bool:
 	var table := [

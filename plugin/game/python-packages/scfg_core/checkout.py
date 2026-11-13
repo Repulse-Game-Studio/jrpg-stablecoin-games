@@ -263,6 +263,7 @@ class CheckoutController:
     def mark_sent(self) -> None:
         """The player says they sent the payment from the QR or manual page."""
         if self.step in ("qr", "manual"):
+            self.error = None
             self._go("waiting", 1)
 
     def open_browser(self) -> str | None:

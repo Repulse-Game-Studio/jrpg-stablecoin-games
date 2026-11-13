@@ -172,7 +172,7 @@ export class Worker {
   }
 
   /**
-   * One pass: the commands queued before it, reverify() on the first pass, tick(), snapshot.
+   * One pass: the queued commands (until none is left), reverify() on the first pass, tick(), snapshot.
    * Called while a run is in flight it adds exactly one follow-up run and resolves when that
    * follow-up is done. Rejects with the first error a pass raised. After stop() an explicit
    * call still runs one pass; only the loop and follow-up passes honour stop.
@@ -206,9 +206,10 @@ export class Worker {
   }
 
   private async _pass(): Promise<void> {
-    const batch = this._commands;
-    this._commands = []; // commands submitted from here on belong to the next pass
-    for (const { fn, job } of batch) {
+    // Drain until empty, as Python's workers do: a command submitted by a running command runs
+    // in this pass, before the tick.
+    while (this._commands.length > 0) {
+      const { fn, job } = this._commands.shift()!;
       if (!job._start()) continue;
       try {
         job._succeed(await fn(this.engine));

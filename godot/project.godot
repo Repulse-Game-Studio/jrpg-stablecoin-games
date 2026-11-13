@@ -14,3 +14,15 @@ Scfg="*res://addons/scfg/scfg.gd"
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/scfg/plugin.cfg")
+
+[debug]
+
+; Typing is checked in this dev project only (a game that installs the addon keeps its own
+; settings): an untyped declaration is an error, also inside addons/ (exclude_addons up to 4.4,
+; directory_rules from 4.5), and an unsafe cast is a warning in the editor.
+gdscript/warnings/exclude_addons=false
+gdscript/warnings/directory_rules={
+"res://addons": 1
+}
+gdscript/warnings/untyped_declaration=2
+gdscript/warnings/unsafe_cast=1

@@ -281,7 +281,10 @@ export class RpcClient {
         }
         throw e;
       }
-      if (logs) for (const log of logs) out.push(log);
+      // Python `out.extend(logs or [])`: an empty dict is falsy too, and a dict extends with its keys
+      if (pyTruthy(logs)) {
+        for (const log of typeof logs === "object" && !Array.isArray(logs) ? Object.keys(logs) : logs) out.push(log);
+      }
       start = end + 1;
     }
     return out;

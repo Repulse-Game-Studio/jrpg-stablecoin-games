@@ -21,3 +21,10 @@ window/size/viewport_height=720
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/scfg/plugin.cfg")
+
+[debug]
+
+; This project's own scripts must be typed: an untyped declaration is an error, an unsafe cast a
+; warning in the editor. The addon under addons/ is checked in the dev project (godot/).
+gdscript/warnings/untyped_declaration=2
+gdscript/warnings/unsafe_cast=1

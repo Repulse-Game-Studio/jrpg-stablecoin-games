@@ -6,6 +6,7 @@
     "moduleResolution": "nodenext",
     "types": [],
     "strict": true,
+    "noUncheckedIndexedAccess": true,
     "noEmit": true,
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,

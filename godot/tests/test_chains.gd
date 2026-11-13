@@ -88,7 +88,7 @@ func test_arc_usdc_logs_come_from_the_system_emitter() -> bool:
 	T.eq(ScfgChains.ARC_USDC, "0x3600000000000000000000000000000000000000", "ARC_USDC")
 	T.eq(ScfgChains.ARC_SYSTEM_EMITTER, "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE", "ARC_SYSTEM_EMITTER")
 	T.eq(ScfgChains.ARC_MIN_FEE_WEI, 20000000000, "ARC_MIN_FEE_WEI")
-	for testnet in [false, true]:
+	for testnet: bool in [false, true]:
 		var arc: Dictionary = ScfgChains.get_chains(testnet)["arc"]
 		var usdc: Dictionary = arc["tokens"]["USDC"]
 		T.eq(usdc["address"], ScfgChains.ARC_USDC, "address")
@@ -162,7 +162,7 @@ func test_solana_mints_are_pinned() -> bool:
 
 
 func test_solana_entries() -> bool:
-	for testnet in [false, true]:
+	for testnet: bool in [false, true]:
 		var c: Dictionary = ScfgChains.get_chains(testnet)["solana"]
 		T.eq([c["family"], c["testnet"], c["native_symbol"], c["fee_hint"], c["confirmations"]],
 			["solana", testnet, "SOL", "lowest", 32], "solana fields")

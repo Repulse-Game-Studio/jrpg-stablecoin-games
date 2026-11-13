@@ -15,8 +15,8 @@
 ##   Python's `except (ValueError, TypeError)` lets those propagate, so the generator never
 ##   recorded one, and a port producing one has diverged from the reference.
 ##
-## Each later task adds its topic's adapters to FUNCS (in _register) and the topic to
-## IMPLEMENTED. test_tier1.gd skips (never passes) every other topic.
+## A topic is listed in IMPLEMENTED once all its adapters are in FUNCS; test_tier1.gd skips
+## (never passes) every other topic.
 extends RefCounted
 
 const T := preload("res://tests/t.gd")
@@ -834,7 +834,7 @@ static func _prepare_payment(i: Dictionary) -> Variant:
 	if kind is ScfgErr:
 		return kind
 	var fields := {}
-	for k in ["item", "amount", "token", "title"]:
+	for k: String in ["item", "amount", "token", "title"]:
 		if (j as Dictionary).has(k):
 			var v: Variant = _value(j[k])
 			if v is ScfgErr:
@@ -952,11 +952,10 @@ static func _hex_field(i: Dictionary, key: String) -> Variant:
 	return bytes_fromhex(v)
 
 
-## Python's `bytes.fromhex(s)` (3.12): ASCII whitespace (space, \t, \n, \r, \v, \f) is skipped
-## between bytes but never inside a pair; there is no `0x` prefix, and anything else (any
-## non-ASCII character included) is a ValueError; a non-string is a TypeError. The adapters need
-## this exact parser, not ScfgBytes.hex_to_bytes (the core's TS-style parser, which takes a
-## `0x` prefix and rejects whitespace), or the harness would disagree with the Python adapters.
+## Python's `bytes.fromhex(s)` (3.12): ASCII whitespace is skipped between bytes but never inside
+## a pair; no `0x` prefix; anything else (non-ASCII included) is a ValueError, a non-string a
+## TypeError. Not ScfgBytes.hex_to_bytes, which takes `0x` and rejects whitespace: the harness
+## must parse exactly as the Python adapters do.
 ## @fallible
 static func bytes_fromhex(s: Variant) -> Variant:
 	if not (s is String or s is StringName):

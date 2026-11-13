@@ -126,6 +126,15 @@ def test_ive_sent_it_moves_qr_and_manual_to_waiting():
         assert ctl.step == "waiting" and ctl.can_go_back is True
 
 
+def test_ive_sent_it_clears_a_bad_hash_error():
+    ctl, *_ = on_method_step()
+    ctl.choose_method("manual")
+    ctl.submit_hash("garbage")
+    assert ctl.error == "invalid_hash"
+    ctl.mark_sent()
+    assert ctl.step == "waiting" and ctl.error is None
+
+
 def test_tip_amount_step_applies_a_typed_amount():
     ctl, *_ = setup(kind="tip")
     ctl.custom_amount = "0.10"

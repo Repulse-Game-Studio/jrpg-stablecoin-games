@@ -53,7 +53,7 @@ func test_round_trips_every_length_and_leading_zeros() -> bool:
 		var raw := PackedByteArray()
 		for i in n:
 			raw.append(rng.randi() % 256)
-		for zeros in [0, 1, 3]:
+		for zeros: int in [0, 1, 3]:
 			var data := _zeros(mini(zeros, n))
 			data.append_array(raw.slice(mini(zeros, n)))
 			var text := ScfgSolanaBase58.b58encode(data)
@@ -95,8 +95,7 @@ func test_fixed_lengths() -> bool:
 # Text longer than the longest encoding (44 / 88 characters) is refused at once: base58 decoding
 # is quadratic, and a crafted stored id must not freeze the launch re-verification.
 func test_fixed_length_decoding_refuses_long_text_before_decoding() -> bool:
-	# The refusal is the length's, also for a text whose first character is not base58 (decoding
-	# first would fail on that character instead): the length is checked before any decoding.
+	# The refusal is the length's even when the first character is not base58.
 	for text: String in ["2".repeat(100000), "1".repeat(100000), "0" + "2".repeat(99999), "z".repeat(89), " " + "2".repeat(89)]:
 		var label := "%s... x%d" % [text.substr(0, 3), text.length()]
 		var start := Time.get_ticks_msec()

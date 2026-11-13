@@ -52,11 +52,9 @@ const INT_WS = "\\t\\n\\v\\f\\r\\x20\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u20
 const INT_WS_CHAR = new RegExp(`^[${INT_WS}]$`);
 
 /**
- * The zero of every run of ten Unicode decimal digits (category Nd) in CPython 3.9's unicodedata
- * (Unicode 13.0.0), the project's interpreter (.python-version), as godot/addons/scfg/core/pystr.gd
- * _ND_ZEROS. Not the JS engine's `\p{Nd}`: Node's newer Unicode tables (17.0 in Node 24) hold 11
- * more digit sets (Tangsa, Kawi, Nag Mundari, ...) that Python 3.9's int() and re's \d refuse,
- * and an older NW.js has fewer. So the TS core reads exactly the digits the Python reference reads.
+ * The zero of every run of ten Unicode decimal digits (Nd) in CPython 3.9's unicodedata (Unicode
+ * 13.0.0, the project's interpreter), as pystr.gd _ND_ZEROS. Not the JS engine's `\p{Nd}`: Node 24
+ * (Unicode 17) has 11 more digit sets that Python 3.9 refuses, and an older NW.js has fewer.
  */
 const ND_ZEROS: readonly number[] = [
   0x30, 0x660, 0x6f0, 0x7c0, 0x966, 0x9e6, 0xa66, 0xae6, 0xb66, 0xbe6, 0xc66, 0xce6, 0xd66,
@@ -156,9 +154,8 @@ export function digitRunValue(run: string): number | null {
 
 /**
  * Python's `json.loads(text)` as the core calls it (`ints.json_loads`): an integer
- * literal of more than INT_MAX_STR_DIGITS digits makes the text invalid JSON (a SyntaxError,
- * as JSON.parse throws), where JSON.parse alone would read it as a float (Infinity). Other
- * numbers are JSON.parse's floats, as before. Linear.
+ * literal of more than INT_MAX_STR_DIGITS digits makes the text invalid JSON (a SyntaxError),
+ * where JSON.parse alone would read it as Infinity. Other numbers are JSON.parse's. Linear.
  */
 export function jsonLoads(text: string): unknown {
   if (text.length > INT_MAX_STR_DIGITS && hasOverlongJsonInt(text)) {
@@ -245,6 +242,7 @@ export function pyTruthy(v: unknown): boolean {
 export function pyFormat1(template: string, arg: string): string {
   let out = "";
   let auto: boolean | null = null; // true: automatic numbering, false: manual
+  let nextIndex = 0;
   let i = 0;
   while (i < template.length) {
     const ch = template[i]!;
@@ -266,6 +264,7 @@ export function pyFormat1(template: string, arg: string): string {
     if (name === "") {
       if (auto === false) throw new ValueError("cannot switch from manual field specification to automatic field numbering");
       auto = true;
+      if (nextIndex++ !== 0) throw new IndexError("Replacement index out of range");
     } else if (/^[0-9]+$/.test(name)) {
       if (auto === true) throw new ValueError("cannot switch from automatic field numbering to manual field specification");
       auto = false;

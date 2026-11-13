@@ -62,7 +62,7 @@ func test_qr_rects_cover_exactly_the_dark_modules() -> bool:
 	T.eq(got[0], m.size() + 4, "size includes the quiet zone")
 	var painted := {}
 	for r: Array in got[1]:
-		for dx in r[2]:
+		for dx: int in r[2]:
 			painted[Vector2i(r[0] + dx - 2, r[1] - 2)] = true
 	var dark := {}
 	for y in m.size():

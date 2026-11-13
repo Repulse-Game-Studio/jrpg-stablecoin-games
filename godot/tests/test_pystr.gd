@@ -173,21 +173,18 @@ func test_py_format1_matches_python() -> bool:
 		["https://s.io/{}", "https://s.io/0xab"], ["{{}}", "{}"], ["{}{{", "0xab{"], ["{}}}", "0xab}"],
 		["}}{}{{", "}0xab{"], ["{}}", "ValueError"], ["{}{", "ValueError"], ["}{}", "ValueError"],
 		["{}{}", "IndexError"], ["{0}{}", "ValueError"], ["{}{0}", "ValueError"], ["{0}", "0xab"],
+		["{0}{0}", "0xab0xab"], ["{0}{{}}", "0xab{}"],
 		["{00}", "0xab"], ["{1}", "IndexError"], ["{x}", "KeyError"], ["{a.b}", "KeyError"],
 		["{ 0}", "KeyError"], ["{0 }", "KeyError"], ["{!r}", "'0xab'"], ["{!s}", "0xab"], ["{!a}", "'0xab'"],
 		["{!x}", "ValueError"], ["{!}", "ValueError"], ["{!r", "ValueError"], ["{!rr}", "ValueError"],
-		["{!r:>8}", "  '0xab'"], ["{!s:>6}", "  0xab"], ["{!r:}", "'0xab'"], ["{:", "ValueError"],
-		["{:>6}", "  0xab"], ["{:*<6}", "0xab**"], ["{:^7}", " 0xab  "], ["{:5}", "0xab "], ["{:08}", "0xab0000"],
-		["{:.1}", "0"], ["{:.0}", ""], ["{:s}", "0xab"], ["{:10.2}", "0x        "], ["{:é>6}", "éé0xab"],
-		["{:<}", "0xab"], ["{:>>6}", ">>0xab"], ["{:x}", "ValueError"], ["{:b}", "ValueError"],
+		["{!r:}", "'0xab'"], ["{:}", "0xab"], ["{0!s:}", "0xab"], ["{:", "ValueError"],
+		["{}{!r}", "IndexError"], ["{1!x}", "IndexError"], ["{}{:x}", "IndexError"], ["{}{.upper}", "IndexError"],
+		["{:x}", "ValueError"], ["{:b}", "ValueError"],
 		["{:+}", "ValueError"], ["{:-}", "ValueError"], ["{: }", "ValueError"], ["{:,}", "ValueError"],
 		["{:_}", "ValueError"], ["{:=5}", "ValueError"], ["{:#}", "ValueError"], ["{:z}", "ValueError"],
-		["{:.}", "ValueError"], ["{:010000000000000000000}", "ValueError"], ["{:{}}", "IndexError"],
-		["{:{:{}}}", "IndexError"], ["{0:{0}}", "ValueError"], ["{:{{}}", "ValueError"],
-		["{[0]}", "0"], ["{[5]}", "IndexError"], ["{[x]}", "TypeError"], ["{.nope}", "AttributeError"],
+		["{:.}", "ValueError"], ["{:010000000000000000000}", "ValueError"],
+		["{0:{0}}", "ValueError"], ["{:{{}}", "ValueError"],
 		["{[}", "ValueError"], ["{[0}", "ValueError"], ["{.}", "ValueError"], ["{0.}", "ValueError"],
-		["{.upper[0]}", "TypeError"], ["{.upper.x}", "AttributeError"], ["{.upper:>3}", "TypeError"],
-		["{.upper}{}", "IndexError"], ["{.__class__}", "ValueError"],
 		["{{", "{"], ["{", "ValueError"], ["}", "ValueError"], ["", ""], ["plain", "plain"],
 	]
 	for row: Array in rows:
@@ -199,10 +196,25 @@ func test_py_format1_matches_python() -> bool:
 			T.eq(got, want, "format(%s)" % ScfgPy.py_repr(row[0]))
 	# the argument is what is substituted
 	T.eq(ScfgPy.py_format1("https://x/tx/{}?a=1", "0xdeadbeef"), "https://x/tx/0xdeadbeef?a=1", "a real hash")
-	T.eq(ScfgPy.py_format1("{[5]}", "0xdeadbeef"), "d", "index 5 of a longer argument")
 	T.eq(ScfgPy.py_format1("{!a}", "é"), "'\\xe9'", "!a escapes non-ASCII")
-	T.eq(ScfgPy.py_format1("{.upper}", "x"), "<built-in method upper of str object at 0x7f0000000000>",
-		"a str method formats as a bound method (Python prints its real address)")
+	return T.done()
+
+
+## The port limit: a format spec, an index or an attribute is a ValueError, whatever CPython does
+## with it (the outcome in the comment), as the TS core's pyFormat1. An explorer_tx template has
+## one `{}` and nothing else.
+func test_py_format1_refuses_specs_indexes_and_attributes() -> bool:
+	for template: String in [
+			"{:>6}", "{:*<6}", "{:^7}", "{:5}", "{:08}", "{:.1}", "{:.0}", "{:s}", "{:10.2}", "{:é>6}", "{:<}",
+			"{:>>6}", "{!r:>8}", "{!s:>6}", "{0:*^9}{{}}",  # CPython: the padded or cut argument
+			"{:{}}", "{:{:{}}}",  # IndexError
+			"{[0]}", "{0[1]}{{}}",  # one character of the argument
+			"{[5]}",  # IndexError
+			"{[x]}", "{.upper[0]}", "{.upper:>3}",  # TypeError
+			"{.nope}", "{.upper.x}",  # AttributeError
+			"{.upper}", "{0.upper}{{}}",  # the bound method's repr
+			"{.__class__}"]:  # <class 'str'>
+		T.is_err(ScfgPy.py_format1(template, "0xab"), "ValueError", "format(%s)" % ScfgPy.py_repr(template))
 	return T.done()
 
 

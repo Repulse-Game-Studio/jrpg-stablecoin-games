@@ -122,7 +122,8 @@ What is not your script's mistake does not reject: `pay()` and `restore()` resol
 
 - `payments.unavailable`: payments cannot run right now (the stored receipts cannot be read, or are still being
   read because the game has not finished booting; the payment engine could not start; the game is closing);
-- `sheet.unavailable`: a replaced `SCFG.sheetHost` showed nothing.
+- `sheet.unavailable`: the sheet host showed nothing (a replaced `SCFG.sheetHost` returned no screen, or the
+  default host found no page to draw on, `document.body`).
 
 > **An unhandled rejection stops an MZ game.** MZ listens for unhandled Promise rejections and uncaught errors
 > and shows its error screen (`SceneManager.onReject` / `onError`): the game is over for the player. So always

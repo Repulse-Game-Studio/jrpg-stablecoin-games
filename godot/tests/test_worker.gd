@@ -147,6 +147,19 @@ func test_submitted_commands_run_before_tick_and_resolve_jobs() -> bool:
 	return T.done()
 
 
+func test_a_command_submitted_by_a_command_runs_before_the_same_tick() -> bool:
+	var e := FakeEngine.new()
+	var w := _worker(e)
+	var inner: Array[ScfgJob] = []
+	w.submit(func(_eng: Variant) -> Variant:
+		inner.append(w.submit(func(eng: FakeEngine) -> int: return eng.ticks))
+		return null)
+	await w.run_once()
+	T.eq(inner.size(), 1)
+	T.eq(inner[0].result(), 0)  # drained in the same pass, as in Python
+	return T.done()
+
+
 func test_cancelled_job_is_skipped() -> bool:
 	var w := _worker(FakeEngine.new())
 	var ran := []
@@ -326,7 +339,7 @@ func test_pump_stop_cancels_queued_commands_and_runs_nothing_more() -> bool:
 	return T.done()
 
 
-# --- the brief's named tests ----------------------------------------------------------------------
+# --- ordering, re-entrancy, stop and job failures -------------------------------------------------
 
 
 func test_commands_never_interleave_with_a_tick() -> bool:

@@ -298,9 +298,9 @@ func test_qr_matches_core_matrix() -> bool:
 ## A replacement sheet scene: its root records bind(controller, scfg).
 static func _replacement_scene(with_bind: bool) -> PackedScene:
 	var gd := GDScript.new()
-	gd.source_code = "extends Control\nsignal closed(how)\nvar bound: Array = []\n"
+	gd.source_code = "extends Control\nsignal closed(how: String)\nvar bound: Array = []\n"
 	if with_bind:
-		gd.source_code += "func bind(controller, scfg) -> void:\n\tbound = [controller, scfg, is_inside_tree()]\n"
+		gd.source_code += "func bind(controller: Variant, scfg: Variant) -> void:\n\tbound = [controller, scfg, is_inside_tree()]\n"
 	gd.reload()
 	var root := Control.new()
 	root.set_script(gd)
@@ -520,4 +520,81 @@ func test_a_rebuild_below_never_takes_the_focus_from_a_screen_on_top() -> bool:
 	await UI.frames(2)
 	T.ok(UI.focused() != null and sheet.is_ancestor_of(UI.focused()), "the focus is back on the sheet (%s)" % [UI.focused()])
 	await UI.drop(env)
+	return T.done()
+
+
+## A screen below that goes away while another is open over it (the game closes the payment, a
+## host frees the sheet) must leave the focus on the screen on top: giving it back to the game's
+## control would let the keyboard press the game's buttons behind an open screen. The screen on
+## top then gives the focus back to the game when it closes itself.
+func test_a_screen_closing_below_leaves_the_focus_on_the_screen_on_top() -> bool:
+	var game_button := Button.new()
+	game_button.text = "game"
+	UI.tree().root.add_child(game_button)
+	game_button.grab_focus()
+	var env := await UI.make("stacked_close")
+	var s: Node = env["node"]
+	var opened := await _open_unlock(s)
+	var box: Dictionary = opened[0]
+	var sheet: Node = opened[1]
+	var restoring := UI.restore(s)
+	await UI.frames(2)
+	var top: Node = UI.screen(s)
+	T.ok(top is ScfgRestoreScreen and sheet is ScfgSheet, "the restore screen is open over the sheet (%s)" % [top])
+	if not top is ScfgRestoreScreen or not sheet is ScfgSheet:
+		game_button.queue_free()
+		await UI.drop(env)
+		return T.done()
+	sheet.close_with("cancel")
+	await UI.frames(3)
+	var r: ScfgPaymentResult = box.get("result")
+	T.eq(r.status if r != null else null, "cancelled", "the payment below was closed")
+	T.ok(not is_instance_valid(sheet) or not sheet.is_inside_tree(), "and its sheet is gone")
+	T.ok(UI.focused() == top.control("tx_input"), "the focus stayed on the screen on top (%s)" % [UI.focused()])
+	await UI.type_text("ab")
+	T.eq((top.controller as ScfgRestoreController).tx_input, "ab", "and typing still goes there")
+	await UI.act("ui_cancel")
+	var rr: ScfgRestoreResult = restoring.get("result")
+	T.eq(rr.status if rr != null else null, "cancelled", "the screen on top closes")
+	await UI.frames(2)
+	T.ok(UI.focused() == game_button, "then the game's control has the focus again (%s)" % [UI.focused()])
+	game_button.queue_free()
+	await UI.drop(env)
+	return T.done()
+
+
+## A rebuild focuses a control before the new build is laid out, so the body's follow_focus has
+## nothing to scroll to yet. When the body no longer fits (here: the error line of a bad hash
+## takes room from it, in a low window), the focused field must still be brought into view.
+func test_the_focused_field_is_scrolled_into_view_after_a_rebuild() -> bool:
+	var root := UI.tree().root
+	var size_before := root.size
+	root.size = Vector2i(1280, 560)
+	var env := await UI.make("reveal")
+	var s: Node = env["node"]
+	var opened := await _open_unlock(s)
+	var sheet: Node = opened[1]
+	var ctl: ScfgCheckoutController = opened[2]
+	await _to_method_step(s, sheet, "manual")
+	(sheet.control("tx_input") as Control).grab_focus()
+	await UI.frames(2)
+	await UI.type_text("0x12")
+	await UI.key(KEY_ENTER)
+	await UI.frames(3)
+	T.eq(ctl.error, "invalid_hash", "Enter checked it: not a hash")
+	var field := sheet.control("tx_input") as Control
+	var scroll := sheet.find_child("Scroll", true, false) as ScrollContainer
+	T.ok(field != null and UI.focused() == field, "the rebuilt field has the focus (%s)" % [UI.focused()])
+	T.ok(scroll != null, "the body scrolls")
+	if field != null and scroll != null:
+		var body := scroll.get_child(0) as Control
+		T.ok(body.size.y > scroll.size.y, "the body does not fit (%s > %s)" % [body.size.y, scroll.size.y])
+		var view := scroll.get_global_rect().grow(1.0)
+		T.ok(view.encloses(field.get_global_rect()),
+			"the focused field is inside the visible part of the body (%s in %s)" % [field.get_global_rect(), view])
+	(sheet.control("cancel") as Button).pressed.emit()
+	await UI.frames(2)
+	await UI.drop(env)
+	root.size = size_before
+	await UI.frames(1)
 	return T.done()

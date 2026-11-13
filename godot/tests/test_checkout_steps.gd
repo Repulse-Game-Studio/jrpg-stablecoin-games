@@ -139,6 +139,17 @@ func test_ive_sent_it_moves_qr_and_manual_to_waiting() -> bool:
 	return T.done()
 
 
+func test_ive_sent_it_clears_a_bad_hash_error() -> bool:
+	var ctl: ScfgCheckoutController = _on_method_step()["ctl"]
+	ctl.choose_method("manual")
+	ctl.submit_hash("garbage")
+	T.eq(ctl.error, "invalid_hash")
+	ctl.mark_sent()
+	T.eq(ctl.step, "waiting")
+	T.eq(ctl.error, null)
+	return T.done()
+
+
 func test_tip_amount_step_applies_a_typed_amount() -> bool:
 	var ctl: ScfgCheckoutController = _setup({"kind": "tip"})["ctl"]
 	ctl.custom_amount = "0.10"

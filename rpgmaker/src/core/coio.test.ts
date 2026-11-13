@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
-import { FetchTransport, TransportError } from "./coio.ts";
+import { FetchTransport, MAX_RESPONSE_BYTES, TransportError } from "./coio.ts";
 import { jsonLoads } from "./pystr.ts";
 
 type Handler = (body: string, res: http.ServerResponse) => void;
@@ -138,4 +138,103 @@ test("jsonLoads refuses integer literals of more than 4300 digits, as Python's j
     { s: LONG, t: `"${LONG}`, f: 2, e: 0, g: Infinity }); // 1.999... rounds to 2.0, in Python too
   assert.throws(() => jsonLoads("not json"), SyntaxError);
   assert.deepEqual(jsonLoads('{"a": [1, 2.5, -3e2, "4"]}'), { a: [1, 2.5, -300, "4"] });
+});
+
+// --- the response size cap (no Python twin: UrllibTransport reads without one) ---
+
+const tooLarge = (e: unknown): boolean => {
+  assert.ok(e instanceof TransportError);
+  assert.equal(e.message, "response too large");
+  assert.equal(e.status, null);
+  return true;
+};
+
+test("the cap is 16 MiB by default", () => {
+  assert.equal(MAX_RESPONSE_BYTES, 16 * 1024 * 1024);
+  assert.equal(new FetchTransport().maxResponseBytes, MAX_RESPONSE_BYTES);
+});
+
+test("an answer at the cap is read, one byte more is 'response too large'", async () => {
+  const body = JSON.stringify({ result: "x".repeat(100) });
+  const size = Buffer.byteLength(body);
+  // chunked (no Content-Length), so the bytes are counted as they arrive
+  await withServer((_b, res) => {
+    res.write(body.slice(0, 10));
+    res.end(body.slice(10));
+  }, async (url) => {
+    assert.deepEqual(await new FetchTransport(size).postJson(url, {}, 5), JSON.parse(body));
+    await assert.rejects(new FetchTransport(size - 1).postJson(url, {}, 5), tooLarge);
+  });
+});
+
+test("a multi-byte answer is decoded across chunks and counted in bytes", async () => {
+  const body = JSON.stringify({ result: "é€😀".repeat(20) });
+  const bytes = Buffer.from(body, "utf8");
+  await withServer((_b, res) => {
+    // one byte at a time: every character is split
+    for (const b of bytes) res.write(Buffer.from([b]));
+    res.end();
+  }, async (url) => {
+    assert.deepEqual(await new FetchTransport(bytes.length).postJson(url, {}, 5), JSON.parse(body));
+    assert.ok(body.length < bytes.length - 1);
+    await assert.rejects(new FetchTransport(bytes.length - 1).postJson(url, {}, 5), tooLarge);
+  });
+});
+
+test("an endless answer is cut off at the cap, not buffered", async () => {
+  let sent = 0;
+  let closed = false;
+  await withServer((_b, res) => {
+    const chunk = Buffer.alloc(16 * 1024, 0x20);
+    const pump = (): void => {
+      if (closed) return;
+      sent += chunk.length;
+      if (res.write(chunk)) setImmediate(pump);
+      else res.once("drain", pump);
+    };
+    res.on("close", () => { closed = true; });
+    pump();
+  }, async (url) => {
+    await assert.rejects(new FetchTransport(64 * 1024).postJson(url, {}, 5), tooLarge);
+    for (let i = 0; i < 200 && !closed; i++) await new Promise((r) => setTimeout(r, 10));
+    assert.ok(closed, "the request was aborted");
+    assert.ok(sent < 64 * 1024 * 1024, `the server stopped sending (${sent} bytes)`);
+  });
+});
+
+test("a declared Content-Length over the cap is refused before the body is read", async () => {
+  await withServer((_b, res) => {
+    res.setHeader("Content-Length", "1000");
+    res.end("x".repeat(1000));
+  }, async (url) => {
+    await assert.rejects(new FetchTransport(999).postJson(url, {}, 5), tooLarge);
+  });
+});
+
+test("an oversized error answer is 'response too large' too", async () => {
+  await withServer((_b, res) => {
+    res.statusCode = 400;
+    res.write('{"error":{"code":-32005,');
+    res.end(`"message":"${"x".repeat(200)}"}}`);
+  }, async (url) => {
+    await assert.rejects(new FetchTransport(100).postJson(url, {}, 5), tooLarge);
+  });
+});
+
+test("without a streaming body the text is measured after it is read", async () => {
+  const g = globalThis as unknown as { fetch: unknown };
+  const real = g.fetch;
+  let aborted = false;
+  g.fetch = async (_url: string, init: { signal: AbortSignal }) => {
+    init.signal.addEventListener("abort", () => { aborted = true; });
+    return { ok: true, status: 200, text: async () => '{"result":"0123456789"}' };
+  };
+  try {
+    assert.deepEqual(await new FetchTransport(23).postJson("http://x/", {}, 5), { result: "0123456789" });
+    assert.equal(aborted, false);
+    await assert.rejects(new FetchTransport(22).postJson("http://x/", {}, 5), tooLarge);
+    assert.equal(aborted, true);
+  } finally {
+    g.fetch = real;
+  }
 });

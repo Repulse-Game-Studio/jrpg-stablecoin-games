@@ -3,22 +3,16 @@
 ## sheet docked on the right (the Margin look, ScfgTheme), keyboard and gamepad focus wiring, and
 ## small builders for labels, buttons, options and fields.
 ##
-## A screen rebuilds its content when what it shows changes (the subclass's `_signature()`), from
-## `_process`; the autoload polls the controller, a screen never does. Every text a screen shows
-## goes through tr() (auto-translation is off on the screen, so data such as addresses and amounts
-## is never translated by accident).
+## A screen rebuilds its content from `_process` when the subclass's `_signature()` changes. Every
+## text goes through tr(); auto-translation is off so addresses and amounts are never translated.
 ##
 ## Focus: each build lists its focusable controls in visual order. Up and down (and Tab) move
 ## along that list, left and right within a row of buttons, and the ends stay put, so the focus
-## never leaves the screen for the game behind it. The arrow keys leave a text field too (a
-## LineEdit would keep them), and a field the focus reaches takes typing at once on 4.4+.
-## `ui_accept` presses the focused button (Godot's own handling); `ui_cancel` calls
-## `_on_ui_cancel()`. The focus the game had goes back to it when the screen closes.
+## never leaves the screen for the game behind it. `ui_cancel` calls `_on_ui_cancel()`. The focus
+## the game had goes back to it when the screen closes.
 ##
-## Screens can be open at once (pay() and restore() together): one opened later is drawn over the
-## earlier ones. A rebuild never takes the focus from a screen drawn over this one, and when a
-## screen on top closes, the focus goes back to the screen below it (to the control it had, or
-## the same key in its newer build).
+## Several screens can be open at once, the later one drawn on top. A rebuild never takes the focus
+## from a screen on top, and when that one closes the focus returns to the screen below it.
 class_name ScfgScreenBase
 extends Control
 
@@ -26,8 +20,7 @@ extends Control
 signal closed(how: String)
 
 const _AUTOLOAD := preload("res://addons/scfg/scfg.gd")
-## Characters a hash field takes: the autoload's TX_CHARS (Ren'Py's), hex for a transaction hash,
-## base58 for a Solana signature.
+## Characters a hash field takes (hex or base58): the autoload's TX_CHARS.
 const TX_CHARS: String = _AUTOLOAD.TX_CHARS
 ## The most characters a hash field takes: the autoload's TX_MAX_LENGTH.
 const TX_MAX_LENGTH: int = _AUTOLOAD.TX_MAX_LENGTH
@@ -87,6 +80,15 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	# A screen drawn over this one keeps the focus (else the keyboard would reach the game behind
+	# it); if it opened over this one, it inherits where this one would give the focus back.
+	var top := _screen_of(get_viewport().gui_get_focus_owner())
+	if top != null and top != self and top.is_inside_tree() and not top._ended:
+		if top._back_screen.get_ref() == self:
+			top._back_focus = _back_focus
+			top._back_screen = _back_screen
+			top._back_key = _back_key
+		return
 	var back: Variant = _back_focus.get_ref()
 	if back is Control and (back as Control).is_inside_tree() and (back as Control).is_visible_in_tree():
 		(back as Control).grab_focus()
@@ -280,6 +282,9 @@ func field(key: String, text: String, max_length: int, allowed: String, on_text:
 	var f := LineEdit.new()
 	f.text = text
 	f.max_length = max_length
+	# `text =` and `max_length =` leave the caret at 0: a field rebuilt while the player types
+	# would take the next characters in front of the text
+	f.caret_column = f.text.length()
 	f.focus_mode = Control.FOCUS_ALL
 	f.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	f.text_changed.connect(func(t: String) -> void:
@@ -488,6 +493,26 @@ func _focus(primary: String, keep: String) -> void:
 		c = order[0]
 	if c != null and c.is_inside_tree():
 		c.grab_focus()
+		# The new build is not laid out yet, so a scrolling body's follow_focus had nothing to
+		# scroll to: bring the focused control into view on the next frame.
+		var frame := get_tree().process_frame
+		if not frame.is_connected(_reveal_focused):
+			frame.connect(_reveal_focused, CONNECT_ONE_SHOT)
+
+
+## Scrolls the body so that this screen's focused control is in view.
+func _reveal_focused() -> void:
+	if _ended or not is_inside_tree():
+		return
+	var c := get_viewport().gui_get_focus_owner()
+	if c == null or not is_ancestor_of(c):
+		return
+	var p := c.get_parent()
+	while p != null and p != self:
+		if p is ScrollContainer:
+			(p as ScrollContainer).ensure_control_visible(c)
+			return
+		p = p.get_parent()
 
 
 func _input(event: InputEvent) -> void:
@@ -500,12 +525,10 @@ func _input(event: InputEvent) -> void:
 		_arrow_out_of_field(event)
 
 
-## A focused LineEdit takes the up and down arrow keys itself (caret to the start / end), so a
-## keyboard player could never leave it. Move the focus along the screen's order instead, as the
-## gamepad's ui_up / ui_down already do (action events, which a LineEdit ignores). Only the arrow
-## keys themselves: a game may bind letters to ui_up / ui_down (WASD menus), and those are hash
-## characters the field must get. Shift and the other modifiers keep their meaning in the field
-## (exact match).
+## A focused LineEdit keeps the up and down arrow keys (caret to start / end), so a keyboard
+## player could never leave it: move the focus instead. Only the arrow keys themselves, since a game
+## may bind letters (WASD) to ui_up / ui_down and those are hash characters; modified arrows
+## (exact match) stay with the field.
 func _arrow_out_of_field(event: InputEventKey) -> void:
 	var code := event.keycode if event.keycode != KEY_NONE else event.physical_keycode
 	if code != KEY_UP and code != KEY_DOWN:

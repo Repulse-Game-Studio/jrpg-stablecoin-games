@@ -17,32 +17,28 @@
  *   - any other status is TransportError("HTTP <status>", status), except a JSON object with a
  *     truthy "error" (a JSON-RPC error some providers send with a 4xx), which is returned;
  *   - a network failure (refused, DNS, TLS, cut off) is TransportError(<its message>).
+ * An answer of more than MAX_RESPONSE_BYTES (coio.ts; urllib has no cap) is
+ * TransportError("response too large"): refused on its Content-Length, else when the bytes
+ * received pass the limit, and the request is destroyed either way.
  * One deviation: a redirect is not followed (urllib turns a 301-303 to a POST into a GET, which
  * no JSON-RPC endpoint answers); it is TransportError("HTTP 30x"). A failure's Node error code
  * (`ECONNREFUSED`, `CERT_HAS_EXPIRED`, ...) is kept as the TransportError's `code`.
  *
- * THE FALLBACK. NW.js's Node trusts only the CA bundle frozen into its Node build
- * (no OS certificate store: a corporate or antivirus root, a CA newer than the build) and does
- * not use the OS proxy settings; Chromium's `fetch` in the same window does both. With
- * `fallback` (the glue passes the core's FetchTransport) a request that Node fails with a
- * certificate/TLS-trust error (TRUST_CODES) or a proxy-class failure (PROXY_CODES: the name does
- * not resolve, the network or host is unreachable, the connection is refused, reset or times out
- * at the OS level; or HTTP 407, a proxy asking for credentials) goes once more through it, and
- * the fallback's answer or failure is the request's. That failure is a TransportError like any
- * other to the RPC client, which moves on to the next endpoint without reporting it; its message
- * ends with Node's code ("Failed to fetch (Node's https failed first: CERT_HAS_EXPIRED)") and its
- * `cause` is the fallback's own error (its stack), for whoever inspects it (a debugger, a wrapping
- * transport's log). Every other failure is answered as before.
- * Our own read timeout ("timed out") is not retried: it would double the wait on a server that is
- * only slow.
+ * THE FALLBACK. NW.js's Node trusts only the CA bundle frozen into its build (no OS certificate
+ * store: a corporate or antivirus root, a CA newer than the build) and ignores the OS proxy;
+ * Chromium's `fetch` in the same window does both. With `fallback` (the glue passes the core's
+ * FetchTransport), a request Node fails on TLS trust (TRUST_CODES), a proxy-class failure
+ * (PROXY_CODES) or HTTP 407 goes once more through it, and the fallback's answer or failure is
+ * the request's. That failure's message ends with Node's code ("Failed to fetch (Node's https
+ * failed first: CERT_HAS_EXPIRED)") and its `cause` is the fallback's own error. Our own read
+ * timeout ("timed out") is not retried: it would double the wait on a server that is only slow.
  *
- * Node APIs used (all in Node 8 or older): `request(options, callback)` with
- * {protocol, hostname, port, path, method, headers}, req.on("error"), req.setTimeout,
- * req.destroy, req.end(string) (a string body: end() takes a Uint8Array only from Node 15),
- * res.statusCode, res.on("data" | "end" | "error" | "aborted"). The page globals URL, TextEncoder
- * and TextDecoder come from Chromium on NW.js (Node 10/11+ globals).
+ * Node APIs used are all in Node 8 or older (`request(options, callback)`, req.on("error"),
+ * setTimeout, destroy, end(string), res.statusCode, res.on("data" | "end" | "error" | "aborted"));
+ * URL, TextEncoder and TextDecoder come from NW.js's Chromium.
  */
 import { TransportError, type Transport } from "../core/index.ts";
+import { MAX_RESPONSE_BYTES, RESPONSE_TOO_LARGE, declaredLength } from "../core/coio.ts";
 import { jsonLoads, pyTruthy } from "../core/pystr.ts";
 
 /** Node's `http` / `https` module, as far as the transport uses it. */
@@ -57,6 +53,8 @@ export interface NodeTransportOptions {
   user_agent?: string;
   /** Where a request goes once more when Node fails it on trust or a proxy (see the header). */
   fallback?: Transport | null;
+  /** The most bytes of an answer that are read. Default: MAX_RESPONSE_BYTES. */
+  max_response_bytes?: number;
 }
 
 /** Node's certificate / TLS-trust failures (the frozen CA bundle). */
@@ -75,9 +73,8 @@ const PROXY_AUTH = 407;
 
 /**
  * The fallback's failure `f` after Node's `first`: a TransportError (fetch's say only "Failed to
- * fetch") gets Node's code (its message for a 407) in its message, keeping its own status and
- * code, with `f` itself (and its stack) as the `cause`; anything else (a bug, not a transport
- * failure) is passed on as it is.
+ * fetch") gets Node's code (its message for a 407) appended and `f` as its `cause`; anything else
+ * (a bug, not a transport failure) is passed on as it is.
  */
 function afterNode(f: unknown, first: TransportError): unknown {
   if (!(f instanceof TransportError)) return f;
@@ -111,6 +108,7 @@ export class NodeHttpsTransport implements Transport {
   private readonly _https: NodeHttpModule;
   private readonly _http: NodeHttpModule | null;
   private readonly _ua: string;
+  private readonly _maxBytes: number;
   /** The transport a trust or proxy failure is retried through, or null (see the header). */
   readonly fallback: Transport | null;
 
@@ -121,6 +119,7 @@ export class NodeHttpsTransport implements Transport {
     this._https = opts.https;
     this._http = opts.http && typeof opts.http.request === "function" ? opts.http : null;
     this._ua = opts.user_agent ?? "scfg/0.1";
+    this._maxBytes = opts.max_response_bytes ?? MAX_RESPONSE_BYTES;
     this.fallback = opts.fallback && typeof opts.fallback.postJson === "function" ? opts.fallback : null;
   }
 
@@ -153,8 +152,7 @@ export class NodeHttpsTransport implements Transport {
           ? "http: URLs need Node's http module" : `unknown url type: ${target.protocol.replace(/:$/, "")}`));
         return;
       }
-      // The body goes out as a string: Node 14 and older (the NW.js of MZ's early releases) take
-      // only a string or a Buffer in end(), not a Uint8Array. Content-Length is its UTF-8 size.
+      // A string body: Node 14 and older (early MZ's NW.js) take no Uint8Array in end().
       const text = JSON.stringify(payload);
       const length = new TextEncoder().encode(text).length;
       let settled = false;
@@ -183,11 +181,22 @@ export class NodeHttpsTransport implements Transport {
           headers: { "Content-Type": "application/json", "Content-Length": String(length), "User-Agent": this._ua },
         }, (res: any) => {
           try {
+            const limit = this._maxBytes;
+            const tooLarge = () => {
+              fail(RESPONSE_TOO_LARGE);
+              destroyQuietly();
+            };
             const parts: Uint8Array[] = [];
             let size = 0;
             res.on("data", (chunk: Uint8Array) => {
-              parts.push(chunk);
+              if (settled) return;
               size += chunk.length;
+              if (size > limit) {
+                parts.length = 0;
+                tooLarge();
+                return;
+              }
+              parts.push(chunk);
             });
             res.on("error", (e: unknown) => fail(messageOf(e), codeOf(e)));
             res.on("aborted", () => fail("the connection was closed before the answer was complete"));
@@ -202,6 +211,9 @@ export class NodeHttpsTransport implements Transport {
               }
               resolve([Number(res.statusCode), raw]);
             });
+            // (after the listeners: destroying the request may still emit an error on `res`)
+            const declared = declaredLength(res.headers ? res.headers["content-length"] : undefined);
+            if (declared !== null && declared > limit) tooLarge();
           } catch (e) {
             fail(messageOf(e));
             destroyQuietly();
@@ -228,8 +240,7 @@ const UTF8 = () => new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 /** The answer as UrllibTransport.post_json returns it, or its TransportError. */
 function decode(status: number, raw: Uint8Array): unknown {
   if (!(status >= 200 && status < 300)) {
-    // Some providers send JSON-RPC errors (e.g. "range too large") with a 4xx status.
-    // Pass those through so the client can react to the message.
+    // some providers send JSON-RPC errors ("range too large") with a 4xx: passed through
     let body: unknown = null;
     try {
       body = jsonLoads(UTF8().decode(raw));

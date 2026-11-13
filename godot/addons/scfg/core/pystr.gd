@@ -146,15 +146,10 @@ static func json_int(v: Variant) -> Variant:
 	return int(f)
 
 
-## A value from JSON.parse_string as Python's json.load reads the same text: an integral float
-## below 2^53 in magnitude becomes that int, recursively through Arrays and Dictionaries (new
-## copies; keys are kept). Python reads such a number as an int, while Godot's reader makes every
-## number a float. Everything else is unchanged: a fractional or non-finite float stays a float, so
-## validation rejects it as Python's would; a float of 2^53 or more stays a float (it may already
-## be rounded, so json_int refuses it), and strings, bools, null and objects pass through.
-##
-## Used on state reloaded from JSON (ScfgEngine normalises its `pending` and `receipts`), on the
-## conformance vectors (tests/tier1.gd, tests/tier2.gd) and on the integration driver's commands.
+## A value from JSON.parse_string as Python's json.load reads the same text: Godot's reader makes
+## every number a float, so an integral float below 2^53 in magnitude becomes that int, recursively
+## through Arrays and Dictionaries (new copies; keys kept). Everything else is unchanged, so a
+## fractional, non-finite or too-large float still fails validation as Python's would.
 static func from_json(v: Variant) -> Variant:
 	match typeof(v):
 		TYPE_FLOAT:
@@ -395,300 +390,102 @@ static func py_str(v: Variant) -> String:
 	return py_repr(v)
 
 
-## Python `template.format(arg)` for ONE positional str argument (no keyword arguments), as
-## CPython 3.12's MarkupIterator and str `__format__` do it:
-## - `{{` and `}}` are literal braces; a lone brace, an unmatched `{`, a bad field name, a bad
-##   conversion (`!r`, `!s`, `!a` only) or a bad format spec is a ValueError;
-## - `{}` and `{0}` are the argument (mixing the two is a ValueError), another index is an
-##   IndexError, a name is a KeyError;
-## - `[n]` indexes the string (an IndexError when out of range, a TypeError for a non-digit key)
-##   and `.name` is an AttributeError for anything that is not a str attribute;
-## - the format spec is a str spec: fill, align (not `=`), width, `.precision`, type `s`; a sign,
-##   `#`, `z`, grouping or another type is a ValueError; a nested `{}` in a spec is expanded
-##   first (two levels at most).
-## Port limits: `{.upper}` (a real str method) formats as a bound method's repr with a fixed
-## address (Python prints the object's real address), a dunder attribute (`{.__class__}`) is a
-## ValueError, and a width above 100000 is a ValueError.
+## Python `template.format(arg)` for ONE positional str argument (no keyword arguments), for
+## the one template the core formats: a chain's `explorer_tx`, which build_chain accepts only with
+## a single `{}` (ScfgConfig.build_chain). As CPython 3.12:
+## - `{{` and `}}` are literal braces; a lone brace, an unmatched `{` or a bad conversion (`!r`,
+##   `!s`, `!a` only) is a ValueError;
+## - `{}` and `{0}` are the argument (mixing the two is a ValueError), a second `{}` or another
+##   index is an IndexError, a name is a KeyError.
+## Port limit (stricter than Python, as the TS core's pyFormat1): a field with a non-empty format
+## spec (`{:>8}`, a nested `{:{}}`), an index (`{0[1]}`) or an attribute (`{0.upper}`) is a
+## ValueError once its argument is found, where Python formats it or raises a TypeError or
+## AttributeError. build_chain reports a ValueError as `chain.bad_explorer_tx_braces`.
 ## @fallible
 static func py_format1(template: String, arg: String) -> Variant:
-	return _fmt_build(template, arg, {"mode": 0, "next": 0}, 2)
-
-
-const _STR_ATTRS := ["capitalize", "casefold", "center", "count", "encode", "endswith", "expandtabs", "find",
-	"format", "format_map", "index", "isalnum", "isalpha", "isascii", "isdecimal", "isdigit", "isidentifier",
-	"islower", "isnumeric", "isprintable", "isspace", "istitle", "isupper", "join", "ljust", "lower", "lstrip",
-	"maketrans", "partition", "removeprefix", "removesuffix", "replace", "rfind", "rindex", "rjust", "rpartition",
-	"rsplit", "rstrip", "split", "splitlines", "startswith", "strip", "swapcase", "title", "translate", "upper",
-	"zfill"]
-
-
-## @fallible
-static func _fmt_build(s: String, arg: String, state: Dictionary, depth: int) -> Variant:
-	if depth <= 0:
-		return ScfgErr.make("ValueError", "Max string recursion exceeded")
 	var out := ""
+	var auto := 0  # 0: no field yet, 1: automatic numbering ({}), 2: manual ({0})
+	var next_index := 0
 	var i := 0
-	var n := s.length()
+	var n := template.length()
 	while i < n:
-		# literal text up to a brace (MarkupIterator_next)
-		var start := i
-		var c := ""
-		var markup := false
-		while i < n:
-			c = s[i]
+		var c := template[i]
+		if c != "{" and c != "}":
+			out += c
 			i += 1
-			if c == "{" or c == "}":
-				markup = true
-				break
-		var at_end := i >= n
-		var length := i - start
-		if markup and c == "}" and (at_end or s[i] != "}"):
-			return ScfgErr.make("ValueError", "Single '}' encountered in format string")
-		if markup and at_end and c == "{":
-			return ScfgErr.make("ValueError", "Single '{' encountered in format string")
-		if markup and not at_end:
-			if s[i] == c:
-				i += 1
-				markup = false
-			else:
-				length -= 1
-		out += s.substr(start, length)
-		if not markup:
 			continue
-		# the field (parse_field)
-		var name_start := i
-		var term := ""
-		while i < n:
-			term = s[i]
-			i += 1
-			if term == "{":
-				return ScfgErr.make("ValueError", "unexpected '{' in field name")
-			if term == "[":
-				while i < n and s[i] != "]":
-					i += 1
-				term = ""
-				continue
-			if term == "}" or term == ":" or term == "!":
-				break
-			term = ""
-		var name := s.substr(name_start, maxi(i - 1 - name_start, 0))
-		var conversion := ""
-		var spec := ""
-		var expand := false
-		if term == "!" or term == ":":
-			var complete := false
-			if term == "!":
-				if i >= n:
-					return ScfgErr.make("ValueError", "end of string while looking for conversion specifier")
-				conversion = s[i]
-				i += 1
-				if i < n:
-					var after := s[i]
-					i += 1
-					if after == "}":
-						complete = true
-					elif after != ":":
-						return ScfgErr.make("ValueError", "expected ':' after conversion specifier")
-			if not complete:
-				var count := 1
-				var spec_start := i
-				var closed := false
-				while i < n:
-					var sc := s[i]
-					i += 1
-					if sc == "{":
-						expand = true
-						count += 1
-					elif sc == "}":
-						count -= 1
-						if count == 0:
-							spec = s.substr(spec_start, i - 1 - spec_start)
-							closed = true
-							break
-				if not closed:
-					return ScfgErr.make("ValueError", "unmatched '{' in format spec")
-		elif term != "}":
+		if i + 1 < n and template[i + 1] == c:
+			out += c
+			i += 2
+			continue
+		if c == "}" or i + 1 >= n:
+			return ScfgErr.make("ValueError", "Single '%s' encountered in format string" % c)
+		var close := template.find("}", i + 1)
+		if close < 0:
 			return ScfgErr.make("ValueError", "expected '}' before end of string")
-		# render the field (output_markup)
-		var obj: Variant = _fmt_field_object(name, arg, state)
-		if obj is ScfgErr:
-			return obj
-		var text: String = obj[0]
-		var is_method: bool = obj[1]
-		if conversion != "":
-			match conversion:
-				"r":
-					text = text if is_method else py_repr(text)  # a method's repr is its str
-				"s":
-					pass
-				"a":
-					text = text if is_method else _ascii_escape(py_repr(text))
-				_:
-					return ScfgErr.make("ValueError", "Unknown conversion specifier %s" % conversion)
-		if expand:
-			var expanded: Variant = _fmt_build(spec, arg, state, depth - 1)
-			if expanded is ScfgErr:
-				return expanded
-			spec = expanded
-		if is_method and spec != "":
-			return ScfgErr.make("TypeError", "unsupported format string passed to builtin_function_or_method.__format__")
-		var formatted: Variant = _fmt_str_spec(text, spec)
-		if formatted is ScfgErr:
-			return formatted
-		out += formatted
-	return out
-
-
-## The object a field name refers to, as `[text, is_a_method]`: the argument, indexed or
-## attribute-accessed.
-## @fallible
-static func _fmt_field_object(name: String, arg: String, state: Dictionary) -> Variant:
-	var split := name.length()
-	for k in name.length():
-		if name[k] == "." or name[k] == "[":
-			split = k
-			break
-	var first := name.substr(0, split)
-	var index := 0
-	if first == "":
-		if state["mode"] == 2:
-			return ScfgErr.make("ValueError", "cannot switch from manual field specification to automatic field numbering")
-		state["mode"] = 1
-		index = state["next"]
-		state["next"] += 1
-	else:
-		var digits := true
-		for k in first.length():
-			var c := first.unicode_at(k)
-			if c < 0x30 or c > 0x39:
-				digits = false
-		if digits:
-			if state["mode"] == 1:
+		var field := template.substr(i + 1, close - i - 1)
+		i = close + 1
+		if field.contains("{"):
+			return ScfgErr.make("ValueError", "unexpected '{' in field name")
+		# the field is name[!conversion][:spec]
+		var name := field
+		var rest := ""
+		for k in field.length():
+			if field[k] == "!" or field[k] == ":":
+				name = field.substr(0, k)
+				rest = field.substr(k)
+				break
+		var first := name
+		for k in name.length():
+			if name[k] == "." or name[k] == "[":
+				first = name.substr(0, k)
+				break
+		var index := 0
+		if first == "":
+			if auto == 2:
+				return ScfgErr.make("ValueError", "cannot switch from manual field specification to automatic field numbering")
+			auto = 1
+			index = next_index
+			next_index += 1
+		elif _is_ascii_digits(first):
+			if auto == 1:
 				return ScfgErr.make("ValueError", "cannot switch from automatic field numbering to manual field specification")
-			state["mode"] = 2
+			auto = 2
 			index = first.to_int() if first.length() < 18 else 1 << 40
 		else:
 			return ScfgErr.make("KeyError", py_repr(first))
-	if index >= 1:
-		return ScfgErr.make("IndexError", "Replacement index %d out of range for positional args tuple" % index)
-	var obj := arg
-	var method := false
-	var pos := split
-	while pos < name.length():
-		var c := name[pos]
-		pos += 1
-		if c == ".":
-			var end := pos
-			while end < name.length() and name[end] != "." and name[end] != "[":
-				end += 1
-			var attr := name.substr(pos, end - pos)
-			pos = end
-			if attr == "":
-				return ScfgErr.make("ValueError", "Empty attribute in format string")
-			if attr.begins_with("__"):
-				return ScfgErr.make("ValueError", "format field .%s is not supported by the port" % attr)
-			if method or not attr in _STR_ATTRS:
-				return ScfgErr.make("AttributeError", "'%s' object has no attribute %s" % [
-					"builtin_function_or_method" if method else "str", py_repr(attr)])
-			obj = "<built-in method %s of str object at 0x7f0000000000>" % attr
-			method = true
-		elif c == "[":
-			var close := name.find("]", pos)
-			if close < 0:
-				return ScfgErr.make("ValueError", "Missing ']' in format string")
-			var key := name.substr(pos, close - pos)
-			pos = close + 1
-			if key == "":
-				return ScfgErr.make("ValueError", "Empty attribute in format string")
-			if method:
-				return ScfgErr.make("TypeError", "'builtin_function_or_method' object is not subscriptable")
-			var is_digits := true
-			for k in key.length():
-				var kc := key.unicode_at(k)
-				if kc < 0x30 or kc > 0x39:
-					is_digits = false
-			if not is_digits:
-				return ScfgErr.make("TypeError", "string indices must be integers, not 'str'")
-			var at := key.to_int() if key.length() < 18 else 1 << 40
-			if at >= obj.length():
-				return ScfgErr.make("IndexError", "string index out of range")
-			obj = obj[at]
-		else:
-			return ScfgErr.make("ValueError", "Only '.' or '[' may follow ']' in format field specifier")
-	return [obj, method]
-
-
-## `format(text, spec)` for a str.
-## @fallible
-static func _fmt_str_spec(text: String, spec: String) -> Variant:
-	if spec == "":
-		return text
-	var n := spec.length()
-	var p := 0
-	var fill := " "
-	var align := "<"
-	var align_given := false
-	if n >= 2 and spec[1] in ["<", ">", "=", "^"]:
-		fill = spec[0]
-		align = spec[1]
-		align_given = true
-		p = 2
-	elif n >= 1 and spec[0] in ["<", ">", "=", "^"]:
-		align = spec[0]
-		align_given = true
-		p = 1
-	var bad := ScfgErr.make("ValueError", "Invalid format specifier %s for object of type 'str'" % py_repr(spec))
-	if p < n and spec[p] in ["+", "-", " "]:
-		return ScfgErr.make("ValueError", "Sign not allowed in string format specifier")
-	if p < n and spec[p] == "z":
-		return ScfgErr.make("ValueError", "Negative zero coercion (z) not allowed in string format specifier")
-	if p < n and spec[p] == "#":
-		return ScfgErr.make("ValueError", "Alternate form (#) not allowed in string format specifier")
-	if not (align_given and n >= 2 and spec[1] in ["<", ">", "=", "^"]) and p < n and spec[p] == "0":
-		fill = "0"  # Python 3.10+: the zero flag sets the fill, the alignment stays '<'
-		p += 1
-	var width := -1
-	var w_start := p
-	while p < n and spec.unicode_at(p) >= 0x30 and spec.unicode_at(p) <= 0x39:
-		p += 1
-	if p > w_start:
-		if p - w_start > 18:
-			return ScfgErr.make("ValueError", "Too many decimal digits in format string")
-		width = spec.substr(w_start, p - w_start).to_int()
-	if p < n and (spec[p] == "," or spec[p] == "_"):
-		return ScfgErr.make("ValueError", "Cannot specify '%s' with 's'." % spec[p])
-	var precision := -1
-	if p < n and spec[p] == ".":
-		p += 1
-		var p_start := p
-		while p < n and spec.unicode_at(p) >= 0x30 and spec.unicode_at(p) <= 0x39:
-			p += 1
-		if p == p_start:
-			return ScfgErr.make("ValueError", "Format specifier missing precision")
-		if p - p_start > 18:
-			return ScfgErr.make("ValueError", "Too many decimal digits in format string")
-		precision = spec.substr(p_start, p - p_start).to_int()
-	if n - p > 1:
-		return bad
-	if n - p == 1:
-		if spec[p] != "s":
-			return ScfgErr.make("ValueError", "Unknown format code '%s' for object of type 'str'" % spec[p])
-	if align == "=":
-		return ScfgErr.make("ValueError", "'=' alignment not allowed in string format specifier")
-	if width > 100000:
-		return ScfgErr.make("ValueError", "format width %d is above the port's limit" % width)
-	var out := text
-	if precision >= 0 and out.length() > precision:
-		out = out.substr(0, precision)
-	var pad := width - out.length()
-	if pad > 0:
-		var left := 0
-		if align == ">":
-			left = pad
-		elif align == "^":
-			left = pad / 2
-		out = fill.repeat(left) + out + fill.repeat(pad - left)
+		if index >= 1:
+			return ScfgErr.make("IndexError", "Replacement index %d out of range for positional args tuple" % index)
+		if first != name:
+			return ScfgErr.make("ValueError", "format field %s: indexing and attributes are not supported by the port" % py_repr(name))
+		var text := arg
+		if rest.begins_with("!"):
+			if rest.length() < 2:
+				return ScfgErr.make("ValueError", "end of string while looking for conversion specifier")
+			if rest.length() > 2 and rest[2] != ":":
+				return ScfgErr.make("ValueError", "expected ':' after conversion specifier")
+			match rest[1]:
+				"r":
+					text = py_repr(arg)
+				"s":
+					pass
+				"a":
+					text = _ascii_escape(py_repr(arg))
+				_:
+					return ScfgErr.make("ValueError", "Unknown conversion specifier %s" % rest[1])
+			rest = rest.substr(2)
+		if rest.length() > 1:
+			return ScfgErr.make("ValueError", "format spec %s: format specs are not supported by the port" % py_repr(rest.substr(1)))
+		out += text
 	return out
+
+
+static func _is_ascii_digits(s: String) -> bool:
+	for k in s.length():
+		var c := s.unicode_at(k)
+		if c < 0x30 or c > 0x39:
+			return false
+	return true
 
 
 ## Python's `ascii()` of a repr: every non-ASCII character as \xNN, \uNNNN or \UNNNNNNNN.

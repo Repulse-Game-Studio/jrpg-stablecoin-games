@@ -10,8 +10,8 @@
 ##     own error value if its snapshot() failed, so check it),
 ##   - collects StepOutcomes with `drain_outcomes()` (a "waiting" outcome only when it has an error).
 ##
-## ONE RUN AT A TIME. `run_once()` is a coroutine (callers await it): the commands queued before it
-## (in order), `reverify()` on the very first run, `tick()`, then the snapshot. It returns null, or
+## ONE RUN AT A TIME. `run_once()` is a coroutine (callers await it): the queued commands
+## (in order, until none is left), `reverify()` on the very first run, `tick()`, then the snapshot. It returns null, or
 ## the first ScfgErr a pass produced (a failing reverify or tick ends that pass, so no snapshot;
 ## the reverify is not retried). A command, wake() or run_once() arriving while a run is in flight
 ## (including one made from inside a command) only marks `_again`: exactly ONE follow-up pass runs
@@ -20,7 +20,8 @@
 ## calls these synchronously can never start an overlapping run. A command must not AWAIT run_once()
 ## (the chain waits for the command: deadlock); call it without await, or just use wake().
 ##
-## A command submitted mid-run is executed by the follow-up run, never inside the tick. stop()
+## A command submitted while the commands run joins them (the queue is drained until empty, as in
+## Python); one submitted during the tick is executed by the follow-up run, never inside the tick. stop()
 ## cancels the timer and queued jobs and prevents loop and follow-up runs (a pass already in flight
 ## finishes); a submit after stop() is cancelled at once, before the first start() it queues.
 ## An explicit run_once() after stop() still runs one pass.
@@ -117,9 +118,10 @@ func run_once() -> Variant:
 
 ## @fallible
 func _pass() -> Variant:
-	var batch := _commands
-	_commands = []  # commands submitted from here on belong to the next pass
-	for entry: Dictionary in batch:
+	# Drain until empty, as Python's workers do: a command submitted by a running command runs
+	# in this pass, before the tick.
+	while not _commands.is_empty():
+		var entry: Dictionary = _commands.pop_front()
 		var job: ScfgJob = entry["job"]
 		if not job._start():
 			continue

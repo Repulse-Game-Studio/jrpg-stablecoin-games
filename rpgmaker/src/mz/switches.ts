@@ -3,7 +3,8 @@
  * `SCFG.owns(id)`. The plugin owns those switches and is the only one that should write them: it
  * sets them (ON or OFF, only when they differ):
  *
- * - after `DataManager.setupNewGame` (New Game, and the game Scene_Boot sets up),
+ * - after `DataManager.setupNewGame` (New Game, and the game Scene_Boot sets up) and after
+ *   `DataManager.setupBattleTest` / `setupEventTest` (the editor's Battle Test and event Test),
  * - after `DataManager.extractSaveContents` (every Load: a save made before the purchase, or
  *   after a purchase that was later cleared),
  * - whenever the receipts change (`SCFG.onReceiptsChanged`: a payment confirmed mid-map, a
@@ -67,18 +68,17 @@ export class OwnedSwitches {
         this._scfg._reportError("cannot set the owned switches:", e);
       }
     };
-    const setupNewGame = dm.setupNewGame;
-    dm.setupNewGame = function (this: unknown, ...args: unknown[]) {
-      const r = setupNewGame.apply(this, args);
-      sync();
-      return r;
-    };
-    const extractSaveContents = dm.extractSaveContents;
-    dm.extractSaveContents = function (this: unknown, ...args: unknown[]) {
-      const r = extractSaveContents.apply(this, args);
-      sync();
-      return r;
-    };
+    // New Game, every Load, and the editor's Battle Test and event Test (MZ makes their game
+    // objects without setupNewGame)
+    for (const name of ["setupNewGame", "extractSaveContents", "setupBattleTest", "setupEventTest"]) {
+      const original = dm[name];
+      if (typeof original !== "function" && name !== "setupNewGame" && name !== "extractSaveContents") continue;
+      dm[name] = function (this: unknown, ...args: unknown[]) {
+        const r = original.apply(this, args);
+        sync();
+        return r;
+      };
+    }
     this._scfg.onReceiptsChanged(sync);
   }
 

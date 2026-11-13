@@ -83,6 +83,8 @@ jobs:
           node-version: 24
       - run: npm ci
       - run: npm run typecheck
+      - name: No floating or misused promises (an unhandled rejection halts RPG Maker MZ)
+        run: npm run lint
       - name: TypeScript core, RPG Maker glue and bundle checks against the conformance vectors
         run: npm test
       - name: SCFG.js builds reproducibly (two builds are byte-identical)

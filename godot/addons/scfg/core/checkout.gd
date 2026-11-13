@@ -1,10 +1,9 @@
 ## State behind the payment screen, independent of any engine. Mirrors scfg_core/checkout.py (and
 ## the TS core's rpgmaker/src/core/checkout.ts).
 ##
-## The Godot sheet (ui/sheet.gd) only displays this object's fields and calls its methods from buttons. All
-## engine work goes through `submit` (the ScfgWorker's `submit`), and results come back through
-## `poll()` (jobs) and `on_outcome()` (watcher outcomes routed by session id). Nothing here touches
-## the SceneTree or the network, so the whole flow is unit-testable.
+## The Godot sheet (ui/sheet.gd) only displays this object's fields and calls its methods. Engine
+## work goes through `submit` (the ScfgWorker's), and results come back through `poll()` (jobs) and
+## `on_outcome()` (watcher outcomes). Nothing here touches the SceneTree or the network.
 ##
 ## States: choose -> starting -> waiting -> confirming -> paid
 ##                                      \-> underpaid | expired
@@ -19,35 +18,28 @@
 ##     and `submit(fn: Callable) -> ScfgJob`. `fn(engine)` may be a coroutine (the Worker awaits it);
 ##   - mobile (false);
 ##   - server_factory: a Callable taking one Dictionary `{session_info, on_tx, get_status}` plus
-##     `build_tx` on Solana, returning the page object (or an ScfgErr when it cannot be built).
-##     The page has `start()` (may return an ScfgErr), `stop()`, `url` and `running`, and
-##     optionally `reopen()` and `pump()`; the controller finds those by name. `session_info` is the
-##     exact dict Python hands the page (same keys in the same order, `amount_units` and
-##     `min_fee_wei` Strings, `chain_id_hex` as Python's hex()). `on_tx(tx_hash, sender = null)`
-##     takes an already normalised id; call it from the game loop's turn, never from inside a
-##     worker command. `get_status()` is status_info(). `build_tx(account)` returns the Worker's
-##     ScfgJob that builds the unsigned Solana transfer;
-##   - unready: a Callable returning the routes the Worker's snapshot marks unusable, i.e.
-##     `worker.snapshot["unready"]`: an Array of [chain_key, token] pairs (a Dictionary keyed by
-##     such pairs, like ScfgEngine.unready, works too). Nothing is blocked by default;
+##     `build_tx` on Solana, returning the page object (or an ScfgErr). The page has `start()`
+##     (may return an ScfgErr), `stop()`, `url` and `running`, and optionally `reopen()` and
+##     `pump()`. `session_info` is the exact dict Python hands the page (same keys and order,
+##     `amount_units` and `min_fee_wei` Strings, `chain_id_hex` as Python's hex()).
+##     `on_tx(tx_hash, sender = null)` takes a normalised id; call it from the game loop, never
+##     from inside a worker command. `get_status()` is status_info(). `build_tx(account)` returns
+##     the Worker's ScfgJob that builds the unsigned Solana transfer;
+##   - unready: a Callable returning `worker.snapshot["unready"]`: an Array of [chain_key, token]
+##     pairs (or a Dictionary keyed by them, like ScfgEngine.unready). Nothing is blocked by default;
 ##   - game_name ("Game" when empty), browser_wallet (a Callable taking a Chain, for the web build).
-## A constructor cannot return an error: the unreachable failure of the first network step (the
-## chain it picks is not in the spec) lands in `init_error`.
+## A constructor cannot return an error: the (unreachable) failure of the first network step lands
+## in `init_error`.
 ##
-## Every injected Callable except the `fn` handed to `submit` must be synchronous: submit itself
-## (it returns the ScfgJob at once), server_factory, unready and browser_wallet, and the page's
-## start(), stop(), reopen() and pump(). The controller calls them without `await`, so one that
-## awaits hands it a function state instead of its value (and start() must not suspend).
-## The callbacks given to the page (on_tx, get_status, build_tx) are bound to this RefCounted
-## controller but do not keep it alive: call close() (or cancel()/finish()) before releasing the
-## controller, and the page checks `is_valid()` before calling one.
+## Every injected Callable except the `fn` handed to `submit` must be synchronous (submit,
+## server_factory, unready, browser_wallet, and the page's start(), stop(), reopen() and pump()):
+## the controller calls them without `await`.
+## The callbacks given to the page are bound to this controller but do not keep it alive: call
+## close() (or cancel()/finish()) before releasing it; the page checks `is_valid()` before a call.
 ##
-## Python's `@property` members are properties here (session_id, chain, family, pay_amount_text,
-## price_text, token_address, recipient, tx_seen, can_go_back); methods keep their names. A method
-## that Python can raise from returns its value or an ScfgErr (`## @fallible`): select_chain,
-## choose_network and next_step (a chain the payment does not offer is a ValueError), and the ones
-## that pass an error on. A cancelled job lands in poll()'s failure branch (start_failed).
-## `pay_amount_text` is a String for any session the Engine made.
+## Python's `@property` members are properties here; methods keep their names. A method Python can
+## raise from returns its value or an ScfgErr (`## @fallible`). A cancelled job lands in poll()'s
+## failure branch (start_failed).
 class_name ScfgCheckoutController
 extends RefCounted
 
@@ -367,6 +359,7 @@ func back() -> void:
 ## The player says they sent the payment from the QR or manual page.
 func mark_sent() -> void:
 	if step == "qr" or step == "manual":
+		error = null
 		_go("waiting", 1)
 
 
@@ -656,7 +649,7 @@ func _abandon_start() -> void:
 	if (fut as ScfgJob).done():
 		discard.call(fut)
 	else:
-		var ref := weakref(fut)
+		var ref: WeakRef = weakref(fut)
 		(fut as ScfgJob).finished.connect(func() -> void: discard.call(ref.get_ref()), CONNECT_ONE_SHOT)
 
 

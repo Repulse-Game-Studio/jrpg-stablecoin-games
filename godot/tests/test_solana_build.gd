@@ -1,9 +1,9 @@
-## ScfgSolanaBackend.build_payment and ScfgEngine.build_solana_payment: the backend and Engine half
-## of tests/unit/test_solana_build.py, plus the JS core's checks (rpgmaker/src/core/backends/
+## ScfgSolanaBackend.build_payment and ScfgEngine.build_solana_payment: the backend and Engine
+## half of tests/unit/test_solana_build.py (and its checkout controller test; the local-server
+## ones are in test_local_server.gd), plus the JS core's checks (rpgmaker/src/core/backends/
 ## solana.test.ts): the exact layout a wallet signs, padded base64, the account normalized and
-## refused before any request. (The checkout controller test of that file is here too; the
-## local-server tests are in test_local_server.gd.) Python signs the transaction with solders to prove
-## a wallet can; here a small legacy-transaction parser checks every byte a wallet signs instead.
+## refused before any request. Where Python signs with solders, a small legacy-transaction
+## parser checks every byte a wallet signs.
 extends RefCounted
 
 const T := preload("res://tests/t.gd")
@@ -53,11 +53,11 @@ func _parse_tx(raw: PackedByteArray) -> Dictionary:
 	var sigs: PackedByteArray = take.call(64 * nsig)
 	var header := Array(take.call(3) as PackedByteArray)
 	var keys := []
-	for i in cu16.call():
+	for i: int in cu16.call():
 		keys.append(ScfgSolanaBase58.b58encode(take.call(32)))
 	var blockhash := ScfgSolanaBase58.b58encode(take.call(32))
 	var instructions := []
-	for i in cu16.call():
+	for i: int in cu16.call():
 		var program: String = keys[raw[at[0]]]
 		at[0] += 1
 		var accounts := []

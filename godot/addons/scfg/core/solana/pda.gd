@@ -9,6 +9,13 @@ const ASSOCIATED_TOKEN_PROGRAM_ID := "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8k
 const MAX_SEED_LEN := 32
 const MAX_SEEDS := 16
 const _MARKER := "ProgramDerivedAddress"
+const _ATA_CACHE_MAX := 64
+
+## associated_token_address results, {[owner, mint]: address}: the search costs an is_on_curve per
+## bump, and the same few pairs (the developer's wallet and each token) are asked for on every
+## session start and readiness check. Emptied when it reaches _ATA_CACHE_MAX pairs (a player's
+## account is in the key, so it is not bounded by the config). Errors are not kept.
+static var _ata_cache: Dictionary = {}
 
 
 ## sha256(seeds + program_id + "ProgramDerivedAddress") as a 32-byte address, or null (Python's
@@ -52,6 +59,10 @@ static func find_program_address(seeds: Array, program_id: PackedByteArray) -> V
 ## An owner or mint that is not a base58 32-byte key is a ValueError.
 ## @fallible
 static func associated_token_address(owner: Variant, mint: Variant) -> Variant:
+	var key: Array = [owner, mint]
+	var cacheable := typeof(owner) == TYPE_STRING and typeof(mint) == TYPE_STRING
+	if cacheable and _ata_cache.has(key):
+		return _ata_cache[key]
 	var owner_raw: Variant = ScfgSolanaBase58.decode_fixed(owner, 32)
 	if owner_raw is ScfgErr:
 		return owner_raw
@@ -67,4 +78,9 @@ static func associated_token_address(owner: Variant, mint: Variant) -> Variant:
 	var found: Variant = find_program_address([owner_raw, token_raw, mint_raw], program_raw)
 	if found is ScfgErr:
 		return found
-	return ScfgSolanaBase58.b58encode(found[0])
+	var address: Variant = ScfgSolanaBase58.b58encode(found[0])
+	if cacheable and address is String:
+		if _ata_cache.size() >= _ATA_CACHE_MAX:
+			_ata_cache.clear()
+		_ata_cache[key] = address
+	return address

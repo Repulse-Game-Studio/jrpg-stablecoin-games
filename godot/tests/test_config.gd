@@ -380,8 +380,11 @@ func test_build_chain_rejects() -> bool:
 		[{"explorer_tx": "https://x.example/{}}"}, "chain.bad_explorer_tx_braces"],
 		[{"explorer_tx": "https://x.example/{}{:x}"}, "chain.bad_explorer_tx_braces"],
 		[{"explorer_tx": "https://x.example/{}{.upper}"}, "chain.bad_explorer_tx_braces"],
-		[{"explorer_tx": "https://x.example/{[x]}{}"}, "TypeError"],
-		[{"explorer_tx": "https://x.example/{.nope}{}"}, "AttributeError"],
+		# Port limit: Python lets these two escape as a TypeError and an AttributeError, and formats
+		# the third (the `{}` it counts is inside `{{}}`); py_format1 has no indexes, attributes or specs
+		[{"explorer_tx": "https://x.example/{[x]}{}"}, "chain.bad_explorer_tx_braces"],
+		[{"explorer_tx": "https://x.example/{.nope}{}"}, "chain.bad_explorer_tx_braces"],
+		[{"explorer_tx": "https://x.example/{0:*^9}{{}}"}, "chain.bad_explorer_tx_braces"],
 		[{"native_symbol": ""}, "chain.bad_native_symbol"], [{"native_symbol": "A V"}, "chain.bad_native_symbol"],
 		[{"native_symbol": "A".repeat(12)}, "chain.bad_native_symbol"], [{"native_symbol": 5}, "chain.bad_native_symbol"],
 		[{"fee_hint": "cheap"}, "chain.bad_fee_hint"], [{"fee_hint": ["low"]}, "chain.bad_fee_hint"],
