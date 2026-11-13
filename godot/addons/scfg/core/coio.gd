@@ -67,15 +67,12 @@ static func parse_body(raw: PackedByteArray) -> Array:
 	return [true, j.data]
 
 
-## parse_body for an RPC answer, as the Python core reads one (ints.json_loads): an
-## integer literal (no fraction, no exponent) of more than 4300 digits makes the body unreadable,
-## as CPython's json refuses it, where Godot's JSON would read it as a float (inf). Linear: a
-## native regex, tried only where a digit run starts (a lookbehind; unanchored, it would retry at
-## every digit of every run), finds whether any such run exists before the bytes are scanned for
-## one outside strings. A shorter integer beyond a float's range (309 to 4300 digits) is still
-## Godot's float (inf, with an engine warning) where Python reads an int: a known port
-## difference no honest node can reach (see conformance/README.md). The store and the local
-## server read with parse_body (their own files, and bodies of at most 4096 bytes).
+## parse_body for an RPC answer, as the Python core reads one (ints.json_loads): an integer
+## literal of more than 4300 digits makes the body unreadable, as CPython's json refuses it, where
+## Godot's JSON would read it as inf. Linear: a native regex anchored by a lookbehind (unanchored,
+## it would retry at every digit) finds whether such a run exists before the bytes are scanned for
+## one outside strings. Port difference: a 309-4300 digit integer is still Godot's float (inf)
+## where Python reads an int; no honest node sends one (see conformance/README.md).
 static func parse_rpc_body(raw: PackedByteArray) -> Array:
 	# checked before JSON parses it (Godot's parser warns "Exponent too high" on such a number);
 	# the regex reads the bytes as Latin-1, which keeps every ASCII digit and never fails

@@ -1,15 +1,12 @@
 ## The game's side of a Godot web export: every call into the page's JavaScript
 ## (web/bridge.js) behind a small method. The twin of scfg_core/web_page.py.
 ##
-## `js` is any object with `eval(code: String) -> Variant`; the real one is ScfgWebPage.BrowserJs,
-## which wraps JavaScriptBridge.eval, and tests pass a fake. Values cross as JSON literals
-## (`JSON.stringify`), which are valid JavaScript expressions for the same values, so game data is
-## never spliced into JavaScript as code. What comes back is JSON text, parsed with
-## JSON.parse_string and then ScfgPy.from_json (integral numbers are ints again).
+## `js` is any object with `eval(code: String) -> Variant` (the real one is BrowserJs; tests pass a
+## fake). Values cross as JSON literals, so game data is never spliced into JavaScript as code;
+## answers are JSON text, normalised with ScfgPy.from_json.
 ##
-## ScfgWebPage is the ScfgOverlayCheckout's ui (open, show, close, take, set_status, reply) and the
-## clipboard, links and wallet detection a web export needs. Every call is synchronous: the page
-## answers a paste or a transaction build later, and the autoload polls for it each frame.
+## ScfgWebPage is the ScfgOverlayCheckout's ui plus the clipboard, links and wallet detection. Every
+## call is synchronous: the page answers a paste or a build later, and the autoload polls for it.
 ## (Ren'Py's start/poll request bridge has no twin: Godot's HTTPRequest already uses fetch.)
 class_name ScfgWebPage
 extends RefCounted

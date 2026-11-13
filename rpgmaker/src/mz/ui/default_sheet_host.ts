@@ -12,7 +12,7 @@
  * or its window unfocused): the screen on top reads MZ's input, then every screen rebuilds when
  * its controller changed. A screen taken off the page by someone else (its element removed)
  * counts as closed by Cancel, as Godot's freed sheet. Without a page (`document.body`) nothing can
- * be shown: openPayment() / openRestore() return null (pay() then rejects "sheet.unavailable").
+ * be shown: openPayment() / openRestore() return null (pay() then resolves "failed", "sheet.unavailable").
  */
 import type { CheckoutController, RestoreController } from "../../core/index.ts";
 import type { Scfg } from "../scfg.ts";

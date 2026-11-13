@@ -8,10 +8,8 @@
 ## status line and Cancel / Continue playing / Continue). Debug builds also show the developer
 ## lines (DEV MODE and the controller's dev_warnings()).
 ##
-## The sheet only reads the ScfgCheckoutController's fields and calls its methods; the autoload
-## polls it every frame. Buttons that leave the game go through the autoload (open_browser,
-## open_wallet_app, open_explorer, copy, paste_into). `closed(how)` is "cancel", "keep_playing" or
-## "finish", Ren'Py's _close_checkout hows.
+## The sheet follows the screen contract in sheet_host.gd; `closed(how)` is "cancel",
+## "keep_playing" or "finish".
 ##
 ## Keyboard and gamepad: each step focuses its primary control (the selected option, the forward
 ## button, the first Copy, Continue); `ui_cancel` goes back, or closes as Cancel on the first step.

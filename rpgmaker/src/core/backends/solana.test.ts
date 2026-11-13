@@ -151,7 +151,7 @@ test("test_invented_signature_is_dropped_when_history_covers_it", async () => {
 });
 
 test("test_old_receipt_on_a_pruned_endpoint_is_kept", async () => {
-  // Review focus 5: publicnode keeps ~2 days; a null from it proves nothing.
+  // publicnode keeps ~2 days; a null from it proves nothing.
   const chain = new FakeSolanaChain();
   chain.first_available = 10 ** 9;
   assert.equal(await verdict(chain, receiptFor(sig(1))), "keep");
@@ -432,7 +432,7 @@ test("test_scan_spends_at_most_five_transactions_per_step", async () => {
 });
 
 test("test_scan_pages_back_past_a_full_page", async () => {
-  // Review focus 3: >100 new signatures since the last step must not hide a payment.
+  // >100 new signatures since the last step must not hide a payment.
   const s = setup();
   pay(s.chain, 500, { addresses: [DEST] });
   for (let n = 1; n < 250; n++) s.chain.addresses[DEST]!.unshift({ signature: sig(n), slot: 990, err: null });
@@ -488,7 +488,7 @@ test("test_good_hint_matches_round_amount", async () => {
 });
 
 test("test_vanished_match_becomes_a_hint_and_is_found_again", async () => {
-  // Review focus 4: a lagging endpoint's null status must not lose the payment.
+  // a lagging endpoint's null status must not lose the payment.
   const s = setup();
   pay(s.chain, 1, { addresses: [DEST] });
   assert.equal((await step(s)).status, "confirming");

@@ -4,12 +4,10 @@
 ## viewport (or presses input actions), and reports what the screen shows. It never calls the
 ## checkout controller.
 ##
-## Loaded only in e2e runs, as an extra autoload: on desktop the runner writes a git-ignored
-## `override.cfg` beside project.godot and deletes it afterwards; for the web it exports a temporary
-## copy of the demo whose project.godot lists it (an export ignores override.cfg). Nothing in the
-## addon refers to it, so it is never part of the addon or its release zip. Without the demo's e2e
-## config (`SCFG_E2E_CONFIG`, or `window.scfgE2EConfig` on the web) it does nothing, so a stray
-## override.cfg cannot turn a normal run into a driven one.
+## Loaded only in e2e runs, as an extra autoload: on desktop through a temporary, git-ignored
+## `override.cfg`; on the web through a temporary copy of the demo whose project.godot lists it (an
+## export ignores override.cfg). Without the demo's e2e config (`SCFG_E2E_CONFIG`, or
+## `window.scfgE2EConfig` on the web) it does nothing, so a stray override.cfg is harmless.
 ##
 ## Protocol (as tests/integration/gd_driver.py): one JSON command per stdin line, one reply per
 ## command, in order, printed as a line that starts with REPLY_PREFIX (Godot prints its own banner
@@ -49,11 +47,9 @@
 ## - Headless only: the root window gets the project's 1280x720 (the headless display server's
 ##   window is 64x64).
 ##
-## Stdin is read on a thread: OS.read_string_from_stdin blocks, and the game must keep running
-## (its localhost page server and the payment checks run every frame) while the runner waits.
-## The thread is always joined at exit. It ends by itself after "quit" or at the end of stdin; a
-## game that quits on its own (a failed run: the demo refused its config) prints QUITTING_LINE
-## first, and the runner then closes the game's stdin, which ends the read.
+## Stdin is read on a thread, since OS.read_string_from_stdin blocks and the game must keep running
+## its frames. The thread ends after "quit" or at the end of stdin and is joined at exit; a game
+## that quits on its own prints QUITTING_LINE first, so the runner closes stdin and ends the read.
 extends Node
 
 const REPLY_PREFIX := "SCFG-REPLY "

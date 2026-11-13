@@ -2,41 +2,33 @@
 ## scfg_core/engine.py.
 ##
 ## It owns all plugin state (deep copies of what the game persists) and is NOT re-entrant: only
-## the single-writer worker calls it, one command at a time. Readers get Snapshots, which are
-## detached copies.
+## the single-writer worker calls it, one command at a time. Readers get Snapshots (detached copies).
 ##
 ## `ScfgEngine.new(config, opts)`, where `opts` holds Python's keyword arguments:
 ##   - transport: the transport every default RPC client posts through (see ScfgCoio);
-##   - pending, receipts: the initial state (deep-copied; null is {}). It is normalised as
-##     Python's json.load would read it (ScfgPy.from_json): Godot's JSON reader makes every number
-##     a float, so state reloaded from user://scfg/state.json has `units`, `log_index`, `block`...
-##     as floats; each integral one below 2^53 becomes an int again, nested values included. A
-##     fractional float is left alone and fails validation as it would in Python;
+##   - pending, receipts: the initial state (deep-copied; null is {}), normalised by
+##     ScfgPy.from_json as Python's json.load would read it: Godot's JSON reader makes every number
+##     a float, so each integral float below 2^53 becomes an int again (a fractional one is left
+##     to fail validation, as in Python);
 ##   - clock: a Callable returning seconds (the wall clock by default);
 ##   - rpc_factory: a Callable(chain: Dictionary) returning the chain's RPC object or an ScfgErr
-##     (by default the chain's backend's make_rpc on the transport, whose RPC clients keep their
-##     own monotonic clock for endpoint cooldowns, as Python's RpcClient defaults to
-##     time.monotonic: the Engine's clock is the wall clock, which can jump);
-##   - on_error: a Callable(err: ScfgErr) told of every crash it contained: a session step, a stored
-##     receipt reverify could not check, a restore transfer it could not classify (by default the
-##     error is printed to stderr, as Python's traceback hook does). It is read each time an
-##     error is reported, so a handler replaced while a pass is in flight is the one told (the
-##     Godot autoload detaches its own in `_exit_tree`);
+##     (by default the backend's make_rpc on the transport; its clients keep their own monotonic
+##     clock for endpoint cooldowns, as in Python, since the wall clock can jump);
+##   - on_error: a Callable(err: ScfgErr) told of every crash it contained (printed to stderr by
+##     default, like Python's traceback hook). It is read each time an error is reported, so a
+##     handler replaced mid-pass is the one told;
 ##   - entropy: Python's `secrets` (see ScfgSessions; OS randomness by default).
-## An unknown option, or one of the wrong type, is a TypeError: `create(config, opts)` returns it,
-## and `new` keeps it in `init_error`, which every method then returns.
-## Every injected Callable (clock, rpc_factory, on_error) must be synchronous: the Engine calls it
-## without `await`, so one that awaits hands the Engine a function state instead of its value.
+## An unknown or mistyped option is a TypeError: `create(config, opts)` returns it, and `new`
+## keeps it in `init_error`, which every method then returns.
+## Every injected Callable must be synchronous: the Engine calls it without `await`.
 ##
-## Methods return their value or an ScfgErr. The ones that need the network are coroutines
-## (`await` them): start_session, build_solana_payment, tick, reverify and restore_lookup. The
-## others are plain: chain, rpc, report_hint, set_ui_status, discard_session, restore_apply,
-## snapshot. (Python's `run`/`*_co` pairs collapse into one coroutine each: await replaces
-## run_sync.)
+## Methods return their value or an ScfgErr. Coroutines (`await` them): start_session,
+## build_solana_payment, tick, reverify and restore_lookup; the rest are plain. (Python's
+## `run`/`*_co` pairs collapse into one coroutine each.)
 ##
 ## A Snapshot is a Dictionary with Python's fields in order: pending, receipts (deep copies),
-## owned (the owned item ids, sorted: Python's frozenset), tip_total (an ScfgDec) and unready
-## (the [chain, token] pairs whose token the developer cannot receive, sorted).
+## owned (sorted item ids: Python's frozenset), tip_total (an ScfgDec) and unready (the sorted
+## [chain, token] pairs whose token the developer cannot receive).
 class_name ScfgEngine
 extends RefCounted
 
@@ -170,9 +162,8 @@ func rpc(key: Variant) -> Variant:
 	return _rpcs[key]
 
 
-## The default rpc_factory: the chain's backend's RPC object on this Engine's transport. Python's
-## default factory passes no clock, so the RPC client keeps its own (ScfgRpcClient's monotonic
-## clock, Python's time.monotonic) for endpoint cooldowns rather than the Engine's wall clock.
+## The default rpc_factory: the chain's backend's RPC object on this Engine's transport. As in
+## Python, it passes no clock: the client keeps its own monotonic one for endpoint cooldowns.
 ## @fallible
 func _default_rpc_factory(c: Dictionary) -> Variant:
 	var backend: Variant = ScfgBackends.backend_for(c)
@@ -441,12 +432,10 @@ func _expire(now: Variant) -> Variant:
 # --- receipts ---------------------------------------------------------------------------------
 
 
-## Defers building a chain's RPC client until a backend actually calls it, so chains whose
-## readiness needs no network (EVM) never construct a client. Python's `_LazyRpc` forwards every
-## attribute with `__getattr__`; GDScript cannot, so each method a backend's check_ready calls has
-## an explicit forwarder (Solana's: `account_exists`; add one here for a new check_ready). As in
-## Python, the client is built (`engine.rpc(key)`: its error is returned) at the first call, and a
-## method the client does not have is Python's AttributeError, never a script error.
+## Defers building a chain's RPC client until a backend calls it, so chains whose readiness needs
+## no network (EVM) never construct one. Python's `_LazyRpc` uses `__getattr__`; GDScript cannot,
+## so each method a backend's check_ready calls has an explicit forwarder (add one here for a new
+## check_ready). A method the client lacks is Python's AttributeError, never a script error.
 class LazyRpc:
 	extends RefCounted
 	var _engine: ScfgEngine
@@ -554,9 +543,8 @@ func restore_lookup(tx_hash: Variant) -> Variant:
 		"receipts": receipts, "on_error": _report})
 
 
-## The on_error handed to reverify and restore_lookup, which report as they go: it calls `on_error`
-## as it is when the error is reported, not as it was when the pass started (through
-## ScfgErr.report, so one that is no longer a valid Callable prints the error instead).
+## The on_error handed to reverify and restore_lookup: it calls `on_error` as it is when the error
+## is reported, not when the pass started (via ScfgErr.report, which prints when it is invalid).
 func _report(err: ScfgErr) -> void:
 	ScfgErr.report(on_error, err)
 

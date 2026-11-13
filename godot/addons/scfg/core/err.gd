@@ -15,11 +15,10 @@
 class_name ScfgErr
 extends RefCounted
 
-## Each kind's Python base classes (all the way up). The kinds used by the core: Python
-## built-ins, the decimal module's signals, the QR generator's DataTooLongError, scfg_core's own (errors.ConfigError, restore.RestoreError, rpc.RpcError,
-## rpc.RpcUnavailable, coio.TransportError), asyncio's CancelledError (a BaseException, so an
-## `except Exception` around a session step does not swallow a cancellation) and the Godot-only
-## HostGone (ScfgHttpTransport).
+## Each kind's Python base classes (all the way up): Python built-ins, the decimal module's
+## signals, the QR generator's DataTooLongError, scfg_core's own, asyncio's CancelledError (a
+## BaseException, so an `except Exception` around a session step does not swallow a
+## cancellation) and the Godot-only HostGone (ScfgHttpTransport).
 const BASES := {
 	"BaseException": [],
 	"Exception": ["BaseException"],

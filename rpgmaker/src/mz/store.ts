@@ -20,17 +20,14 @@
  *   free n, so a later corruption never replaces an earlier copy) and removed, and the load gives
  *   empty stores with a warning that names it. `setAside(why)` does the same for a document that
  *   read fine but that the core refuses (see persist.ts). When that copy cannot be written, the
- *   document is treated as unreadable instead: starting empty would let the next save replace it
- *   with nothing kept anywhere.
- * - on NW.js, MZ's `saveToLocalFile` renames `scfg.rmmzsave` to `scfg.rmmzsave_` before it writes
- *   the new file and unlinks `scfg.rmmzsave_` at the start of the next save. A hard crash in
- *   between leaves only the `_` file, so when the state file is missing and `scfg.rmmzsave_`
- *   exists, it is renamed back (with MZ's own `fsReadFile` / `fsRename`) before reading. A crash
- *   while MZ writes leaves a truncated state file beside the backup: when the state file is
- *   corrupt and the backup exists, the state file is kept aside and the backup read instead (a
- *   corrupt backup is kept aside too). A backup that cannot be read or renamed back is unreadable,
- *   so the next save never unlinks it. When both exist and the state file reads fine, it is the
- *   newer one.
+ *   document is unreadable instead: starting empty would let the next save replace it with
+ *   nothing kept anywhere.
+ * - on NW.js, MZ's `saveToLocalFile` renames `scfg.rmmzsave` to `scfg.rmmzsave_` before writing
+ *   and unlinks the `_` file at the start of the next save. A crash in between leaves only the `_`
+ *   file: it is renamed back (with MZ's `fsReadFile` / `fsRename`) before reading. A crash while MZ
+ *   writes leaves a truncated state file beside the backup: the state file is kept aside and the
+ *   backup read instead. A backup that cannot be read or renamed back is unreadable, so the next
+ *   save never unlinks it. When both exist and the state file reads fine, it is the newer one.
  *
  * `save(doc)` is `StorageManager.saveObject`, which on NW.js writes beside the old file and
  * replaces it, and on the web is one localforage write. It rejects when the save failed.

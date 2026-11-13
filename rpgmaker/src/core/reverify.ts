@@ -10,13 +10,11 @@
  *
  * Only a *definitive* mismatch removes a receipt; network trouble never does.
  *
- * As in Python, the removed keys come back in store order (insertion order here; receipt keys start
- * with a chain id, so they are never integer-like and JS keeps insertion order). A stored entry whose
- * own fields are invalid (a missing field, a chain, token or item that cannot be a key, a tx hash that
- * is not a str, a log index or block that is not an int, an amount that is not a number of base units
- * within the stored-amount range) is removed whatever chain it names, with the reason reported to
- * `on_error`: a forged receipt cannot escape verification by making its check fail. A check that fails
- * on what a node returned keeps that receipt as unverifiable, reports the failure, and the run goes on.
+ * As in Python, removed keys come back in store order (receipt keys start with a chain id, never
+ * integer-like, so JS keeps insertion order). A stored entry whose own fields are invalid is removed
+ * whatever chain it names and reported to `on_error`: a forged receipt cannot escape verification by
+ * making its check fail. A check that fails on node data keeps the receipt as unverifiable, reports
+ * it, and the run goes on.
  */
 import { decimalToUnits, storedAmount, type Units } from "./amounts.ts";
 import { backendFor } from "./backends/index.ts";

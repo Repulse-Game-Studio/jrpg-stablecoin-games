@@ -9,12 +9,8 @@
  * remove refreshes it). `forageKey` reads `$dataSystem.advanced.gameId`, so before
  * `DataManager.loadDatabase()` has loaded the database it throws, as MZ's does.
  *
- * NW.js saves model MZ's documented behaviour with its `fs*` helper names (`fsMkdir`,
- * `fsRename`, `fsUnlink`, `fsReadFile`, `fsWriteFile`, here on the backend, with backend keys as
- * paths): the old file is moved to `<file>_` while the new one is written, moved back when the
- * write fails, and dropped when it succeeded and at the start of the next save.
- * `shim.crashNextSave()` stops a save after the move, as a hard crash would, leaving only
- * `<file>_`.
+ * NW.js saves keep MZ's `fs*` helper names, on the backend with its keys as paths (see
+ * saveToLocalFile for the `<file>_` backup).
  *
  * Differences from MZ, on purpose: the data is stored as JSON text (MZ deflates it with pako); the
  * backend is injected (memory or a directory, see node_storage.ts); after a save or remove the key
@@ -144,11 +140,9 @@ export function createStorageManager(ctx: Ctx) {
     remove(saveName: string): Promise<void> | undefined {
       return this.isLocalMode() ? this.removeLocalFile(saveName) : this.removeForage(saveName);
     },
-    // StorageManager.saveToLocalFile(saveName, zip). Modelled behaviour (the shim's own code, not
-    // MZ's): a leftover "<file>_" from an earlier save is dropped; the current file becomes
-    // "<file>_" while the new one is written; when the write succeeds "<file>_" is dropped, when
-    // it fails the half-written file is dropped and "<file>_" becomes the file again and the
-    // Promise rejects. `shim.crashNextSave()` ends the save right after the file became "<file>_".
+    // StorageManager.saveToLocalFile(saveName, zip). Modelled (the shim's code, not MZ's): the
+    // current file becomes "<file>_" while the new one is written, then "<file>_" is dropped; a
+    // failed write restores it and rejects. `shim.crashNextSave()` stops right after the move.
     saveToLocalFile(saveName: string, zip: string): Promise<void> {
       const target = this.filePath(saveName);
       const previous = `${target}_`;

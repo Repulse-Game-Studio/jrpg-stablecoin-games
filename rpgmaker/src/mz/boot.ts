@@ -20,11 +20,8 @@
  *   (the screens read MZ's input and redraw). The pump also starts the read if a replaced
  *   Scene_Boot never called onDatabaseLoaded (once `$dataSystem` and the save keys are there).
  * - The plugin commands, the owned switches and the Tip Jar menu entry (`installGameHooks`).
- * - Closing (Ren'Py's quit callback `_shutdown`): `SceneManager.terminate` (MZ's exit), the
- *   page's `pagehide` and, on NW.js, its `beforeunload` (actions.ts `watchClosing`) shut the flows
- *   down and flush the save first; a hidden page (`visibilitychange`) and a browser's
- *   `beforeunload` only flush. No NW.js window "close" listener is registered: it
- *   would take the closing over from other plugins' quit prompts.
+ * - Closing (Ren'Py's `_shutdown`): `SceneManager.terminate` (MZ's exit) and the page events of
+ *   actions.ts `watchClosing` shut the flows down and flush the save.
  */
 import { PLUGIN_NAME } from "./plugin_header.ts";
 import { parseParams, type ParsedParams } from "./params.ts";

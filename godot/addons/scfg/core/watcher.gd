@@ -23,12 +23,10 @@
 ## Record fields are read the way Python indexes them (a missing one is a KeyError), and values
 ## compare with Python's `==` (ScfgPy.py_eq), so a malformed record is an error, never a guess.
 ##
-## Port limit: `match.value` is persisted as a JSON number, so a hinted transfer of
-## 2^53 units or more (about 9e9 tokens) cannot be recorded exactly. `_match_dict` returns a
-## ValueError instead of rounding, before anything is mutated; the Engine contains it as
-## `internal_error` on every tick until the 24 h horizon closes the session. Python would store
-## the exact int; no vector can record it. Raw log values stay ScfgBigInt until then (an Arc
-## value above 2^63 floors exactly).
+## Port limit: `match.value` is persisted as a JSON number, so a hinted transfer of 2^53 units or
+## more (about 9e9 tokens) cannot be recorded exactly. `_match_dict` returns a ValueError instead
+## of rounding, before anything is mutated (the Engine contains it until the 24 h horizon closes
+## the session); Python would store the exact int. Raw log values stay ScfgBigInt until then.
 class_name ScfgWatcher
 extends RefCounted
 

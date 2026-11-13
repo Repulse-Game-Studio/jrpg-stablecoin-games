@@ -4,17 +4,13 @@
  * `PluginManager.setup` does before the plugin scripts run. The page then loads SCFG.js itself.
  * The control handle is `window.mzShim`, for test drivers.
  *
- * Saves (TEST ONLY): MZ keeps a browser game's saves in localforage (IndexedDB), which outlives
- * a reload of the tab. The shim's StorageManager needs a synchronous backend, so in a page its
- * saves go to the page's `localStorage` under PAGE_PREFIX + the localforage key
- * (`mzshim:rmmzsave.<gameId>.<name>`): a reload, or a second tab of the same origin, sees what the
- * game stored, as with MZ. Each Playwright browser context starts with an empty localStorage, so
- * tests stay independent. Where localStorage cannot be used (blocked site data) the saves stay in
- * memory for the page's life.
+ * Saves (TEST ONLY): MZ keeps browser saves in localforage, which outlives a reload. The shim's
+ * StorageManager needs a synchronous backend, so a page's saves go to `localStorage` under
+ * PAGE_PREFIX + the localforage key (`mzshim:rmmzsave.<gameId>.<name>`), surviving a reload as
+ * with MZ; in memory when localStorage is blocked.
  *
- * MZ's index.html also loads js/libs/localforage.min.js, whose `localforage` the plugin asks in a
- * web test play whether the browser storage works (`localforage.ready()`); the shim keeps saves in
- * its own storage backend, so a page without a real localforage gets one that has started.
+ * The plugin asks MZ's `localforage.ready()` in a web test play whether browser storage works, so
+ * a page without a real localforage gets one that has started.
  */
 import { installShim, MemoryStorage, type StorageBackend } from "./index.ts";
 

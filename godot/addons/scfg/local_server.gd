@@ -1,9 +1,9 @@
 ## The localhost checkout server for desktop browser wallets: the GDScript twin of
 ## scfg_core/local_server.py (CheckoutServer), route by route.
 ##
-## Browser extensions (MetaMask, Rabby, Phantom...) only talk to web pages, never to a game. So
-## the game serves the bundled checkout page on 127.0.0.1 and opens the browser on it. The page
-## connects the wallet, sends the transfer and posts the tx hash back here.
+## Browser extensions (MetaMask, Rabby, Phantom...) only talk to web pages, so the game serves the
+## checkout page on 127.0.0.1; the page connects the wallet, sends the transfer and posts the tx
+## hash back here.
 ##
 ## `ScfgCheckoutServer.new(opts)` takes local_server.CheckoutServer's keyword arguments as keys:
 ##   - load_asset(name) -> PackedByteArray: one of ASSETS (anything else it returns is a 500);
@@ -17,11 +17,9 @@
 ## was freed (a released checkout controller) answers 503 (500 for an asset, 404 for the logo),
 ## never a script error.
 ##
-## The game calls `pump()` every frame. It accepts connections, reads what each socket has,
-## answers and closes, and never waits on a socket: reads take only the bytes available, writes
-## use put_partial_data and carry the rest to the next frame. `start()` binds a random free port
-## and does not suspend; it returns null or an ScfgErr (RuntimeError) when it cannot listen.
-## `stop()` closes everything and cancels a build a page is still waiting for.
+## The game calls `pump()` every frame; it never waits on a socket (reads take only the bytes
+## available, writes carry the rest to the next frame). `start()` binds a random free port and
+## returns null or a RuntimeError ScfgErr. `stop()` closes everything and cancels a pending build.
 ##
 ## Security (as local_server.py):
 ##   - bound to 127.0.0.1 on a random port;
@@ -39,16 +37,13 @@
 ## most MAX_CONNECTIONS are open at once, and a request head is at most MAX_HEAD bytes in all
 ## (431; Python caps only each line, at MAX_LINE, and the number of header lines).
 ##
-## HTTP, as Python's BaseHTTPRequestHandler reads it: GET and POST only, any other method
-## (HEAD included, which gets no body) is 501; a request line that is empty is closed without an
-## answer, a bad version is 400 and HTTP/2+ is 505; lines may end in LF or CRLF, and a bare CR
-## inside a header line ends that header (_headers); header names are case-insensitive and the
-## first of a repeated header counts; a path starting with `//` is reduced to one `/`; the query
-## string is ignored; Content-Length is read as Python's int().
+## HTTP, as Python's BaseHTTPRequestHandler reads it: GET and POST only (anything else, HEAD
+## included, is 501); an empty request line is closed without an answer, a bad version is 400 and
+## HTTP/2+ is 505; a bare CR inside a header line ends that header (_headers); the first of a
+## repeated header counts; a leading `//` becomes `/`; the query string is ignored.
 ## Every answer is HTTP/1.1 with `Connection: close`. Deviations: a two-word (HTTP/0.9) request
-## line is a 400 (http.server answers it with a bare body), an answer is sent with its status
-## line where http.server sends a bare error page (a bad request line), and the 501's body is
-## plain text.
+## line is a 400, a bad request line gets a status line (http.server sends a bare error page),
+## and the 501's body is plain text.
 class_name ScfgCheckoutServer
 extends RefCounted
 
@@ -56,10 +51,9 @@ const MAX_BODY := 4096
 const ASSETS: Array[String] = ["index.html", "app.js", "evm.js", "solana.js"]
 ## Seconds a connection has to send its whole request, and again to take its answer.
 const DEADLINE_S := 10.0
-## One line of the head, in bytes with its line end: http.server reads the request line with
-## readline(65537) and http.client each header line with readline(_MAXLINE + 1), so a longer
-## request line is a 414 and a longer header line a 431 ("Line too long"). A browser may send
-## 127.0.0.1 a Cookie header this large.
+## One line of the head in bytes, with its line end (http.server's readline(65537)): longer is a
+## 414 for the request line, a 431 for a header line. A browser may send 127.0.0.1 a Cookie this
+## large.
 const MAX_LINE := 65536
 ## The request line plus headers in all, in bytes; more is a 431 (Godot only: Python has no total
 ## cap, only MAX_LINE per line and MAX_HEADERS lines).
@@ -68,10 +62,9 @@ const MAX_HEAD := 262144
 ## request has at most MAX_HEADERS - 1 header lines; one more is a 431.
 const MAX_HEADERS := 100
 const MAX_CONNECTIONS := 32
-## After an answer given before the whole request was read (a body never read, a head cut
-## short): how long the rest is drained before closing, and how much of it. Closing on unread
-## input resets the connection, and the client could lose the answer. An answer to a complete
-## request closes as soon as it is written.
+## After answering a request not read in full: how long, and how much, of the rest is drained
+## before closing. Closing on unread input resets the connection, and the client could lose the
+## answer.
 const LINGER_S := 1.0
 const LINGER_MAX_BYTES := 65536
 ## put_partial_data takes a copy of what it is offered: offer the answer in pieces.
@@ -348,15 +341,11 @@ func _on_head(c: _Conn) -> void:
 		_on_body(c, c.buf.slice(0, c.need))
 
 
-## The header block as email.parser (compat32) reads it: {lowercase name: first value}.
-## `lines` are the head's header lines as read at each LF (without the LF). The block they make
-## is split again after each \r\n, \r or \n (feedparser's universal newlines: a bare CR inside
-## a line ends a header there); the first line that is not a header ends the block. A value
-## loses its leading spaces and tabs and its trailing \r and \n, not its trailing spaces; a
-## continuation line (leading space or tab) is appended to the header before it, line ends and
-## all (so a folded value matches nothing), and is skipped with no header before it; a line with
-## an empty name or an envelope `From ` line is skipped; the first of a repeated name counts.
-## As local_server.ts's pyHeaders.
+## The header block as email.parser (compat32) reads it: {lowercase name: first value}, as
+## local_server.ts's pyHeaders. `lines` are split again at each \r\n, \r or \n (feedparser's
+## universal newlines); the first non-header line ends the block. A value loses leading blanks and
+## trailing \r\n, not trailing spaces; a continuation line is appended line ends and all (so a
+## folded value matches nothing); an empty name or an envelope `From ` line is skipped.
 static func _headers(lines: Array[String]) -> Dictionary:
 	var out := {}
 	var parts: Array[String] = []  # the header being read: its first line, then continuations

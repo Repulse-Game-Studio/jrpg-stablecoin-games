@@ -1,15 +1,10 @@
 /**
- * TEST ONLY. The desktop e2e driver's sheet host (desktop_driver.ts): a SheetHost that shows
- * nothing. `view(screen)` is what the plugin's payment sheet (src/mz/ui/sheet.ts) would show, and
- * `buttons(screen)` its buttons on the controller's current step, under the sheet's own control
- * names (`data-key`); pressing one does what the sheet's button of that name does (the
- * controller's methods, SCFG's actions, or closing the sheet as Cancel / Continue playing /
- * Continue), nothing more. Only the desktop sheet's payment buttons are modelled (the web-only
- * Paste is left out); the restore screen has a single Close (the e2e never restores). The sheet
- * tests (tests/rpgmaker_ui/test_sheet.py, test_headless_host_buttons_match_the_sheet) load this
- * module into the sheet test page and compare its button names with the desktop sheet's on each
- * payment step (amount, network, method, browser, qr, manual, waiting, done). It uses neither the
- * DOM nor Node's modules: what it imports from the sheet (`amountLine`) is plain code.
+ * TEST ONLY. The desktop e2e driver's sheet host (desktop_driver.ts). Buttons carry the sheet's
+ * own control names (`data-key`). Only the desktop sheet's payment buttons are modelled (no
+ * web-only Paste); the restore screen has a single Close. tests/rpgmaker_ui/test_sheet.py
+ * (test_headless_host_buttons_match_the_sheet) loads this module into the sheet test page and
+ * compares its button names with the real sheet's on each payment step, so it uses neither the
+ * DOM nor Node's modules.
  */
 import type { CheckoutController, RestoreController } from "../../src/core/index.ts";
 import type { Scfg } from "../../src/mz/scfg.ts";

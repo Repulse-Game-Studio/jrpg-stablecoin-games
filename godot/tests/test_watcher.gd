@@ -1,6 +1,6 @@
 ## ScfgWatcher (watcher.gd): the twin of tests/unit/test_watcher_awaiting.py and
-## test_watcher_confirming.py, plus the JS core's checks (rpgmaker/src/core/watcher.test.ts): Python's
-## lookups and tie-breaks, the 2^53 limit on stored values, and errors as values.
+## test_watcher_confirming.py, plus the JS core's checks (rpgmaker/src/core/watcher.test.ts):
+## Python's lookups and tie-breaks, the 2^53 limit on stored values, and errors as values.
 extends RefCounted
 
 const T := preload("res://tests/t.gd")

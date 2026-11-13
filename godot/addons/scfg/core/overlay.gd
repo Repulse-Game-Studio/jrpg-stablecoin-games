@@ -15,13 +15,11 @@
 ##   - on_tx(tx_hash, sender), get_status() -> Dictionary;
 ##   - logo_url (a data: URL, optional), build_tx(account) -> ScfgJob (optional, Solana);
 ##   - clock: a Callable returning seconds (default: a monotonic clock).
-## on_tx, get_status and build_tx are the checkout controller's, bound to a RefCounted controller
-## that may be released while this still holds them: each is checked with is_valid() before it is
-## called (a freed get_status leaves the status as it was; a freed build_tx answers 503).
-## Every Callable is synchronous; start(), stop(), reopen() and pump() never suspend. Once stop()
-## ran (also from inside one of those callbacks) none is called again, not for the rest of that
-## batch of messages either, and a job handed back by a build_tx that stopped the overlay is
-## cancelled at once.
+## on_tx, get_status and build_tx are bound to a controller that may be released while this holds
+## them: each is checked with is_valid() first (a freed get_status keeps the status; a freed
+## build_tx answers 503). Every Callable is synchronous; start(), stop(), reopen() and pump() never
+## suspend. Once stop() ran (even from inside a callback) no callback is called again, not even
+## for the rest of that batch, and a job from a build_tx that stopped the overlay is cancelled.
 class_name ScfgOverlayCheckout
 extends RefCounted
 

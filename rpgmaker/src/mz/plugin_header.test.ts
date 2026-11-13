@@ -95,8 +95,8 @@ test("headerShowsTheVersion", () => {
 });
 
 test("headerParamsRoundTripThroughMzEncoding", () => {
-  // Carried item (a): what a developer types for each declared type, encoded as MZ stores it,
-  // parses into the configure() options; the JSON parameters also when stored JSON-quoted (note).
+  // what a developer types for each declared type, encoded as MZ stores it, parses into the
+  // configure() options; the JSON parameters also when stored JSON-quoted (note).
   const h = header();
   const typed: Record<string, unknown> = {
     wallet: DEV, solanaWallet: "", testnet: "true", logo: "logo", accent: "#0e7c74", notify: "false", tipJarMenu: "true",

@@ -24,8 +24,8 @@ func test_tier1_vectors() -> bool:
 	return T.done()
 
 
-## Every Tier 1 vector file has a GDScript adapter set: nothing is skipped any more.
-## A new topic in the vectors fails here until its adapters exist.
+## Every Tier 1 vector file has a GDScript adapter set: a new topic in the vectors fails here
+## until its adapters exist.
 func test_every_topic_implemented() -> bool:
 	var topics := Vectors.load_tier1(T.vectors_dir)
 	T.eq(topics.size(), 18, "18 Tier 1 topics")

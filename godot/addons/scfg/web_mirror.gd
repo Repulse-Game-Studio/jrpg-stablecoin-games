@@ -1,42 +1,29 @@
 ## A second copy of the receipts on a web export, in the page's `localStorage`.
 ##
-## Every Godot web export on one origin shares one IndexedDB database (`/userfs`), and each one
-## writes that whole database back from the copy it loaded at startup, so another game on the
-## same origin can delete `user://scfg/state.json` after this game saved it. localStorage is
-## written key by key: another game never touches this key. The autoload merges its receipts into
-## the copy at each web save (`update`) and merges the copy back when it first reads the state
-## (scfg.gd, WEB: A SECOND COPY OF THE RECEIPTS).
+## Every Godot web export on one origin shares one IndexedDB database (`/userfs`) and writes it
+## back whole from the copy it loaded at startup, so another game on the origin can delete
+## `user://scfg/state.json`. localStorage is written key by key, so this key survives (scfg.gd,
+## WEB: A SECOND COPY OF THE RECEIPTS).
 ##
-## The key is `scfg:<application/config/name>:<sha256 hex of the storage id>`. The storage id is
-## the project setting `scfg/web/storage_id` when it is a non-empty String, else
-## `application/config/name`, so it stays the same across releases as long as neither changes.
-## Two games that share a project name get different keys when they set different storage ids.
-## The value is `{"version": 1, "receipts": {...}}` as JSON text: the receipts only. Pending
-## sessions stay in state.json alone (a payment whose session was lost is brought back with
-## Restore and its transaction hash).
+## The key is `scfg:<application/config/name>:<sha256 hex of the storage id>`; the storage id is
+## the project setting `scfg/web/storage_id` when set, else the project name (so two games sharing
+## a project name can tell their copies apart). The value is `{"version": 1, "receipts": {...}}`:
+## receipts only, as a lost pending session is brought back with Restore.
 ##
-## `js` is ScfgWebPage's `js` (any object with `eval(code) -> Variant`; the real one is
-## ScfgWebPage.BrowserJs). The JavaScript run here is constant code, a function expression that
-## needs nothing of the checkout page; the key and the value cross as its arguments, JSON
-## literals, never spliced into code. It catches everything and answers JSON text: a page without
-## localStorage, a blocked one (SecurityError) or a full one (QuotaExceededError) is an answer,
-## never an exception in the page.
+## `js` is any object with `eval(code) -> Variant` (the real one is ScfgWebPage.BrowserJs). The
+## JavaScript is constant code; the key and value cross as JSON-literal arguments, never spliced
+## in. It catches everything, so a missing, blocked or full localStorage is an answer, never an
+## exception in the page.
 ##
-## - `read()` returns `{"receipts", "warning", "available"}`. Nothing stored: empty receipts, no
-##   warning. A value that is not that document: empty receipts and a warning (the next write
-##   replaces it). localStorage unusable (missing, blocked, or no answer from the page):
-##   `available` false, with a warning.
-## - `write(receipts)` replaces the copy with `receipts` (clear_local_data writes `{}`); null, or a
-##   warning String when the browser refused.
-## - `update(receipts, dropped)` merges instead (one game open in two tabs: each tab holds only
-##   what it loaded plus what it saved since, so a plain write would drop the other tab's new
-##   receipts). It reads the copy, removes the keys in `dropped` (receipts this tab removed itself
-##   since its last write, such as by re-verification), adds or replaces every receipt of
-##   `receipts` (this tab's version wins), and writes the result unless the copy already holds it.
-##   A copy that cannot be read as the document counts as empty. Null, or a warning.
+## - `read()` returns `{"receipts", "warning", "available"}`. A value that is not that document:
+##   empty receipts and a warning. localStorage unusable: `available` false, with a warning.
+## - `write(receipts)` replaces the copy; null, or a warning String when the browser refused.
+## - `update(receipts, dropped)` merges instead, since a game open in two tabs would otherwise drop
+##   the other tab's new receipts: it removes the keys in `dropped` (receipts this tab removed
+##   itself), adds or replaces every receipt of `receipts`, and writes unless nothing changed.
+##   Null, or a warning.
 ##
-## The receipts read are normalised with ScfgPy.from_json, as ScfgStore's; the Engine checks them
-## like any stored receipt (launch re-verification).
+## The receipts read are normalised with ScfgPy.from_json and re-verified like any stored receipt.
 class_name ScfgWebMirror
 extends RefCounted
 

@@ -9,24 +9,21 @@
 ## GDScript specifics:
 ## - Python's module function `transfer_to` is the static `ScfgSolanaBackend.transfer_to(tx,
 ##   {sig, mint, owner})`; keyword arguments travel in `opts` Dictionaries, as everywhere.
-## - Python's tests monkeypatch the module constants SIG_PAGE and MAX_SIG_PAGES, so each backend
-##   instance carries them as `sig_page` and `max_sig_pages` (the registry's keeps the defaults).
-## - Fields of node replies and stored records are read the way Python reads them: `d[k]` is
-##   ScfgPy.py_get (KeyError / TypeError), `d.get(k)` is `_dget` (an AttributeError for a non-dict),
-##   `x or {}` is Python truthiness, `==` is ScfgPy.py_eq. So a malformed reply is an error the
-##   Engine contains, never a different path.
-## - `lookup` answers [] where Python returns None (this chain does not know the transaction): a
-##   null is what a coroutine aborted by a script error leaves, and ScfgRestore.lookup treats it as
-##   an error (see ScfgBaseBackend.lookup).
+## - Python's tests monkeypatch SIG_PAGE and MAX_SIG_PAGES, so each instance carries them as
+##   `sig_page` and `max_sig_pages`.
+## - Node replies and stored records are read the way Python reads them: `d[k]` is ScfgPy.py_get,
+##   `d.get(k)` is `_dget`, `x or {}` is Python truthiness, `==` is ScfgPy.py_eq. So a malformed
+##   reply is an error the Engine contains, never a different path.
+## - `lookup` answers [] where Python returns None: a null is what a coroutine aborted by a script
+##   error leaves, and ScfgRestore.lookup treats it as an error (see ScfgBaseBackend.lookup).
 ##
 ## Port limits (no vector reaches them):
-## - A token-balance row's accountIndex must be a JSON number (an int, or an integral float as
-##   Godot's JSON parser makes it); Python would also take an all-string (or None) set of
-##   indexes, which no node sends. A bool or a fractional index is a TypeError here.
+## - A token-balance row's accountIndex must be a JSON number (int or integral float); Python
+##   also takes an all-string (or None) set of indexes, which no node sends.
 ## - A slot of 2^63 or more is an OverflowError (Python's int has no bound). Token amounts are
-##   exact at any size (signed ScfgBigInt arithmetic), so u64 amounts are read exactly.
-## - As on EVM (see ScfgWatcher), a match is persisted with `value` as a JSON number: a transfer
-##   of 2^53 units or more is a ValueError (contained by the Engine) instead of a rounded value.
+##   exact at any size (signed ScfgBigInt arithmetic).
+## - As on EVM (see ScfgWatcher), a match persists `value` as a JSON number: a transfer of 2^53
+##   units or more is a ValueError (contained by the Engine) instead of a rounded value.
 class_name ScfgSolanaBackend
 extends ScfgBaseBackend
 
@@ -370,10 +367,9 @@ static func _clamp_fee(fee: Variant) -> Variant:
 	return at_least if at_least < MAX_PRIORITY_FEE else MAX_PRIORITY_FEE
 
 
-## Unsigned transfer from the player's wallet, for the browser page to hand to the wallet. The
-## wallet simulates it and shows the player what it does. `opts`: rpc, chain, account. Returns
-## {transaction (padded base64 of the unsigned transaction), token_balance, sol_balance (str)}. An
-## account that is not a Solana address is a ValueError, before any request.
+## Unsigned transfer from the player's wallet, for the browser page to hand to the wallet.
+## `opts`: rpc, chain, account. Returns {transaction (padded base64), token_balance, sol_balance
+## (str)}. An account that is not a Solana address is a ValueError, before any request.
 ## @fallible
 ## @coroutine
 func build_payment(rec: Variant, opts: Dictionary) -> Variant:

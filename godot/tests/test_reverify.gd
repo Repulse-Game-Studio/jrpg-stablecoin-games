@@ -1,7 +1,7 @@
 ## ScfgReverify (reverify.gd): tests/unit/test_reverify.py and the reverify tests of
-## test_backends.py, plus the JS core's pinned quirks (rpgmaker/src/core/reverify.test.ts): the Python
-## accept/reject surface of the malformed-entry net, what escapes it, the removed keys in store
-## order, and Python's lazy `any()` over the logs.
+## test_backends.py, plus the JS core's pinned quirks (rpgmaker/src/core/reverify.test.ts): the
+## Python accept/reject surface of the malformed-entry net, what escapes it, the removed keys in
+## store order, and Python's lazy `any()` over the logs.
 extends RefCounted
 
 const T := preload("res://tests/t.gd")

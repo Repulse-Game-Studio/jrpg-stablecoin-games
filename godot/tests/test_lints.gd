@@ -609,11 +609,12 @@ func test_engine_methods_dispatched_by_name_exist() -> bool:
 ##
 ##   Known limits: a coroutine reached through `.call()`, a Callable or a signal is not seen; an
 ##   instance method name shared by a coroutine and a plain function flags the plain one on an
-##   untyped receiver (type the receiver); a lambda that awaits is a coroutine itself, which this lint
-##   does not follow (its enclosing function is not one, and a one-line lambda's text after its
-##   parameter list belongs to it, even past the closing `)` of the call it is passed to). A receiver typed as something
-##   other than a core class (an engine class such as `RefCounted` or `Object`, a built-in value, a
-##   typed Array) is skipped entirely, even when it holds a core object at runtime: type such a receiver as its core class, or leave it untyped.
+##   untyped receiver (type the receiver); a lambda that awaits is a coroutine itself, which this
+##   lint does not follow (its enclosing function is not one, and a one-line lambda's text after
+##   its parameter list belongs to it, even past the closing `)` of the call it is passed to). A
+##   receiver typed as something other than a core class (an engine class such as `RefCounted` or
+##   `Object`, a built-in value, a typed Array) is skipped entirely, even when it holds a core
+##   object at runtime: type such a receiver as its core class, or leave it untyped.
 
 
 ## {"Class[.Inner].name": "<path>:<line>"} of every coroutine of `idx` (rules (a), (b), (c)); each

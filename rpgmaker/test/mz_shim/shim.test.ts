@@ -335,9 +335,8 @@ test("saveGameMakesTheContentsBeforeTheNameAsMz", async () => {
 });
 
 test("aRejectionBeforeBootIsReportedAndFailsThePlainNodeProcess", () => {
-  // Before boot no SceneManager.onReject listens (MZ: the browser prints the rejection and the
-  // page goes on). In Node the shim's process listener keeps Node from crashing on it, so it says
-  // it on the console and fails the process: a plain Node driver must not pass with it.
+  // Before boot no SceneManager.onReject listens; the shim's process listener prints the
+  // rejection and fails the process, so a plain Node driver must not pass with it.
   const theirs = process.listeners("unhandledRejection");
   process.removeAllListeners("unhandledRejection");
   const quiet = console.error;

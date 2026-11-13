@@ -5,24 +5,16 @@
 ## The file is `{"version": 1, "pending": {...}, "receipts": {...}}`, the Engine's two stores as
 ## they are (conformance/schema/state.json).
 ##
-## - `load(path)` returns `{"pending", "receipts", "warning", "error"}`. Both stores are
-##   normalised with ScfgPy.from_json (Godot's JSON reader makes every number a float). A missing
-##   file is a first launch: empty stores, no warning and no error. A file that is not that
-##   document (not UTF-8, not JSON, another version, a store that is not an object) gives empty
-##   stores and a warning naming the file. The bad file is renamed to `<path>.corrupt` (then
-##   `.corrupt.2`, `.corrupt.3`, ...: a later corruption never replaces an earlier copy), so the
-##   next save cannot overwrite what support might still recover (receipts also come back through
-##   Restore). A bad file that cannot be moved aside (a read-only directory, a lock) is treated as
-##   unreadable instead (below): starting empty would let the next save replace it with nothing
-##   kept anywhere. A file that exists but cannot be read right now (no permission, a sharing
-##   violation, an antivirus lock, an I/O error) is not corrupt: it is left where it is, and
-##   `error` is a RuntimeError ScfgErr naming it. The caller must then not save over it this run
-##   (the autoload starts no payments; the next launch reads it again).
-##   When `path` is missing but a `<path>.tmp` exists (a save stopped between writing it and the
-##   rename), the `.tmp` is read instead.
-## - `save(path, pending, receipts)` writes `<path>.tmp`, flushes and closes it, then renames it
-##   over `path`. A crash or a failed write leaves the previous file whole. It returns null or a
-##   RuntimeError ScfgErr. The directory is created when needed.
+## - `load(path)` returns `{"pending", "receipts", "warning", "error"}`, both stores normalised
+##   with ScfgPy.from_json (Godot's JSON reader makes every number a float). A missing file: empty
+##   stores, no warning. A file that is not that document gives empty stores and a warning, and is
+##   renamed to `<path>.corrupt` (then `.corrupt.2`, ...) so the next save cannot overwrite what
+##   support might recover. A file that cannot be read right now (a permission, a lock, an I/O
+##   error), or a bad one that cannot be moved aside, is left alone and `error` is a RuntimeError
+##   ScfgErr: the caller must not save over it this run. When `path` is missing but `<path>.tmp`
+##   exists (a save stopped before the rename), the `.tmp` is read instead.
+## - `save(path, pending, receipts)` writes `<path>.tmp`, then renames it over `path`, so a crash
+##   leaves the previous file whole. Returns null or a RuntimeError ScfgErr.
 class_name ScfgStore
 extends RefCounted
 

@@ -174,7 +174,7 @@ func test_invented_signature_is_dropped_when_history_covers_it() -> bool:
 	return T.done()
 
 
-## Review focus 5: publicnode keeps ~2 days; a null from it proves nothing.
+## Publicnode keeps ~2 days; a null from it proves nothing.
 func test_old_receipt_on_a_pruned_endpoint_is_kept() -> bool:
 	var chain := F.FakeSolanaChain.new()
 	chain.first_available = 1_000_000_000

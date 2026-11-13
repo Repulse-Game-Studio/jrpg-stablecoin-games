@@ -41,9 +41,8 @@ test("normalizePubkey strips Python whitespace, not JS-only", () => {
 
 test("test_fixed_length_decoding_refuses_long_text_before_decoding", () => {
   // tests/unit/test_solana_base58.py: text longer than the longest encoding (44 / 88 characters)
-  // is refused before decoding (decoding is quadratic: a crafted stored id must not freeze
-  // launch). Checked by the refusal, not the clock: it is the length's, also for a text whose
-  // first character is not base58 (decoding first would fail on that character instead).
+  // is refused before the quadratic decode. Checked by the refusal message, not the clock, also for
+  // text whose first character is not base58 (decoding first would fail on that character).
   const calls: [string, (t: string) => unknown][] = [
     ["decodeFixed64", (t) => decodeFixed(t, 64)], ["decodeFixed32", (t) => decodeFixed(t, 32)],
     ["normalizeSignature", normalizeSignature], ["normalizePubkey", normalizePubkey],

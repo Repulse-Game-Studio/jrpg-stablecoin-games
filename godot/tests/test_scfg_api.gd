@@ -395,10 +395,9 @@ func test_a_pass_in_flight_when_the_autoload_is_freed_does_not_call_it() -> bool
 
 
 func test_quitting_mid_request_ends_the_pass_before_the_node_goes() -> bool:
-	# A real quit tears the tree down with no further frame: a pass waiting on an HTTP request
-	# would never resume and its coroutines leaked ("ObjectDB instances leaked at exit", found by
-	# the Godot e2e). Leaving the tree closes the autoload's own transport, so the request ends
-	# with HostGone and the pass finishes inside _exit_tree.
+	# A real quit tears the tree down with no further frame, so a pass waiting on HTTP would leak
+	# its coroutines ("ObjectDB instances leaked at exit"). Leaving the tree closes the autoload's
+	# transport: the request ends with HostGone and the pass finishes inside _exit_tree.
 	var path := _path("quit_mid_request")
 	var tree := Engine.get_main_loop() as SceneTree
 	if not tree.root.is_inside_tree():
@@ -429,10 +428,9 @@ func test_quitting_mid_request_ends_the_pass_before_the_node_goes() -> bool:
 		await tree.process_frame
 	T.eq(responder.requests.size(), 1, "a request is in flight")
 	T.eq(box.get("done", false), false, "the pass waits on it")
-	# The receipt's HostGone verdict is contained per receipt and reported to on_error. The pass
-	# was handed the Engine's on_error when it started, while it was still the node's _log_error;
-	# _exit_tree replaces it with the detached one, and the report must go there, not be printed
-	# as a "worker error" (the Godot e2e's restarted game printed it at quit).
+	# The pass took the Engine's on_error (the node's _log_error) when it started; _exit_tree
+	# swaps in the detached one, and the HostGone report must go there, not be printed as a
+	# "worker error".
 	var reported: Array[String] = s._reported
 	var dropped_before: int = SCFG.errors_after_exit
 	s.free()

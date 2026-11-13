@@ -9,11 +9,9 @@
  * "message" are never waiting (the shim has no transfers, routes, animations or images). Plugins
  * add their own wait modes by aliasing `updateWaitMode`, as with MZ.
  *
- * A common event runs as in MZ: command117 hands its list to a child interpreter (`setupChild`,
- * one level deeper, with the calling event's id when that event is on the current map), and
- * `update()` updates the child first (`updateChild`): while the child runs, the parent waits; the
- * frame the child ends, the parent goes on. So a plugin command in a common event runs with the
- * child as `this`, and a wait mode it sets holds the child (and through it the parent).
+ * A common event runs as in MZ: command117 hands its list to a child interpreter, which the parent
+ * waits on. So a plugin command in a common event runs with the child as `this`, and a wait mode
+ * it sets holds the child (and through it the parent).
  */
 import type { Ctx } from "./context.ts";
 
@@ -133,11 +131,8 @@ export function createGameInterpreter(ctx: Ctx) {
       this._waitCount = duration;
     }
 
-    // Game_Interpreter.prototype.executeCommand. Modelled behaviour: the current command runs (its
-    // indent becomes the interpreter's) through the method named "command" + its code, looked up
-    // on the interpreter at run time (so a plugin's own command methods and aliases run, as in
-    // MZ); one that answers false runs again next frame, anything else moves to the next command;
-    // a code without a method is skipped; past the end, the interpreter stops.
+    // Game_Interpreter.prototype.executeCommand. Modelled: "command" + code is looked up at run
+    // time (so plugin aliases run); one that answers false runs again next frame.
     executeCommand(): boolean {
       const command = this.currentCommand();
       if (command === undefined) {

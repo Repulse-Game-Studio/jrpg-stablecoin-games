@@ -4,24 +4,22 @@
  * of scfg_core/web_page.py and Godot's addons/scfg/web_page.gd.
  *
  * There is no eval boundary here (Ren'Py and Godot hand the page JavaScript source): the plugin
- * runs in the game's own page, so it calls the bridge's functions directly with JavaScript values
- * (strings, numbers, objects). Game data is never turned into code; the only scripts added to the
- * page are the four embedded asset files, as `<script>` elements whose text is the file's text.
- * What the bridge answers as JSON text (take, takePaste) is parsed in a try/catch: anything that is
- * not the expected JSON is "no messages" ([]) or "the browser refused" (""), never an exception.
- * A bridge call that throws (a replaced or broken bridge) answers the same and is reported once
- * per entry point through `warn` (developer advice: test play only in the glue).
+ * runs in the game's own page and calls the bridge's functions directly with JavaScript values.
+ * Game data is never turned into code; the only scripts added to the page are the four embedded
+ * asset files. What the bridge answers as JSON text (take, takePaste) is parsed in a try/catch:
+ * anything unexpected is "no messages" ([]) or "the browser refused" (""), never an exception. A
+ * bridge call that throws (a replaced or broken bridge) answers the same and is reported once per
+ * entry point through `warn`.
  *
  * WebPage is the core OverlayCheckout's `ui` (open, show, close, take, setStatus, reply) and the
  * clipboard, links and wallet detection of a web deployment. Every call is synchronous: the page
  * answers a paste or a transaction build later, and the glue polls for it each frame. (Ren'Py's
  * post/result request bridge has no twin: the core's FetchTransport already uses fetch.)
  *
- * The overlay's host element (what bridge.js adds to the body for an opened checkout, tagged
- * `data-scfg-overlay="<key>"`) gets `guardOverlay` (ui/input.ts): its keys and pointer events are
- * the overlay's, so MZ's document listeners neither preventDefault them (Tab, the arrows, the
- * wheel) nor turn them into the game's or the sheet's input. Opening or showing an overlay gives the focus to its first control,
- * so the keyboard drives the overlay rather than the sheet hidden under it.
+ * The overlay's host element (tagged `data-scfg-overlay="<key>"` by bridge.js) gets `guardOverlay`
+ * (ui/input.ts), so MZ's document listeners neither preventDefault its keys and pointer events nor
+ * turn them into game or sheet input. Opening or showing an overlay focuses its first control, so
+ * the keyboard drives the overlay rather than the sheet under it.
  */
 import type { OverlayUi } from "../core/index.ts";
 import { pageAsset, type PageFile } from "./assets.ts";
@@ -283,11 +281,10 @@ export class WebPage {
 }
 
 /**
- * The overlay's page while the logo is still being read (web; Scfg._platformServer): the
- * overlay's open waits for the read, at most until `deadline` (on `clock`), then opens with the
- * logo, or without it once the deadline passed (a later logo is not used). The overlay polls
- * (take) every frame, which is when the wait is checked. Meanwhile its latest status is kept for
- * the open, show is moot (the open shows it), take answers nothing, and a close cancels the open.
+ * The overlay's page while the logo is still being read (web; Scfg._platformServer): the open
+ * waits for the read until `deadline` (on `clock`), checked on each frame's take(), then opens with
+ * the logo or without it (a later logo is not used). Meanwhile the latest status is kept for the
+ * open, show is moot, take answers nothing, and a close cancels the open.
  */
 export class LogoWaitUi implements OverlayUi {
   private readonly _page: OverlayUi;

@@ -1,17 +1,10 @@
 /**
- * TEST ONLY. The desktop (NW.js) path of the e2e (tools/run_rpgmaker_desktop_e2e.py):
- * NW.js itself cannot run here, so this Node process plays it. It runs the real SCFG glue
- * (`bootPlugin()`, boot.ts, from the same sources SCFG.js bundles) on the MZ shim as a desktop game
- * (`Utils.isNwjs()` true, saves in `<storage>/save/*.rmmzsave` through MZ's StorageManager), with
- * NW.js's Node `require` (the glue reaches `net`, `crypto`, `https` through it): the real
- * localhost checkout page (local_server.ts on Node's net) and the real Node https transport
- * (node_transport.ts) against the runner's local chain. NW.js's `nw.Shell.openExternal` and
- * `nw.Clipboard` are recorded (the runner opens the URL in Playwright; the Copy buttons' text is
- * read back). The sheet is a headless host (headless_host.ts): it shows nothing, but reports
- * what the plugin's sheet would show (the controller's visible values and the buttons of its
- * step, named as ui/sheet.ts names them) and presses a button by name the way that button does,
- * nothing more. Game frames run 60 times a second (SceneManager.updateMain, as MZ's main loop);
- * the Worker runs on its real timers.
+ * TEST ONLY. The desktop (NW.js) path of the e2e (tools/run_rpgmaker_desktop_e2e.py): NW.js
+ * cannot run here, so this Node process plays it. The real SCFG glue (`bootPlugin()`) runs on the
+ * MZ shim as a desktop game, with Node's `require` standing in for NW.js's: the real localhost
+ * checkout page and Node https transport, against the runner's local chain. `nw.Shell.openExternal`
+ * and `nw.Clipboard` are recorded. The sheet is a headless host (headless_host.ts). Frames run 60
+ * times a second, as MZ's main loop; the Worker runs on its real timers.
  *
  * Protocol: one JSON command per stdin line, one reply line `SCFG-REPLY {"ok": ...}` or
  * `SCFG-REPLY {"error": "..."}` on stdout, in order (any other stdout line is the game's output).

@@ -6,10 +6,8 @@
  * authority plugin/game/scfg/scfg_api.rpy (_open_checkout, _close_checkout, _deliver,
  * _open_restore, _close_restore, _deliver_restore, _open_*, Copy, _take_paste, _shutdown).
  *
- * Each test builds an SCFG on a fresh shim with a fake sheet host (a sheet is a handle whose
- * `closed` the test resolves), fake NW.js / browser objects behind the platform seams (no browser
- * is opened, no real clipboard is touched), FakeChains behind the Engine and a Worker whose timer
- * never fires: a worker pass runs only when the test awaits `runOnce()`.
+ * Each test runs on a fresh shim with a fake sheet host, fake NW.js / browser objects behind the
+ * platform seams, FakeChains behind the Engine and a Worker that passes only on `runOnce()`.
  */
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";

@@ -269,9 +269,7 @@ test("test_reverify_reports_to_the_on_error_set_mid_pass", async () => {
 });
 
 test("test_reverify_prints_when_on_error_is_unset_mid_pass", async () => {
-  // a handler set to null (or anything falsy) while a pass runs: the error is printed
-  // (printError: console.error), as the pass's own `on_error || printError` did before handlers
-  // were looked up at report time
+  // a handler set to null (or anything falsy) while a pass runs: printError prints the error
   const { e } = makeEngine();
   e.receipts["k"] = {
     chain: "arbitrum", tx_hash: TX, log_index: 0, block: 900, amount: "1.000000", token: "USDC", kind: "tip", item: null,

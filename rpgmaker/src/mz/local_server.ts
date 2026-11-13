@@ -25,12 +25,11 @@
  * a function) or throws answers 503 (500 for an asset, 404 for the logo), never an exception in
  * a socket handler.
  *
- * Node is event-driven: the server answers from Node's event loop, `pump()` does nothing and
- * on_tx runs in the socket's turn (JavaScript has one thread, so it never runs inside a worker
- * command). `start()` returns before Node's listen() completes: `url` is "" until then (the glue
- * opens the browser only on a URL; `ready()` resolves once listening, rejects when it cannot
- * listen, and `failed` keeps that error). `stop()` closes everything, cancels a build a page is still waiting for and releases
- * the callbacks; a stopped server does not start again.
+ * The server answers from Node's event loop: `pump()` does nothing and on_tx runs in the socket's
+ * turn (JavaScript has one thread, so never inside a worker command). `start()` returns before
+ * listen() completes: `url` is "" until then, `ready()` resolves once listening or rejects, and
+ * `failed` keeps that error. `stop()` closes everything, cancels a build a page still waits for and
+ * releases the callbacks; a stopped server does not start again.
  *
  * Security (as local_server.py):
  *   - bound to 127.0.0.1 on a random port;
@@ -62,11 +61,9 @@
  * line, the 501's body is plain text, and a client that closes its side before its head is
  * complete gets no answer (Python reads what it has as the whole head).
  *
- * Node APIs used, all in Node 8 or older:
- * net.createServer({allowHalfOpen, pauseOnConnect}), server.listen(port, host) / address() /
- * close(), socket events data/end/close/error, write/end/destroy/pause/resume, and Uint8Array
- * writes. The page globals TextEncoder/TextDecoder (Node 11+ as globals), setTimeout and
- * crypto.getRandomValues come from Chromium on NW.js.
+ * Node APIs used are all in Node 8 or older (net.createServer({allowHalfOpen, pauseOnConnect}),
+ * listen / address / close, socket data/end/close/error, write/end/destroy/pause/resume, Uint8Array
+ * writes); TextEncoder/TextDecoder, setTimeout and crypto.getRandomValues come from NW.js's Chromium.
  */
 import { BUILD_TIMEOUT_S, type Job, parseBuildMessage, parseTxMessage } from "../core/index.ts";
 import { LOGO_TYPES } from "../core/config.ts";
@@ -828,10 +825,8 @@ export class CheckoutServer {
       this._json(c, 503, { error: "unavailable" });
       return;
     }
-    // ServerArgs.on_tx (core/checkout.ts) asks for the game loop's turn; this is the socket's turn
-    // of Node's event loop instead (pump() does nothing). It is safe: JavaScript runs one thing at
-    // a time, so on_tx never runs inside a worker command, and what it submits is queued
-    // (Worker._pass takes the queue it finds) — as Python's server thread calls on_tx.
+    // ServerArgs.on_tx asks for the game loop's turn; the socket's turn is safe too (one thread,
+    // what it submits is queued for Worker._pass), as Python's server thread calls on_tx.
     try {
       onTx(hint[0], hint[1]);
     } catch {

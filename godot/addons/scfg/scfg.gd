@@ -41,29 +41,21 @@
 ## passes. A misused pay() / restore() reports with push_error and resolves "failed" with the
 ## ConfigError code (the kind, such as "TypeError", for an error without one).
 ##
-## PERSISTENCE (`_sync`, Ren'Py's `_sync_persistent`): new or changed receipts, a session added or
-## removed, and a session's `state` or `hint_tx` changing are written at once (a web tab, or a
-## crash, can end the game any moment); other pending changes such as scan progress (`cursor`)
-## at most every PENDING_SAVE_INTERVAL seconds, and once more when the autoload leaves the tree
-## (the game quits). A save that failed is tried again every PENDING_SAVE_INTERVAL seconds; a
-## failure is reported once, and again only after a save succeeded.
-## `receipts_changed` is emitted whenever the receipts change. A state file that exists but
-## cannot be read (a lock, a permission, an I/O error; not a corrupt one, which is moved aside,
-## unless it cannot be moved) starts no payments this run and is never saved over (see store.gd);
-## the next launch retries.
+## PERSISTENCE (`_sync`, Ren'Py's `_sync_persistent`): receipt changes, sessions added or removed,
+## and a session's `state` or `hint_tx` changing are written at once (a web tab or a crash can end
+## the game any moment); other pending changes (scan progress) at most every
+## PENDING_SAVE_INTERVAL seconds, and once more when the game quits. A failed save is retried at
+## that interval and reported once until a save succeeds. A state file that exists but cannot be
+## read (not a corrupt one, which is moved aside) starts no payments this run and is never saved
+## over (see store.gd); the next launch retries.
 ##
 ## WEB: A SECOND COPY OF THE RECEIPTS (ScfgWebMirror). Every Godot web export on one origin shares
-## one IndexedDB database, and another game there can delete state.json after this one saved it.
-## So on the web a save also merges the receipts (not the pending sessions) into a copy in the
-## page's localStorage (ScfgWebMirror.update: a receipt another tab of this game saved stays there;
-## one this tab removed itself, such as by re-verification, leaves it; clear_local_data() empties
-## it, until another open tab of this game saves its receipts into it again), and the first read
-## of the state merges that copy back: a receipt the copy has and state.json lacks is added
-## (state.json's own version wins a conflict), and the merged state is saved at once. The merged
-## receipts are stored receipts like any other: normalised, then re-verified when the Engine
-## starts. A localStorage that is missing, blocked or full only warns
-## (debug builds, once); saving to user:// goes on. A state file that cannot be read leaves the
-## copy alone too.
+## one IndexedDB database, so another game there can delete state.json. On the web a save also
+## merges the receipts (not the pending sessions) into a copy in localStorage, keeping receipts
+## other tabs of this game saved and dropping the ones this tab removed. The first read of the
+## state merges the copy back (state.json wins a conflict) and saves at once; merged receipts are
+## re-verified like any other. A missing, blocked or full localStorage only warns (debug builds,
+## once).
 extends Node
 
 ## A final result of a payment that has no pay() callback (Ren'Py's `on_result`).
@@ -86,8 +78,7 @@ const WEB_DIR := "res://addons/scfg/web/"
 const TX_CHARS := "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 ## The most characters a hash field takes (a pasted clipboard is cut there too).
 const TX_MAX_LENGTH := 90
-## The Worker's poll interval in seconds: while a payment sheet or the restore screen is open,
-## and otherwise.
+## The Worker's poll interval in seconds, with a screen open and otherwise.
 const _POLL_OPEN_S := 3.0
 const _POLL_IDLE_S := 15.0
 
@@ -164,15 +155,12 @@ func _init() -> void:
 
 
 ## TEST HOOK, not part of the API: replaces defaults before first use. `opts` keys:
-##   store_path (String, default STATE_PATH); clock (Callable -> seconds, for the save interval;
-##   default a monotonic clock); transport (the Engine's transport; default
-##   ScfgHttpTransport.new(self)); engine_opts (extra ScfgEngine options such as rpc_factory and
-##   clock); scheduler (the Worker's timer source; default this node's tree); quiet (true: record
-##   reports in `_reported` / `_warnings` instead of push_error / push_warning); platform (an
-##   object like _Platform: is_web, is_mobile, shell_open, clipboard_set, clipboard_get);
-##   server_factory (replaces the checkout controllers' server_factory; `_server_opts(kw)` gives
-##   the desktop page's options); js (an object with `eval(code) -> Variant` standing in for the
-##   browser page's JavaScript; only used where `platform.is_web()`).
+##   store_path; clock (Callable -> seconds); transport (default ScfgHttpTransport.new(self));
+##   engine_opts (extra ScfgEngine options); scheduler (the Worker's timer source; default this
+##   node's tree); quiet (record reports in `_reported` / `_warnings` instead of pushing them);
+##   platform (an object like _Platform); server_factory (replaces the checkout controllers'
+##   server_factory); js (an object with `eval(code) -> Variant` standing in for the page's
+##   JavaScript, web only).
 func _setup(opts: Dictionary) -> void:
 	for k: Variant in opts:
 		if not (k is String and k in _SETUP_KEYS):
@@ -479,19 +467,14 @@ func _ensure_started() -> ScfgWorker:
 
 
 ## Ren'Py's quit callback (`_shutdown`): close the pages, stop the Worker, and flush what is not on
-## disk. The autoload leaves the tree only when the game quits, so this ends the plugin for good.
-## A pay() or restore() still waiting on its screen is released first and resolves "cancelled"
-## (or the restore's finished result) without delivering anything: no callback, no
-## `payment_resolved`, no notification, and the session is not marked cancelled, so the Engine
-## keeps watching it on the next launch.
+## disk. A pay() or restore() still waiting on its screen resolves without delivering anything (no
+## callback, signal or notification), and its session is not marked cancelled, so the Engine keeps
+## watching it on the next launch.
 ##
-## A Worker pass already in flight ends here: the Callables the Engine and Worker hold that are
-## bound to this node (on_error, interval) are replaced with detached ones (the pass may finish
-## after the node is freed, and calling a freed node's method would be a script error), then this
-## node's own HTTP transport is closed, so a request in flight ends with HostGone (which the
-## Engine contains and reports to the detached handler) and the pass finishes before the tree is
-## gone. At a real quit there is no later frame: a pass left waiting would never resume and its
-## coroutines would be reported as leaked at exit.
+## The Engine's and Worker's Callables bound to this node are swapped for detached ones (a pass in
+## flight may finish after the node is freed), then this node's HTTP transport is closed so a
+## request in flight ends with HostGone. At a real quit there is no later frame: a pass left
+## waiting would never resume and its coroutines would be reported as leaked.
 func _exit_tree() -> void:
 	_release_waits()
 	for c: Variant in _checkouts.values() + _background.values():
@@ -617,11 +600,9 @@ func _warn_unready(unready: Array) -> void:
 			% [route[1], route[0], route[1]])
 
 
-## Remember the pay() callback of the controller's session, once per session: then _deliver (its
-## final result) or _prune_callbacks (it left the Engine) drops it for good. Registering again each
-## pump would bring back the callback of a sheet left open on an expired session past its scan
-## horizon, which no snapshot lists to prune any more. Not at all once the session's final result
-## (paid / underpaid) was delivered.
+## Remember the pay() callback of the controller's session, once per session, until _deliver or
+## _prune_callbacks drops it. Registering every pump would revive the callback of a sheet left open
+## on an expired session that no snapshot lists to prune any more. Skipped once paid / underpaid.
 func _register_callback(ctl: Variant) -> void:
 	var cb: Variant = ctl.get("callback")
 	var sid: Variant = ctl.session_id
@@ -631,11 +612,9 @@ func _register_callback(ctl: Variant) -> void:
 		ctl.set("callback_sid", sid)
 
 
-## Drop the callbacks of sessions that left the Engine since a snapshot listed them (closed at
-## their scan horizon, or discarded): no result can reach them any more. Results still can while
-## a session is pending, also after it expired ("keep playing"). `snap` was read before this pump
-## drained the outcomes, so a session that left because it was paid had its result delivered
-## first. A session id no snapshot listed yet (just started) is kept.
+## Drop the callbacks of sessions that left the Engine since a snapshot listed them: no result
+## can reach them any more. `snap` was read before this pump drained the outcomes, so a paid
+## session had its result delivered first. A session no snapshot listed yet is kept.
 func _prune_callbacks(snap: Variant) -> void:
 	if not snap is Dictionary or not (snap as Dictionary).get("pending") is Dictionary:
 		return
@@ -741,12 +720,10 @@ class _Platform:
 		return OS.is_userfs_persistent()
 
 
-## Waits for a screen's `closed(how)`. A screen freed (free() or queue_free()) without emitting it
-## counts as "cancel", noticed on the next frame (`gone`: it is being removed, so it is not closed
-## again). Leaving the tree is not closing: a screen that is reparented, or kept out of the tree, or
-## never added to it, is still waited on. `release()` ends the wait with "shutdown" (the autoload
-## is going away). The node is held weakly, and the frame check is a signal connection, which
-## Godot drops if this wait is freed.
+## Waits for a screen's `closed(how)`. A screen freed without emitting it counts as "cancel",
+## noticed on the next frame (`gone`: not closed again). Leaving the tree is not closing.
+## `release()` ends the wait with "shutdown". The node is held weakly, and the frame check is a
+## signal connection, which Godot drops if this wait is freed.
 class _ScreenWait:
 	extends RefCounted
 	signal done
@@ -1178,10 +1155,9 @@ func _apply_paste(id: String, text: Variant, from_page: bool) -> void:
 		ctl.error = "paste_blocked"
 
 
-## What a pasted clipboard becomes in a hash field, like typing it there: the first word, only
-## hash characters, at most TX_MAX_LENGTH of them (Ren'Py's
-## `"".join(c for c in words[0] if c in TX_CHARS)[:90]`; the scan stops at the last kept
-## character, so a huge clipboard costs nothing).
+## A pasted clipboard as a hash field takes it: the first word, hash characters only, at most
+## TX_MAX_LENGTH (Ren'Py's `"".join(c for c in words[0] if c in TX_CHARS)[:90]`). The scan stops
+## at the last kept character, so a huge clipboard costs nothing.
 static func _clean_paste(text: Variant) -> String:
 	var s := str(text) if text != null else ""
 	var start := 0
@@ -1312,7 +1288,6 @@ func _sync(snap: Dictionary) -> void:
 		_emit_receipts_changed()
 
 
-## Emits `receipts_changed`, and counts it in `_receipts_rev`.
 func _emit_receipts_changed() -> void:
 	_receipts_rev += 1
 	receipts_changed.emit()
@@ -1338,8 +1313,7 @@ func _save(clear: bool = false) -> void:
 # --- queries ---------------------------------------------------------------------------------
 
 
-## The receipts and pending sessions readers see: the Worker's snapshot, or the stored state
-## before the Worker starts and while clear_local_data() is in progress.
+## The Worker's snapshot, else the stored state (see _live_snapshot).
 func _source() -> Dictionary:
 	var live: Variant = _live_snapshot()
 	return live if live != null else _stored()

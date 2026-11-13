@@ -157,12 +157,10 @@ export function installShim(target: any = globalThis, opts: ShimOptions = {}): S
   }
   current = installed;
 
-  // Node stands in for the browser: what the browser fires at `window` for an uncaught exception or
-  // a rejection nobody handled ("error", "unhandledrejection"), so SceneManager.onError sees it.
-  // (node:test still fails the test on its own; the monitor event leaves Node's crash as it is.)
-  // Before boot SceneManager.onReject does not listen yet (MZ: the browser prints the rejection and
-  // the page goes on). This listener keeps Node from crashing on it, so it is printed here and the
-  // process fails (its exit code 1): a plain Node driver never passes with a lost rejection.
+  // Node stands in for the browser: an uncaught exception or unhandled rejection is fired at
+  // `window` ("error", "unhandledrejection") so SceneManager.onError sees it. Before boot nothing
+  // listens yet (in MZ the page goes on), so it is printed here and the exit code set to 1: a
+  // plain Node driver never passes with a lost rejection.
   const proc = (globalThis as any).process;
   if (!dom && proc && typeof proc.on === "function" && typeof proc.removeListener === "function") {
     const onRejection = (reason: unknown, promise: unknown) => {

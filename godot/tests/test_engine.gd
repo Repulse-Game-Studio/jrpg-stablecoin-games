@@ -1,5 +1,6 @@
-## ScfgEngine (engine.gd): tests/unit/test_engine.py (the Solana half: test_engine_solana.gd), plus the JS core's checks (rpgmaker/src/core/engine.test.ts): the default
-## RPC factory, the contained crash, sequential ticks and the injected entropy.
+## ScfgEngine (engine.gd): tests/unit/test_engine.py (the Solana half: test_engine_solana.gd),
+## plus the JS core's checks (rpgmaker/src/core/engine.test.ts): the default RPC factory, the
+## contained crash, sequential ticks and the injected entropy.
 extends RefCounted
 
 const T := preload("res://tests/t.gd")

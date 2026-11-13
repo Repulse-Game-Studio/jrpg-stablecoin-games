@@ -89,10 +89,8 @@ static func encode(price: Variant, code: Variant, nonce: Variant) -> Variant:
 
 
 ## Inverse of encode: base units (an int or ScfgBigInt, >= 0) -> [price: ScfgDec, code, nonce].
-## Once the price needs more than 28 digits (units >= 10**32) Python's quantize raises
-## decimal.InvalidOperation, and so does the port (kind "InvalidOperation", not a ValueError).
-## A non-int is a TypeError here; Python would accept a float (`5.0 // 10_000`) and return
-## floats for code and nonce, which no caller can reach (units are always ints).
+## Units >= 10**32 need more than 28 digits: an InvalidOperation, as Python's quantize raises.
+## A non-int is a TypeError (Python would accept a float, which no caller passes).
 ## @fallible
 static func decode(units: Variant) -> Variant:
 	if units is bool:
@@ -151,10 +149,9 @@ static func stored_amount(value: Variant) -> Variant:
 	return d
 
 
-## Python `decimal_to_units`: the amount times 10^6 exactly (no rounding to 28 digits) when that is
-## a whole number, else a ValueError ("more than 6 decimals"), and a ValueError for an amount that
-## is not finite or out of the amount range. `amount` is anything Python's Decimal() takes (see ScfgDec.from_value):
-## an ScfgDec, a str, an int. The result is an int or ScfgBigInt.
+## Python `decimal_to_units`: the amount times 10^6 exactly (no 28-digit rounding), an int or
+## ScfgBigInt. A ValueError when that is not whole ("more than 6 decimals") or the amount is not
+## finite or out of range. `amount` is anything Python's Decimal() takes (see ScfgDec.from_value).
 ## @fallible
 static func decimal_to_units(amount: Variant) -> Variant:
 	var d: Variant = ScfgDec.from_value(amount)

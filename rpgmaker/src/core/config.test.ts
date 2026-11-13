@@ -52,9 +52,8 @@ test("test_config_error_codes", () => {
 });
 
 test("test_local_http_port_digits_are_python_39s", () => {
-  // the plain-http exception's port is Python's \d: CPython 3.9's digits (Unicode 13), not the
-  // JS engine's \p{Nd}. A digit of a set Unicode added later (Tangsa, U+16AC0.., Unicode 14; Nag
-  // Mundari, U+1E4F0.., Unicode 15) is no digit there: the URL is refused, as by Python 3.9.
+  // the plain-http exception's port is Python 3.9's \d (Unicode 13), not \p{Nd}: a digit Unicode
+  // added later (Tangsa U+16AC0.., Nag Mundari U+1E4F0..) is no digit, so the URL is refused.
   const rpc = (u: string) => buildConfig({ wallet: W, rpc_urls: { base: u } }).rpc_urls;
   for (const u of ["http://127.0.0.1:\u{16ac5}\u{16ac0}", "http://localhost:\u{16ac5}/", "http://127.0.0.1:\u{1e4f5}"]) {
     assert.equal(code(() => rpc(u)), "rpc.not_https", JSON.stringify(u));

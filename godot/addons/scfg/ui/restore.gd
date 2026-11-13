@@ -4,8 +4,7 @@
 ## By the ScfgRestoreController's state: input / checking (the hash field and Check), choose (each
 ## ambiguous payment with its choices, then Restore), saving, done (what was restored); then any
 ## message and the purchases on this device, each with Copy hash. Close is pinned at the bottom
-## and closes with `closed("close")`; so does `ui_cancel`. The screen only reads the controller and
-## calls check / choose / confirm; the autoload polls it.
+## and closes with `closed("close")`; so does `ui_cancel`.
 class_name ScfgRestoreScreen
 extends ScfgScreenBase
 

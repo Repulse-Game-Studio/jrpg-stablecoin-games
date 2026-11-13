@@ -30,9 +30,8 @@ static func instruction(program_id: Variant, accounts: Variant, data: Variant) -
 
 
 ## The compact-u16 (shortvec) encoding of `n`: 7 bits per byte, low group first, high bit set on
-## all but the last byte. A number outside 0..65535 is a ValueError and a non-number a TypeError.
-## A float is a TypeError too, as in Python (`2.0 & 0x7f` fails), after the range check (so is a
-## fractional one). A bool is the int 0 or 1.
+## all but the last byte. A number outside 0..65535 is a ValueError; a non-number, or a float that
+## passes the range check, a TypeError (as Python's `2.0 & 0x7f`). A bool is the int 0 or 1.
 ## @fallible
 static func compact_u16(n: Variant) -> Variant:
 	var v: int
@@ -64,9 +63,7 @@ static func compact_u16(n: Variant) -> Variant:
 ## the payer leads as a writable signer, and the other keys follow in four groups, each sorted
 ## by raw key bytes. A key or blockhash that is not base58 for 32 bytes is a ValueError; so is a
 ## count that does not fit its field (a header byte over 255, a compact-u16 over 65535).
-## `instructions` that is not a list, or holds anything but Instruction Dictionaries with an
-## Array of AccountMeta Dictionaries and PackedByteArray data, is a TypeError (Python: an
-## AttributeError or TypeError on the malformed object).
+## Malformed `instructions` are a TypeError (see _check_instructions).
 ## @fallible
 static func compile_message(payer: Variant, instructions: Variant, recent_blockhash: Variant) -> Variant:
 	var malformed: Variant = _check_instructions(instructions)

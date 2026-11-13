@@ -10,13 +10,11 @@
  * `d[k]`, `dictGet` for `d.get(k)`, Python truthiness for `or`), so a malformed reply throws a
  * non-RPC error that the Engine contains, instead of JS coercing it into a different path.
  *
- * Python's tests monkeypatch the module constants SIG_PAGE and MAX_SIG_PAGES; ES module
- * constants cannot be patched, so each SolanaBackend carries them as `sig_page` and
- * `max_sig_pages` (the registry's instance keeps the defaults).
+ * Python's tests monkeypatch SIG_PAGE and MAX_SIG_PAGES; ES module constants cannot be patched,
+ * so each SolanaBackend carries them as `sig_page` and `max_sig_pages`.
  *
- * The same known limit as on EVM (watcher.ts): a match is persisted with `value` as a JSON
- * number, so a transfer of 2^53 units or more makes `matchDict` throw ValueError (contained by
- * the Engine) instead of storing a rounded value.
+ * Same known limit as EVM (watcher.ts): a transfer of 2^53 units or more makes `matchDict` throw
+ * ValueError (contained by the Engine) instead of persisting a rounded JSON number.
  */
 import { asUnits, unitsToDecimal } from "../amounts.ts";
 import { base64Encode } from "../bytes.ts";
@@ -178,9 +176,9 @@ function matchDict(t: Transfer): Record<string, unknown> {
 
 export class SolanaBackend implements Backend {
   readonly family = "solana";
-  /** SIG_PAGE for this instance (Python tests patch the module constant). */
+  /** SIG_PAGE for this instance. */
   sig_page = SIG_PAGE;
-  /** MAX_SIG_PAGES for this instance (Python tests patch the module constant). */
+  /** MAX_SIG_PAGES for this instance. */
   max_sig_pages = MAX_SIG_PAGES;
 
   normalizeTx(text: unknown): string {
@@ -192,8 +190,8 @@ export class SolanaBackend implements Backend {
   }
 
   /**
-   * Unsigned transfer from the player's wallet, for the browser page to hand to the wallet. The
-   * wallet simulates it and shows the player what it does.
+   * Unsigned transfer from the player's wallet, for the browser page to hand to the wallet (which
+   * simulates it for the player).
    */
   async buildPayment(rec: SessionRecord, args: { rpc: SolanaBuildRpc; chain: Chain; account: string }): Promise<Record<string, unknown>> {
     const { rpc, chain } = args;
@@ -413,11 +411,10 @@ export class SolanaBackend implements Backend {
   /**
    * Exchange and manual transfers carry no reference: match the exact amount.
    *
-   * Signatures are only listed newest first, so a backlog larger than one walk is crossed in
-   * steps: each walk that cannot reach `scan_cursor` moves `scan_before` back and examines nothing;
-   * once a walk reaches the cursor its window is processed oldest first, then `scan_before` is
-   * cleared to look at the newer signatures again. A busy token account only delays detection, it
-   * never hides a payment. Signatures from before the session's start slot are never examined.
+   * Signatures are listed newest first, so a backlog larger than one walk is crossed in steps:
+   * a walk that cannot reach `scan_cursor` moves `scan_before` back and examines nothing; once a
+   * walk reaches the cursor its window is processed oldest first and `scan_before` is cleared.
+   * A busy token account only delays detection. Signatures before the start slot are never examined.
    */
   private async _scan(
     rec: SessionRecord, rpc: SolanaWatchRpc, chain: Chain, mint: string, wallet: string, receipts: SessionStore,

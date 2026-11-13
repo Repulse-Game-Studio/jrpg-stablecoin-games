@@ -5,8 +5,7 @@
  * commands, the owned switches and the Tip Jar menu (src/mz/{commands,switches,menu}.test.ts).
  *
  * The sheet host is a fake (a sheet is a handle whose `closed` the test resolves), the chains are
- * FakeChains behind the Engine, and the Worker's timer never fires: a worker pass runs only when
- * the test awaits `pass()`. NW.js's `nw.Shell.openExternal` is a fake that records the URLs.
+ * FakeChains, and a worker pass runs only on `pass()`. `nw.Shell.openExternal` records the URLs.
  */
 import assert from "node:assert/strict";
 import { FakeChain, transferLog } from "./chain_fakes.ts";

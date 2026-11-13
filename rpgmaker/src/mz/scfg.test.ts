@@ -792,8 +792,8 @@ test("theEnginesAndTheWorkersErrorsAreReportedOnTheConsole", async () => {
 });
 
 test("truncatedStateFileOnDesktopFallsBackToMzsBackup", async () => {
-  // a crash while MZ wrote the state file leaves it truncated beside MZ's backup;
-  // before the fix the state started empty and the first save unlinked the only good copy
+  // a crash while MZ wrote the state file leaves it truncated beside MZ's backup: the state must
+  // not start empty, or the first save would unlink the only good copy
   const first = await configured();
   await start(first.s);
   await addTx(first, "0x" + "ab".repeat(32));

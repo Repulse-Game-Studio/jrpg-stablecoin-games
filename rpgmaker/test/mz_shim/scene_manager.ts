@@ -8,14 +8,10 @@
  * animation frame (MZ runs a fixed 60 updates a second whatever the display rate). In Node nothing
  * runs by itself: tests call `shim.frame(n)`.
  *
- * Errors, as MZ: `run()` (MZ's main.js) calls `initialize()`, whose `setupEventHandlers()` listens
- * for the window's "error" (an uncaught exception) and "unhandledrejection" (a Promise rejected
- * with no handler). `onReject` hands the rejection's reason to `onError`, which prints the error,
- * stops the game loop (`stop()`: Graphics.stopGameLoop) and shows MZ's error screen
- * (Graphics.printError). The game is over: nothing runs any more. In Node the shim stands in for
- * the browser and turns the process's unhandled rejections and uncaught exceptions into those
- * window events (index.ts). Simplified: MZ's other handlers there (F5 reload, F8 dev tools, the
- * unload) are not modelled.
+ * Errors, as MZ: `initialize()` listens for the window's "error" and "unhandledrejection"; both
+ * reach `onError`, which prints the error, stops the game loop for good and shows MZ's error
+ * screen (Graphics.printError). In Node, index.ts turns the process's errors into those events.
+ * Not modelled: MZ's other handlers there (F5 reload, F8 dev tools, the unload).
  */
 import type { Ctx } from "./context.ts";
 

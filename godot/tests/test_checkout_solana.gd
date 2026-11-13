@@ -83,7 +83,6 @@ func test_evm_chain_still_uses_eip681() -> bool:
 
 
 func test_pasting_the_wrong_family_is_an_invalid_hash() -> bool:
-	# Review focus 1.
 	var m := _started("solana")
 	var ctl: ScfgCheckoutController = m["ctl"]
 	T.eq(ctl.submit_hash(EVM_TX), false)

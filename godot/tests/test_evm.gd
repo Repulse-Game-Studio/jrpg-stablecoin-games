@@ -167,8 +167,8 @@ func test_parse_transfer_log_data() -> bool:
 	return T.done()
 
 
-## Lessons from the JS core: a non-string hash must not slip through as a value, and indices at or above 2^53
-## must not lose precision.
+## From the JS core: a non-string hash must not slip through as a value, and indices at or above
+## 2^53 must not lose precision.
 func test_parse_transfer_log_rejects_bad_field_types() -> bool:
 	for field: String in ["transactionHash", "blockHash"]:
 		for bad: Variant in [null, 5, true, ["0xab"], {}]:

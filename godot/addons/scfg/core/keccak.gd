@@ -24,8 +24,7 @@ const _PILN: Array[int] = [10, 7, 11, 17, 18, 3, 5, 16, 8, 21, 24, 4, 15, 23, 19
 	14, 22, 9, 6, 1]
 
 
-## The 32-byte Keccak-256 digest of `data`. Cannot fail: any byte string is valid input, so
-## there is no ScfgErr path (and no `## @fallible`).
+## The 32-byte Keccak-256 digest of `data`. Cannot fail: any byte string is valid input.
 static func keccak256(data: PackedByteArray) -> PackedByteArray:
 	# pad: data, 0x01, zeros, then 0x80 on the last byte of the block (0x81 if they coincide)
 	var msg := data.duplicate()

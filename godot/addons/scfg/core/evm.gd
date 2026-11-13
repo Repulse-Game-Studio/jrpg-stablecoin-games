@@ -71,13 +71,11 @@ static func address_topic(address: Variant) -> Variant:
 ## id is indexed), so exactly 3 topics are required.
 ##
 ## Fields are read in Python's order, so the first error is Python's: a missing key is a
-## KeyError; hex integers are `int(text, 16)` (a prefix, a sign, spaces and underscores as
-## Python takes them; a non-string is a TypeError); a transactionHash/blockHash/topic that is
-## not a string is a TypeError (Python would raise AttributeError on `.lower()`; the TS core
-## also makes it a TypeError, and a value must never pass through unconverted); a `log` that is not
-## an object is an AttributeError. logIndex and blockNumber of 2^53 or more are a ValueError:
-## they would not survive as an exact JSON number. A negative `data` is an OverflowError (an
-## ScfgBigInt is unsigned; no chain emits one).
+## KeyError; hex integers are `int(text, 16)`; a transactionHash/blockHash/topic that is not a
+## string is a TypeError (a deviation: Python raises AttributeError on `.lower()`; the TS core
+## agrees with this one); a `log` that is not an object is an AttributeError. logIndex and
+## blockNumber of 2^53 or more are a ValueError (not an exact JSON number). A negative `data` is
+## an OverflowError (an ScfgBigInt is unsigned; no chain emits one).
 ## @fallible
 static func parse_transfer_log(log: Variant) -> Variant:
 	if not log is Dictionary:

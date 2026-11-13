@@ -35,18 +35,17 @@
  * `sheetHost` (sheet_host.ts) and wait for its handle's `closed`. Closing a payment sheet closes
  * its controller first (cancel / finish stop its browser page), and only then the screen;
  * "keep_playing" moves the controller to `_background`, where its page keeps answering until the
- * session is final or the browser timeout passes. Misuse rejects; payments off or no screen
- * resolve "failed". The sheet's buttons that leave the game call `openBrowser`, `openWalletApp`,
- * `openExplorer`, `copy` and `pasteInto` (actions.ts has the per-platform parts). Notifications go through `text()`.
+ * session is final or the browser timeout passes. The sheet's buttons that leave the game call
+ * `openBrowser`, `openWalletApp`, `openExplorer`, `copy` and `pasteInto` (actions.ts has the
+ * per-platform parts). Notifications go through `text()`.
  *
  * WEB (not NW.js; Ren'Py's WEB branches): the browser checkout is the in-page overlay
  * (core/overlay.ts) over the shared page's bridge (web_page.ts), installed on the first payment
  * sheet; the browser wallet method is offered only when the page has a wallet for the chain
  * (`browser_wallet`); copy, paste and links go through the page (its copy falls back to
- * execCommand where the clipboard API is missing, and a refused copy or paste is told). When the
- * bridge cannot run in the page (reported in test play) these fall back to the browser's own APIs
- * and there is no browser wallet method. In test play a web game warns once when its storage
- * (localforage) cannot keep the receipts.
+ * execCommand where the clipboard API is missing; a refused copy or paste is told). When the
+ * bridge cannot run in the page these fall back to the browser's own APIs, with no browser wallet
+ * method. In test play a web game warns once when localforage cannot keep the receipts.
  *
  * CLOSING (Ren'Py's `_shutdown`; boot.ts installs the hooks): flows waiting on a screen resume at
  * once and deliver nothing, every page is stopped, the Worker stops, and what is not stored yet
@@ -691,11 +690,10 @@ export class Scfg {
   }
 
   /**
-   * Remember the pay() callback of the controller's session, once per session: then _deliver (its
-   * final result) or _pruneCallbacks (it left the Engine) drops it for good. Registering again each
-   * pump would bring back the callback of a sheet left open on an expired session past its scan
-   * horizon, which no snapshot lists to prune any more. Not at all once the session's final result
-   * (paid / underpaid) was delivered.
+   * Remember the pay() callback of the controller's session, once per session (and not once its
+   * paid / underpaid result was delivered); _deliver or _pruneCallbacks then drops it for good.
+   * Registering again each pump would revive the callback of a sheet left open on an expired
+   * session past its scan horizon, which no snapshot lists to prune any more.
    */
   _registerCallback(c: ScreenCheckout): void {
     const sid = c.sessionId;

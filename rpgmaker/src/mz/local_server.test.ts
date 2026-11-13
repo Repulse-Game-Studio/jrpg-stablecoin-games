@@ -429,10 +429,8 @@ test("runsOfLineEndsAndSpacesAreParsedInLinearTime", async () => {
     ["a CRLF run of continuation lines", `GET ${base(srv)} HTTP/1.1\r\n${host(srv)}X-A: a\r\n` + " \r\n".repeat(90) + "\r\n", 200],
     ["more continuation lines than headers allowed", `GET ${base(srv)} HTTP/1.1\r\n${host(srv)}X-A: a\r\n` + " \r\n".repeat(20000) + "\r\n", 431],
   ];
-  // Linear time is checked by an absolute bound only: a backtracking pattern on a 64 KiB run takes
-  // seconds (quadratic: some 2 billion steps), a linear scan well under a millisecond, so 1 s
-  // tells them apart on any machine; a ratio of two small timings would be scheduler noise on a
-  // loaded CI runner.
+  // An absolute 1 s bound: backtracking on a 64 KiB run takes seconds, a linear scan under a
+  // millisecond; a ratio of two small timings would be scheduler noise on a loaded CI runner.
   for (const [what, data, status] of attacks) {
     const t0 = performance.now();
     const got = await talk(srv.port, data);

@@ -1,4 +1,4 @@
-/** Twin of tests/unit/test_checkout_solana.py (the RestoreController and CheckoutServer tests belong to later tasks). */
+/** Twin of tests/unit/test_checkout_solana.py (its RestoreController and CheckoutServer tests are in src/mz). */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FakeChain } from "../../test/chain_fakes.ts";

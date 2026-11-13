@@ -57,12 +57,10 @@ export class Dec {
   /**
    * Python `Decimal(str)`; non-finite values come back as "nan" / "inf" so callers can reject them.
    *
-   * `anyExponent`: accept every exponent libmpdec accepts (a literal beyond its limits is Python's
-   * InvalidOperation, a ValueError here, like a malformed literal) instead of refusing those beyond
-   * +-2^53. Exponents beyond +-2^50 are then clamped to +-2^50: the value compares, sums
-   * (`addChecked`) and scales (`scaleb` by a small n: an Overflow, or a subnormal zero) as Python's
-   * does, but its `toString`, `quantize` and `integralValue` are not Python's. Only for values
-   * that are compared, summed or scaled.
+   * `anyExponent`: accept every exponent libmpdec accepts (beyond its limits: ValueError, Python's
+   * InvalidOperation) instead of refusing those beyond +-2^53. Exponents beyond +-2^50 are clamped
+   * to +-2^50, so comparison, `addChecked` and a small `scaleb` match Python but `toString`,
+   * `quantize` and `integralValue` do not: only for values that are compared, summed or scaled.
    */
   static parse(text: string, opts: { anyExponent?: boolean } = {}): Dec | "nan" | "inf" {
     if (typeof text !== "string") throw new ValueError("Decimal() needs a string");

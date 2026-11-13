@@ -9,14 +9,12 @@
  * the controller calls every frame; they are validated like the local server's requests
  * (page_messages.ts), and a tx hash stays a hint the watcher verifies on-chain.
  *
- * `ui` is the page (the glue's WebPage over bridge.js); everything it hands back comes from the
- * page and is checked here: a take() that is not a list is no messages, a request id must be an
- * integer JSON keeps exact (not a boolean, a fraction or a string), a reused id cancels the older
- * build. The callbacks are the controller's: once stop() ran none of them is called again, also
- * not for the rest of a batch of messages whose handling stopped the overlay, and a build that
- * finishes after stop() is never answered (a Job handed back by a build_tx that stopped the overlay
- * is cancelled at once). A build_tx that throws or gives no Job, or a Job that
- * ends without an object, is answered 503. Every method is synchronous and never awaits a Job.
+ * `ui` is the page (the glue's WebPage over bridge.js) and everything it hands back is checked: a
+ * take() that is not a list is no messages, a request id must be an exactly representable integer,
+ * a reused id cancels the older build. Once stop() ran no controller callback is called again (not
+ * even for the rest of the batch that stopped it), and no build is answered (a Job returned by a
+ * build_tx that stopped the overlay is cancelled at once). A build_tx that throws or gives no Job, or
+ * a Job that ends without an object, is answered 503. Every method is synchronous.
  */
 import { BUILD_TIMEOUT_S, parseBuildMessage, parseTxMessage } from "./page_messages.ts";
 import type { CheckoutServer } from "./checkout.ts";

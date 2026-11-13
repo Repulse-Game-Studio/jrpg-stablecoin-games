@@ -1,7 +1,7 @@
-## ScfgSolanaBackend watching (advance, transfer_to): tests/unit/test_solana_watch.py, plus the JS core's
-## edges (rpgmaker/src/core/backends/solana.test.ts): the payer rule, net gains and malformed
-## balance rows, a dropped hint's verdict cleared by a reference payment, a pending hint
-## suspending the scan, an expired hint's outage, the node's confirmations, a missing and a
+## ScfgSolanaBackend watching (advance, transfer_to): tests/unit/test_solana_watch.py, plus the
+## JS core's edges (rpgmaker/src/core/backends/solana.test.ts): the payer rule, net gains and
+## malformed balance rows, a dropped hint's verdict cleared by a reference payment, a pending
+## hint suspending the scan, an expired hint's outage, the node's confirmations, a missing and a
 ## malformed session.
 ##
 ## Python monkeypatches the module constants SIG_PAGE and MAX_SIG_PAGES; here a backend instance
@@ -258,7 +258,7 @@ func test_scan_spends_at_most_five_transactions_per_step() -> bool:
 	return T.done()
 
 
-## Review focus 3: >100 new signatures since the last step must not hide a payment.
+## >100 new signatures since the last step must not hide a payment.
 func test_scan_pages_back_past_a_full_page() -> bool:
 	var s := _setup()
 	_pay(s[2], 500, {"addresses": [DEST]})
@@ -320,7 +320,7 @@ func test_good_hint_matches_round_amount() -> bool:
 	return T.done()
 
 
-## Review focus 4: a lagging endpoint's null status must not lose the payment.
+## A lagging endpoint's null status must not lose the payment.
 func test_vanished_match_becomes_a_hint_and_is_found_again() -> bool:
 	var s := _setup()
 	_pay(s[2], 1, {"addresses": [DEST]})

@@ -26,7 +26,7 @@
  * The flows close the controller (stopping its browser page) BEFORE they call `close(handle)`.
  *
  * A host whose `openPayment()` / `openRestore()` returns null (or no handle with a `closed`
- * Promise) shows nothing: pay() / restore() then reject with a ConfigError, code
+ * Promise) shows nothing: pay() / restore() then resolve a "failed" result whose `error` is
  * "sheet.unavailable". `NullSheetHost` is that bare interface.
  */
 import type { CheckoutController, RestoreController } from "../core/index.ts";
@@ -59,7 +59,7 @@ export interface SheetHost {
   update?(): void;
 }
 
-/** The bare interface: shows nothing (pay() and restore() reject with "sheet.unavailable"). */
+/** The bare interface: shows nothing (pay() and restore() resolve "failed" with the error "sheet.unavailable"). */
 export class NullSheetHost implements SheetHost {
   openPayment(_ctl: CheckoutController): SheetHandle | null {
     return null;

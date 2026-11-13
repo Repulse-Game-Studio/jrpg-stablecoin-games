@@ -234,10 +234,8 @@ test("aCommandInACommonEventWaitsOnTheChildInterpreter", async () => {
 });
 
 test("aSaveMadeWhileWaitingLoadsWithoutWaitingForever", async () => {
-  // The decision: a run's Promise lives in this session only. A save made while an event waits
-  // stores the variable as 0 and the interpreter in the scfg wait mode; after loading it, that
-  // interpreter has no live Promise, so it stops waiting at once and goes on with the variable
-  // at 0, and the earlier session's result is never written into the loaded game.
+  // A run's Promise lives in this session only: a game saved while an event waits loads with
+  // the variable at 0 and stops waiting at once; the earlier session's result is never written in.
   const glue = await bootGlue();
   const { host } = glue;
   g.$gameMap._interpreter.setup(unlock("5"));

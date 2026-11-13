@@ -4,8 +4,8 @@
  *
  * - `load()` reads the store once (the glue calls it when MZ's database and save keys are ready,
  *   see boot.ts). A corrupt document was already kept aside by the store; a document that reads
- *   fine but that the core refuses (a stored tip beyond Decimal's range makes `computeOwnership`
- *   throw Overflow, which `Engine.snapshot()` and so `new Worker()` would throw at start) is kept
+ *   fine but that the core still refuses at start (`new Worker()` throws; not expected, since
+ *   `computeOwnership` skips malformed entries, so this only guards an unforeseen throw) is kept
  *   aside the same way. Either is reported, and the state starts empty. A document that exists
  *   but cannot be read right now, or one that cannot be kept aside, sets `storeError`: nothing is
  *   ever saved this run (payments do not start; the next launch reads it again).

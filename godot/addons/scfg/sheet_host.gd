@@ -11,25 +11,19 @@
 ## have returned.
 ##
 ## Lifetime of the returned Node (the flow holds it weakly):
-##   - freed (free() or queue_free()) without emitting `closed`: counts as "cancel", noticed on the
-##     next frame. It is not handed to close() again.
-##   - taken out of the tree, reparented, or never added to it: still open. Leaving the tree is not
-##     closing, so a host may add the Node later (the default host adds it deferred) or move it.
-##   - the autoload leaves the tree (the game quits) or is freed while the Node is open: the flow
-##     resumes at once; pay() resolves "cancelled" (or the final result the controller already
-##     has) and restore() its result so far ("cancelled" unless a restore finished), and nothing
-##     is delivered (no callback, no `payment_resolved`, no notification), as Ren'Py's
-##     `_shutdown`. The controller's page is stopped, and close(node) is called only for a Node
-##     still in the tree.
+##   - freed without emitting `closed`: counts as "cancel", noticed on the next frame, and not
+##     handed to close().
+##   - taken out of the tree, reparented, or never added to it: still open, so a host may add it
+##     later (the default host adds it deferred).
+##   - the game quits while it is open: pay() / restore() resolve with what they have so far and
+##     nothing is delivered (Ren'Py's `_shutdown`); close(node) is called only for a Node still in
+##     the tree.
 ##
-## The screen only reads the controller's fields and calls its methods (ScfgCheckoutController,
-## ScfgRestoreController); the autoload polls the controller every frame, so the screen never calls
-## `poll()` itself. The screen's buttons that leave the game call the autoload's actions:
-## `Scfg.open_browser(ctl)`, `Scfg.open_wallet_app(ctl)`, `Scfg.open_explorer(url)`,
-## `Scfg.copy(text)` and `Scfg.paste_into(ctl)`.
-##
-## The flows close the controller (stopping its browser page) BEFORE they call `close(node)`, so a
-## screen never outlives the controller's page callbacks by accident.
+## The autoload polls the controller every frame, so the screen only reads its fields and calls its
+## methods, never `poll()`. Buttons that leave the game call `Scfg.open_browser(ctl)`,
+## `Scfg.open_wallet_app(ctl)`, `Scfg.open_explorer(url)`, `Scfg.copy(text)` and
+## `Scfg.paste_into(ctl)`. The flows close the controller (stopping its browser page) before they
+## call `close(node)`.
 ##
 ## This base class is the interface and shows nothing: open_payment() and open_restore() return
 ## null, and pay() / restore() then resolve "failed" with error "sheet.unavailable" (reported with
@@ -57,9 +51,8 @@ func close(node: Node) -> void:
 		node.queue_free()
 
 
-## Show a short message to the player. Already translated. The payment and restore
-## announcements ("Payment confirmed: ...", "Purchases restored.") come only when `Scfg.notify` is
-## true; in a web export the "Couldn't copy: your browser blocked the clipboard." notice comes
-## whatever `Scfg.notify` is, since it answers the player's own Copy press.
+## Show a short, already translated message to the player. Payment and restore announcements
+## come only when `Scfg.notify` is true; the web "Couldn't copy" notice comes regardless, since it
+## answers the player's own Copy press.
 func notify(_text: String) -> void:
 	pass

@@ -1,9 +1,7 @@
 ## QR Code generator: a GDScript port of the vendored Python copy of the Project Nayuki
-## library, scfg_core/_qrcodegen.py (not of upstream v1.8.0). The vendored copy computes the
-## alignment-pattern step with one formula that is right for every version, version 32 (step
-## 26) included, where v1.8.0 special-cases version 32: both give the standard's positions
-## (ISO/IEC 18004 Table E.1). The port is line-for-line where it can be; the GDScript
-## differences are listed below. It produces bit-identical matrices.
+## library, scfg_core/_qrcodegen.py (not of upstream v1.8.0, which special-cases the version 32
+## alignment step; both give the standard's positions). Line-for-line where it can be, and
+## bit-identical; the GDScript differences are listed below.
 ##
 ## Differences from the Python module, none of which changes a result:
 ## - Python's exceptions are ScfgErr values (ValueError, DataTooLongError, a ValueError) from the

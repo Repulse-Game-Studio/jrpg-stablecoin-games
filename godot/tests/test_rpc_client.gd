@@ -1,5 +1,5 @@
-## ScfgRpcClient (rpc.gd): the twin of tests/unit/test_rpc_client.py, plus the strictness on
-## malformed bodies that the JS core found (rpgmaker/src/core/rpc.ts) and the GDScript-only rules (ints
+## ScfgRpcClient (rpc.gd): the twin of tests/unit/test_rpc_client.py, plus the JS core's
+## strictness on malformed bodies (rpgmaker/src/core/rpc.ts) and the GDScript-only rules (ints
 ## never floats in requests, errors as values, coroutines).
 extends RefCounted
 

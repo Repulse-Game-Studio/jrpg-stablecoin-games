@@ -15,12 +15,9 @@ import type { Backend } from "./base.ts";
 import { EvmBackend } from "./evm.ts";
 import { SolanaBackend } from "./solana.ts";
 
-// Import cycle, safe only because backends are created lazily: restore.ts and reverify.ts import
-// backendFor from here, while evm.ts and solana.ts import from restore.ts and reverify.ts. ES
-// modules allow the cycle because no module in it touches another's bindings while it evaluates;
-// they only meet inside function bodies, after every module has loaded. Do NOT create a backend at
-// module top level (`const evm = new EvmBackend()`): with backends/evm.ts imported first, this
-// module would evaluate before evm.ts and hit EvmBackend in its temporal dead zone.
+// Import cycle (restore.ts/reverify.ts -> here -> evm.ts/solana.ts -> restore.ts/reverify.ts), safe
+// only because backends are created lazily. Do NOT create a backend at module top level: with
+// backends/evm.ts imported first, this module evaluates before evm.ts and hits EvmBackend's TDZ.
 let evm: EvmBackend | null = null;
 let solana: SolanaBackend | null = null;
 

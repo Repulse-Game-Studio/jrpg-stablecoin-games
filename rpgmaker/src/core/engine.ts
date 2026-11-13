@@ -284,10 +284,9 @@ export class Engine {
   }
 
   /**
-   * The on_error handed to reverify and restoreLookup, which report as they go: it calls
-   * `on_error` as it is when the error is reported, not as it was when the pass started (the
-   * Godot autoload replaces its handler at quit, with a pass possibly in flight). A handler
-   * unset by then (null, or anything falsy) prints the error, as `on_error || printError` does.
+   * The on_error handed to reverify and restoreLookup: it reads `on_error` at report time, since
+   * the Godot autoload replaces its handler at quit with a pass possibly in flight. A falsy handler
+   * prints the error (`on_error || printError`).
    */
   private _report(e: unknown): void {
     (this.on_error || printError)(e);

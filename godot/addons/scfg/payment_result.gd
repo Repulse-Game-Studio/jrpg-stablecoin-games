@@ -6,8 +6,7 @@
 ## comes later through the callback or `payment_resolved`). `kind` is "unlock" or "tip".
 ## `amount` is the amount actually paid as a decimal String ("4.99"), or null when nothing was
 ## matched on chain. `error` is null, a ConfigError code for a misused pay() (such as
-## "item.unknown": pay() reports it with push_error and resolves "failed" instead of crashing),
-## or the core's reason for a failed payment.
+## "item.unknown"), or the core's reason for a failed payment.
 ## Every other field is a String or null.
 class_name ScfgPaymentResult
 extends RefCounted

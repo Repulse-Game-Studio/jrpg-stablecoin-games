@@ -10,51 +10,39 @@
  * (false, 0); otherwise it calls through with the same `this` and arguments and returns exactly what
  * the function below it returns.
  *
- * HOW IT COMPOSES WITH OTHER PLUGINS. The gate is put on top of whatever is there at that moment,
- * once all plugins have loaded and aliased Input, and it is never taken off: closing the last
- * screen only turns it into a pass-through. Taking it off would mean writing the old functions
- * back, which would throw away an alias another plugin put on top of the gate in the meantime (or
- * leave it calling a gate that is gone). So:
- *   - a plugin's alias below the gate (loaded before the first screen opened) runs whenever the
- *     gate passes through, and the screen reads input through it;
- *   - a plugin's alias above the gate (made later) runs as always and gets the gate's answer from
- *     its call to the original;
- *   - only code that bypasses these functions (reading `Input._currentState` directly, or an alias
- *     above the gate that answers without calling its original) is not blocked.
- * A fresh Input object (a game or a test rebuilding it) gets its own gate on the next acquire().
+ * HOW IT COMPOSES WITH OTHER PLUGINS. The gate goes on top of whatever is there once all plugins
+ * have aliased Input, and is never taken off (closing the last screen makes it a pass-through):
+ * writing the old functions back would drop an alias another plugin put on top of the gate since.
+ * So an alias below the gate runs whenever the gate passes through (the screen reads input through
+ * it), an alias above it gets the gate's answer from its call to the original, and only code that
+ * bypasses these functions (`Input._currentState`, an alias that never calls its original) is not
+ * blocked. A fresh Input object (a game or a test rebuilding it) gets its own gate on the next acquire().
  *
- * THE SCREEN'S READS (`pressed`, `triggered`, `repeated`) call the functions that were below the
- * gate, with the gate opened for the duration (MZ's isTriggered("cancel") asks
- * `this.isTriggered("escape")` itself). A button already held when a screen opens is the game's:
- * the screen ignores it until it is released (the OK that talked to the NPC must not press the
- * sheet's first button). The other way round, a button still held when the last screen closes
- * stays hidden from the game until it is released (the OK that pressed Continue must not talk to
- * the NPC again). `frame()` lets go of released buttons; the host calls it every frame.
+ * THE SCREEN'S READS (`pressed`, `triggered`, `repeated`) call the functions below the gate, with
+ * the gate opened for the duration (MZ's isTriggered("cancel") asks `this.isTriggered("escape")`
+ * itself). A button already held when a screen opens is the game's and is ignored until released
+ * (the OK that talked to the NPC must not press the sheet's first button); a button still held when
+ * the last screen closes stays hidden from the game until released (the OK that pressed Continue
+ * must not talk to the NPC again). `frame()`, called by the host every frame, lets go of released buttons.
  *
- * KEYS IN A TEXT FIELD never reach MZ: `guardHost` stops `keydown`/`keyup` at the shadow host
- * while a field inside it has the focus, so MZ's document listener (`Input._onKeyDown`) neither
- * calls preventDefault on Backspace and the arrows nor turns letters a game mapped (WASD) into
- * directions. A keyup is stopped only when the keydown of that key was (wherever the focus is by
- * then) and nothing made that moot since: the key released outside the host (MZ saw that release),
- * the window losing the focus (the release may never reach the page; MZ clears its own keys then)
- * or the screens' input session ending (the last screen closed, or a new one began). So MZ sees
- * every release of a key it saw go down: an arrow held into a field, the OK still held when the
- * screen opened, or a key held in a field while the sheet was closed by mouse never stays stuck
- * in MZ's Input. An auto-repeat in a field is stopped but never claims its key's release: that
- * key went down outside the field, so MZ saw it go down.
+ * KEYS IN A TEXT FIELD never reach MZ: `guardHost` stops `keydown`/`keyup` at the shadow host while
+ * a field inside it has the focus, so MZ's `Input._onKeyDown` neither calls preventDefault on
+ * Backspace and the arrows nor turns mapped letters (WASD) into directions. A keyup is stopped only
+ * when its keydown was, unless that became moot: the key released outside the host, the window
+ * blurred (MZ clears its keys then), or the screens' input session ended. So MZ sees every release
+ * of a key it saw go down, and no key stays stuck in MZ's Input. An auto-repeat in a field is stopped
+ * but never claims its key's release (the key went down outside the field, so MZ saw it).
  * Elsewhere on a screen the keys do reach MZ (the screen reads them through Input, as the gamepad),
- * and Enter and Space do not also press the focused button by the browser's default. Mouse,
- * touch and wheel events on the screens are stopped at the host too, so TouchInput never sees a
- * click that pressed a button (nor calls preventDefault on the sheet's scrolling). The one
- * exception is a mouse release (mouseup, pointerup) while MZ's TouchInput holds a press it saw on
- * the canvas before the screen opened under it: MZ gets that release, or it would stay pressed
- * after the screen closed (the player walking toward the pointer). A mouse release goes to the
- * element under the pointer, so a press MZ saw can end over the host. A touch cannot: the browser
- * sends touchend and touchcancel to the element the touch started on, so a touch release at the
- * host is always one of a touch that began there, which MZ never saw (the release of a touch MZ
- * saw goes to the canvas, past the host). Those stay stopped, like every release of a press MZ
- * never saw: MZ would count it as a click once the screen closed, and a menu window under the
- * sheet (the Tip Jar's) would run the command under the pointer.
+ * and Enter and Space do not also press the focused button by the browser's default.
+ *
+ * POINTER EVENTS on the screens are stopped at the host, so TouchInput never sees a click that
+ * pressed a button (nor calls preventDefault on the sheet's scrolling). The exception is a mouse
+ * release (mouseup, pointerup) while TouchInput holds a press it saw on the canvas before the screen
+ * opened: MZ gets it, or the press stays held after the screen closes (the player walks toward the
+ * pointer). A mouse release goes to the element under the pointer, but touchend/touchcancel go to
+ * the element the touch started on, so a touch release at the host is always of a touch MZ never
+ * saw. Those stay stopped, like every release of a press MZ never saw: MZ would count it as a click
+ * once the screen closed (a menu window under the sheet would run the command under the pointer).
  */
 
 const INPUT_QUERIES = ["isPressed", "isTriggered", "isRepeated", "isLongPressed"] as const;
@@ -429,8 +417,7 @@ export function guardHost(
     if (e.keyCode === ENTER || e.keyCode === SPACE) e.preventDefault();
   };
   const onKeyUp = (e: KeyboardEvent) => {
-    // only the releases of keys whose keydown was kept from MZ: any other release is MZ's, or its
-    // key would stay held (an arrow that moved the focus into a field, the OK that opened the screen)
+    // only releases whose keydown was kept from MZ: any other is MZ's, or its key would stay held
     if (claims.release(e)) {
       e.stopPropagation();
       return;
@@ -455,14 +442,12 @@ export function guardHost(
 }
 
 /**
- * The web checkout overlay's host (the element bridge.js adds over the game): everything typed
- * into it is the overlay's, so its keys are stopped there (MZ would preventDefault Tab and the
- * arrows, and its "ok" would press the payment sheet's focused button under the overlay), with
- * their releases as in `guardHost`; so are its pointer events but the mouse releases (MZ's wheel
- * handler would keep the overlay from scrolling, its touchstart from being tapped; a touch's own
- * release at the overlay is of a touch that began there, see the header). The host is marked
- * with OVERLAY_ATTR (see `overlayHasFocus`): bridge.js tags it with its key, which is kept; a host
- * without it is marked here and unmarked again. Returns the function that removes the listeners.
+ * The web checkout overlay's host (the element bridge.js adds over the game): its keys are stopped
+ * there (MZ would preventDefault Tab and the arrows, and its "ok" would press the sheet's focused
+ * button under the overlay), with their releases as in `guardHost`; so are its pointer events but
+ * the mouse releases (MZ's wheel and touchstart handlers would block scrolling and tapping). The
+ * host is marked with OVERLAY_ATTR (see `overlayHasFocus`); a host bridge.js did not already tag is
+ * marked here and unmarked again. Returns the function that removes the listeners.
  */
 export function guardOverlay(host: HTMLElement): () => void {
   const marked = typeof host.hasAttribute === "function" && host.hasAttribute(OVERLAY_ATTR);

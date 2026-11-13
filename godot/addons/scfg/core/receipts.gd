@@ -80,16 +80,14 @@ static func remove_receipt(store: Dictionary, key: Variant) -> void:
 	store.erase(key)
 
 
-## [owned item ids, total tipped]: `owned` is Python's set as an Array, sorted; the tip total is
-## an ScfgDec (a Python Decimal sum: it keeps the widest exponent of the amounts, and no tips is
-## `Decimal(0)`). `items` maps item_id to an Item Dictionary (ScfgModels.make_item).
+## [owned item ids, total tipped]: `owned` is Python's set as a sorted Array; the tip total is an
+## ScfgDec (a Python Decimal sum: it keeps the widest exponent, and no tips is `Decimal(0)`).
+## `items` maps item_id to an Item Dictionary (ScfgModels.make_item).
 ##
 ## Malformed entries are skipped, never fatal, as Python's
-## `except (KeyError, TypeError, ValueError, AttributeError)` skips them: a record that is not a
-## dict, a missing kind or amount, an amount that is not a number within the stored-amount range
-## (ScfgAmounts.stored_amount, so the tip total stays finite) and an unhashable item (a list or
-## dict). An Item whose min_price is not an ScfgDec is a TypeError, as Python's comparison
-## raises outside that `try`.
+## `except (KeyError, TypeError, ValueError, AttributeError)` skips them (an amount outside the
+## stored-amount range included, so the tip total stays finite). An Item whose min_price is not
+## an ScfgDec is a TypeError, as Python's comparison raises outside that `try`.
 ## @fallible
 static func compute_ownership(store: Dictionary, items: Dictionary) -> Variant:
 	var owned := {}

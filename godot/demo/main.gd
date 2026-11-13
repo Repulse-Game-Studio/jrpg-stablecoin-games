@@ -139,10 +139,8 @@ func _on_restore() -> void:
 
 
 func _on_payment_resolved(result: ScfgPaymentResult) -> void:
-	# Every result without a pay() callback lands here: one that arrives later (a payment kept in
-	# the background, or one confirmed after a restart), and also the paid or cancelled result of a
-	# pay() still awaited above, before that await returns it. So this handler is idempotent: it
-	# only refreshes from owns() and sets a status text, which the awaiting code then replaces.
+	# Every result without a pay() callback lands here, including the result of a pay() still
+	# awaited above (before the await returns it), so this handler must be idempotent.
 	if result.status == "paid":
 		_refresh()
 		_status.text = "Payment confirmed. Thank you!"

@@ -9,10 +9,9 @@
 ##     Future.exception() raises one in Python, so ported poll() code lands in its failure branch.
 ## result() of a job that is not done is a RuntimeError ScfgErr and exception() is null.
 ##
-## WAITING. `await job.finished` never resumes on a job that is already done (the signal has fired
-## and is gone), so code that may meet a finished job awaits `job.wait()` instead: a coroutine that
-## returns at once, without suspending, for a done job and otherwise resumes when it finishes, with
-## result() either way (the value, or the failure / CancelledError ScfgErr).
+## WAITING. `await job.finished` never resumes on a job that is already done (the signal has
+## fired), so code that may meet a finished job awaits `job.wait()` instead: it returns result()
+## at once for a done job, else when the job finishes.
 class_name ScfgJob
 extends RefCounted
 
