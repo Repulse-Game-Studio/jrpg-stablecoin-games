@@ -184,7 +184,7 @@ def test_rpgmaker_zip_has_the_plugin_and_img_scfg_at_its_root(tmp_path, fake_plu
 
 def test_rpgmaker_zip_refuses_a_plugin_version_that_differs_from_the_core(tmp_path, fake_plugin, monkeypatch):
     monkeypatch.setattr(package, "__version__", "9.9.9")
-    with pytest.raises(ValueError, match="0.1.4|!= scfg_core 9.9.9"):
+    with pytest.raises(ValueError, match="0.2.0|!= scfg_core 9.9.9"):
         package.build_rpgmaker_zip(tmp_path / "dist", plugin=fake_plugin)
     assert not (tmp_path / "dist" / "scfg-rpgmaker-mz-9.9.9.zip").exists()
 
