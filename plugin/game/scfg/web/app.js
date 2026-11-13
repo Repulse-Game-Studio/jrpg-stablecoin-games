@@ -7,10 +7,38 @@
 //    talking to the game through an in-page message queue.
 // It shows what is being paid, polls the game for the payment's status, and hands the
 // wallet part to the module for the session's chain family (evm.js, solana.js).
+// Nothing a wallet extension does may throw out of the page: in the game's own page an
+// uncaught error or unhandled rejection can stop the game (RPG Maker MZ does).
 // No libraries, no build step.
 "use strict";
 
 (function () {
+  // What a thrown value says, for the status line. Never throws, whatever a wallet threw
+  // (null, a null-prototype object, a hostile toString, getters that throw).
+  function errorText(err) {
+    try {
+      const message = err && err.message;
+      if (message && typeof message !== "object" && typeof message !== "function") {
+        return String(message);
+      }
+    } catch (e) { /* a getter that throws */ }
+    try {
+      return String(err);
+    } catch (e) {
+      return "unknown error";
+    }
+  }
+
+  // value[name] for an object a wallet handed over; undefined if there is none or it throws.
+  function field(value, name) {
+    try {
+      return value !== null && (typeof value === "object" || typeof value === "function")
+        ? value[name] : undefined;
+    } catch (err) {
+      return undefined;
+    }
+  }
+
   function formatUnits(value, decimals) {
     const s = value.toString().padStart(decimals + 1, "0");
     return s.slice(0, -decimals) + "." + s.slice(-decimals);
@@ -209,13 +237,17 @@
         setStatus("This checkout page can't pay on " + session.chain_name + ".", "bad");
         return;
       }
-      Object.assign(ctx, { session, $, setStatus, formatUnits, postJSON: channel.post, markSent,
-        markUnreported, isSent, onRetry: null });
+      Object.assign(ctx, { session, $, setStatus, formatUnits, errorText, field,
+        postJSON: channel.post, markSent, markUnreported, isSent, onRetry: null });
       family.start(ctx);
       pollStatus();
     }
 
-    begin();
+    begin().catch((err) => {
+      try {
+        setStatus("Wallet error: " + errorText(err), "bad");
+      } catch (e) { /* the page is gone */ }
+    });
     return { stop() { stopped = true; } };
   }
 

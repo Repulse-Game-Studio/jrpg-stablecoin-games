@@ -25,6 +25,7 @@ from collections.abc import Callable
 from concurrent.futures import Future
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from .ints import int_from
 from .page_messages import BUILD_TIMEOUT_S, parse_build_message, parse_tx_message
 
 MAX_BODY = 4096
@@ -87,13 +88,18 @@ def _make_handler(server: CheckoutServer):
         def log_message(self, format, *args):  # keep the game's console quiet
             pass
 
+        def end_headers(self):
+            # Every answer carries these, also the ones http.server makes itself with
+            # send_error (501 for other methods, 400 for a bad request line, ...).
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            super().end_headers()
+
         def _send(self, code: int, body: bytes = b"", ctype: str = "text/plain; charset=utf-8"):
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Referrer-Policy", "no-referrer")
-            self.send_header("X-Content-Type-Options", "nosniff")
             self.end_headers()
             if self.command != "HEAD":
                 self.wfile.write(body)
@@ -146,7 +152,7 @@ def _make_handler(server: CheckoutServer):
         def _read_json(self) -> dict | None:
             """The request's JSON object, or None after answering 400/413."""
             try:
-                length = int(self.headers.get("Content-Length", "0"))
+                length = int_from(self.headers.get("Content-Length", "0"))
             except ValueError:
                 length = -1
             if not 0 < length <= MAX_BODY:

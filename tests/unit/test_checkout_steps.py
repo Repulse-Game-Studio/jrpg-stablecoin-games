@@ -126,6 +126,15 @@ def test_ive_sent_it_moves_qr_and_manual_to_waiting():
         assert ctl.step == "waiting" and ctl.can_go_back is True
 
 
+def test_ive_sent_it_clears_a_bad_hash_error():
+    ctl, *_ = on_method_step()
+    ctl.choose_method("manual")
+    ctl.submit_hash("garbage")
+    assert ctl.error == "invalid_hash"
+    ctl.mark_sent()
+    assert ctl.step == "waiting" and ctl.error is None
+
+
 def test_tip_amount_step_applies_a_typed_amount():
     ctl, *_ = setup(kind="tip")
     ctl.custom_amount = "0.10"
@@ -134,6 +143,20 @@ def test_tip_amount_step_applies_a_typed_amount():
     ctl.custom_amount = "7.50"
     assert ctl.next_step() is True
     assert ctl.step == "network" and str(ctl.amount) == "7.50"
+
+
+def test_a_typed_amount_is_stripped_as_str_strip_does():
+    """The typed amount is read through str.strip(): \\x85 and \\x1c are whitespace (an amount
+    of only those is no amount), U+FEFF is not (the amount is invalid)."""
+    ctl, *_ = setup(kind="tip")
+    ctl.custom_amount = "\x85\x1c"
+    assert ctl.next_step() is True and ctl.step == "network"
+    ctl, *_ = setup(kind="tip")
+    ctl.custom_amount = "\ufeff7.50"
+    assert ctl.next_step() is False and ctl.error == "invalid_amount"
+    assert ctl.apply_custom_amount() is False
+    ctl.custom_amount = "\x857.50\x1c"
+    assert ctl.apply_custom_amount() is True and str(ctl.amount) == "7.50"
 
 
 # --- skipping single-option steps -------------------------------------------------------

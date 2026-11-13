@@ -70,18 +70,28 @@ dev = [
 package = false
 
 [tool.pytest.ini_options]
-pythonpath = ["plugin/game/python-packages", "installer"]
-testpaths = ["tests"]
+pythonpath = ["plugin/game/python-packages", "installer", "conformance/python"]
+# tests/server_security runs in the default run: its Python third always, its Godot third (marker
+# godot_server) when SCFG_GODOT names a Godot 4.3+ binary (skipped otherwise; SCFG_REQUIRE_GD=1
+# makes that a failure). Its Node third (marker node_server) and tests/rpgmaker_ui (marker
+# rpgmaker_ui) need Node 22.18+ and rpgmaker/node_modules: the default run deselects them. Naming
+# their directory on the command line, or SCFG_REQUIRE_JS=1, selects them again (unless -m is given
+# on the command line). CI: unit runs the default (the Python third); godot-core runs
+# `-m godot_server` per Godot version; rpgmaker-ui runs tests/rpgmaker_ui and `-m node_server` once.
+testpaths = ["tests", "conformance/tests"]
 markers = [
     "integration: needs a local Anvil node (Foundry); run with -m integration",
     "live: reads real public chains (read-only, no key); run with -m live",
+    "rpgmaker_ui: the RPG Maker sheet in headless Chrome (needs Node and rpgmaker/node_modules); run with -m rpgmaker_ui",
+    "node_server: the Node third of tests/server_security (needs Node and rpgmaker/node_modules); run with -m node_server",
+    "godot_server: the Godot third of tests/server_security (needs SCFG_GODOT); run alone with -m godot_server",
 ]
-addopts = "-m 'not integration and not live'"
+addopts = "-m 'not integration and not live and not rpgmaker_ui and not node_server'"
 
 [tool.ruff]
 target-version = "py39"
 line-length = 100
-src = ["plugin/game/python-packages", "installer", "tests"]
+src = ["plugin/game/python-packages", "installer", "tests", "conformance/python"]
 extend-exclude = [  # vendored third-party code, kept identical to upstream
     "plugin/game/python-packages/scfg_core/_xkcp.py",
     "plugin/game/python-packages/scfg_core/_qrcodegen.py",
@@ -94,6 +104,6 @@ select = ["E", "F", "W", "I", "B", "UP"]
 "tests/**" = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["scfg_core"]
+known-first-party = ["scfg_core", "scfg_conformance"]
 known-local-folder = ["fakes", "mock_token", "conftest", "solana_local", "browser_mocks",
-                      "test_browser_checkout"]
+                      "test_browser_checkout", "server_handles"]

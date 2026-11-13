@@ -1,0 +1,25 @@
+<!doctype html>
+<!--
+  TEST ONLY: the page the sheet tests (tests/rpgmaker_ui) drive. Like index.html, but instead of the
+  built SCFG.js it loads dist/test/ui_driver.js: the same glue sources with fake chains behind the
+  Engine and a Worker stepped by the test (window.scfgTest). Add ?test for a test play.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SCFG MZ sheet harness</title>
+  <link rel="icon" href="data:,">
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+    #gameCanvas { position: absolute; inset: 0; margin: auto; background: #1b2230; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="816" height="624"></canvas>
+  <script src="plugins.js"></script>
+  <script src="../../dist/test/shim.js"></script>
+  <script src="../../dist/test/ui_driver.js"></script>
+  <script src="../../dist/test/harness.js"></script>
+</body>
+</html>

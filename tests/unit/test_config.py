@@ -103,7 +103,9 @@ def test_rpc_url_string_is_accepted():
     assert enabled_chains(c)["base"].rpc[0] == "https://one.rpc"
 
 
-@pytest.mark.parametrize("urls", [{"tron": ["https://x"]}, {"base": ["http://insecure"]}])
+@pytest.mark.parametrize("urls", [{"tron": ["https://x"]}, {"base": ["http://insecure"]},
+                                  {"base": ["http://127.0.0.1:8545\n"]},   # full match
+                                  {"base": ["http://localhost\n"]}])
 def test_bad_rpc_urls(urls):
     with pytest.raises(ConfigError):
         cfg(rpc_urls=urls)
@@ -176,6 +178,7 @@ def test_add_item_min_price():
     dict(token="DAI"),
     dict(title=""),
     dict(title="x" * 81),
+    dict(item_id="chapter2\n"),   # full match: no trailing newline
 ])
 def test_add_item_rejects(kwargs):
     args = dict(item_id="chapter2", code=1, price="4.99", token="USDC", title="Chapter 2")
@@ -233,7 +236,8 @@ def test_accent_is_normalized(value, expected):
     assert cfg(accent=value).accent == expected
 
 
-@pytest.mark.parametrize("value", ["0099cc", "#0099c", "#gggggg", "teal", 0x0099CC, "#0099cc80 "])
+@pytest.mark.parametrize("value", ["0099cc", "#0099c", "#gggggg", "teal", 0x0099CC, "#0099cc80 ",
+                                   "#0099cc\n", "#09c\n"])
 def test_bad_accent(value):
     with pytest.raises(ConfigError):
         cfg(accent=value)

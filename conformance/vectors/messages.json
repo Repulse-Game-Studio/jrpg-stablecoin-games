@@ -1,0 +1,15 @@
+{
+ "messages": {
+  "browser_unavailable": "Couldn't start the browser checkout. Use another method.",
+  "internal_error": "Something went wrong while checking the payment. Retrying...",
+  "invalid_amount": "Enter an amount of at least 0.50 with up to 2 decimals.",
+  "invalid_hash": "That doesn't look like a transaction hash or signature.",
+  "network_unavailable": "Can't reach the network. Retrying...",
+  "paste_blocked": "Your browser blocked pasting. Type it instead: the game also finds the payment without it.",
+  "solana_unavailable": "Payments on Solana aren't available right now.",
+  "start_failed": "Couldn't start the payment. Check your connection and try again.",
+  "tx_not_a_payment": "That transaction isn't a payment for this purchase.",
+  "tx_not_landed": "That transaction didn't reach the network. You can pay again.",
+  "tx_reverted": "That transaction failed on-chain; no funds were sent."
+ }
+}

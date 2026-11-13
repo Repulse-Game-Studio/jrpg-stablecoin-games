@@ -1,6 +1,8 @@
-"""Build the drop-in release zip: dist/scfg-renpy-<version>.zip
+"""Build the drop-in release zips: dist/scfg-renpy-<version>.zip (default),
+dist/scfg-godot-<version>.zip (--engine godot) and dist/scfg-rpgmaker-mz-<version>.zip
+(--engine rpgmaker).
 
-The zip mirrors a Ren'Py project, so developers unzip it straight into their
+The Ren'Py zip mirrors a Ren'Py project, so developers unzip it straight into their
 project folder:
 
     game/scfg/...                      (.rpy files + browser checkout page)
@@ -8,14 +10,41 @@ project folder:
     scfg-README.md                     (developer guide, joined from docs/developers/)
     scfg-LICENSE.txt                   (MIT license)
 
-Usage: uv run python tools/package.py
+The Godot zip holds one folder, scfg-godot-<version>/, with the addon inside it:
+
+    scfg-godot-<version>/addons/scfg/
+        ...                            (the addon: autoload, sheet, core, checkout page)
+        README.md                      (Godot developer guide, joined from docs/developers/godot/)
+        LICENSE                        (MIT license)
+        NOTICES.txt                    (notices of the third-party code the addon ports)
+
+That is the layout the Godot Asset Library and Asset Store install from (the editor's AssetLib
+tab, or its Import button for a local zip). The editor strips a single top-level folder, so the
+addon lands in res://addons/scfg/, which six files hardcode. The wrapper is needed: when
+addons/ is the only top-level entry, Godot 4.3 to 4.6 strip it as well and install to
+res://scfg/. The license, guide and notices sit inside addons/scfg/ so nothing lands in the
+project root.
+
+The RPG Maker MZ zip unzips into an MZ project folder:
+
+    js/plugins/SCFG.js                 (the whole plugin, built by `npm run build` in rpgmaker/)
+    img/scfg/README.txt                (where the logo goes)
+    scfg-README.md                     (RPG Maker guide, joined from docs/developers/rpgmaker/)
+    scfg-LICENSE.txt                   (MIT license)
+    scfg-NOTICES.txt                   (notices of the third-party code SCFG.js carries)
+
+Usage: uv run python tools/package.py [--engine renpy|godot|rpgmaker]
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
@@ -29,6 +58,25 @@ SKIP_SUFFIXES = {".rpyc", ".rpymc", ".pyc"}
 DOCS = ROOT / "docs"
 SIDEBARS = ROOT / "website" / "sidebars.json"
 GUIDE_TITLE = "# Stablecoin for Games: Developer Guide"
+GODOT_GUIDE_TITLE = "# Stablecoin for Games: Godot Developer Guide"
+GODOT_PAGES = "developers/godot/"
+GODOT_ADDON = ROOT / "godot" / "addons" / "scfg"
+GODOT_SKIP_PARTS = {"__pycache__", ".godot", "tests", "demo", "e2e"}
+GODOT_SKIP_SUFFIXES = {".uid", ".pyc"}
+RPGMAKER_PAGES = "developers/rpgmaker/"
+RPGMAKER_GUIDE_TITLE = "# Stablecoin for Games: RPG Maker MZ Developer Guide"
+RPGMAKER_DIR = ROOT / "rpgmaker"
+RPGMAKER_VERSION_SOURCE = RPGMAKER_DIR / "src" / "mz" / "version.ts"
+RPGMAKER_VENDORED_QR = RPGMAKER_DIR / "src" / "core" / "vendor" / "qrcodegen.js"
+RPGMAKER_LOGO_NOTE = """Put your logo here
+==================
+
+Copy your logo (a png, jpg or webp file) into this folder, for example img/scfg/logo.png.
+Then, in the Plugin Manager, set SCFG's Logo parameter to that file. It is shown on the
+payment sheet and on the browser checkout page.
+
+Leave the Logo parameter empty if you have no logo; this folder can then stay as it is.
+"""
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 
 
@@ -50,22 +98,31 @@ def sidebar_pages(items, level=1):
         yield from sidebar_pages(item.get("items", []), level + 1)
 
 
-def developer_guide():
-    """Join the docs/developers/ pages, in website/sidebars.json order, into one file.
+def developer_guide(
+    prefix="developers/", skip=(GODOT_PAGES, RPGMAKER_PAGES), title=GUIDE_TITLE, intro=True
+):
+    """Join the docs pages under `prefix` (minus those under `skip`), in website/sidebars.json
+    order, into one file.
 
     Each page's headings move down one level, plus one per level of nesting in the
     sidebar, and links between pages become anchors in the joined file. A link to a
-    page outside docs/developers/ fails.
+    page outside the joined ones fails. With `intro`, the first page is the guide's intro
+    (its title line is replaced by `title`); without, every page is a section under `title`.
     """
     sidebar = json.loads(SIDEBARS.read_text(encoding="utf-8"))["docs"]
-    depth = {p: level for p, level in sidebar_pages(sidebar) if p.startswith("developers/")}
+    depth = {
+        p: level
+        for p, level in sidebar_pages(sidebar)
+        if p.startswith(prefix) and not p.startswith(tuple(skip))
+    }
     pages = list(depth)
     # The first page is the guide's intro and the rest sit under it; count levels from them.
-    base = min((depth[p] for p in pages[1:]), default=1) - 1
+    base = min((depth[p] for p in (pages[1:] if intro else pages)), default=1) - 1
     depth = {p: max(1, level - base) for p, level in depth.items()}
     texts = {p: (DOCS / p).read_text(encoding="utf-8") for p in pages}
     tops = {p: "#" + slug(texts[p].splitlines()[0]) for p in pages}
-    tops[pages[0]] = "#" + slug(GUIDE_TITLE)
+    if intro:
+        tops[pages[0]] = "#" + slug(title)
 
     def relink(page, match):
         target = match.group(1)
@@ -79,10 +136,10 @@ def developer_guide():
             raise ValueError(f"{page}: link to {target} leaves the developer guide")
         return "](" + ("#" + anchor if anchor else tops[resolved]) + ")"
 
-    out = [GUIDE_TITLE]
+    out = [title]
     for page in pages:
         lines = texts[page].rstrip("\n").split("\n")
-        if page == pages[0]:
+        if intro and page == pages[0]:
             lines = lines[1:]
         fence = False
         for line in lines:
@@ -106,8 +163,189 @@ def files_to_ship():
     yield ROOT / "LICENSE", "scfg-LICENSE.txt"
 
 
-def main() -> int:
-    dist = ROOT / "dist"
+def godot_guide():
+    """The Godot developer guide (docs/developers/godot/), joined like the Ren'Py one: its
+    README (the sidebar category's landing page) is the intro, the other pages sections."""
+    return developer_guide(GODOT_PAGES, (), GODOT_GUIDE_TITLE, intro=True)
+
+
+def godot_notices():
+    """The notices of the code the addon vendors or ports, for addons/scfg/NOTICES.txt.
+
+    The Nayuki notice is read from qrcodegen.gd, where the port keeps it, so the two cannot drift.
+    """
+    lines = (GODOT_ADDON / "core" / "qrcodegen.gd").read_text(encoding="utf-8").splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith("## The original notice"))
+    end = next(i for i, line in enumerate(lines) if not line.startswith("##"))
+    qr = "\n".join(line[3:] if line.startswith("## ") else "" for line in lines[start + 2 : end])
+    return (
+        "Third-party code in addons/scfg\n"
+        "===============================\n\n"
+        "QR Code generator (addons/scfg/core/qrcodegen.gd)\n"
+        "-------------------------------------------------\n"
+        "A GDScript port of Project Nayuki's QR Code generator library (Python). The original\n"
+        "notice follows.\n\n"
+        f"{qr.strip()}\n\n"
+        "Keccak-256 (addons/scfg/core/keccak.gd)\n"
+        "---------------------------------------\n"
+        "A GDScript port of XKCP's CompactFIPS202 sponge (Gilles Van Assche, https://keccak.team/).\n"
+        "To the extent possible under law, the implementer has waived all copyright and related\n"
+        "or neighboring rights to the source code (CC0,\n"
+        "http://creativecommons.org/publicdomain/zero/1.0/).\n"
+    )
+
+
+GODOT_ADDON_DIR = "addons/scfg/"
+
+
+def godot_zip_root():
+    """The Godot zip's single top-level folder (see the module docstring)."""
+    return f"scfg-godot-{__version__}/"
+
+
+def godot_files_to_ship():
+    """(path, name) for the Godot zip's files, relative to its top-level folder: addons/scfg/,
+    with the LICENSE inside it.
+
+    The tests, the demo and its e2e driver live outside addons/scfg; the editor cache and the
+    *.uid files Godot 4.4+ regenerates are left out of it.
+    """
+    for path in sorted(GODOT_ADDON.rglob("*")):
+        rel = path.relative_to(GODOT_ADDON)
+        if path.is_dir() or GODOT_SKIP_PARTS & set(rel.parts) or path.suffix in GODOT_SKIP_SUFFIXES:
+            continue
+        yield path, GODOT_ADDON_DIR + rel.as_posix()
+    yield ROOT / "LICENSE", GODOT_ADDON_DIR + "LICENSE"
+
+
+def godot_addon_version():
+    text = (GODOT_ADDON / "plugin.cfg").read_text(encoding="utf-8")
+    return re.search(r'^version="([^"]+)"', text, re.M).group(1)
+
+
+def build_godot_zip(dist):
+    addon_version = godot_addon_version()
+    if addon_version != __version__:
+        raise ValueError(f"plugin.cfg version {addon_version} != scfg_core {__version__}")
+    dist.mkdir(exist_ok=True)
+    target = dist / f"scfg-godot-{__version__}.zip"
+    top = godot_zip_root()
+    generated = {GODOT_ADDON_DIR + "README.md": godot_guide(),
+                 GODOT_ADDON_DIR + "NOTICES.txt": godot_notices()}
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
+        for path, name in godot_files_to_ship():
+            if name in generated:
+                raise ValueError(f"{path} would be overwritten by the generated {name}")
+            zf.write(path, top + name)
+            print(f"  {top + name}")
+        for name, text in generated.items():
+            zf.writestr(top + name, text)
+            print(f"  {top + name}")
+    return target
+
+
+def rpgmaker_guide():
+    """The RPG Maker MZ developer guide (docs/developers/rpgmaker/), joined like the Godot one:
+    its README (the sidebar category's landing page) is the intro, the other pages sections."""
+    return developer_guide(RPGMAKER_PAGES, (), RPGMAKER_GUIDE_TITLE, intro=True)
+
+
+def rpgmaker_plugin_version():
+    """The version SCFG.js reports (`SCFG.version`): the VERSION constant of src/mz/version.ts.
+
+    The plugin header shows it too (see `rpgmaker_header_problems`).
+    """
+    text = RPGMAKER_VERSION_SOURCE.read_text(encoding="utf-8")
+    return re.search(r'^export const VERSION = "([^"]+)"', text, re.M).group(1)
+
+
+def rpgmaker_header_problems(plugin_text, version):
+    """What is wrong with the version the plugin header of `plugin_text` (a built SCFG.js) shows:
+    [] when its `/*:` block (the one MZ's Plugin Manager reads, at the top of the file) has
+    `@plugindesc ... v<version>` and a first `@help` line ending in `v<version>.`. MZ has no
+    version annotation, so those two lines are where the editor shows it."""
+    m = re.match(r"/\*:\n(.*?)\*/", plugin_text, re.S)
+    if m is None:
+        return ["the plugin header (a /*: block at the start of SCFG.js) is missing"]
+    lines = [re.sub(r"^ \* ?", "", line) for line in m.group(1).splitlines()]
+    problems = []
+    desc = [line for line in lines if line.startswith("@plugindesc ")]
+    if len(desc) != 1 or not desc[0].endswith(f" v{version}"):
+        problems.append(f"the plugin header's @plugindesc does not end with v{version}: {desc}")
+    after = lines[lines.index("@help") + 1:] if "@help" in lines else []
+    first = after[0] if after else None
+    if first is None or not first.endswith(f", v{version}."):
+        problems.append(f"the plugin header's first @help line does not show v{version}: {first!r}")
+    return problems
+
+
+def rpgmaker_notices():
+    """The notices of the code SCFG.js vendors or ports, for scfg-NOTICES.txt.
+
+    The Nayuki notice is read from the vendored qrcodegen.js, where it is kept unmodified, so
+    the two cannot drift.
+    """
+    text = RPGMAKER_VENDORED_QR.read_text(encoding="utf-8")
+    block = text[text.index("/*") + 2 : text.index("*/")]
+    qr = "\n".join(line.strip().removeprefix("*").strip() for line in block.splitlines())
+    qr = re.sub(r"\n{3,}", "\n\n", qr).strip()
+    return (
+        "Third-party code in js/plugins/SCFG.js\n"
+        "======================================\n\n"
+        "QR Code generator\n"
+        "-----------------\n"
+        "Project Nayuki's QR Code generator library (TypeScript), compiled to JavaScript and\n"
+        "included unmodified. The original notice follows.\n\n"
+        f"{qr}\n\n"
+        "Keccak-256\n"
+        "----------\n"
+        "A TypeScript port of the Keccak team's compact reference sponge (XKCP's CompactFIPS202,\n"
+        "Gilles Van Assche, https://keccak.team/). To the extent possible under law, the\n"
+        "implementer has waived all copyright and related or neighboring rights to the source\n"
+        "code (CC0, http://creativecommons.org/publicdomain/zero/1.0/).\n"
+    )
+
+
+def build_rpgmaker_plugin(outdir):
+    """Run `npm run build` in rpgmaker/ into `outdir` (after `npm ci`); the plugin file."""
+    npm = shutil.which("npm")
+    if npm is None:
+        raise RuntimeError("npm not found: SCFG.js is built with Node (cd rpgmaker && npm ci)")
+    if not (RPGMAKER_DIR / "node_modules" / "esbuild").exists():
+        raise RuntimeError("rpgmaker/node_modules is missing: run `cd rpgmaker && npm ci` first")
+    command = [npm, "run", "build", "--", "--outdir", str(outdir)]
+    subprocess.run(command, cwd=RPGMAKER_DIR, check=True)
+    return Path(outdir) / "js" / "plugins" / "SCFG.js"
+
+
+def build_rpgmaker_zip(dist, plugin=None):
+    """dist/scfg-rpgmaker-mz-<version>.zip. `plugin` is a built SCFG.js (default: build one)."""
+    plugin_version = rpgmaker_plugin_version()
+    if plugin_version != __version__:
+        raise ValueError(f"SCFG.js version {plugin_version} != scfg_core {__version__}")
+    with tempfile.TemporaryDirectory(prefix="scfg-rpgmaker-") as tmp:
+        if plugin is None:
+            plugin = build_rpgmaker_plugin(tmp)
+        problems = rpgmaker_header_problems(Path(plugin).read_text(encoding="utf-8"), __version__)
+        if problems:
+            raise ValueError("SCFG.js: " + "; ".join(problems))
+        dist.mkdir(parents=True, exist_ok=True)
+        target = dist / f"scfg-rpgmaker-mz-{__version__}.zip"
+        with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.write(plugin, "js/plugins/SCFG.js")
+            print("  js/plugins/SCFG.js")
+            zf.writestr("img/scfg/README.txt", RPGMAKER_LOGO_NOTE)
+            print("  img/scfg/README.txt")
+            zf.write(ROOT / "LICENSE", "scfg-LICENSE.txt")
+            print("  scfg-LICENSE.txt")
+            zf.writestr("scfg-README.md", rpgmaker_guide())
+            print("  scfg-README.md")
+            zf.writestr("scfg-NOTICES.txt", rpgmaker_notices())
+            print("  scfg-NOTICES.txt")
+    return target
+
+
+def build_renpy_zip(dist):
     dist.mkdir(exist_ok=True)
     target = dist / f"scfg-renpy-{__version__}.zip"
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -116,7 +354,17 @@ def main() -> int:
             print(f"  {arcname}")
         zf.writestr("scfg-README.md", developer_guide())
         print("  scfg-README.md")
-    print(f"wrote {target}")
+    return target
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description="Build a release zip into dist/.")
+    parser.add_argument("--engine", choices=("renpy", "godot", "rpgmaker"), default="renpy")
+    args = parser.parse_args(argv)
+    dist = ROOT / "dist"
+    builders = {"renpy": build_renpy_zip, "godot": build_godot_zip, "rpgmaker": build_rpgmaker_zip}
+    build = builders[args.engine]
+    print(f"wrote {build(dist)}")
     return 0
 
 

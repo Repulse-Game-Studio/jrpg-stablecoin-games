@@ -58,7 +58,9 @@ module.exports = {
       logo: {alt: "Stablecoin for Games", src: "img/logo.svg", width: 32, height: 32},
       items: [
         {to: "/players/paying", label: "Players", position: "left"},
-        {to: "/developers", label: "Developers", position: "left"},
+        {to: "/developers", label: "Ren'Py", position: "left"},
+        {to: "/developers/godot", label: "Godot", position: "left"},
+        {to: "/developers/rpgmaker", label: "RPG Maker MZ", position: "left"},
         {href: "https://jrpg.com/stablecoinforgames/", label: "Website", position: "right"},
         {
           href: "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games",
@@ -73,8 +75,9 @@ module.exports = {
           title: "Docs",
           items: [
             {label: "For players", to: "/players/paying"},
-            {label: "For developers", to: "/developers"},
-            {label: "API reference", to: "/developers/use/api-reference"},
+            {label: "For Ren'Py developers", to: "/developers"},
+            {label: "For Godot developers", to: "/developers/godot"},
+            {label: "For RPG Maker MZ developers", to: "/developers/rpgmaker"},
           ],
         },
         {

@@ -28,9 +28,10 @@ class Backend(Protocol):
     def reverify(self, receipt: dict, *, rpc, chain, wallets: Sequence[str]) -> str:
         """"keep" or "drop". Network trouble must answer "keep"."""
 
-    def lookup(self, tx: str, *, config, chain, rpc, receipts: MutableMapping):
+    def lookup(self, tx: str, *, config, chain, rpc, receipts: MutableMapping, on_error=None):
         """Restore candidates for tx on this chain, or None if the chain doesn't know it.
-        Raises restore.RestoreError("tx_reverted" | "tx_not_a_payment")."""
+        Raises restore.RestoreError("tx_reverted" | "tx_not_a_payment"). A transfer that
+        cannot be classified is skipped and reported to on_error (restore.classify_or_skip)."""
 
     def check_ready(self, *, rpc, chain, wallet: str) -> dict[str, bool]:
         """token name -> can the developer receive it on this chain."""

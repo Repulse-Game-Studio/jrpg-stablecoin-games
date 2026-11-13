@@ -1,0 +1,90 @@
+{
+ "covers": [
+  "tests/unit/test_reverify.py::test_unknown_chain_is_left_alone",
+  "tests/unit/test_reverify.py::test_token_not_on_chain_is_revoked"
+ ],
+ "id": "reverify/token_or_chain_unknown",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+  },
+  "custom_chains": [],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {
+   "base:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:2": {
+    "amount": "4.993742",
+    "block": 900,
+    "chain": "base",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 2,
+    "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "source": "payment",
+    "token": "USDT",
+    "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+   },
+   "tron:0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e:2": {
+    "amount": "4.993742",
+    "block": 900,
+    "chain": "tron",
+    "item": "chapter2",
+    "kind": "unlock",
+    "log_index": 2,
+    "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e"
+   }
+  }
+ },
+ "steps": [
+  {
+   "action": "reverify",
+   "args": {},
+   "at": 1700000000,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    "base:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:2"
+   ],
+   "snapshot": {
+    "owned": [
+     "chapter2"
+    ],
+    "pending": {},
+    "receipts": {
+     "tron:0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e:2": {
+      "amount": "4.993742",
+      "block": 900,
+      "chain": "tron",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 2,
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x6fb90cc8cb8e99c232eb7413bf11f03efb72d2ec34d6c2d929844a7f173b5d5e"
+     }
+    },
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

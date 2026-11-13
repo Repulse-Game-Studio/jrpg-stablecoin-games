@@ -25,11 +25,12 @@ DEFAULT_METHODS = {
     "qr": {"enabled": True, "wallet_button": True, "chains": None},
     "manual": {"enabled": True, "allow_tx_paste": True},
 }
-_ITEM_ID = re.compile(r"^[a-z0-9_-]{1,64}$")
-_CHAIN_KEY = re.compile(r"^[a-z0-9_-]{1,32}$")
-_NATIVE_SYMBOL = re.compile(r"^[A-Za-z0-9]{1,11}$")
+# Used with fullmatch: the whole string (`$` would also match before a trailing newline).
+_ITEM_ID = re.compile(r"[a-z0-9_-]{1,64}")
+_CHAIN_KEY = re.compile(r"[a-z0-9_-]{1,32}")
+_NATIVE_SYMBOL = re.compile(r"[A-Za-z0-9]{1,11}")
 # Plain http is only accepted for a node on this computer (e.g. a local Anvil test chain).
-_LOCAL_HTTP = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d{1,5})?(/|$)")
+_LOCAL_HTTP = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d{1,5})?(/|\Z)")  # \Z: no "\n"
 FEE_HINTS = ("lowest", "low", "high")
 
 DEFAULT_ACCENT = "#0e7c74"
@@ -37,7 +38,7 @@ INK = "#17202e"
 # Raster formats only: an SVG served from the checkout page's origin could run script.
 LOGO_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
               ".webp": "image/webp"}
-_HEX_COLOR = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
+_HEX_COLOR = re.compile(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")  # fullmatch
 
 
 @dataclass
@@ -87,17 +88,18 @@ def _address(value, what: str) -> str:
     try:
         return normalize_address(value)
     except ValueError as e:
-        raise ConfigError(f"{what}: {e}") from None
+        raise ConfigError(f"{what}: {e}", code="address.invalid") from None
 
 
 def _solana_address(value, what: str) -> str:
     try:
         address = normalize_pubkey(value)
     except ValueError:
-        raise ConfigError(f"{what}: not a Solana address: {value!r}") from None
+        raise ConfigError(f"{what}: not a Solana address: {value!r}",
+                          code="solana_address.invalid") from None
     if not is_on_curve(b58decode(address)):
         raise ConfigError(f"{what}: {address} looks like a token account or program address; "
-                          "use your wallet address")
+                          "use your wallet address", code="solana_address.not_on_curve")
     return address
 
 
@@ -111,16 +113,16 @@ def _any_wallet(value, what: str) -> tuple[str, str]:
 def _rpc_urls(value, what: str) -> tuple[str, ...]:
     urls = [value] if isinstance(value, str) else value
     if not isinstance(urls, (list, tuple)) or not urls:
-        raise ConfigError(f"{what} must be a URL or a non-empty list of URLs")
+        raise ConfigError(f"{what} must be a URL or a non-empty list of URLs", code="rpc.bad_list")
     for u in urls:
         if not isinstance(u, str) or not (u.startswith("https://") or _LOCAL_HTTP.match(u)):
-            raise ConfigError(f"rpc url must start with https://: {u!r}")
+            raise ConfigError(f"rpc url must start with https://: {u!r}", code="rpc.not_https")
     return tuple(urls)
 
 
 def _positive_int(value, what: str, minimum: int = 1) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
-        raise ConfigError(f"{what} must be an int >= {minimum}")
+        raise ConfigError(f"{what} must be an int >= {minimum}", code="int.below_minimum")
     return value
 
 
@@ -134,33 +136,41 @@ def build_chain(key, *, name, chain_id, rpc, tokens, confirmations, explorer_tx,
     Ethereum JSON-RPC. The tokens must have 6 decimals, because the item code and
     nonce live in the last four decimals of the amount.
     """
-    if not isinstance(key, str) or not _CHAIN_KEY.match(key):
-        raise ConfigError(f"invalid chain key {key!r} (use a-z, 0-9, _ and -)")
+    if not isinstance(key, str) or not _CHAIN_KEY.fullmatch(key):
+        raise ConfigError(f"invalid chain key {key!r} (use a-z, 0-9, _ and -)",
+                          code="chain.invalid_key")
     what = f"chain {key!r}"
     if not isinstance(name, str) or not name.strip() or len(name) > 32:
-        raise ConfigError(f"{what}: name must be a non-empty string of at most 32 characters")
+        raise ConfigError(f"{what}: name must be a non-empty string of at most 32 characters",
+                          code="chain.invalid_name")
     chain_id = _positive_int(chain_id, f"{what}: chain_id")
     rpc = _rpc_urls(rpc, f"{what}: rpc")
     if not isinstance(tokens, dict) or not tokens:
-        raise ConfigError(f"{what}: tokens must be a dict like {{'USDC': '0x...'}}")
+        raise ConfigError(f"{what}: tokens must be a dict like {{'USDC': '0x...'}}",
+                          code="chain.tokens_invalid")
     parsed: dict[str, Token] = {}
     for symbol, address in tokens.items():
         if symbol not in TOKENS:
-            raise ConfigError(f"{what}: unknown token {symbol!r} (supported: USDC, USDT)")
+            raise ConfigError(f"{what}: unknown token {symbol!r} (supported: USDC, USDT)",
+                              code="chain.unknown_token")
         parsed[symbol] = Token(_address(address, f"{what}: {symbol} address"))
     confirmations = _positive_int(confirmations, f"{what}: confirmations")
     if (not isinstance(explorer_tx, str) or not explorer_tx.startswith("https://")
             or explorer_tx.count("{}") != 1):
         raise ConfigError(f"{what}: explorer_tx must be an https:// URL with {{}} where the "
-                          f"transaction hash goes, like 'https://snowtrace.io/tx/{{}}'")
+                          f"transaction hash goes, like 'https://snowtrace.io/tx/{{}}'",
+                          code="chain.bad_explorer_tx")
     try:
         explorer_tx.format("0x")
     except (IndexError, KeyError, ValueError):
-        raise ConfigError(f"{what}: explorer_tx may contain no braces besides {{}}") from None
-    if not isinstance(native_symbol, str) or not _NATIVE_SYMBOL.match(native_symbol):
-        raise ConfigError(f"{what}: native_symbol must be letters/digits, like 'AVAX'")
+        raise ConfigError(f"{what}: explorer_tx may contain no braces besides {{}}",
+                          code="chain.bad_explorer_tx_braces") from None
+    if not isinstance(native_symbol, str) or not _NATIVE_SYMBOL.fullmatch(native_symbol):
+        raise ConfigError(f"{what}: native_symbol must be letters/digits, like 'AVAX'",
+                          code="chain.bad_native_symbol")
     if fee_hint not in FEE_HINTS:
-        raise ConfigError(f"{what}: fee_hint must be one of {', '.join(FEE_HINTS)}")
+        raise ConfigError(f"{what}: fee_hint must be one of {', '.join(FEE_HINTS)}",
+                          code="chain.bad_fee_hint")
     max_log_range = _positive_int(max_log_range, f"{what}: max_log_range", MIN_LOG_RANGE)
     return Chain(key=key, chain_id=chain_id, name=name.strip(), rpc=rpc,
                  confirmations=confirmations, max_log_range=max_log_range,
@@ -175,19 +185,21 @@ def _custom_chains(custom, testnet: bool) -> tuple[dict[str, Chain], set[str]]:
     other: set[str] = set()
     for chain in custom or ():
         if not isinstance(chain, Chain):
-            raise ConfigError("custom chains must be created with scfg.add_chain()")
+            raise ConfigError("custom chains must be created with scfg.add_chain()",
+                              code="chain.not_from_add_chain")
         if chain.key in get_chains(False) or chain.key in get_chains(True):
             raise ConfigError(f"chain {chain.key!r} is built in; use rpc_urls/confirmations "
-                              "to change it, or pick another key")
+                              "to change it, or pick another key", code="chain.is_builtin")
         if chain.testnet != testnet:
             other.add(chain.key)
             continue
         if chain.key in mine:
-            raise ConfigError(f"chain {chain.key!r} added twice")
+            raise ConfigError(f"chain {chain.key!r} added twice", code="chain.duplicate")
         for c in list(builtin.values()) + list(mine.values()):
             if c.chain_id == chain.chain_id:
                 raise ConfigError(f"chain {chain.key!r} has the same chain_id "
-                                  f"({chain.chain_id}) as {c.key!r}")
+                                  f"({chain.chain_id}) as {c.key!r}",
+                                  code="chain.duplicate_chain_id")
         mine[chain.key] = chain
     return mine, other - set(mine)
 
@@ -198,7 +210,7 @@ def _logo(value) -> str | None:
     if (not isinstance(value, str) or not value or "\\" in value or ":" in value
             or value.startswith("/") or ".." in value.split("/")):
         raise ConfigError("logo must be a path inside the game folder, "
-                          f"like 'images/logo.png': {value!r}")
+                          f"like 'images/logo.png': {value!r}", code="logo.bad_path")
     logo_content_type(value)
     return value
 
@@ -206,15 +218,17 @@ def _logo(value) -> str | None:
 def logo_content_type(path: str) -> str:
     ext = path[path.rfind("."):].lower() if "." in path else ""
     if ext not in LOGO_TYPES:
-        raise ConfigError(f"logo must be a .png, .jpg or .webp image: {path!r}")
+        raise ConfigError(f"logo must be a .png, .jpg or .webp image: {path!r}",
+                          code="logo.bad_type")
     return LOGO_TYPES[ext]
 
 
 def _accent(value) -> str:
     if value is None:
         return DEFAULT_ACCENT
-    if not isinstance(value, str) or not _HEX_COLOR.match(value):
-        raise ConfigError(f"accent must be a color like '#0e7c74': {value!r}")
+    if not isinstance(value, str) or not _HEX_COLOR.fullmatch(value):
+        raise ConfigError(f"accent must be a color like '#0e7c74': {value!r}",
+                          code="accent.invalid")
     digits = value[1:]
     if len(digits) == 3:
         digits = "".join(c * 2 for c in digits)
@@ -241,24 +255,29 @@ def _merge_methods(methods: dict | None, chains: tuple[str, ...]) -> dict[str, d
     merged = copy.deepcopy(DEFAULT_METHODS)
     for name, opts in (methods or {}).items():
         if name not in merged:
-            raise ConfigError(f"unknown method: {name!r}")
+            raise ConfigError(f"unknown method: {name!r}", code="methods.unknown_method")
         for key, value in opts.items():
             if key not in merged[name]:
-                raise ConfigError(f"unknown option {key!r} for method {name!r}")
+                raise ConfigError(f"unknown option {key!r} for method {name!r}",
+                                  code="methods.unknown_option")
             merged[name][key] = value
     for name, opts in merged.items():
         if not isinstance(opts["enabled"], bool):
-            raise ConfigError(f"methods.{name}.enabled must be True or False")
+            raise ConfigError(f"methods.{name}.enabled must be True or False",
+                              code="methods.enabled_not_bool")
     timeout = merged["browser"]["timeout_min"]
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not timeout > 0:
-        raise ConfigError("methods.browser.timeout_min must be a number of minutes above 0")
+        raise ConfigError("methods.browser.timeout_min must be a number of minutes above 0",
+                          code="methods.bad_timeout")
     if not any(o["enabled"] for o in merged.values()):
-        raise ConfigError("at least one payment method must be enabled")
+        raise ConfigError("at least one payment method must be enabled",
+                          code="methods.none_enabled")
     qr_chains = merged["qr"]["chains"]
     if qr_chains is not None:
         for c in qr_chains:
             if c not in chains:
-                raise ConfigError(f"methods.qr.chains contains disabled chain {c!r}")
+                raise ConfigError(f"methods.qr.chains contains disabled chain {c!r}",
+                                  code="methods.qr_disabled_chain")
     return merged
 
 
@@ -270,7 +289,8 @@ def build_config(wallet=None, *, testnet=False, chains=None, tokens=None, method
     custom, other_network = _custom_chains(custom_chains, testnet)
     registry = {**get_chains(testnet), **custom}
     if wallet is None and solana_wallet is None:
-        raise ConfigError("configure() needs wallet= (an EVM 0x address) and/or solana_wallet=")
+        raise ConfigError("configure() needs wallet= (an EVM 0x address) and/or solana_wallet=",
+                          code="wallet.missing")
     wallet = _address(wallet, "wallet") if wallet is not None else None
     sol = _solana_address(solana_wallet, "solana_wallet") if solana_wallet is not None else None
     prev: list[str] = []
@@ -285,46 +305,50 @@ def build_config(wallet=None, *, testnet=False, chains=None, tokens=None, method
     chains = ((DISPLAY_ORDER + tuple(custom) if wallet else ()) + (solana_keys if sol else ())
               if chains is None else tuple(chains))
     if not chains:
-        raise ConfigError("chains must not be empty")
+        raise ConfigError("chains must not be empty", code="chains.empty")
     for c in chains:
         if c in other_network:
             net = "mainnet" if testnet else "testnet"
             raise ConfigError(f"chain {c!r} was only added for {net}; add it again with "
-                              f"testnet={testnet} to use it here")
+                              f"testnet={testnet} to use it here", code="chains.wrong_network")
         if c not in registry:
-            raise ConfigError(f"unknown chain: {c!r}")
+            raise ConfigError(f"unknown chain: {c!r}", code="chains.unknown")
         family = registry[c].family
         if family == "solana" and sol is None:
-            raise ConfigError(f"chain {c!r} needs solana_wallet=")
+            raise ConfigError(f"chain {c!r} needs solana_wallet=", code="chain.needs_solana_wallet")
         if family == "evm" and wallet is None:
-            raise ConfigError(f"chain {c!r} needs wallet= (an EVM 0x address)")
+            raise ConfigError(f"chain {c!r} needs wallet= (an EVM 0x address)",
+                              code="chain.needs_evm_wallet")
     if len(set(chains)) != len(chains):
-        raise ConfigError("duplicate chain in chains")
+        raise ConfigError("duplicate chain in chains", code="chains.duplicate")
 
     tokens = tuple(TOKENS if tokens is None else tokens)
     if not tokens:
-        raise ConfigError("tokens must not be empty")
+        raise ConfigError("tokens must not be empty", code="tokens.empty")
     for t in tokens:
         if t not in TOKENS:
-            raise ConfigError(f"unknown token: {t!r}")
+            raise ConfigError(f"unknown token: {t!r}", code="tokens.unknown")
 
     merged = _merge_methods(methods, chains)
 
     urls: dict[str, tuple[str, ...]] = {}
     for c, lst in (rpc_urls or {}).items():
         if c not in chains:
-            raise ConfigError(f"rpc_urls for unknown or disabled chain {c!r}")
+            raise ConfigError(f"rpc_urls for unknown or disabled chain {c!r}",
+                              code="rpc_urls.unknown_chain")
         urls[c] = _rpc_urls(lst, f"rpc_urls[{c!r}]")
 
     confs: dict[str, int] = {}
     for c, n in (confirmations or {}).items():
         if c not in chains:
-            raise ConfigError(f"confirmations for unknown or disabled chain {c!r}")
+            raise ConfigError(f"confirmations for unknown or disabled chain {c!r}",
+                              code="confirmations.unknown_chain")
         if registry[c].family == "solana":
             raise ConfigError("Solana payments wait for finalization; "
-                              f"confirmations can't be set for {c!r}")
+                              f"confirmations can't be set for {c!r}",
+                              code="confirmations.solana_fixed")
         if isinstance(n, bool) or not isinstance(n, int) or n < 1:
-            raise ConfigError("confirmations must be an int >= 1")
+            raise ConfigError("confirmations must be an int >= 1", code="confirmations.invalid")
         confs[c] = n
 
     cfg = Config(wallet=wallet, testnet=testnet, chains=chains, tokens=tokens,
@@ -332,7 +356,8 @@ def build_config(wallet=None, *, testnet=False, chains=None, tokens=None, method
                  solana_wallet=sol, previous_solana_wallets=tuple(prev_sol),
                  logo=_logo(logo), accent=_accent(accent), custom_chains=custom)
     if not enabled_chains(cfg):
-        raise ConfigError("no enabled chain supports any enabled token")
+        raise ConfigError("no enabled chain supports any enabled token",
+                          code="config.no_usable_token")
     return cfg
 
 
@@ -360,25 +385,28 @@ def chains_for_token(config: Config, token: str) -> list[str]:
 
 
 def add_item(config: Config, item_id, *, code, price, token, title, min_price=None) -> Item:
-    if not isinstance(item_id, str) or not _ITEM_ID.match(item_id):
-        raise ConfigError(f"invalid item id {item_id!r} (use a-z, 0-9, _ and -)")
+    if not isinstance(item_id, str) or not _ITEM_ID.fullmatch(item_id):
+        raise ConfigError(f"invalid item id {item_id!r} (use a-z, 0-9, _ and -)",
+                          code="item.invalid_id")
     if item_id in config.items:
-        raise ConfigError(f"duplicate item id {item_id!r}")
+        raise ConfigError(f"duplicate item id {item_id!r}", code="item.duplicate_id")
     if isinstance(code, bool) or not isinstance(code, int) or not 1 <= code <= 99:
-        raise ConfigError("item code must be an int in 1..99")
+        raise ConfigError("item code must be an int in 1..99", code="item.invalid_code")
     if config.item_by_code(code) is not None:
-        raise ConfigError(f"duplicate item code {code}")
+        raise ConfigError(f"duplicate item code {code}", code="item.duplicate_code")
     try:
         p = parse_amount(price)
         mp = p if min_price is None else parse_amount(min_price)
     except (TypeError, ValueError) as e:
-        raise ConfigError(f"item {item_id!r}: {e}") from None
+        raise ConfigError(f"item {item_id!r}: {e}", code="item.invalid_price") from None
     if mp > p:
-        raise ConfigError("min_price must not exceed price")
+        raise ConfigError("min_price must not exceed price", code="item.min_price_above_price")
     if token not in config.tokens or not chains_for_token(config, token):
-        raise ConfigError(f"token {token!r} is not available on any enabled chain")
+        raise ConfigError(f"token {token!r} is not available on any enabled chain",
+                          code="token.unavailable")
     if not isinstance(title, str) or not title.strip() or len(title) > 80:
-        raise ConfigError("title must be a non-empty string of at most 80 characters")
+        raise ConfigError("title must be a non-empty string of at most 80 characters",
+                          code="item.invalid_title")
     item = Item(item_id=item_id, code=code, price=p, token=token, title=title, min_price=mp)
     config.items[item_id] = item
     return item

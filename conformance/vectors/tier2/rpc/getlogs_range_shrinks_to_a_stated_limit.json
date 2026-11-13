@@ -1,0 +1,355 @@
+{
+ "covers": [
+  "tests/unit/test_rpc_client.py::test_stated_limit_is_adopted_in_one_step",
+  "tests/unit/test_rpc_client.py::test_suggested_range_uses_stated_limit_or_halves"
+ ],
+ "id": "rpc/getlogs_range_shrinks_to_a_stated_limit",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "chains": [
+    "avalanche"
+   ],
+   "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+  },
+  "custom_chains": [
+   {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "https://snowtrace.io/tx/{}",
+    "key": "avalanche",
+    "max_log_range": 2000,
+    "name": "Avalanche",
+    "native_symbol": "AVAX",
+    "rpc": [
+     "https://rpc-a.example"
+    ],
+    "tokens": {
+     "USDC": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+    }
+   }
+  ],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {}
+ },
+ "steps": [
+  {
+   "action": "start_session",
+   "args": {
+    "chain": "avalanche",
+    "item": "chapter2",
+    "kind": "unlock"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://rpc-a.example"
+    }
+   ],
+   "entropy": [
+    {
+     "fn": "randbelow",
+     "n": 100,
+     "value": 72
+    },
+    {
+     "fn": "token_hex",
+     "n": 8,
+     "value": "e322c9a51beaeb15"
+    }
+   ],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": {
+    "chain": "avalanche",
+    "code": 37,
+    "created_at": 1700000000,
+    "cursor": 995,
+    "hint_at": null,
+    "hint_tx": null,
+    "id": "ps_e322c9a51beaeb15",
+    "item": "chapter2",
+    "kind": "unlock",
+    "match": null,
+    "nonce": 72,
+    "price": "4.99",
+    "start_block": 995,
+    "state": "awaiting",
+    "title": "Chapter 2",
+    "token": "USDC",
+    "ui_status": "open",
+    "units": 4993772
+   },
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_e322c9a51beaeb15": {
+      "chain": "avalanche",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 995,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_e322c9a51beaeb15",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 72,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993772
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 2, \"jsonrpc\": \"2.0\", \"result\": \"0x44c\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x3e3",
+       "toBlock": "0x44c",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"error\": {\"code\": -32602, \"message\": \"eth_getLogs is limited to 0 - 50 blocks range\"}, \"id\": 3, \"jsonrpc\": \"2.0\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x3e3",
+       "toBlock": "0x414",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 4, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x415",
+       "toBlock": "0x446",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 5, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x447",
+       "toBlock": "0x44c",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 6, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 0,
+     "error": null,
+     "hint_tx": null,
+     "required": 5,
+     "result": null,
+     "session_id": "ps_e322c9a51beaeb15",
+     "status": "waiting"
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_e322c9a51beaeb15": {
+      "chain": "avalanche",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 1101,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_e322c9a51beaeb15",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 72,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993772
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 7, \"jsonrpc\": \"2.0\", \"result\": \"0x4c4\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x44d",
+       "toBlock": "0x47e",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 8, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x47f",
+       "toBlock": "0x4b0",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 9, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x4b1",
+       "toBlock": "0x4c4",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 10, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 0,
+     "error": null,
+     "hint_tx": null,
+     "required": 5,
+     "result": null,
+     "session_id": "ps_e322c9a51beaeb15",
+     "status": "waiting"
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_e322c9a51beaeb15": {
+      "chain": "avalanche",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 1221,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_e322c9a51beaeb15",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 72,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993772
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

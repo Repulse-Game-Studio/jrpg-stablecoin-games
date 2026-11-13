@@ -1,0 +1,218 @@
+{
+ "covers": [
+  "tests/unit/test_engine_solana.py::test_missing_token_account_marks_token_unready",
+  "tests/unit/test_engine_solana.py::test_readiness_check_failure_assumes_ready",
+  "tests/unit/test_solana_backend.py::test_check_ready",
+  "tests/unit/test_solana_rpc.py::test_small_helpers"
+ ],
+ "id": "solana/readiness",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+  },
+  "custom_chains": [],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {}
+ },
+ "steps": [
+  {
+   "action": "reverify",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "getAccountInfo",
+     "params": [
+      "C4PRXFV6Gf5mytVZb6RoeLsG8CjcFWzR2EJ3dvwPTUJH",
+      {
+       "commitment": "confirmed",
+       "encoding": "base64"
+      }
+     ],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": {\"context\": {\"slot\": 1000}, \"value\": {\"data\": [\"\", \"base64\"], \"executable\": false, \"lamports\": 2039280, \"owner\": \"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA\", \"rentEpoch\": 0, \"space\": 165}}}",
+     "url": "https://solana-rpc.publicnode.com"
+    },
+    {
+     "method": "getAccountInfo",
+     "params": [
+      "CQJX9L5ynSm4TatteRXuTaRcHe88CSM5vaQNQXcHNYuo",
+      {
+       "commitment": "confirmed",
+       "encoding": "base64"
+      }
+     ],
+     "response_text": "{\"id\": 2, \"jsonrpc\": \"2.0\", \"result\": {\"context\": {\"slot\": 1000}, \"value\": null}}",
+     "url": "https://solana-rpc.publicnode.com"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [],
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": [
+     [
+      "solana",
+      "USDT"
+     ]
+    ]
+   }
+  },
+  {
+   "action": "reverify",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "getAccountInfo",
+     "params": [
+      "C4PRXFV6Gf5mytVZb6RoeLsG8CjcFWzR2EJ3dvwPTUJH",
+      {
+       "commitment": "confirmed",
+       "encoding": "base64"
+      }
+     ],
+     "response_text": "{\"id\": 3, \"jsonrpc\": \"2.0\", \"result\": {\"context\": {\"slot\": 1000}, \"value\": {\"data\": [\"\", \"base64\"], \"executable\": false, \"lamports\": 2039280, \"owner\": \"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA\", \"rentEpoch\": 0, \"space\": 165}}}",
+     "url": "https://solana-rpc.publicnode.com"
+    },
+    {
+     "method": "getAccountInfo",
+     "params": [
+      "CQJX9L5ynSm4TatteRXuTaRcHe88CSM5vaQNQXcHNYuo",
+      {
+       "commitment": "confirmed",
+       "encoding": "base64"
+      }
+     ],
+     "response_text": "{\"id\": 4, \"jsonrpc\": \"2.0\", \"result\": {\"context\": {\"slot\": 1000}, \"value\": {\"data\": [\"\", \"base64\"], \"executable\": false, \"lamports\": 2039280, \"owner\": \"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA\", \"rentEpoch\": 0, \"space\": 165}}}",
+     "url": "https://solana-rpc.publicnode.com"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [],
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "reverify",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "getAccountInfo",
+     "params": [
+      "C4PRXFV6Gf5mytVZb6RoeLsG8CjcFWzR2EJ3dvwPTUJH",
+      {
+       "commitment": "confirmed",
+       "encoding": "base64"
+      }
+     ],
+     "response_text": "{\"id\": 5, \"jsonrpc\": \"2.0\", \"result\": {\"context\": {\"slot\": 1000}, \"value\": null}}",
+     "url": "https://solana-rpc.publicnode.com"
+    },
+    {
+     "method": "getAccountInfo",
+     "params": [
+      "CQJX9L5ynSm4TatteRXuTaRcHe88CSM5vaQNQXcHNYuo",
+      {
+       "commitment": "confirmed",
+       "encoding": "base64"
+      }
+     ],
+     "response_text": "{\"id\": 6, \"jsonrpc\": \"2.0\", \"result\": {\"context\": {\"slot\": 1000}, \"value\": null}}",
+     "url": "https://solana-rpc.publicnode.com"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [],
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": [
+     [
+      "solana",
+      "USDC"
+     ],
+     [
+      "solana",
+      "USDT"
+     ]
+    ]
+   }
+  },
+  {
+   "action": "reverify",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "getAccountInfo",
+     "params": [
+      "C4PRXFV6Gf5mytVZb6RoeLsG8CjcFWzR2EJ3dvwPTUJH",
+      {
+       "commitment": "confirmed",
+       "encoding": "base64"
+      }
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://solana-rpc.publicnode.com"
+    },
+    {
+     "method": "getAccountInfo",
+     "params": [
+      "C4PRXFV6Gf5mytVZb6RoeLsG8CjcFWzR2EJ3dvwPTUJH",
+      {
+       "commitment": "confirmed",
+       "encoding": "base64"
+      }
+     ],
+     "transport_error": {
+      "message": "connection refused",
+      "status": null
+     },
+     "url": "https://api.mainnet-beta.solana.com"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [],
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

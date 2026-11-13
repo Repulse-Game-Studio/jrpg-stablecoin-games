@@ -10,6 +10,8 @@
 //     root, talking to the game through a message queue instead of HTTP;
 //   * copy, requestPaste/takePaste, openUrl: what Ren'Py can't do on the web.
 // Values from the game arrive as JSON literals; nothing here evaluates game data as code.
+// Wallet extensions are other people's code: nothing they announce, register or throw may
+// throw out of a listener here (an uncaught error in the page stops an RPG Maker MZ game).
 "use strict";
 
 (function () {
@@ -21,6 +23,22 @@
   let nextRequest = 1;
   const results = new Map();          // id -> null while in flight, then the envelope
 
+  // What a thrown value says, without ever throwing itself (a null-prototype object, a
+  // hostile toString or getter).
+  function errorText(err) {
+    try {
+      const message = err && err.message;
+      if (message && typeof message !== "object" && typeof message !== "function") {
+        return String(message);
+      }
+    } catch (e) { /* a getter that throws */ }
+    try {
+      return String(err);
+    } catch (e) {
+      return "unknown error";
+    }
+  }
+
   function post(url, body, timeoutMs) {
     const id = nextRequest++;
     results.set(id, null);
@@ -31,8 +49,7 @@
       referrerPolicy: "no-referrer", headers: { "Content-Type": "application/json" },
     })
       .then(async (r) => ({ status: r.status, body: await r.text() }))
-      .catch((err) => ({ error: abort.signal.aborted ? "timed out"
-        : String((err && err.message) || err) }))
+      .catch((err) => ({ error: abort.signal.aborted ? "timed out" : errorText(err) }))
       .then((envelope) => {
         clearTimeout(timer);
         if (results.has(id)) results.set(id, envelope);
@@ -54,9 +71,22 @@
   const evmWallets = new Set();
   const solanaWallets = [];
 
+  // The uuid of an EIP-6963 announcement the checkout page lists, else null. Twin of evm.js
+  // announced(): the game offers "Browser wallet" for exactly the wallets the page shows.
+  function announcedUuid(event) {
+    try {
+      const { info, provider } = event.detail || {};
+      if (!info || !provider) return null;
+      const { uuid, name } = info;
+      return typeof uuid === "string" && typeof name === "string" ? uuid : null;
+    } catch (err) {
+      return null;                    // a broken announcement is no wallet
+    }
+  }
+
   window.addEventListener("eip6963:announceProvider", (event) => {
-    const { info, provider } = event.detail || {};
-    if (info && provider) evmWallets.add(info.uuid);
+    const uuid = announcedUuid(event);
+    if (uuid !== null) evmWallets.add(uuid);
   });
   window.dispatchEvent(new Event("eip6963:requestProvider"));
 
@@ -65,19 +95,41 @@
     return () => {};
   }
   window.addEventListener("wallet-standard:register-wallet", (event) => {
-    try { event.detail({ register: registerSolana }); } catch (err) { /* a broken wallet must not break the game */ }
+    // a broken wallet must not break the game: neither its callback's throw nor its rejection
+    try {
+      Promise.resolve(event.detail({ register: registerSolana })).catch(() => {});
+    } catch (err) { /* nothing registered */ }
   });
   window.dispatchEvent(new CustomEvent("wallet-standard:app-ready",
     { detail: { register: registerSolana } }));
 
+  // Can this Wallet Standard wallet pay on `chain`, as the checkout page lists it? Twin of
+  // solana.js canPay(): the game offers "Browser wallet" for exactly the wallets the page shows.
+  function canPaySolana(w, chain) {
+    try {
+      return !!(w && Array.isArray(w.chains) && w.chains.includes(chain) &&
+        w.features && w.features["standard:connect"] &&
+        w.features["solana:signAndSendTransaction"] && typeof w.name === "string");
+    } catch (err) {
+      return false;                   // a wallet whose fields throw can't pay
+    }
+  }
+
+  // An extension's window.ethereum (its getter may throw), else null. Twin of evm.js injected().
+  function injected() {
+    try {
+      return window.ethereum || null;
+    } catch (err) {
+      return null;
+    }
+  }
+
   // 1 if the page has a wallet that can pay on this chain (the tests evm.js/solana.js use).
   function hasWallet(family, walletChain) {
     if (family === "solana") {
-      return solanaWallets.some((w) => Array.isArray(w.chains) && w.chains.includes(walletChain) &&
-        w.features && w.features["standard:connect"] &&
-        w.features["solana:signAndSendTransaction"]) ? 1 : 0;
+      return solanaWallets.some((w) => canPaySolana(w, walletChain)) ? 1 : 0;
     }
-    return evmWallets.size > 0 || window.ethereum ? 1 : 0;
+    return evmWallets.size > 0 || injected() ? 1 : 0;
   }
 
   // ---------------------------------------------------------------- checkout overlay
@@ -118,6 +170,7 @@
       return;
     }
     const host = document.createElement("div");
+    host.setAttribute("data-scfg-overlay", key);  // how the game's glue finds it (RPG Maker)
     host.style.cssText = "position:fixed;inset:0;z-index:2147483000;overflow:auto;";
     const root = host.attachShadow({ mode: "open" });
     root.innerHTML = "<style>" + page.style + OVERLAY_CSS + "</style>" +
@@ -139,6 +192,13 @@
       loadSession: async () => info,
       getStatus: async () => o.status || { state: "waiting" },
       post(path, body) {
+        // Queued as plain JSON data, so a value from a wallet that can't be sent fails here,
+        // as the request it is (the localhost page's fetch() would), not in take().
+        try {
+          body = JSON.parse(JSON.stringify(body));
+        } catch (err) {
+          return Promise.reject(err);
+        }
         if (path === "tx") {
           o.queue.push({ type: "tx", body });
           setTimeout(() => hide(key), 1500);  // the game's own sheet shows the rest
@@ -257,7 +317,7 @@
 
   function failedRequest(err) {
     const id = nextRequest++;
-    results.set(id, { error: String((err && err.message) || err) });
+    results.set(id, { error: errorText(err) });
     return id;
   }
 

@@ -127,6 +127,20 @@ def test_lookup_outcomes():
         drive(B.lookup(sig(3), config=cfg(), chain=CHAIN, rpc=chain, receipts={}))
 
 
+def test_lookup_skips_a_value_decode_cannot_price():
+    """A token-balance gain of 10**32 units or more (only a broken node reports one: SPL amounts
+    are u64) cannot be priced: that transfer is skipped and reported, so the transaction pays
+    nothing the game knows."""
+    chain = FakeSolanaChain()
+    tx = chain.pay(sig(1), mint=MINT, payer=PAYER, owner=DEV, amount=1, slot=950)
+    tx["meta"]["postTokenBalances"][1]["uiTokenAmount"]["amount"] = str(10**32)
+    errors = []
+    with pytest.raises(RestoreError, match="tx_not_a_payment"):
+        drive(B.lookup(sig(1), config=cfg(), chain=CHAIN, rpc=chain, receipts={},
+                       on_error=errors.append))
+    assert len(errors) == 1
+
+
 def test_restore_routes_signatures_to_solana_and_hashes_to_evm():
     sol = FakeSolanaChain()
     sol.pay(sig(1), mint=MINT, payer=PAYER, owner=DEV, amount=4_993_742)

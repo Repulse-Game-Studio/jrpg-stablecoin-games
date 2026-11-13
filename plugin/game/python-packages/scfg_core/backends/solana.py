@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import base64
 import secrets
-from decimal import Decimal
 
-from ..amounts import decimal_to_units, units_to_decimal
+from ..amounts import decimal_to_units, stored_amount, units_to_decimal
+from ..ints import int_from
 from ..receipts import add_receipt, make_receipt, receipt_key
 from ..rpc import RpcClient, RpcError, RpcUnavailable
 from ..sessions import clear_hint, is_past_horizon, remove_session
@@ -60,7 +60,7 @@ def transfer_to(tx: dict, *, sig: str, mint: str, owner: str) -> Transfer | None
         rows = {}
         for b in meta.get(name) or []:
             if b.get("mint") == mint:
-                rows[b["accountIndex"]] = (b.get("owner"), int(b["uiTokenAmount"]["amount"]))
+                rows[b["accountIndex"]] = (b.get("owner"), int_from(b["uiTokenAmount"]["amount"]))
         return rows
 
     pre, post = table("preTokenBalances"), table("postTokenBalances")
@@ -78,7 +78,7 @@ def transfer_to(tx: dict, *, sig: str, mint: str, owner: str) -> Transfer | None
         return None
     payer = min(drops, key=drops.get) if drops else _fee_payer(tx)
     return Transfer(token=mint, sender=payer, recipient=owner, value=gained, tx_hash=sig,
-                    log_index=index, block_number=int(tx["slot"]))
+                    log_index=index, block_number=int_from(tx["slot"]))
 
 
 def _match_dict(t: Transfer) -> dict:
@@ -174,7 +174,7 @@ class SolanaBackend:
                 out.status = "reorged"
                 return out
             if status.get("confirmationStatus") != "finalized":
-                out.confirmations = int(status.get("confirmations") or 0)
+                out.confirmations = int_from(status.get("confirmations") or 0)
                 return out
             out.confirmations = FINAL_CONFIRMATIONS
             transfer = Transfer(mint, m["payer"], m["recipient"], m["value"], m["tx_hash"],
@@ -252,7 +252,7 @@ class SolanaBackend:
             page = yield from rpc.get_signatures_for_address(address, until=until, before=before,
                                                              limit=SIG_PAGE)
             for n, info in enumerate(page):
-                if info.get("slot") is not None and int(info["slot"]) < min_slot:
+                if info.get("slot") is not None and int_from(info["slot"]) < min_slot:
                     found.extend(page[:n])
                     return found, True
             found.extend(page)
@@ -303,7 +303,7 @@ class SolanaBackend:
     def reverify(self, receipt, *, rpc, chain, wallets):
         from ..reverify import FUTURE_TOLERANCE_BLOCKS
 
-        slot = int(receipt["block"])
+        slot = int_from(receipt["block"])
         owner = receipt.get("recipient")
         if owner not in wallets:
             return "drop"
@@ -323,12 +323,12 @@ class SolanaBackend:
         except (KeyError, TypeError, ValueError, AttributeError):
             return "keep"  # a payload this build can't read: can't judge the receipt
         genuine = (t is not None and t.block_number == slot
-                   and t.log_index == int(receipt["log_index"])
-                   and t.value == decimal_to_units(Decimal(receipt["amount"])))
+                   and t.log_index == int_from(receipt["log_index"])
+                   and t.value == decimal_to_units(stored_amount(receipt["amount"])))
         return "keep" if genuine else "drop"
 
-    def lookup(self, tx, *, config, chain, rpc, receipts):
-        from ..restore import RestoreCandidate, RestoreError, classify
+    def lookup(self, tx, *, config, chain, rpc, receipts, on_error=None):
+        from ..restore import RestoreCandidate, RestoreError, classify_or_skip
 
         found, _ = yield from rpc.get_transaction_any(tx)
         if found is None:
@@ -341,7 +341,10 @@ class SolanaBackend:
                 t = transfer_to(found, sig=tx, mint=token.address, owner=owner)
                 if t is None:
                     continue
-                kind, item, choices = classify(config, t.value)
+                classified = classify_or_skip(config, t.value, on_error)
+                if classified is None:
+                    continue
+                kind, item, choices = classified
                 out.append(RestoreCandidate(
                     chain=chain.key, token=name, transfer=t, kind=kind, item=item,
                     choices=choices,

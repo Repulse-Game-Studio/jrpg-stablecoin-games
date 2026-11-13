@@ -1,4 +1,5 @@
 import json
+import time
 from decimal import Decimal
 
 import pytest
@@ -95,8 +96,25 @@ def test_ownership_ignores_unknown_items():
     {"kind": "unlock", "item": "chapter2", "amount": None},
     {"kind": "tip", "amount": "NaN"},
     {"kind": "weird", "amount": "1"},
+    {"kind": "unlock", "item": "chapter2", "amount": "1E+999999"},   # out of range: forged
+    {"kind": "unlock", "item": "chapter2", "amount": "1E+41"},
+    {"kind": "unlock", "item": ["chapter2"], "amount": "4.993742"},  # unhashable item
+    {"kind": "tip", "amount": "9E+999999"},
+    {"kind": "tip", "amount": "-1E+41"},
 ])
 def test_ownership_skips_malformed_entries(junk):
     store = {"junk": junk}
     add_receipt(store, receipt())
     assert compute_ownership(store, ITEMS) == ({"chapter2"}, Decimal(0))
+
+
+def test_ownership_of_forged_huge_amounts_is_nothing_and_quick():
+    """Amounts beyond the stored-amount range neither own nor tip, and summing them cannot
+    overflow: the tip total stays a finite number."""
+    store = {f"t{i}": {"kind": "tip", "amount": a} for i, a in enumerate(
+        ["9.999999999999999999999999999E+999999"] * 3 + ["1E+40", "1E+40"])}
+    store["u"] = {"kind": "unlock", "item": "chapter2", "amount": "1E+999999"}
+    start = time.perf_counter()
+    owned, tips = compute_ownership(store, ITEMS)
+    assert time.perf_counter() - start < 1.0
+    assert owned == set() and tips == Decimal("2E+40") and tips.is_finite()

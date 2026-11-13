@@ -1,0 +1,230 @@
+/*
+ * The "Margin" look of the payment sheet and the restore screen: the twin of the scfg_* styles in
+ * plugin/game/scfg/scfg_screens.rpy and of godot/addons/scfg/ui/theme.gd (same palette, same sizes).
+ * A light sheet docked on the right with ink text, outlined buttons and options with rounded
+ * corners (the primary and accent buttons are filled, their border transparent), and the developer's
+ * accent colour for the selected option, the forward button and the progress dots.
+ *
+ * Sizes are designed for a 1280x720 game and grow with the game: every length is
+ * `calc(<design px> * var(--scfg-k))`, where dom.ts sets --scfg-k (Ren'Py's _k()) and --scfg-sheet-w
+ * on the host. --scfg-accent and --scfg-on-accent (text on the accent, from the core's textOn)
+ * are set there too; the values below are only the fallbacks.
+ *
+ * Class names (the screens build from these; SCFG.css can restyle any of them):
+ *   layout   .scfg-root, .screen[data-screen=payment|restore] (.keys while keys or a gamepad
+ *            drive it), .scrim, .sheet, .sheet-head, .nav, .sheet-body, .sheet-foot, .rule, .row,
+ *            .stack (.tight), .grow, .grid, .price, .actions, .field-row, .value-row, .qr-row,
+ *            .qr-steps, .gap
+ *   text     .title .heading (.ok .error .warn) .amount .amount-token .note .label .muted .warning
+ *            .dev .error .ok .status .mono .qr-step
+ *   buttons  button, .primary, .accent, .forward, .small, .back, .option (.selected, with
+ *            .option-text and .option-sub inside)
+ *   fields   input
+ *   others   .qr-frame, .toasts / .toast (.fade), .dots / .dot (.on), .status-line / .status-dot
+ *            (.accent .ok .error .warn), .progress / .progress-fill, .logo
+ *   Controls carry data-key (their name: "forward", "cancel", "tx_input", ...); values that are
+ *   data, not words, carry data-value.
+ *
+ * Where it matters, only CSS an older NW.js Chromium understands: no `inset`, and the focus ring
+ * also has a rule of its own on `.keys button:focus, .keys input:focus` (keys and gamepads), which
+ * a Chromium without `:focus-visible` still applies. The flexbox `gap` needs Chromium 84 (NW.js
+ * 0.47); an older one only loses the spacing (unverified for MZ's earliest NW.js builds).
+ */
+:host {
+  all: initial;
+  --scfg-k: 1;
+  --scfg-sheet-w: 520px;
+  --scfg-accent: #0e7c74;
+  --scfg-on-accent: #ffffff;
+  --scfg-sheet: #fbfcfd;
+  --scfg-ink: #17202e;
+  --scfg-ink-hover: #2c3a50;
+  --scfg-muted: #5b6676;
+  --scfg-faint: #a3abb6;
+  --scfg-line: #cfd5dd;
+  --scfg-rule: #e4e8ed;
+  --scfg-hover: #eef1f4;
+  --scfg-dim: #0a0c1866;
+  --scfg-ok: #17804f;
+  --scfg-warn: #9a5b00;
+  --scfg-error: #c0392b;
+  --scfg-white: #ffffff;
+  --scfg-radius: calc(10px * var(--scfg-k));
+  --scfg-line-w: max(1px, calc(1.5px * var(--scfg-k)));
+  font: calc(18px * var(--scfg-k)) / 1.35 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--scfg-ink);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+.scfg-root { position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; pointer-events: none; }
+.scfg-root > * { pointer-events: auto; }
+[hidden] { display: none !important; }
+
+.screen { position: absolute; top: 0; right: 0; bottom: 0; left: 0; animation: scfg-dim-in 0.22s ease-out; }
+.scrim { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: var(--scfg-dim); }
+@keyframes scfg-dim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scfg-sheet-in { from { opacity: 0; transform: translateX(48px); } to { opacity: 1; transform: none; } }
+
+.sheet {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: var(--scfg-sheet-w);
+  display: flex; flex-direction: column;
+  background: var(--scfg-sheet); color: var(--scfg-ink);
+  padding: calc(28px * var(--scfg-k)) calc(44px * var(--scfg-k)) 0 calc(44px * var(--scfg-k));
+  overflow: hidden;
+  animation: scfg-sheet-in 0.22s ease-out;
+}
+.sheet-head { flex: none; display: flex; flex-direction: column; gap: calc(10px * var(--scfg-k)); margin-bottom: calc(14px * var(--scfg-k)); }
+.nav { display: flex; align-items: center; gap: calc(6px * var(--scfg-k)); min-height: calc(44px * var(--scfg-k)); }
+/* the body's padding (with a negative margin) leaves room for the focus ring inside its scroll box */
+.sheet-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  margin: calc(-6px * var(--scfg-k)); padding: calc(6px * var(--scfg-k)) calc(9px * var(--scfg-k)) calc(6px * var(--scfg-k)) calc(6px * var(--scfg-k));
+}
+.sheet-body > * { flex: none; }
+/* a new step slides in from the right going forward, from the left going back (Ren'Py's scfg_step_in) */
+.sheet-body.slide-forward { animation: scfg-step-forward 0.22s ease-out; }
+.sheet-body.slide-back { animation: scfg-step-back 0.22s ease-out; }
+@keyframes scfg-step-forward { from { opacity: 0; transform: translateX(calc(40px * var(--scfg-k))); } to { opacity: 1; transform: none; } }
+@keyframes scfg-step-back { from { opacity: 0; transform: translateX(calc(-40px * var(--scfg-k))); } to { opacity: 1; transform: none; } }
+.price { display: flex; align-items: baseline; gap: calc(8px * var(--scfg-k)); }
+.grid { display: grid; gap: calc(8px * var(--scfg-k)); }
+.actions { display: flex; gap: calc(10px * var(--scfg-k)); }
+.actions > button { flex: 1 1 0; min-width: 0; }
+.field-row { display: flex; gap: calc(8px * var(--scfg-k)); align-items: stretch; }
+.field-row > input { flex: 1 1 auto; min-width: 0; }
+.field-row > button { flex: none; min-width: calc(90px * var(--scfg-k)); }
+.value-row { display: flex; gap: calc(8px * var(--scfg-k)); align-items: center; }
+.value-row > button { flex: none; min-width: calc(72px * var(--scfg-k)); }
+.qr-row { display: flex; gap: calc(20px * var(--scfg-k)); align-items: center; }
+.qr-steps { justify-content: center; }
+.stack.tight { gap: 0; }
+.gap { height: calc(4px * var(--scfg-k)); }
+.forward { flex: none; width: 100%; margin-top: calc(12px * var(--scfg-k)); }
+.sheet-foot { flex: none; display: flex; flex-direction: column; gap: calc(10px * var(--scfg-k)); padding: calc(14px * var(--scfg-k)) 0 calc(28px * var(--scfg-k)); }
+.rule { height: max(1px, calc(1px * var(--scfg-k))); background: var(--scfg-rule); border: 0; margin: calc(12px * var(--scfg-k)) 0; }
+.row { display: flex; align-items: center; gap: calc(10px * var(--scfg-k)); }
+.stack { display: flex; flex-direction: column; gap: calc(10px * var(--scfg-k)); }
+.grow { flex: 1 1 auto; min-width: 0; }
+.logo { max-height: calc(40px * var(--scfg-k)); max-width: calc(160px * var(--scfg-k)); object-fit: contain; }
+
+/* scrollbar */
+.sheet-body::-webkit-scrollbar { width: calc(9px * var(--scfg-k)); }
+.sheet-body::-webkit-scrollbar-thumb { background: var(--scfg-line); border-radius: calc(3px * var(--scfg-k)); }
+.sheet-body::-webkit-scrollbar-thumb:hover { background: var(--scfg-muted); }
+
+/* text */
+.title { font-size: calc(26px * var(--scfg-k)); font-weight: 700; color: var(--scfg-ink); margin: 0; }
+.heading { font-size: calc(21px * var(--scfg-k)); font-weight: 700; color: var(--scfg-ink); margin: 0; }
+.amount { font-size: calc(40px * var(--scfg-k)); font-weight: 700; color: var(--scfg-ink); }
+.amount-token { font-size: calc(22px * var(--scfg-k)); color: var(--scfg-muted); }
+.note { font-size: calc(14px * var(--scfg-k)); color: var(--scfg-muted); }
+.label { font-size: calc(15px * var(--scfg-k)); color: var(--scfg-muted); }
+.muted { font-size: calc(16px * var(--scfg-k)); color: var(--scfg-muted); }
+.warning { font-size: calc(16px * var(--scfg-k)); color: var(--scfg-warn); }
+.dev { font-size: calc(14px * var(--scfg-k)); color: var(--scfg-warn); }
+.error { font-size: calc(16px * var(--scfg-k)); color: var(--scfg-error); }
+.ok { font-size: calc(18px * var(--scfg-k)); color: var(--scfg-ok); }
+.heading.ok { color: var(--scfg-ok); }
+.heading.error { color: var(--scfg-error); }
+.heading.warn { color: var(--scfg-warn); }
+.status { font-size: calc(16px * var(--scfg-k)); color: var(--scfg-ink); }
+.mono { font: calc(14px * var(--scfg-k)) / 1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--scfg-ink); overflow-wrap: anywhere; }
+.qr-step { font-size: calc(16px * var(--scfg-k)); color: var(--scfg-ink); }
+
+/* buttons: outlined by default */
+button {
+  font-family: inherit; font-size: calc(17px * var(--scfg-k)); font-weight: 700; line-height: 1.2;
+  color: var(--scfg-ink); background: transparent;
+  border: var(--scfg-line-w) solid var(--scfg-line); border-radius: var(--scfg-radius);
+  padding: calc(11px * var(--scfg-k)) calc(16px * var(--scfg-k));
+  cursor: pointer; text-align: center;
+}
+button:hover { background: var(--scfg-hover); border-color: var(--scfg-hover); }
+button:active { background: var(--scfg-hover); border-color: var(--scfg-line); }
+button:disabled { color: var(--scfg-faint); border-color: var(--scfg-rule); background: transparent; cursor: default; }
+button:focus-visible, input:focus-visible, .option:focus-visible {
+  outline: max(2px, calc(2px * var(--scfg-k))) solid var(--scfg-accent);
+  outline-offset: max(2px, calc(2px * var(--scfg-k)));
+}
+/* its own rule: a Chromium without :focus-visible drops a whole selector list that names it */
+.keys button:focus, .keys input:focus {
+  outline: max(2px, calc(2px * var(--scfg-k))) solid var(--scfg-accent);
+  outline-offset: max(2px, calc(2px * var(--scfg-k)));
+}
+button.small { font-size: calc(15px * var(--scfg-k)); padding: calc(6px * var(--scfg-k)) calc(10px * var(--scfg-k)); }
+/* filled buttons: no visible border, as theme.gd's ScfgPrimary and ScfgAccent, and the same size as
+   the outlined ones (in Godot a border never adds to a button's size): the width stays, transparent,
+   and the fill paints under it (background-clip: border-box). After the button:hover/active/disabled
+   rules, so it wins over their border colours. */
+button.primary, button.accent { border-color: transparent; }
+button.primary { color: var(--scfg-white); background: var(--scfg-ink); }
+button.primary:hover, button.primary:active { background: var(--scfg-ink-hover); }
+button.primary:disabled { color: var(--scfg-white); background: var(--scfg-line); }
+button.accent { color: var(--scfg-on-accent); background: var(--scfg-accent); }
+button.accent:hover { filter: brightness(1.08); background: var(--scfg-accent); }
+button.accent:active { filter: brightness(0.92); background: var(--scfg-accent); }
+button.accent:disabled { color: var(--scfg-white); background: var(--scfg-line); filter: none; }
+button.back {
+  width: calc(44px * var(--scfg-k)); height: calc(44px * var(--scfg-k)); padding: 0;
+  font-size: calc(20px * var(--scfg-k)); font-weight: 400;
+  display: flex; align-items: center; justify-content: center;
+}
+button.back svg { width: 60%; height: 60%; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* options: a choice in a list; the selected one takes the accent */
+.option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: calc(2px * var(--scfg-k));
+  width: 100%; text-align: left; font-weight: 400;
+  font-size: calc(15px * var(--scfg-k));
+  padding: calc(7px * var(--scfg-k)) calc(6px * var(--scfg-k));
+  border-radius: var(--scfg-radius);
+}
+.option .option-text { font-size: calc(15px * var(--scfg-k)); color: var(--scfg-ink); }
+.option .option-sub { font-size: calc(12px * var(--scfg-k)); color: var(--scfg-muted); }
+.option.selected, .option.selected:hover, .option.selected:active, .option.selected:disabled {
+  background: var(--scfg-accent); border-color: var(--scfg-accent); color: var(--scfg-on-accent);
+}
+.option.selected .option-text, .option.selected .option-sub { color: var(--scfg-on-accent); }
+
+/* fields */
+input {
+  font-family: inherit; font-size: calc(17px * var(--scfg-k)); line-height: 1.2;
+  color: var(--scfg-ink); background: transparent; caret-color: var(--scfg-ink);
+  border: var(--scfg-line-w) solid var(--scfg-line); border-radius: var(--scfg-radius);
+  padding: calc(9px * var(--scfg-k)) calc(12px * var(--scfg-k));
+  width: 100%;
+}
+input::placeholder { color: var(--scfg-faint); }
+input::selection { background: color-mix(in srgb, var(--scfg-accent) 30%, transparent); }
+input:read-only { border-color: var(--scfg-rule); }
+
+/* QR, toast, dots, progress */
+.qr-frame {
+  align-self: center; background: var(--scfg-white);
+  border: var(--scfg-line-w) solid var(--scfg-line); border-radius: var(--scfg-radius);
+  padding: calc(8px * var(--scfg-k)); line-height: 0;
+}
+.qr-frame svg { display: block; width: calc(220px * var(--scfg-k)); height: calc(220px * var(--scfg-k)); image-rendering: crisp-edges; }
+.scfg-root > .toasts {
+  position: absolute; top: calc(24px * var(--scfg-k)); right: calc(24px * var(--scfg-k)); z-index: 1;
+  display: flex; flex-direction: column; align-items: flex-end; gap: calc(8px * var(--scfg-k));
+  max-width: 60%; pointer-events: none;
+}
+.toast {
+  background: var(--scfg-ink); color: var(--scfg-white);
+  border-radius: var(--scfg-radius); padding: calc(12px * var(--scfg-k)) calc(18px * var(--scfg-k));
+  font-size: calc(16px * var(--scfg-k)); transition: opacity 0.3s;
+}
+.toast.fade { opacity: 0; }
+.dots { display: flex; gap: calc(6px * var(--scfg-k)); align-items: center; }
+.dot { width: max(4px, calc(10px * var(--scfg-k))); height: max(4px, calc(10px * var(--scfg-k))); border-radius: 50%; background: var(--scfg-line); }
+.dot.on { background: var(--scfg-accent); }
+.status-dot { width: max(4px, calc(10px * var(--scfg-k))); height: max(4px, calc(10px * var(--scfg-k))); border-radius: 50%; background: var(--scfg-warn); flex: none; }
+.status-line { align-items: center; }
+.status-dot.accent { background: var(--scfg-accent); }
+.status-dot.ok { background: var(--scfg-ok); }
+.status-dot.error { background: var(--scfg-error); }
+.progress { height: calc(8px * var(--scfg-k)); border-radius: calc(4px * var(--scfg-k)); background: var(--scfg-rule); overflow: hidden; }
+.progress-fill { height: 100%; background: var(--scfg-accent); border-radius: calc(4px * var(--scfg-k)); }

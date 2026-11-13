@@ -1,0 +1,65 @@
+{
+ "covers": [
+  "tests/unit/test_custom_chains.py::test_receipts_from_a_removed_custom_chain_are_kept",
+  "tests/unit/test_reverify.py::test_unknown_chain_is_left_alone"
+ ],
+ "id": "custom_chains/removed_chain_receipt_kept",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+  },
+  "custom_chains": [],
+  "items": [],
+  "pending": {},
+  "receipts": {
+   "avalanche:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:0": {
+    "amount": "1.000000",
+    "block": 5,
+    "chain": "avalanche",
+    "item": null,
+    "kind": "tip",
+    "log_index": 0,
+    "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+   }
+  }
+ },
+ "steps": [
+  {
+   "action": "reverify",
+   "args": {},
+   "at": 1700000000,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [],
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {
+     "avalanche:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:0": {
+      "amount": "1.000000",
+      "block": 5,
+      "chain": "avalanche",
+      "item": null,
+      "kind": "tip",
+      "log_index": 0,
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     }
+    },
+    "tip_total": "1.000000",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

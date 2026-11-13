@@ -1,0 +1,2003 @@
+{
+ "cases": [
+  {
+   "fn": "build_config",
+   "in": {
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "wallet": "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "solana"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": null
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum",
+     "solana"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "testnet": true,
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": true,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "testnet": true,
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum",
+     "solana"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "testnet": true,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "base",
+     "arbitrum"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "base",
+     "arbitrum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "polygon",
+     "base",
+     "ethereum",
+     "arc"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "polygon",
+     "base",
+     "ethereum",
+     "arc"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "solana",
+     "base"
+    ],
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "solana",
+     "base"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "solana"
+    ],
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "tokens": [
+     "USDT"
+    ]
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "solana"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "testnet": false,
+    "tokens": [
+     "USDT"
+    ],
+    "wallet": null
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "tokens": [
+     "USDC"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "tokens": [
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "tokens": [
+     "USDT",
+     "USDC"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDT",
+     "USDC"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "base",
+     "arbitrum"
+    ],
+    "methods": {
+     "browser": {
+      "timeout_min": 45
+     },
+     "manual": {
+      "allow_tx_paste": false
+     },
+     "qr": {
+      "chains": [
+       "base"
+      ],
+      "wallet_button": false
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "base",
+     "arbitrum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 45
+     },
+     "manual": {
+      "allow_tx_paste": false,
+      "enabled": true
+     },
+     "qr": {
+      "chains": [
+       "base"
+      ],
+      "enabled": true,
+      "wallet_button": false
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "methods": {
+     "browser": {
+      "enabled": false
+     },
+     "manual": {
+      "enabled": false
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": false,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": false
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "methods": {
+     "browser": {
+      "enabled": false
+     },
+     "qr": {
+      "enabled": false
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": false,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": false,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "rpc_urls": {
+     "arbitrum": [
+      "https://arb.example.org",
+      "http://127.0.0.1:8545"
+     ],
+     "base": "https://base.example.org"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {
+     "arbitrum": [
+      "https://arb.example.org",
+      "http://127.0.0.1:8545"
+     ],
+     "base": [
+      "https://base.example.org"
+     ]
+    },
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "rpc_urls": {
+     "ethereum": "http://localhost:8545/rpc"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {
+     "ethereum": [
+      "http://localhost:8545/rpc"
+     ]
+    },
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "confirmations": {
+     "base": 3,
+     "ethereum": 1
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {
+     "base": 3,
+     "ethereum": 1
+    },
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "rpc_urls": {
+     "solana": [
+      "https://sol.example.org"
+     ]
+    },
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum",
+     "solana"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {
+     "solana": [
+      "https://sol.example.org"
+     ]
+    },
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "previous_wallets": [
+     "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+     "AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe",
+     "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed",
+     "0xfb6916095ca1df60bb79ce92ce3ea74c37c5d359",
+     "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe"
+    ],
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum",
+     "solana"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [
+     "AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe"
+    ],
+    "previous_wallets": [
+     "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359"
+    ],
+    "rpc_urls": {},
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "previous_wallets": [],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "accent": "#abc",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#aabbcc",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "accent": "#0E7C74",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "accent": "#AABBCCDD",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#aabbcc",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "logo": "images/logo.png",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": "images/logo.png",
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "logo": "gui/Logo.JPG",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": "gui/Logo.JPG",
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "logo": "a.webp",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": "a.webp",
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "arc"
+    ],
+    "testnet": false,
+    "tokens": [
+     "USDC"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arc"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "wallet.missing",
+   "fn": "build_config",
+   "in": {}
+  },
+  {
+   "error": "wallet.missing",
+   "fn": "build_config",
+   "in": {
+    "wallet": null
+   }
+  },
+  {
+   "error": "address.invalid",
+   "fn": "build_config",
+   "in": {
+    "wallet": "0x123"
+   }
+  },
+  {
+   "error": "address.invalid",
+   "fn": "build_config",
+   "in": {
+    "wallet": "not an address"
+   }
+  },
+  {
+   "error": "address.invalid",
+   "fn": "build_config",
+   "in": {
+    "wallet": 5
+   }
+  },
+  {
+   "error": "solana_address.invalid",
+   "fn": "build_config",
+   "in": {
+    "solana_wallet": "not base58 0OIl"
+   }
+  },
+  {
+   "error": "solana_address.not_on_curve",
+   "fn": "build_config",
+   "in": {
+    "solana_wallet": "C4PRXFV6Gf5mytVZb6RoeLsG8CjcFWzR2EJ3dvwPTUJH"
+   }
+  },
+  {
+   "error": "address.invalid",
+   "fn": "build_config",
+   "in": {
+    "previous_wallets": [
+     "0xnothex"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "solana_address.not_on_curve",
+   "fn": "build_config",
+   "in": {
+    "previous_wallets": [
+     "C4PRXFV6Gf5mytVZb6RoeLsG8CjcFWzR2EJ3dvwPTUJH"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "solana_address.invalid",
+   "fn": "build_config",
+   "in": {
+    "previous_wallets": [
+     "short"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "chains.empty",
+   "fn": "build_config",
+   "in": {
+    "chains": [],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "chains.unknown",
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "nope"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "chains.duplicate",
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "base",
+     "base"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "chain.needs_solana_wallet",
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "solana"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "chain.needs_evm_wallet",
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "base"
+    ],
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+   }
+  },
+  {
+   "error": "tokens.empty",
+   "fn": "build_config",
+   "in": {
+    "tokens": [],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "tokens.unknown",
+   "fn": "build_config",
+   "in": {
+    "tokens": [
+     "DAI"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "config.no_usable_token",
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "base"
+    ],
+    "tokens": [
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "config.no_usable_token",
+   "fn": "build_config",
+   "in": {
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "testnet": true,
+    "tokens": [
+     "USDT"
+    ]
+   }
+  },
+  {
+   "error": "methods.unknown_method",
+   "fn": "build_config",
+   "in": {
+    "methods": {
+     "paypal": {
+      "enabled": true
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "methods.unknown_option",
+   "fn": "build_config",
+   "in": {
+    "methods": {
+     "qr": {
+      "colour": "red"
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "methods.enabled_not_bool",
+   "fn": "build_config",
+   "in": {
+    "methods": {
+     "qr": {
+      "enabled": "yes"
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "methods.enabled_not_bool",
+   "fn": "build_config",
+   "in": {
+    "methods": {
+     "manual": {
+      "enabled": 1
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "methods.bad_timeout",
+   "fn": "build_config",
+   "in": {
+    "methods": {
+     "browser": {
+      "timeout_min": 0
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "methods.bad_timeout",
+   "fn": "build_config",
+   "in": {
+    "methods": {
+     "browser": {
+      "timeout_min": -5
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "methods.bad_timeout",
+   "fn": "build_config",
+   "in": {
+    "methods": {
+     "browser": {
+      "timeout_min": "30"
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "methods.bad_timeout",
+   "fn": "build_config",
+   "in": {
+    "methods": {
+     "browser": {
+      "timeout_min": true
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "methods.none_enabled",
+   "fn": "build_config",
+   "in": {
+    "methods": {
+     "browser": {
+      "enabled": false
+     },
+     "manual": {
+      "enabled": false
+     },
+     "qr": {
+      "enabled": false
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "methods.qr_disabled_chain",
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "base"
+    ],
+    "methods": {
+     "qr": {
+      "chains": [
+       "polygon"
+      ]
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "rpc_urls.unknown_chain",
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "base"
+    ],
+    "rpc_urls": {
+     "polygon": "https://x.example.org"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "rpc_urls.unknown_chain",
+   "fn": "build_config",
+   "in": {
+    "rpc_urls": {
+     "nope": "https://x.example.org"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "rpc.bad_list",
+   "fn": "build_config",
+   "in": {
+    "rpc_urls": {
+     "base": []
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "rpc.bad_list",
+   "fn": "build_config",
+   "in": {
+    "rpc_urls": {
+     "base": 5
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "rpc.not_https",
+   "fn": "build_config",
+   "in": {
+    "rpc_urls": {
+     "base": "http://example.org"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "rpc.not_https",
+   "fn": "build_config",
+   "in": {
+    "rpc_urls": {
+     "base": [
+      "https://ok.example.org",
+      "ftp://x"
+     ]
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "rpc.not_https",
+   "fn": "build_config",
+   "in": {
+    "rpc_urls": {
+     "base": "http://127.0.0.1.evil.org"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "rpc.not_https",
+   "fn": "build_config",
+   "in": {
+    "rpc_urls": {
+     "base": "http://127.0.0.1:8545\n"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "rpc.not_https",
+   "fn": "build_config",
+   "in": {
+    "rpc_urls": {
+     "base": "http://localhost\n"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "confirmations.unknown_chain",
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "base"
+    ],
+    "confirmations": {
+     "polygon": 2
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "confirmations.solana_fixed",
+   "fn": "build_config",
+   "in": {
+    "confirmations": {
+     "solana": 5
+    },
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "confirmations.invalid",
+   "fn": "build_config",
+   "in": {
+    "confirmations": {
+     "base": 0
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "confirmations.invalid",
+   "fn": "build_config",
+   "in": {
+    "confirmations": {
+     "base": true
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "confirmations.invalid",
+   "fn": "build_config",
+   "in": {
+    "confirmations": {
+     "base": "3"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "logo.bad_path",
+   "fn": "build_config",
+   "in": {
+    "logo": "",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "logo.bad_path",
+   "fn": "build_config",
+   "in": {
+    "logo": "/etc/logo.png",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "logo.bad_path",
+   "fn": "build_config",
+   "in": {
+    "logo": "../logo.png",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "logo.bad_path",
+   "fn": "build_config",
+   "in": {
+    "logo": "a/../b.png",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "logo.bad_path",
+   "fn": "build_config",
+   "in": {
+    "logo": "images\\logo.png",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "logo.bad_path",
+   "fn": "build_config",
+   "in": {
+    "logo": "C:logo.png",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "logo.bad_path",
+   "fn": "build_config",
+   "in": {
+    "logo": 5,
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "logo.bad_type",
+   "fn": "build_config",
+   "in": {
+    "logo": "images/logo.svg",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "logo.bad_type",
+   "fn": "build_config",
+   "in": {
+    "logo": "images/logo",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "accent.invalid",
+   "fn": "build_config",
+   "in": {
+    "accent": "red",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "accent.invalid",
+   "fn": "build_config",
+   "in": {
+    "accent": "#12",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "accent.invalid",
+   "fn": "build_config",
+   "in": {
+    "accent": "#12345",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "accent.invalid",
+   "fn": "build_config",
+   "in": {
+    "accent": "0e7c74",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "accent.invalid",
+   "fn": "build_config",
+   "in": {
+    "accent": 5,
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "accent.invalid",
+   "fn": "build_config",
+   "in": {
+    "accent": "#0e7c74\n",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "accent.invalid",
+   "fn": "build_config",
+   "in": {
+    "accent": "#abc\n",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  }
+ ],
+ "tier": 1,
+ "topic": "config"
+}

@@ -1,0 +1,246 @@
+{
+ "covers": [
+  "tests/unit/test_solana_watch.py::test_scan_walk_stops_at_signatures_older_than_the_session"
+ ],
+ "id": "solana/scan_stops_before_the_session_no_cursor",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+   "testnet": true
+  },
+  "custom_chains": [],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {}
+ },
+ "steps": [
+  {
+   "action": "start_session",
+   "args": {
+    "chain": "solana",
+    "item": "chapter2",
+    "kind": "unlock"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "getSlot",
+     "params": [
+      {
+       "commitment": "confirmed"
+      }
+     ],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": 1000}",
+     "url": "https://api.devnet.solana.com"
+    },
+    {
+     "method": "getSignaturesForAddress",
+     "params": [
+      "EVADx2QYJwSufAQ5Ps5RHRrxKbA5AbTYd28kUwcPcRnm",
+      {
+       "commitment": "confirmed",
+       "limit": 1
+      }
+     ],
+     "response_text": "{\"id\": 2, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://api.devnet.solana.com"
+    }
+   ],
+   "entropy": [
+    {
+     "fn": "token_bytes",
+     "n": 32,
+     "value": "a21b29994eb338c6e20ec91069c207365d2a45a383d9ee3e1eeab336f9ad8aa7"
+    },
+    {
+     "fn": "randbelow",
+     "n": 100,
+     "value": 68
+    },
+    {
+     "fn": "token_hex",
+     "n": 8,
+     "value": "63206c26cc2766d5"
+    }
+   ],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": {
+    "chain": "solana",
+    "code": 37,
+    "created_at": 1700000000,
+    "cursor": 850,
+    "dest": "EVADx2QYJwSufAQ5Ps5RHRrxKbA5AbTYd28kUwcPcRnm",
+    "hint_at": null,
+    "hint_tx": null,
+    "id": "ps_63206c26cc2766d5",
+    "item": "chapter2",
+    "kind": "unlock",
+    "match": null,
+    "nonce": 68,
+    "price": "4.99",
+    "reference": "Buo53Rb9HXWNmoEt1mKCqySzP8j9gtxn9fDURiyz29xS",
+    "scan_before": null,
+    "scan_cursor": null,
+    "start_block": 850,
+    "state": "awaiting",
+    "title": "Chapter 2",
+    "token": "USDC",
+    "ui_status": "open",
+    "units": 4993768
+   },
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_63206c26cc2766d5": {
+      "chain": "solana",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 850,
+      "dest": "EVADx2QYJwSufAQ5Ps5RHRrxKbA5AbTYd28kUwcPcRnm",
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_63206c26cc2766d5",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 68,
+      "price": "4.99",
+      "reference": "Buo53Rb9HXWNmoEt1mKCqySzP8j9gtxn9fDURiyz29xS",
+      "scan_before": null,
+      "scan_cursor": null,
+      "start_block": 850,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993768
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "getSignaturesForAddress",
+     "params": [
+      "Buo53Rb9HXWNmoEt1mKCqySzP8j9gtxn9fDURiyz29xS",
+      {
+       "commitment": "confirmed",
+       "limit": 100
+      }
+     ],
+     "response_text": "{\"id\": 3, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://api.devnet.solana.com"
+    },
+    {
+     "method": "getSignaturesForAddress",
+     "params": [
+      "EVADx2QYJwSufAQ5Ps5RHRrxKbA5AbTYd28kUwcPcRnm",
+      {
+       "commitment": "confirmed",
+       "limit": 100
+      }
+     ],
+     "response_text": "{\"id\": 4, \"jsonrpc\": \"2.0\", \"result\": [{\"err\": null, \"signature\": \"569K8aAzv7koiMWwHuNs5yVnX9bVUKJeFbotdkaUy8q1QmFZkXkULodd3wsDgWY8FfYc3izKQNJHAgLGTrSYCawZ\", \"slot\": 950}, {\"err\": null, \"signature\": \"2YrojiH55Chd7ywWXQdS2Z7sdBx4BHAY93dfoPeNpSzKuw9Mw3xEcGfTcaQc4AgUEtKqdYNPWtTnfbpGHU6WnPRN\", \"slot\": 750}, {\"err\": null, \"signature\": \"doTBqoWorUdNCiRTHeRq6xFqRMxn3kESpdQVnbr1o25TmjqjyrGou3LX7SfeMS7i9i6nDdD9qvA4Shdo8skb1zN\", \"slot\": 749}, {\"err\": null, \"signature\": \"3BguskFqKGD3qWXpk7GWZND7cbsG8qf1B5fwuFfjCePKxh4iPKwVP6TqapW2skfyCtHZ9GtWQQS67W1aSR6pskzX\", \"slot\": 748}, {\"err\": null, \"signature\": \"49mMzWjc5ghp8K2ZB3ZEq9uFDat4P4iLa8Xbc6cJgxPE8RgQEhy9FnCGTsH8oLSV3gKKP3bNj5DXWR2J3Gayz3Bf\", \"slot\": 747}, {\"err\": null, \"signature\": \"53WX6TWUnJbWcdqfrBMZHwcEkGnDPb5D974E2K2V8Em379NBJa3bpginSC2wxrdYozqLyygn5pgMwbFUQ7g1hYjD\", \"slot\": 746}, {\"err\": null, \"signature\": \"rsUHCTTLxNgy5i1mVeqyMvAKLHKDj8RHvaiTaG7sBAQokdoxCXxSij9Mb2zZfeJWHwA9FbR2DP5fjThozow11Y1\", \"slot\": 745}, {\"err\": null, \"signature\": \"5WwrmFTzu2BsqQraGtoSCyAtYrkfFc5qvQogGybRJDLFtJmNMPF3eWhAAA6p6b8zenuJtQ9y11WwvMF1vUQFkSnJ\", \"slot\": 744}, {\"err\": null, \"signature\": \"5QgeWnVYHBzFFDqe7z8MxdA8ZfofoP33GfbnTFxgqRjzwKNfZFLBtiuW4UT4ycRBhevRWk4bFcapMYQMv9RLYVoa\", \"slot\": 743}, {\"err\": null, \"signature\": \"4GT7zyPi3eKwS8AawYrBWC8dDuenxFapx4nk5pRdV9nH4xiapMfQDbCy22hGZnu4kk4JtREAw1BnGPJ1Jy18k4TE\", \"slot\": 742}, {\"err\": null, \"signature\": \"3SFSmjNE5v9pcqTSWL8nKzTPWnvv29LcpLo6wfNUouBYawDFz62DaESHCtk3iDUfRktt4YHpk5ManFQ3eJV1YQBG\", \"slot\": 741}, {\"err\": null, \"signature\": \"4oCabbGKgiDfvbEHwWr7NNmVN8o9d2RM6dddVjDuQTgb3robVmSG55oF8Qc3ZdE7m7eibYZDb6UtpEnDQfth8T9a\", \"slot\": 740}, {\"err\": null, \"signature\": \"2uFhxxfLJiShxd7FSoSnxXgRmSeYp99t7x6hCD4tjhzAou9Tj53qLziv3hfuXCnKScv6PK69MeXQPCgzPesB4Sj7\", \"slot\": 739}, {\"err\": null, \"signature\": \"62es73drjiZQWqYUJumQ8jjN2q934rvf1rGbUFsYFHuAkm8KCFMPQHYY1iUfudMiS4xeXi4J35qxJsqajrGyeKU\", \"slot\": 738}, {\"err\": null, \"signature\": \"61mDr2RWNRevcLHEssKgV5VePTgaM8hPHyY8unDTxhbKxXrkkEzZK5yqN9eZumycgPy7C4iVXEJuf3tG5Jdf5xPy\", \"slot\": 737}, {\"err\": null, \"signature\": \"2F9VazhVN3gBxVHCs4Qtx7WcNDPumz8M544kRLnHJDkxSpCZjqEkgwU89SyRcfHJxsRJ6i4jp7DbH2g9Bu9qjJ3o\", \"slot\": 736}, {\"err\": null, \"signature\": \"tEhS4jnmPeBLqkCGqmwYLf6467K8L6GNoQpXUTnRPJkreZoNyBgqoprs3tCEEBWWFdURc17aE9vfmS6zCxfspZL\", \"slot\": 735}, {\"err\": null, \"signature\": \"2NStU5EkM8aRWY7bhbDbdJckiG8hAn38z1XbPMpUSjNYVTedarTw5LkfFZvtEyxWeYZKxKePNaNN4U8iDpu3sak\", \"slot\": 734}, {\"err\": null, \"signature\": \"51a24toYZ4obx8DLsEcFUFwzWZ4QoofKEWkbMQvxidM8SobnXEb3HTzUiQ3VpFjYFiE8WqJUZwqGngsj2GuzbcXF\", \"slot\": 733}, {\"err\": null, \"signature\": \"4FYbTU7hk8BdyEjax1gRzWWthWeJsZ9WtSBRG8rwg1mYxnZBW33qiXBQfC4GH2kH9uiNDSaesBpVmUi3wk65Txm1\", \"slot\": 732}, {\"err\": null, \"signature\": \"27uHPFXHRCHN8hZ3uSy5NhkDooBmq6kkey8Kt8DhCho4ExHNxRXi8bTU6N6MKrfakZhiMLN26N4HfGXrATBtGtsn\", \"slot\": 731}, {\"err\": null, \"signature\": \"4dbzmzViz8SwBccStnmGFv4xVpz5racY6NqcvZAS4DknnRV3Wjtbd7zYhEkm34vHF3cEFfQJaNLgCDbvwTQDYfh2\", \"slot\": 730}, {\"err\": null, \"signature\": \"swUdhNnyRT3wW17YJfp3syh5DQvuuBkAS4aQraBMJvKUyXhcufArKdfkGVJZFDQZKSAqX6StoFD8a9aeFivaAje\", \"slot\": 729}, {\"err\": null, \"signature\": \"o1oJ7Jwi7nULXiqvWKYbTcstp4jryN6jMBNi7VgwByM9h88JHyEKM59nNvKJhFz4qvgj5W5KvgtWq2JgAqc1H8U\", \"slot\": 728}, {\"err\": null, \"signature\": \"U4q5gyKgMkDm7bYLBKshCdYCcaaiPiFCYXe877QidaTjyfKPaPtUEHMSucAn6gWZJkDEwbxMLYt86s9Qc2haR7Q\", \"slot\": 727}, {\"err\": null, \"signature\": \"2hz29aipsCFtch2mwNr4MpQbY563SUG8J3i5kYZWGQcQpdr8aZaSxVV9GomJxx3hRUR3wtsQCag6HXjRDdrkw9Pp\", \"slot\": 726}, {\"err\": null, \"signature\": \"5yUdgQDxsiGKCBqfKWBYdB9rTDceUqoV4q3vnatL6dZfzE4me6oaB4veuiimKN3ADGZ98PygxaUq3nXY1v8rtCYA\", \"slot\": 725}, {\"err\": null, \"signature\": \"zTJ7u3oQLJnrhKWJUeL7QE5m3ab9pF9AbgiZUyVmxv5jNpnVotdf4V25z9sXFNXMGYzJzzDbQ8gPJbXaLyLi8he\", \"slot\": 724}, {\"err\": null, \"signature\": \"4XeKUhnHUE7Mr6rducUccGrTaEYKhcCoxm2VXyitX1XDhVHEJN9brKC3mf1EADwraasZQvM1fpFsz2nyE7GguEBU\", \"slot\": 723}, {\"err\": null, \"signature\": \"9VYgMxpHfsWP1urokinbf7rP9cZ87V9wczSskZ2pC1ELjsfnxzhqMjzHCdqoir2EjcDTMoFEBHiJ2im2sDZVAHJ\", \"slot\": 722}, {\"err\": null, \"signature\": \"4o759fpJDaz68uvbYCRDNmGknWrozbjo89M4PRVqJ7AYvk6j3FGgp4CmagdpNC4SDw1YpW9GH8DGR8U1NdTLTkRk\", \"slot\": 721}, {\"err\": null, \"signature\": \"5XxSK5t16a2aeC3Roev7EQUxk4gkYFzDQrN2XbwwWm3NQHbAg4jZQfvDWd9VXnaHQoo6ef73i8WFUywon3JeMC84\", \"slot\": 720}, {\"err\": null, \"signature\": \"r7YPEjBmC3nKAkdGnBF79ngTcmLbRKrHiFEysxJfexE8LRJqfod66g6RAzx7hSCr3mkoztx8tKNgw5ddFqatcLX\", \"slot\": 719}, {\"err\": null, \"signature\": \"4Cr3HujpnEunBeARBZDsxXdW5upEJ53JeqpPMwwYD1Xzr6cGv7mwf9gxHxW8NrYwz2CPtCjYihAYv9rs58s4yYMf\", \"slot\": 718}, {\"err\": null, \"signature\": \"498NgVRYcTLrwMuUup6uyhZS25gtfTTNacNnVAhCryc66Cvks5sPr1EJ6x45sFSfnW9YFVGxfnC8CVC5BQjPA3Lw\", \"slot\": 717}, {\"err\": null, \"signature\": \"UsNm53bkWjeZyNLCS28gTcHe1BoFbJDd4fmipt9fLaPZGBgzyMzu9CVm5R75p6um9J2snYsdzkEnxHhmFcymKf7\", \"slot\": 716}, {\"err\": null, \"signature\": \"5ru3pwfJizxiXa9DHaZzGNfpGDqtDCADaeUaKSramepHxAgtKqdXMpEbx28aYRCfAYg6W6W45Tr2QiaRe546piGz\", \"slot\": 715}, {\"err\": null, \"signature\": \"G43iSthCw7m128mCgA2uXnFBMSqjR1MxWTBrHZqKusbetq6ZZUscHWLDnuDYoueobCPGbhSSuvCGh9rTYADUE6M\", \"slot\": 714}, {\"err\": null, \"signature\": \"2ZaTTonu8SqAAp2kCwd4nUSZuiUiDrntct85HVFeTEMenF74sWB4pVoRXAfR7WLQUu73TZyXrLmTB1oxFsh6dmEV\", \"slot\": 713}, {\"err\": null, \"signature\": \"5H3xCdMNnEfhYaz4SiKAYjL3AoAZokfyJ4BfkGVfXgLBfZfRDBNhcnKS9mvKvvZ2Ye61jgNMa76UKtRRvghSCLQM\", \"slot\": 712}, {\"err\": null, \"signature\": \"5eap5fTGuMRKFihpJ4o8dNkdi1VVhupYFuc7bFiSV71UyLBQKBFLRLNmC7a7qwWMz2XnkuPQ6H8oVxvzWfVaBNLL\", \"slot\": 711}, {\"err\": null, \"signature\": \"34wm3J1BUUyxJULV3LceYs3bQZmADnNDn8PRxv8fMRA2319QFcM8zbWrxpwySoSUJKiPavkci28AxTADbLNcAZb\", \"slot\": 710}, {\"err\": null, \"signature\": \"3XEBjMoBHBRSqfvuZwZFrmVNqPtQ8gHUCJy4o28ApwhEuTJ9AKkVVFVLSkVKK28ndUFUseTnN9MjWap2oJX2zFb3\", \"slot\": 709}, {\"err\": null, \"signature\": \"4KjxYS6GLXb4YAJ3HdNs4wfaMgXzbTnt2fdTAywrj7qzvkV23E7SgnSeG1e77ucxoPBXxwVo2Py4NhT65N9V5WBW\", \"slot\": 708}, {\"err\": null, \"signature\": \"2Yx6au7MqFrEfp7MaPKv6TwGSRAjbmzd4nCv6WovAWyK7YRrGrUcwETdcyPAu6WVs8uyo1brts3gJVtTA4sgWcr\", \"slot\": 707}, {\"err\": null, \"signature\": \"3WsL9obKihkDwsLfkyGkp4pjwczNtC8LGphR8aKqoo3TuZwTf4H7XywFFgqdBaxZWAftBwPWYqGX275YksJjmvhA\", \"slot\": 706}, {\"err\": null, \"signature\": \"5vMUPsstNAka7qZaysJvq7Cq2XFRifZ6UojnVCgad58AiTyz8ahayRz14gtCiarWvjJVuMYAuAxonoMh2GZLgswC\", \"slot\": 705}, {\"err\": null, \"signature\": \"SrGqYZhuZZMXNXwkYLaBqEDwvv2QyeN2HernVUYPS3HobuhfPxp8b9feVSBobLzMmdrBu7v42F6nQCPiB383kPN\", \"slot\": 704}, {\"err\": null, \"signature\": \"2EYD4SGatvc25MXEwdTcXWHvcv5kKYf4bFv3EaomGQ14NAw5LRrYWmJK1VzQ4CgrYntjVg7nAKcGXSBARC9qG9Ca\", \"slot\": 703}, {\"err\": null, \"signature\": \"2wqn8Bf53qyZM7stAJqnhgxTD33p1ZNUozMMwm7HbnoKGmF1CtaQzaiDCvsvXa7PSBo9xFg4ZepDMk9tb9uxrR7y\", \"slot\": 702}, {\"err\": null, \"signature\": \"wJAhYcmSRWCeCYxkEhi9Noe68zAfGYwkNqRNk7viyQGMzTwaJnABrzwx1pkZ8F5rQKWS8haX4LnQLfUywwoa9Fb\", \"slot\": 701}, {\"err\": null, \"signature\": \"2WgPR9JS3coNSWWJxDroZPAtBGa2mBjrpCEsC8Q8np4wxaBqecVBLwUqvqdcu9EoHS81G3HoCuZtMNpUK4o9dyxp\", \"slot\": 700}, {\"err\": null, \"signature\": \"3k72nusiJuty3LkL3vTC35aex5Gpk1tPKh5zCboJPyVKiiYCNgm8qPyYwiXyYKdcPFXvCeMJohWX2RTA4nj343EV\", \"slot\": 699}, {\"err\": null, \"signature\": \"3uZNGGvmGvHsNbipTctSDGDKyVw18zxiAwzHQommMktefEkohdfjAYRDg1yHVNv5ZGDmHBA7DKCCmAi44qWCE1Ph\", \"slot\": 698}, {\"err\": null, \"signature\": \"2PRSgxGeAhaydXLHJNjQVDbA8BR2T1sLDvfNCZP9subTd87aXMKifrki3XaZuXaYqDJEpp8K281K6JjzTP3sDgh\", \"slot\": 697}, {\"err\": null, \"signature\": \"2vZjrKHcudma5Wixey96Xz7wj4UQwmaNghi2DL5dxvAi6p2FAi6hH94YnhZwtTXLTKiyH8b2rFEwVUJhrrQFjZ6K\", \"slot\": 696}, {\"err\": null, \"signature\": \"4P67CdtB9gmD4qbouX9Uv2fYDWLNUodmuwsUkKCxGMxdMcSCGLfBsncNkUN3XMXyq9DsebTXr25VZSnLhG2okta3\", \"slot\": 695}, {\"err\": null, \"signature\": \"43UkWLK15r5WJR55nUJ5YbTrY2z6egHUAgGKouPzfSV3LveSkdfN3TJCbQnhYfx7JxwxVtJUTz6g7UgicUGRBLDi\", \"slot\": 694}, {\"err\": null, \"signature\": \"4HNFEg2puX1ejYRs81MZN6SLsZPJhmBT4zmPnVj3ddSgTteMzx7ZqRdooDjdRXaiaQeS7yzbNBry6UXybnxo24Mm\", \"slot\": 693}, {\"err\": null, \"signature\": \"hMXGpwbcsCvoC7of3d9xod5J759j3qqTrV5zjcPD5rDZFAyaCa8njU4n2ZdjPBEemwxwk6xxZvyGRtd7L3vBYEF\", \"slot\": 692}, {\"err\": null, \"signature\": \"2xwLAHMjjQ1VhHDQYksQgXZ1ayd2CWevnoPKe9jC48bJk6u41tvB42ocHmzY4S2Sm7UzSNn7LCDo6Ss7UExUhZNh\", \"slot\": 691}, {\"err\": null, \"signature\": \"r6N7xwtaaF9T1gDmmwcKzAGaTHfRxvZsHdY3nWXEcHBjcMdSzwiScFwYwNURja4YzS3jsY7gnxT9bqeaUtoWtJs\", \"slot\": 690}, {\"err\": null, \"signature\": \"3EWs4RcAzbFqqqHw62hHZ97JTBTXS1xoe7KTq3LNMyxv61sF9XSNvfhboMWDTUPBFLcXNART1h6XrHJYeY2qFZNK\", \"slot\": 689}, {\"err\": null, \"signature\": \"2NPZgLKmqcnQNpxEgnXDwVrFt9rE7YDgEwnqQ6YEL4FvPoNPM3pa1zG5KvRGKgAnhx2tXM56gauTpUideDXtWj9E\", \"slot\": 688}, {\"err\": null, \"signature\": \"4RiPdSuxAJPg4YKDj3f5YW7BNdsyxqWZTTLiWuUsDdyLn4VwyeC1JsDxTXrqLyhBVd92Q5fQztGxRC2TFnCh1Mbq\", \"slot\": 687}, {\"err\": null, \"signature\": \"nr5BGLy6Mkj4MQ4RKoH3izRCGjgUJqbgdWVrWbQoCJawAoc27bCMiQLA72wFvkaYAXj2Ks4jw8nFd2DSP1x2f3N\", \"slot\": 686}, {\"err\": null, \"signature\": \"41AfgcffHsvKPWquwTZB5x7sXHuABJyXhUzYqVo7iLst5Kjox9XmqhtbcuHue9pyNXuFbjNXkoYTpFUmRyaYNJkd\", \"slot\": 685}, {\"err\": null, \"signature\": \"3h4icw9SE8SPCyBM7jJvUzYvmSYR8Q18s6QuRnzr3YZZW7khoadk7Qw1ZEXMQXVfTPfQsEYhpcUJ2RdQxsvb7haR\", \"slot\": 684}, {\"err\": null, \"signature\": \"3JSnRZHD4bgZZeKe93NagDejqNwfnQ4HWGxpRqvTWx2WiddkLmYokKtPuU75tf71TXDbGssck4g3tJoLk5oRYEnv\", \"slot\": 683}, {\"err\": null, \"signature\": \"c9BWrva7A5FVBD2JCjpxtWnqn8yuw2aRSefJCRpfqCXCekS35QpFqLs2B1VcdVHk4esFqM2zYvgJH5AmQTtKApe\", \"slot\": 682}, {\"err\": null, \"signature\": \"458n24y27RYexTpEW9YSd9shJ2m7mC3dpYUSwdQfZU9nZKgRreG2eMH4ps656dmmwaHeQpkSzYEtT1FksfE12Jcn\", \"slot\": 681}, {\"err\": null, \"signature\": \"2k8MkPrtTFacovbWsisGL381F7nqvC2cGBW3DtyEX6qsSYMwzumfYKQpf5q6YhX9r872us9b3G7GNvPPSbYNjMKo\", \"slot\": 680}, {\"err\": null, \"signature\": \"3QM6Pdiia3GVDfV8SuBn52jD4Sz5RJGU27AeMAfEV5q8u6q671tSzXXTEVMM6xaYqLphdQyso4knvqMsC324wLQj\", \"slot\": 679}, {\"err\": null, \"signature\": \"4V5CKXud1bVRtrtbyhcfjVdRoYzRBNkqf7P3JMwnaYM9rVexYkzhX4zskAFCm3JG5jBvZ3W6Lnfen4pqYJuhTas2\", \"slot\": 678}, {\"err\": null, \"signature\": \"5QMz3r1yuTSCZ3uwqHyvAfQUdnp9uMfa5frkH1zH43XhzBQ3M2HT2MA5YRmh8aDko6RRywhSyrBRVCw6cwJv6R4r\", \"slot\": 677}, {\"err\": null, \"signature\": \"2VNL54CoD3ETWveDRQ4wdsV5CrBVHUNrrDzmiE9VDfgWNUGksmNTNDvkzyCdaYYZryF3cNx1nawiFe2VfhpjKHzC\", \"slot\": 676}, {\"err\": null, \"signature\": \"3Z8RiTU3gWbd6dAoDVaE3GRKN2w3ZDhaqa349e2wH6rPaT3gLFTob9zs3v35Pto7dRYH2Cy7MiNd61hy8fRnunbY\", \"slot\": 675}, {\"err\": null, \"signature\": \"3G9xXai5J5e5RSu6WNZuvDLkdkW2SfLAmG5KpS3cLq9F4A5AMETjaq47EjEfqX6QVpwG2euDDRdttNiye8iP8avq\", \"slot\": 674}, {\"err\": null, \"signature\": \"491Ub4PnWx6bahA8uRCxfZPhsrfNdQJkGoviToSNmpsUkSTWALQAYhjw3o6srhiQYK3NY9rj3NZkJi4WHBS15Cdh\", \"slot\": 673}, {\"err\": null, \"signature\": \"2B5ieRi5kSBxDNT1DSdKdRupTEQWJP5gobqLqCse3mQwmL1rjxuHt9ugP5Jqvt6N1p5Ep1sYEMyTgHWmAHx2dhhL\", \"slot\": 672}, {\"err\": null, \"signature\": \"pUmE31RjasJSnFnXRLMJJC33F178dkQd1zd95jAwtzjGGAGmYqcPH48MX748bwGYVNi14nkaDAd5mKVRCUQHWdn\", \"slot\": 671}, {\"err\": null, \"signature\": \"6198pR6vMEpNJnSwVc4ZMnQtmosUp5yWCdpLehCyat7E56cC5To45XNWER6awi7kZGzyJeTZZ24cKT2hw9eupPXC\", \"slot\": 670}, {\"err\": null, \"signature\": \"45i9JHsMsoN6svYhYECMbTs514WxMfJxogMarmGsLgnFuq255iM8gw1yhEh1KSitzX8JFkwq1qHWGvxbzKG5v7Ei\", \"slot\": 669}, {\"err\": null, \"signature\": \"5b6aWDVwDNAQSzuXkKd65ReQhdfAgcm4NovwZMv4WBdgMi3yyTUJV9JJiCMZbCbMTUo3e3hDgvQnBcLWFpsFinkc\", \"slot\": 668}, {\"err\": null, \"signature\": \"3zdeosGPqiEPsMrsWxvEkcb8TS4e7DvNJiKWtugKUMRbg6jCsp7eNFExSdxoMQ2dANWPt4oPrXiutTGSjTiWNBih\", \"slot\": 667}, {\"err\": null, \"signature\": \"3dFtrd3gT9MdzmfdaVtK1dUxuvKdLkdpW42dzPKYFmXiP6tmFrPDBkZweHSJb3oRYzJFETbR53mHFY2rxsrKVd2P\", \"slot\": 666}, {\"err\": null, \"signature\": \"3dJgu8tb4PwDMTceUguhFAzrgKLE9JF2FXNWkorWWyFvtfxZB6TK5ZeUgmiZJt71vtq7oC8vErMsaKzyLHKFZxdt\", \"slot\": 665}, {\"err\": null, \"signature\": \"3Zd3NKKR2EBBJZKrGDhuD4M4YFTwqySP99sX32KTYQ4Geacn4wa9G4ZW445Wx29rteAmkzFEETpWQJvh8zVJduJd\", \"slot\": 664}, {\"err\": null, \"signature\": \"7mGNvpuAwVpRLBzF5B47vhHt2hocrbYhAovNNKMiVmmAS6ok3SfXAzR3huzYnnDqWHJ6Q52PC5ZmknLKhVCe782\", \"slot\": 663}, {\"err\": null, \"signature\": \"2k26dmLFNTqTuQpDrZBh8L9pZkRYyPw5rekLaaFeB8bKtot54ZHhkBm8ktvw658fXS7scS5XXuuyfFvrK6TdTW3t\", \"slot\": 662}, {\"err\": null, \"signature\": \"4ZNUYZ2wa689cooxxx5tyoX6sExiNm3pQwZzSBQvQbBnJuFMqw1q2KoPDq1nf9bbn5biry73YuiM88dyByQUi62s\", \"slot\": 661}, {\"err\": null, \"signature\": \"2N5ZSx9FgUWnDsqYpGucNUbGKgCcmebQx7nXsEckvUycfbhVxAM83z44qDLN3L6Pvq3uJ1KA4XZQx3RsbDgqboTn\", \"slot\": 660}, {\"err\": null, \"signature\": \"2N8AK1YLNZS3wv29u1NEQJjtmvpJEgfpnVDo87e8NC9aQTFniFqm9UzL4mVPs6KwsbJhvq1RV3fUeeuVmxMLKDtc\", \"slot\": 659}, {\"err\": null, \"signature\": \"8a6SpLoefFAUc3CtNcdwzbvrjU32bM9AAW7AdMz6nSTv9NXboqUNnBuM4eCATBAJfzxyeYnsX5sr9Vh8ZgajtwX\", \"slot\": 658}, {\"err\": null, \"signature\": \"iPSuGZD1nBbo4HJg86av9Yq3bhbgmb5RyDESGe6DnahjmGvn7L9rZuQFvsf9URUCJ5HGk6XvJD2JsKZUzUYfW5U\", \"slot\": 657}, {\"err\": null, \"signature\": \"2gzeCx1jQc2i2JnfokhqSBANKBgFfVfV9uWtmABuB5cyUo2VHih52DC8Vwretcnbs9pJXGsCErEzvsy976ZuDSM4\", \"slot\": 656}, {\"err\": null, \"signature\": \"2trha5sMCC3TMp7ZMhhB7jhgEmjb7QjLvQsAdhDUGsn6c2f1TshY3Y6o5L1CoeT5iedfqbo11Zg2PPxGivMMgAfd\", \"slot\": 655}, {\"err\": null, \"signature\": \"44JKU3VK5jy9fbzBLsATTukZCkDPwkYipobFn8kt1Tp3p1DVHPmuPwe61YVsB5Xae2nt7LWCMHLUtqBCuQjHfZcT\", \"slot\": 654}, {\"err\": null, \"signature\": \"3RJCn8erYGr3Nux499dbGwxdMtApKAhnLZYejL42izomktcujD5AnZ85e52f14MGfV9YY97twp7MZrdvRRy2SgAd\", \"slot\": 653}, {\"err\": null, \"signature\": \"3iXrJMFpAbSHpXkbKYQYDWhiv29cKfmdpS1fKtapB4RWyH3bDoCKv9Ng2dMnbBwF3fxdpHVfEhMtofcgnXHug1gQ\", \"slot\": 652}]}",
+     "url": "https://api.devnet.solana.com"
+    },
+    {
+     "method": "getTransaction",
+     "params": [
+      "569K8aAzv7koiMWwHuNs5yVnX9bVUKJeFbotdkaUy8q1QmFZkXkULodd3wsDgWY8FfYc3izKQNJHAgLGTrSYCawZ",
+      {
+       "commitment": "confirmed",
+       "encoding": "json",
+       "maxSupportedTransactionVersion": 1
+      }
+     ],
+     "response_text": "{\"id\": 5, \"jsonrpc\": \"2.0\", \"result\": {\"meta\": {\"err\": null, \"postTokenBalances\": [{\"accountIndex\": 1, \"mint\": \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\", \"owner\": \"AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe\", \"uiTokenAmount\": {\"amount\": \"995006232\", \"decimals\": 6}}, {\"accountIndex\": 2, \"mint\": \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\", \"owner\": \"7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU\", \"uiTokenAmount\": {\"amount\": \"4993768\", \"decimals\": 6}}], \"preTokenBalances\": [{\"accountIndex\": 1, \"mint\": \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\", \"owner\": \"AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe\", \"uiTokenAmount\": {\"amount\": \"1000000000\", \"decimals\": 6}}, {\"accountIndex\": 2, \"mint\": \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\", \"owner\": \"7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU\", \"uiTokenAmount\": {\"amount\": \"0\", \"decimals\": 6}}]}, \"slot\": 950, \"transaction\": {\"message\": {\"accountKeys\": [\"AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe\", \"yoKuJrLHyiHJPqBhbgJkcyWsxW4boDZKqk9nxgUfAqF\", \"EVADx2QYJwSufAQ5Ps5RHRrxKbA5AbTYd28kUwcPcRnm\", \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\"]}, \"signatures\": [\"569K8aAzv7koiMWwHuNs5yVnX9bVUKJeFbotdkaUy8q1QmFZkXkULodd3wsDgWY8FfYc3izKQNJHAgLGTrSYCawZ\"]}, \"version\": 0}}",
+     "url": "https://api.devnet.solana.com"
+    },
+    {
+     "method": "getSignatureStatuses",
+     "params": [
+      [
+       "569K8aAzv7koiMWwHuNs5yVnX9bVUKJeFbotdkaUy8q1QmFZkXkULodd3wsDgWY8FfYc3izKQNJHAgLGTrSYCawZ"
+      ],
+      {
+       "searchTransactionHistory": true
+      }
+     ],
+     "response_text": "{\"id\": 6, \"jsonrpc\": \"2.0\", \"result\": {\"context\": {\"slot\": 1000}, \"value\": [{\"confirmationStatus\": \"confirmed\", \"confirmations\": 1, \"err\": null, \"slot\": 950}]}}",
+     "url": "https://api.devnet.solana.com"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 1,
+     "error": null,
+     "hint_tx": null,
+     "required": 32,
+     "result": null,
+     "session_id": "ps_63206c26cc2766d5",
+     "status": "confirming"
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_63206c26cc2766d5": {
+      "chain": "solana",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 850,
+      "dest": "EVADx2QYJwSufAQ5Ps5RHRrxKbA5AbTYd28kUwcPcRnm",
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_63206c26cc2766d5",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": {
+       "block": 950,
+       "log_index": 2,
+       "payer": "AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe",
+       "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+       "tx_hash": "569K8aAzv7koiMWwHuNs5yVnX9bVUKJeFbotdkaUy8q1QmFZkXkULodd3wsDgWY8FfYc3izKQNJHAgLGTrSYCawZ",
+       "value": 4993768
+      },
+      "nonce": 68,
+      "price": "4.99",
+      "reference": "Buo53Rb9HXWNmoEt1mKCqySzP8j9gtxn9fDURiyz29xS",
+      "scan_before": null,
+      "scan_cursor": "569K8aAzv7koiMWwHuNs5yVnX9bVUKJeFbotdkaUy8q1QmFZkXkULodd3wsDgWY8FfYc3izKQNJHAgLGTrSYCawZ",
+      "start_block": 850,
+      "state": "confirming",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993768
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

@@ -31,9 +31,9 @@ class EvmBackend:
         return (yield from reverify.check_evm_receipt(receipt, rpc=rpc, chain=chain,
                                                       wallets=wallets))
 
-    def lookup(self, tx, *, config, chain, rpc, receipts):
+    def lookup(self, tx, *, config, chain, rpc, receipts, on_error=None):
         return (yield from restore.lookup_evm(tx, config=config, chain=chain, rpc=rpc,
-                                              receipts=receipts))
+                                              receipts=receipts, on_error=on_error))
 
     def check_ready(self, *, rpc, chain, wallet):
         return {name: True for name in chain.tokens}

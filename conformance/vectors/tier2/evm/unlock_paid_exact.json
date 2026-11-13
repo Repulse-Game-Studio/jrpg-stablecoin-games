@@ -1,0 +1,418 @@
+{
+ "covers": [
+  "tests/unit/test_engine.py::test_start_unlock_session_uses_item_defaults",
+  "tests/unit/test_engine.py::test_end_to_end_tick_pays_and_updates_snapshot",
+  "tests/unit/test_watcher_awaiting.py::test_scan_without_payment_advances_cursor",
+  "tests/unit/test_watcher_awaiting.py::test_scan_matches_exact_amount_and_starts_confirming",
+  "tests/unit/test_watcher_confirming.py::test_counts_confirmations_until_required",
+  "tests/unit/test_watcher_confirming.py::test_paid_writes_receipt_and_removes_session",
+  "tests/unit/test_sessions.py::test_create_session_record_shape",
+  "tests/unit/test_arc_logs.py::test_parse_transfer_plain_chain_unchanged",
+  "tests/unit/test_backends.py::test_builtin_chains_are_evm",
+  "tests/unit/test_evm_logs.py::test_missing_removed_field_is_fine"
+ ],
+ "id": "evm/unlock_paid_exact",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+  },
+  "custom_chains": [],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {}
+ },
+ "steps": [
+  {
+   "action": "start_session",
+   "args": {
+    "chain": "arbitrum",
+    "item": "chapter2",
+    "kind": "unlock"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    }
+   ],
+   "entropy": [
+    {
+     "fn": "randbelow",
+     "n": 100,
+     "value": 44
+    },
+    {
+     "fn": "token_hex",
+     "n": 8,
+     "value": "fe61ad2b4fa53c45"
+    }
+   ],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": {
+    "chain": "arbitrum",
+    "code": 37,
+    "created_at": 1700000000,
+    "cursor": 995,
+    "hint_at": null,
+    "hint_tx": null,
+    "id": "ps_fe61ad2b4fa53c45",
+    "item": "chapter2",
+    "kind": "unlock",
+    "match": null,
+    "nonce": 44,
+    "price": "4.99",
+    "start_block": 995,
+    "state": "awaiting",
+    "title": "Chapter 2",
+    "token": "USDC",
+    "ui_status": "open",
+    "units": 4993744
+   },
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_fe61ad2b4fa53c45": {
+      "chain": "arbitrum",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 995,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_fe61ad2b4fa53c45",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 44,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993744
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 2, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+       "fromBlock": "0x3e3",
+       "toBlock": "0x3e8",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 3, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 0,
+     "error": null,
+     "hint_tx": null,
+     "required": 20,
+     "result": null,
+     "session_id": "ps_fe61ad2b4fa53c45",
+     "status": "waiting"
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_fe61ad2b4fa53c45": {
+      "chain": "arbitrum",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 1001,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_fe61ad2b4fa53c45",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 44,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993744
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000010,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 4, \"jsonrpc\": \"2.0\", \"result\": \"0x3e9\"}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+       "fromBlock": "0x3e9",
+       "toBlock": "0x3e9",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 5, \"jsonrpc\": \"2.0\", \"result\": [{\"address\": \"0xaf88d065e77c8cc2239327c5edb3a432268e5831\", \"blockHash\": \"0x00000000000000000000000000000000000000000000000000000000000003e9\", \"blockNumber\": \"0x3e9\", \"data\": \"0x00000000000000000000000000000000000000000000000000000000004c32d0\", \"logIndex\": \"0x2\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed\"], \"transactionHash\": \"0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d\"}]}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getBlockByNumber",
+     "params": [
+      "0x3e9",
+      false
+     ],
+     "response_text": "{\"id\": 6, \"jsonrpc\": \"2.0\", \"result\": {\"hash\": \"0x00000000000000000000000000000000000000000000000000000000000003e9\", \"number\": \"0x3e9\", \"parentHash\": \"0x00000000000000000000000000000000000000000000000000000000000003e8\"}}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 1,
+     "error": null,
+     "hint_tx": null,
+     "required": 20,
+     "result": null,
+     "session_id": "ps_fe61ad2b4fa53c45",
+     "status": "confirming"
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_fe61ad2b4fa53c45": {
+      "chain": "arbitrum",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 1002,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_fe61ad2b4fa53c45",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": {
+       "block": 1001,
+       "block_hash": "0x00000000000000000000000000000000000000000000000000000000000003e9",
+       "log_index": 2,
+       "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+       "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+       "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d",
+       "value": 4993744
+      },
+      "nonce": 44,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "confirming",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993744
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000010,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 7, \"jsonrpc\": \"2.0\", \"result\": \"0x3f2\"}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getBlockByNumber",
+     "params": [
+      "0x3e9",
+      false
+     ],
+     "response_text": "{\"id\": 8, \"jsonrpc\": \"2.0\", \"result\": {\"hash\": \"0x00000000000000000000000000000000000000000000000000000000000003e9\", \"number\": \"0x3e9\", \"parentHash\": \"0x00000000000000000000000000000000000000000000000000000000000003e8\"}}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 10,
+     "error": null,
+     "hint_tx": null,
+     "required": 20,
+     "result": null,
+     "session_id": "ps_fe61ad2b4fa53c45",
+     "status": "confirming"
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_fe61ad2b4fa53c45": {
+      "chain": "arbitrum",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 1002,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_fe61ad2b4fa53c45",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": {
+       "block": 1001,
+       "block_hash": "0x00000000000000000000000000000000000000000000000000000000000003e9",
+       "log_index": 2,
+       "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+       "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+       "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d",
+       "value": 4993744
+      },
+      "nonce": 44,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "confirming",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993744
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000010,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 9, \"jsonrpc\": \"2.0\", \"result\": \"0x3fc\"}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getBlockByNumber",
+     "params": [
+      "0x3e9",
+      false
+     ],
+     "response_text": "{\"id\": 10, \"jsonrpc\": \"2.0\", \"result\": {\"hash\": \"0x00000000000000000000000000000000000000000000000000000000000003e9\", \"number\": \"0x3e9\", \"parentHash\": \"0x00000000000000000000000000000000000000000000000000000000000003e8\"}}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 20,
+     "error": null,
+     "hint_tx": null,
+     "required": 20,
+     "result": {
+      "amount": "4.993744",
+      "chain": "arbitrum",
+      "error": null,
+      "item": "chapter2",
+      "kind": "unlock",
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "session_id": "ps_fe61ad2b4fa53c45",
+      "status": "paid",
+      "token": "USDC",
+      "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     },
+     "session_id": "ps_fe61ad2b4fa53c45",
+     "status": "paid"
+    }
+   ],
+   "snapshot": {
+    "owned": [
+     "chapter2"
+    ],
+    "pending": {},
+    "receipts": {
+     "arbitrum:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:2": {
+      "amount": "4.993744",
+      "block": 1001,
+      "chain": "arbitrum",
+      "item": "chapter2",
+      "kind": "unlock",
+      "log_index": 2,
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     }
+    },
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

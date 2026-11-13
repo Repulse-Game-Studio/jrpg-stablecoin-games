@@ -1,0 +1,754 @@
+{
+ "cases": [
+  {
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0xabababababababababababababababababababababababababababababababab"
+   },
+   "out": "0xabababababababababababababababababababababababababababababababab"
+  },
+  {
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0xABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB"
+   },
+   "out": "0xabababababababababababababababababababababababababababababababab"
+  },
+  {
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0xaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaB"
+   },
+   "out": "0xabababababababababababababababababababababababababababababababab"
+  },
+  {
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "  0xabababababababababababababababababababababababababababababababab  "
+   },
+   "out": "0xabababababababababababababababababababababababababababababababab"
+  },
+  {
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "\t0xabababababababababababababababababababababababababababababababab\n"
+   },
+   "out": "0xabababababababababababababababababababababababababababababababab"
+  },
+  {
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": " 0xabababababababababababababababababababababababababababababababab　"
+   },
+   "out": "0xabababababababababababababababababababababababababababababababab"
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0Xabababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "abababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0xababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0xababababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0xagagagagagagagagagagagagagagagagagagagagagagagagagagagagagagagag"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0xabababababababababababababababab abababababababababababababababab"
+   }
+  },
+  {
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0x0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "out": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   },
+   "out": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  {
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+   },
+   "out": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": ""
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": " "
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0x"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0xabababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0xabababababababababababababababababababababababababababababababab\n0xabababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0x１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "garbage"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "not a hash"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "日本"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "0"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": "OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": 5
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": null
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": true
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": []
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": {}
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_tx_hash",
+   "in": {
+    "text": [
+     "0xabababababababababababababababababababababababababababababababab"
+    ]
+   }
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+   },
+   "out": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": "  1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS\n"
+   },
+   "out": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": "2Ana1pUpv2ZbMVkwF5FXapYeBEjdxDatLn7nvJkhgTSXbs59SyZSx866bXirPgj8QQVB57uxHJBG1YFvkRbFj4T"
+   },
+   "out": "2Ana1pUpv2ZbMVkwF5FXapYeBEjdxDatLn7nvJkhgTSXbs59SyZSx866bXirPgj8QQVB57uxHJBG1YFvkRbFj4T"
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": "1111111111111111111111111111111111111111111111111111111111111111"
+   },
+   "out": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
+   },
+   "out": "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefg"
+   }
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS1"
+   },
+   "out": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS1"
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": "1gmkh3brnxinns1tifzhu4yzsrrzjwxi5wb9bhftminfcxnnr1adh8vo8nthek4evneedh4qmvjeqcbbnaefgs"
+   },
+   "out": "1gmkh3brnxinns1tifzhu4yzsrrzjwxi5wb9bhftminfcxnnr1adh8vo8nthek4evneedh4qmvjeqcbbnaefgs"
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "1GMKH3BRNXINNS1TIFZHU4YZSRRZJWXI5WB9BHFTMINFCXNNR1ADH8VO8NTHEK4EVNEEDH4QMVJEQCBBNAEFGS"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "CejwupnRUhnYHb72dZ8rqnWsvFw49MDYKZ2SvurkX4K3"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "0GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "0xabababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "0xABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "0xaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaB"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "garbage"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "not a hash"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "日本"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "0"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": 5
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": null
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": true
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": []
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": {}
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": [
+     "0xabababababababababababababababababababababababababababababababab"
+    ]
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": " 22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+   }
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
+   },
+   "out": "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0xabababababababababababababababababababababababababababababababab"
+   },
+   "out": "0xabababababababababababababababababababababababababababababababab"
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0xABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB"
+   },
+   "out": "0xabababababababababababababababababababababababababababababababab"
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0xaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaBaB"
+   },
+   "out": "0xabababababababababababababababababababababababababababababababab"
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "  0xabababababababababababababababababababababababababababababababab  "
+   },
+   "out": "0xabababababababababababababababababababababababababababababababab"
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "\t0xabababababababababababababababababababababababababababababababab\n"
+   },
+   "out": "0xabababababababababababababababababababababababababababababababab"
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": " 0xabababababababababababababababababababababababababababababababab　"
+   },
+   "out": "0xabababababababababababababababababababababababababababababababab"
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0Xabababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "abababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0xababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0xababababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0xagagagagagagagagagagagagagagagagagagagagagagagagagagagagagagagag"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0xabababababababababababababababab abababababababababababababababab"
+   }
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0x0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "out": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   },
+   "out": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+   },
+   "out": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": ""
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": " "
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0x"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0xabababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0xabababababababababababababababababababababababababababababababab\n0xabababababababababababababababababababababababababababababababab"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0x１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１"
+   }
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+   },
+   "out": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "  1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS\n"
+   },
+   "out": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "2Ana1pUpv2ZbMVkwF5FXapYeBEjdxDatLn7nvJkhgTSXbs59SyZSx866bXirPgj8QQVB57uxHJBG1YFvkRbFj4T"
+   },
+   "out": "2Ana1pUpv2ZbMVkwF5FXapYeBEjdxDatLn7nvJkhgTSXbs59SyZSx866bXirPgj8QQVB57uxHJBG1YFvkRbFj4T"
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "1111111111111111111111111111111111111111111111111111111111111111"
+   },
+   "out": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
+   },
+   "out": "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefg"
+   }
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS1"
+   },
+   "out": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS1"
+  },
+  {
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "1gmkh3brnxinns1tifzhu4yzsrrzjwxi5wb9bhftminfcxnnr1adh8vo8nthek4evneedh4qmvjeqcbbnaefgs"
+   },
+   "out": "1gmkh3brnxinns1tifzhu4yzsrrzjwxi5wb9bhftminfcxnnr1adh8vo8nthek4evneedh4qmvjeqcbbnaefgs"
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "1GMKH3BRNXINNS1TIFZHU4YZSRRZJWXI5WB9BHFTMINFCXNNR1ADH8VO8NTHEK4EVNEEDH4QMVJEQCBBNAEFGS"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "CejwupnRUhnYHb72dZ8rqnWsvFw49MDYKZ2SvurkX4K3"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "garbage"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "not a hash"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "日本"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "0"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": "OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": 5
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": null
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": true
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": []
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": {}
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_any_tx",
+   "in": {
+    "text": [
+     "0xabababababababababababababababababababababababababababababababab"
+    ]
+   }
+  }
+ ],
+ "tier": 1,
+ "topic": "tx_ids"
+}

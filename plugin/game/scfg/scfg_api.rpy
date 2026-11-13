@@ -68,7 +68,8 @@ init -10 python in scfg:
             self.checkouts = python_dict()     # cid -> controller with its screen open
             self.background = python_dict()    # cid -> "continue playing" controller (browser page alive)
             self.restores = python_dict()
-            self.callbacks = python_dict()     # session id -> developer callback
+            self.callbacks = python_dict()     # session id -> developer callback, until the session is over
+            self.seen_pending = frozenset()    # callbacks' session ids the last snapshot listed as pending
             self.restore_callbacks = python_dict()
             self.next_id = 0
             self.last_snapshot = None
@@ -106,7 +107,8 @@ init -10 python in scfg:
         Chains whose gas coin is the stablecoin itself (like Arc, built in) can't be added
         this way: their wallet sends emit no ERC-20 event at the token contract."""
         if _state.config is not None:
-            raise ConfigError("call scfg.add_chain() before scfg.configure()")
+            raise ConfigError("call scfg.add_chain() before scfg.configure()",
+                              code="configure.after_add_chain")
         chain = _build_chain(key, name=name, chain_id=chain_id, rpc=rpc, tokens=tokens,
                              confirmations=confirmations, explorer_tx=explorer_tx,
                              native_symbol=native_symbol, fee_hint=fee_hint,
@@ -129,7 +131,8 @@ init -10 python in scfg:
             logo=logo, accent=accent, custom_chains=_state.custom_chains,
             solana_wallet=solana_wallet)
         if config.logo is not None and not renpy.loadable(config.logo):
-            raise ConfigError("logo file not found in the game folder: %r" % (config.logo,))
+            raise ConfigError("logo file not found in the game folder: %r" % (config.logo,),
+                              code="logo.file_missing")
         _state.config = config
 
     def add_item(item_id, code, price, token, title, min_price=None):
@@ -139,7 +142,8 @@ init -10 python in scfg:
 
     def _require_config():
         if _state.config is None:
-            raise ConfigError("call scfg.configure(...) in an init python block first")
+            raise ConfigError("call scfg.configure(...) in an init python block first",
+                              code="configure.not_called")
         return _state.config
 
     # ------------------------------------------------------------------ platform support
@@ -229,6 +233,8 @@ init -10 python in scfg:
                     renpy.notify(_("Couldn't copy: your browser blocked the clipboard."))
             else:
                 changed = False
+            # Read before draining: every outcome of the run that made this snapshot is queued.
+            outcomes_snap = worker.snapshot
             controllers = python_list(_state.checkouts.values()) + python_list(_state.background.values())
             for outcome in worker.drain_outcomes():
                 changed = True
@@ -241,6 +247,7 @@ init -10 python in scfg:
                 c.poll()
                 _register_callback(c)
                 changed = changed or c.state != before
+            _prune_callbacks(outcomes_snap)
             timeout = _state.config.methods["browser"]["timeout_min"] * 60
             now = _time.time()
             for cid, c in python_list(_state.background.items()):
@@ -388,7 +395,8 @@ init -10 python in scfg:
     def owns(item_id):
         """True if a verified receipt unlocks `item_id`. Instant and offline."""
         if item_id not in _require_config().items:
-            raise ConfigError("unknown item %r; declare it with scfg.add_item()" % (item_id,))
+            raise ConfigError("unknown item %r; declare it with scfg.add_item()" % (item_id,),
+                              code="item.unknown")
         return item_id in _snapshot_ownership()[0]
 
     def has_tipped():
@@ -436,6 +444,8 @@ init -10 python in scfg:
     class _ScreenCheckout(_CheckoutController):
         """CheckoutController + an id. Pickles as a lookup, so a save taken while the
         payment screen is up never tries to save threads or sockets."""
+
+        callback_sid = None   # the session id _register_callback registered the callback for
 
         def __reduce__(self):
             return (_lookup_checkout, (self.cid,))
@@ -547,8 +557,29 @@ init -10 python in scfg:
         return _open_checkout(kind, item, amount, token, callback, blocking=True)
 
     def _register_callback(ctl):
-        if ctl.session_id and ctl.callback is not None:
-            _state.callbacks[ctl.session_id] = ctl.callback
+        """Remember the pay() callback of the controller's session, once per session: then
+        _deliver (its final result) or _prune_callbacks (it left the Engine) drops it for good.
+        Registering again each pump would bring back the callback of a sheet left open on an
+        expired session past its scan horizon, which no snapshot lists to prune any more. Not
+        at all once the session's final result (paid / underpaid) was delivered."""
+        sid = ctl.session_id
+        if (sid and ctl.callback is not None and sid != ctl.callback_sid
+                and ctl.state not in ("paid", "underpaid")):
+            _state.callbacks[sid] = ctl.callback
+            ctl.callback_sid = sid
+
+    def _prune_callbacks(snap):
+        """Drop the callbacks of sessions that left the Engine since a snapshot listed them
+        (closed at their scan horizon, or discarded): no result can reach them any more.
+        Results still can while a session is pending, also after it expired ("continue
+        playing"). `snap` was read before this pump drained the outcomes, so a session that
+        left because it was paid had its result delivered first. A session id the snapshots
+        have not listed yet (just started) is kept."""
+        pending = snap.pending
+        for sid in python_list(_state.callbacks):
+            if sid not in pending and sid in _state.seen_pending:
+                _state.callbacks.pop(sid, None)
+        _state.seen_pending = frozenset(sid for sid in _state.callbacks if sid in pending)
 
     def _close_checkout(cid, how):
         """Close the payment screen. how: cancel | keep_playing | finish."""

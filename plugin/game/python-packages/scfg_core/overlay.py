@@ -5,7 +5,10 @@ page, so the checkout page (app.js, evm.js, solana.js) is shown over the game in
 being served on localhost. OverlayCheckout has local_server.CheckoutServer's interface,
 so CheckoutController drives both alike. The page's messages are read by pump(), which
 the controller calls every frame; they are validated like the local server's requests,
-and a tx hash stays a hint the watcher verifies on-chain.
+and a tx hash stays a hint the watcher verifies on-chain. Once stop() ran (also from inside
+one of the controller's callbacks) no callback is called again, not for the rest of that
+batch of messages either, and a build handed back by a build_tx that stopped the overlay
+is cancelled at once.
 """
 
 from __future__ import annotations
@@ -63,6 +66,8 @@ class OverlayCheckout:
             return
         for message in self.ui.take(self.key):
             self._handle(message)
+            if not self._open:
+                return  # a callback stopped the overlay: the rest of the batch is moot
         self._finish_builds()
         self._push_status()
 
@@ -88,7 +93,13 @@ class OverlayCheckout:
         except ValueError:
             self.ui.reply(self.key, rid, 400, {"error": "bad account"})
             return
-        self._builds[rid] = (self.build_tx(account), self.clock() + BUILD_TIMEOUT_S)
+        fut = self.build_tx(account)
+        if not self._open:
+            # build_tx stopped the overlay (its controller closed): nobody answers this
+            # build, so it must not run
+            fut.cancel()
+            return
+        self._builds[rid] = (fut, self.clock() + BUILD_TIMEOUT_S)
 
     def _finish_builds(self) -> None:
         for rid, (fut, deadline) in list(self._builds.items()):

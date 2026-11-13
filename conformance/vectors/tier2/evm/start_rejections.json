@@ -1,0 +1,251 @@
+{
+ "covers": [
+  "tests/unit/test_engine.py::test_start_session_rejects",
+  "tests/unit/test_engine.py::test_start_session_rejects_disabled_chain"
+ ],
+ "id": "evm/start_rejections",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "chains": [
+    "base",
+    "arbitrum"
+   ],
+   "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+  },
+  "custom_chains": [],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {}
+ },
+ "steps": [
+  {
+   "action": "start_session",
+   "args": {
+    "chain": "arbitrum",
+    "item": "missing",
+    "kind": "unlock"
+   },
+   "at": 1700000000,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": {
+    "code": "item.unknown",
+    "type": "ConfigError"
+   },
+   "returns": null,
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "start_session",
+   "args": {
+    "amount": "1.00",
+    "chain": "arbitrum",
+    "item": "chapter2",
+    "kind": "unlock"
+   },
+   "at": 1700000000,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": {
+    "code": "payment.below_min_price",
+    "type": "ConfigError"
+   },
+   "returns": null,
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "start_session",
+   "args": {
+    "chain": "arbitrum",
+    "kind": "tip",
+    "token": "USDC"
+   },
+   "at": 1700000000,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": {
+    "code": "tip.needs_amount_and_token",
+    "type": "ConfigError"
+   },
+   "returns": null,
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "start_session",
+   "args": {
+    "amount": "1",
+    "chain": "arbitrum",
+    "kind": "tip"
+   },
+   "at": 1700000000,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": {
+    "code": "tip.needs_amount_and_token",
+    "type": "ConfigError"
+   },
+   "returns": null,
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "start_session",
+   "args": {
+    "amount": "0.49",
+    "chain": "arbitrum",
+    "kind": "tip",
+    "token": "USDC"
+   },
+   "at": 1700000000,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": {
+    "code": "tip.below_minimum",
+    "type": "ConfigError"
+   },
+   "returns": null,
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "start_session",
+   "args": {
+    "chain": "arbitrum",
+    "kind": "refund"
+   },
+   "at": 1700000000,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": {
+    "code": "payment.bad_kind",
+    "type": "ConfigError"
+   },
+   "returns": null,
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "start_session",
+   "args": {
+    "amount": "3",
+    "chain": "base",
+    "kind": "tip",
+    "token": "USDT"
+   },
+   "at": 1700000000,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": {
+    "code": "chain.token_unavailable",
+    "type": "ConfigError"
+   },
+   "returns": null,
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "start_session",
+   "args": {
+    "amount": "3",
+    "chain": "solana",
+    "kind": "tip",
+    "token": "USDC"
+   },
+   "at": 1700000000,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": {
+    "code": "chain.token_unavailable",
+    "type": "ConfigError"
+   },
+   "returns": null,
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "start_session",
+   "args": {
+    "chain": "polygon",
+    "item": "chapter2",
+    "kind": "unlock"
+   },
+   "at": 1700000000,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": {
+    "code": "chain.token_unavailable",
+    "type": "ConfigError"
+   },
+   "returns": null,
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

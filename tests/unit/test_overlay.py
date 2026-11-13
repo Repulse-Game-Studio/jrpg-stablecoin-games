@@ -138,3 +138,37 @@ def test_stop_closes_once_and_pump_does_nothing_after():
     o.pump()
     assert [c for c in ui.calls if c[0] == "close"] == [("close", "o1")]
     assert hints == [] and not o.running
+
+
+def test_a_build_handed_back_after_build_tx_stopped_the_overlay_is_cancelled():
+    """build_tx can close the checkout (its controller went away): nobody answers that build,
+    so it must not run, and nothing is kept for it."""
+    fut = Future()
+    holder = {}
+
+    def build_tx(account):
+        holder["o"].stop()
+        return fut
+
+    o, ui, _, _ = make(build_tx=build_tx)
+    holder["o"] = o
+    o.start()
+    ui.inbox = [{"type": "build", "id": 1, "body": {"account": SOL}}]
+    o.pump()
+    assert fut.cancelled()
+    assert not [c for c in ui.calls if c[0] in ("reply",)]
+    assert o._builds == {}
+
+
+def test_the_rest_of_a_batch_is_ignored_once_a_callback_stopped_the_overlay():
+    built = []
+    o, ui, hints, status = make(build_tx=lambda account: built.append(account) or Future())
+    o.on_tx = lambda tx, sender: (hints.append(tx), o.stop())
+    o.start()
+    status["state"] = "confirming"
+    ui.inbox = [{"type": "tx", "body": {"tx_hash": TX}},
+                {"type": "tx", "body": {"tx_hash": "0x" + "cd" * 32}},
+                {"type": "build", "id": 2, "body": {"account": SOL}}]
+    o.pump()
+    assert hints == [TX] and built == [] and o._builds == {}
+    assert ("status", "confirming") not in ui.calls       # no status pushed to a closed overlay

@@ -1,0 +1,316 @@
+{
+ "cases": [
+  {
+   "fn": "eip681_transfer_uri",
+   "in": {
+    "chain_id": 1,
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "token_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "units": "4993742"
+   },
+   "out": "ethereum:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48@1/transfer?address=0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed&uint256=4993742"
+  },
+  {
+   "fn": "eip681_transfer_uri",
+   "in": {
+    "chain_id": 5042,
+    "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "token_address": "0x3600000000000000000000000000000000000000",
+    "units": "1230017"
+   },
+   "out": "ethereum:0x3600000000000000000000000000000000000000@5042/transfer?address=0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359&uint256=1230017"
+  },
+  {
+   "fn": "eip681_transfer_uri",
+   "in": {
+    "chain_id": 137,
+    "recipient": "0xdbf03b407c01e7cd3cbea99509d93f8dddc8c6fb",
+    "token_address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "units": "0"
+   },
+   "out": "ethereum:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48@137/transfer?address=0xdbf03b407c01e7cd3cbea99509d93f8dddc8c6fb&uint256=0"
+  },
+  {
+   "fn": "eip681_transfer_uri",
+   "in": {
+    "chain_id": 8453,
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "token_address": "0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb",
+    "units": "5000000"
+   },
+   "out": "ethereum:0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb@8453/transfer?address=0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed&uint256=5000000"
+  },
+  {
+   "fn": "eip681_transfer_uri",
+   "in": {
+    "chain_id": 11155111,
+    "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "token_address": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "units": "1000000009999"
+   },
+   "out": "ethereum:0x036CbD53842c5426634e7929541eC2318f3dCF7e@11155111/transfer?address=0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359&uint256=1000000009999"
+  },
+  {
+   "fn": "eip681_transfer_uri",
+   "in": {
+    "chain_id": 0,
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "token_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "units": "1"
+   },
+   "out": "ethereum:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48@0/transfer?address=0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed&uint256=1"
+  },
+  {
+   "fn": "eip681_transfer_uri",
+   "in": {
+    "chain_id": 42161,
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "token_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "units": "1000000000000"
+   },
+   "out": "ethereum:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48@42161/transfer?address=0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed&uint256=1000000000000"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "Ruby Dreams",
+    "message": "Chapter 2: The Fall & more",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny&label=Ruby%20Dreams&message=Chapter%202%3A%20The%20Fall%20%26%20more"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "Ruby Dreams",
+    "message": "Tip",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny&label=Ruby%20Dreams&message=Tip"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "",
+    "message": "Tip",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny&message=Tip"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "Ruby Dreams",
+    "message": "",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny&label=Ruby%20Dreams"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "",
+    "message": "",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "Q&A? yes",
+    "message": "a b  c",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny&label=Q%26A%3F%20yes&message=a%20b%20%20c"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "What? Really & truly",
+    "message": "x=1&y=2?z",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny&label=What%3F%20Really%20%26%20truly&message=x%3D1%26y%3D2%3Fz"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "Café au lait",
+    "message": "日本語",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny&label=Caf%C3%A9%20au%20lait&message=%E6%97%A5%E6%9C%AC%E8%AA%9E"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "日本",
+    "message": "Château",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny&label=%E6%97%A5%E6%9C%AC&message=Ch%C3%A2teau"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "Game 🎮",
+    "message": "Unlock 🔓 now",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny&label=Game%20%F0%9F%8E%AE&message=Unlock%20%F0%9F%94%93%20now"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "👨‍👩‍👧",
+    "message": "𝄞 clef",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny&label=%F0%9F%91%A8%E2%80%8D%F0%9F%91%A9%E2%80%8D%F0%9F%91%A7&message=%F0%9D%84%9E%20clef"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "safe-chars_.~",
+    "message": "a/b+c=d%e#f",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny&label=safe-chars_.~&message=a%2Fb%2Bc%3Dd%25e%23f"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "unreserved !*'()",
+    "message": "100% [done]",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny&label=unreserved%20%21%2A%27%28%29&message=100%25%20%5Bdone%5D"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "tab\there",
+    "message": "line\nbreak",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny",
+    "units": "4993742"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=4.993742&spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&reference=82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny&label=tab%09here&message=line%0Abreak"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "Ruby Dreams",
+    "message": "Tip",
+    "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "5JguxczVSDmLXb7KxVtW8Cvad5oPydCwRqsMN2LMY3dz",
+    "units": "0"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=0.000000&spl-token=4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU&reference=5JguxczVSDmLXb7KxVtW8Cvad5oPydCwRqsMN2LMY3dz&label=Ruby%20Dreams&message=Tip"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "Ruby Dreams",
+    "message": "Tip",
+    "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "5JguxczVSDmLXb7KxVtW8Cvad5oPydCwRqsMN2LMY3dz",
+    "units": "1"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=0.000001&spl-token=4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU&reference=5JguxczVSDmLXb7KxVtW8Cvad5oPydCwRqsMN2LMY3dz&label=Ruby%20Dreams&message=Tip"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "Ruby Dreams",
+    "message": "Tip",
+    "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "5JguxczVSDmLXb7KxVtW8Cvad5oPydCwRqsMN2LMY3dz",
+    "units": "5000000"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=5.000000&spl-token=4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU&reference=5JguxczVSDmLXb7KxVtW8Cvad5oPydCwRqsMN2LMY3dz&label=Ruby%20Dreams&message=Tip"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "Ruby Dreams",
+    "message": "Tip",
+    "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "5JguxczVSDmLXb7KxVtW8Cvad5oPydCwRqsMN2LMY3dz",
+    "units": "1000000"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=1.000000&spl-token=4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU&reference=5JguxczVSDmLXb7KxVtW8Cvad5oPydCwRqsMN2LMY3dz&label=Ruby%20Dreams&message=Tip"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "Ruby Dreams",
+    "message": "Tip",
+    "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "5JguxczVSDmLXb7KxVtW8Cvad5oPydCwRqsMN2LMY3dz",
+    "units": "1000000009999"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=1000000.009999&spl-token=4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU&reference=5JguxczVSDmLXb7KxVtW8Cvad5oPydCwRqsMN2LMY3dz&label=Ruby%20Dreams&message=Tip"
+  },
+  {
+   "fn": "solana_pay_uri",
+   "in": {
+    "label": "Ruby Dreams",
+    "message": "Tip",
+    "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    "recipient": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "reference": "5JguxczVSDmLXb7KxVtW8Cvad5oPydCwRqsMN2LMY3dz",
+    "units": "999999"
+   },
+   "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=0.999999&spl-token=4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU&reference=5JguxczVSDmLXb7KxVtW8Cvad5oPydCwRqsMN2LMY3dz&label=Ruby%20Dreams&message=Tip"
+  }
+ ],
+ "tier": 1,
+ "topic": "paylinks"
+}

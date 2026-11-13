@@ -8,14 +8,15 @@ from dataclasses import dataclass
 from .keccak import keccak256
 from .transfers import Transfer
 
-_HEX40 = re.compile(r"^0x[0-9a-fA-F]{40}$")
+_HEX40 = re.compile(r"0x[0-9a-fA-F]{40}")  # used with fullmatch: no trailing newline
+_WORD = re.compile(r"0x[0-9a-fA-F]{64}")    # one 32-byte ABI word, as logs carry a uint256
 
 TRANSFER_TOPIC = "0x" + keccak256(b"Transfer(address,address,uint256)").hex()
 
 
 def to_checksum_address(address: str) -> str:
     """Return the EIP-55 mixed-case form of a 20-byte hex address (any input case)."""
-    if not isinstance(address, str) or not _HEX40.match(address):
+    if not isinstance(address, str) or not _HEX40.fullmatch(address):
         raise ValueError(f"not a 20-byte hex address: {address!r}")
     lower = address[2:].lower()
     digest = keccak256(lower.encode("ascii")).hex()
@@ -78,19 +79,23 @@ def parse_transfer_log(log: dict) -> TransferLog | None:
     """Parse a raw JSON-RPC log into a TransferLog, or None if it isn't an ERC-20 Transfer.
 
     ERC-721 Transfer events share topic0 but have 4 topics (the token id is indexed),
-    so requiring exactly 3 topics filters them out.
+    so requiring exactly 3 topics filters them out. The data must be exactly the 32-byte
+    value ("0x" and 64 hex digits): an empty, shorter, longer or malformed one is not an
+    ERC-20 Transfer either.
     """
     topics = log.get("topics") or []
     if log.get("removed"):
         return None
     if len(topics) != 3 or topics[0].lower() != TRANSFER_TOPIC:
         return None
-    data = log.get("data") or "0x"
+    data = log.get("data")
+    if not isinstance(data, str) or not _WORD.fullmatch(data):
+        return None
     return TransferLog(
         token=to_checksum_address(log["address"]),
         sender=_topic_to_address(topics[1]),
         recipient=_topic_to_address(topics[2]),
-        value=int(data, 16) if data not in ("0x", "") else 0,
+        value=int(data, 16),
         tx_hash=log["transactionHash"].lower(),
         log_index=int(log["logIndex"], 16),
         block_number=int(log["blockNumber"], 16),

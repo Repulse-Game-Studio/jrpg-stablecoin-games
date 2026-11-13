@@ -24,7 +24,7 @@ from .evm import TRANSFER_TOPIC, TransferLog, address_topic
 from .models import Item, PaymentResult
 from .receipts import add_receipt, make_receipt, receipt_key
 from .rpc import RpcError, RpcUnavailable
-from .sessions import HINT_TIMEOUT_S, clear_hint, is_past_horizon, remove_session
+from .sessions import HINT_TIMEOUT_S, clear_hint, is_past_horizon, remove_session, session_price
 
 SCAN_STEP_BLOCKS = 10_000  # upper bound on blocks scanned per advance()
 MAX_SCAN_CALLS = 5  # eth_getLogs calls per advance(), to be gentle with public RPCs
@@ -48,7 +48,7 @@ class StepOutcome:
 def min_amount(rec: dict, items: dict[str, Item]) -> Decimal:
     if rec["kind"] == "unlock":
         item = items.get(rec["item"])
-        return item.min_price if item else Decimal(rec["price"])
+        return item.min_price if item else session_price(rec)
     return Decimal("0.000001")
 
 

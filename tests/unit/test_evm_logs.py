@@ -1,3 +1,5 @@
+import pytest
+
 from scfg_core.evm import TRANSFER_TOPIC, address_topic, parse_transfer_log
 
 USDC = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
@@ -57,5 +59,15 @@ def test_missing_removed_field_is_fine():
     assert parse_transfer_log(log) is not None
 
 
-def test_empty_data_means_zero_value():
-    assert parse_transfer_log(make_log(data="0x")).value == 0
+@pytest.mark.parametrize("data", [
+    "0x", "", None, 5, "0x01", "0x" + "00" * 31 + "0", "0x" + "00" * 31, "0x" + "00" * 33,
+    "0X" + "00" * 32, "0x" + "zz" * 32, "0x" + "00" * 31 + " 1", "0x" + "0_" * 32, "00" * 33,
+])
+def test_data_must_be_one_32_byte_word(data):
+    """A Transfer's data is exactly its uint256 value: anything else is not a transfer."""
+    assert parse_transfer_log(make_log(data=data)) is None
+    log = make_log()
+    del log["data"]
+    assert parse_transfer_log(log) is None
+    assert parse_transfer_log(make_log(data="0x" + "00" * 32)).value == 0
+    assert parse_transfer_log(make_log(data="0x" + "FF" * 32)).value == 2**256 - 1

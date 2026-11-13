@@ -9,7 +9,7 @@
     },
     {
       "type": "category",
-      "label": "For developers",
+      "label": "For Ren'Py developers",
       "collapsed": false,
       "link": {"type": "doc", "id": "developers/README"},
       "items": [
@@ -37,6 +37,20 @@
         "developers/troubleshooting",
         "developers/how-it-works"
       ]
+    },
+    {
+      "type": "category",
+      "label": "For Godot developers",
+      "collapsed": false,
+      "link": {"type": "doc", "id": "developers/godot/README"},
+      "items": ["developers/godot/install", "developers/godot/api"]
+    },
+    {
+      "type": "category",
+      "label": "For RPG Maker MZ developers",
+      "collapsed": false,
+      "link": {"type": "doc", "id": "developers/rpgmaker/README"},
+      "items": ["developers/rpgmaker/install", "developers/rpgmaker/api"]
     }
   ]
 }

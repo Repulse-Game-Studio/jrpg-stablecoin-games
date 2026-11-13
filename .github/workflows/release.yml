@@ -1,7 +1,9 @@
 name: release
 
-# Push a tag like v0.1.0 to publish dist/scfg-renpy-<version>.zip as a GitHub release and
-# the stablecoin-games-renpy installer to PyPI and npm. The tag must match scfg_core.__version__.
+# Push a tag like v0.1.0 to publish the three drop-in zips (dist/scfg-renpy-<version>.zip,
+# dist/scfg-godot-<version>.zip, dist/scfg-rpgmaker-mz-<version>.zip) as a GitHub release and
+# the stablecoin-games-renpy installer to PyPI and npm. The tag must match scfg_core.__version__;
+# tools/package.py also refuses a Godot plugin.cfg or RPG Maker version.ts that differs from it.
 # PyPI and npm use trusted publishing: no token is stored here. Each registry's stablecoin-games-renpy
 # package trusts this repository, this workflow file and its environment ("pypi", "npm").
 
@@ -21,9 +23,23 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24   # the RPG Maker zip runs npm run build
+      - run: npm ci
+        working-directory: rpgmaker
       - run: uv sync
       - run: uv run ruff check .
       - run: uv run pytest
+      - name: TypeScript core and RPG Maker glue tests (test.yml does not run on tags)
+        run: npm test
+        working-directory: rpgmaker
+      - name: Download Godot (the supported floor)
+        run: uv run --no-project python tools/fetch_godot.py --version 4.3-stable --dest /tmp/godot
+      - name: Import the Godot project (registers the class_name globals)
+        run: /tmp/godot/Godot_v4.3-stable_linux.x86_64 --headless --path godot --import
+      - name: GDScript tests against the conformance vectors (test.yml does not run on tags)
+        run: uv run --no-project python tools/run_godot_tests.py --godot /tmp/godot/Godot_v4.3-stable_linux.x86_64
 
       - name: Tag matches the plugin version
         run: |
@@ -34,7 +50,11 @@ jobs:
           fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
-      - run: uv run python tools/package.py
+      - name: Build the release zips
+        run: |
+          uv run python tools/package.py
+          uv run python tools/package.py --engine godot
+          uv run python tools/package.py --engine rpgmaker
 
       - name: Publish release
         env:
@@ -43,8 +63,22 @@ jobs:
           # Only versions like 0.2.0rc1 are prereleases; GitHub's "latest" (and the jrpg.com page) skips those.
           prerelease=""
           case "$VERSION" in *[a-z]*) prerelease="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" "dist/scfg-renpy-$VERSION.zip" \
+          # gh puts these lines above the generated notes (what changed since the last tag).
+          cat > /tmp/notes.md <<NOTES
+          Pick the zip for your engine and unzip it into your project folder:
+
+          - \`scfg-renpy-$VERSION.zip\`: Ren'Py 8.2+ (or run \`uvx stablecoin-games-renpy install .\` in the project)
+          - \`scfg-godot-$VERSION.zip\`: Godot 4.3+ (preview). Install it from the editor's AssetLib tab with Import..., or copy the \`addons\` folder inside it into your project
+          - \`scfg-rpgmaker-mz-$VERSION.zip\`: RPG Maker MZ (preview, not yet tested in real RPG Maker MZ)
+
+          Install guides: https://jrpg.com/stablecoinforgames/docs/
+          NOTES
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/scfg-renpy-$VERSION.zip" \
+            "dist/scfg-godot-$VERSION.zip" \
+            "dist/scfg-rpgmaker-mz-$VERSION.zip" \
             --title "Stablecoin for Games $VERSION" \
+            --notes-file /tmp/notes.md \
             --generate-notes $prerelease
 
   pypi:

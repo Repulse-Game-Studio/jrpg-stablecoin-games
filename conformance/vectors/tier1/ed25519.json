@@ -1,0 +1,538 @@
+{
+ "cases": [
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "c2188b530601b930843d737b1e0159a035c1d426089196160a3cb34f030d8bbc"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "ab1b1a09a68ef7624ab2c9e2ba4e1e62b1c0bb033a4c333069c04e2eb94fc798"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "a449baf7eb38c08b8c14238e402c8152ace3e1307c111befa284195f0e3ee717"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "71781e524197f379c8c26cf3139d530cd5665e74976bb024b7ef9ca97052dfe3"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "a96b2a95f46f52fb0bea21cafdf40ea7d8851cb50cf0bfd2ee6d8f2d7351f44b"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "0f3ecfd9a788c83553d597104890d2c0257a80aa651bb6cdc107d0ce4a492b35"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "78f3d178215c1dd17f48007c67826c25b763647455eff264aae93050530c5b47"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "e1f3421dd93567163eaed9fe37ed76c87168270cbea33e36371d4377e02f67c4"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "5a925f8785c575f01a4f5914bb0a96d73d9a3187f9278b022d57db42acd0998d"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "94f4228df898bf02b1c77f4a6fe6a2fec145c8f3cc926b288c9399247ce2150e"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "badf87aed6e33056b7edc6980f43fa26bf6a048e44217fb74a083503a415f850"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "8451a2c2aaafa74e699594648143a8cbed9464bdf786edef60a41c087d7e4a6e"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "b34c7f53d5a416fd7a73a7cbb5239dfa296a3698d687963b7841fb3b4536940b"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "8e93c5021149793213b2f1b0d9a5cbc2f72cd24a12f08611220291be81a831e0"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "0fe8f6150d2edd013bbeaa4205e0674876363ecf87c08fe5bf3ee7340d8f9e16"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "c89c1084e03bed632b16f7b72b3ac96a910808641dcad686ff9a4f3081534041"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "1b16781d3b9a9273e31e958bc602f607cd85281e9af789eec375be976307b586"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "2b8dc5bd4a9d4aeed3c00ea0a50489bc6aeb6f90f46e48f852f26cf62fc27a22"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "3d5c7c025d8226940e9f56a3fefbda937f71a3305653d9ad8ac033d5c929d0ad"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "3e63c44a8b34b115c77a2b5fc22e902e67cf6ee1530866d90d5adc0710a573c7"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "0668e3fe90c163d0a63c956defeefa4649c208f80c58c2b73c0fffdd014e1315"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "a5a7b9fa203ac8571352bdcedb2c5aeb1f302ed885527d631cd702b6397c499e"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "6c8030ccfe6955a4637d23f5e073637437a86c8e6cc3d655333bffeda6e53a0f"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "092542ddcce3a0e03ee210cd8e70bfe0ec8416d4c271ed32ddb9f991048b4e80"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "cf2a6e8204df86de3c516c78fa5514b5356bc026de66ba9d8735dc4bebe5d08b"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "461b2482793eccdb01cbf8c6ccc50d57373767fbaf71cf4e9e065380183d9d22"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "b2c0555e872d22b2b5237594b72ab27432021ebabb2d7912e52dd45bb29db871"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "a08ff6d993d037c80e01645114c960cf73e08b5951ecdf8c3a4c674ce6f3cf97"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "fae70717ec0b85eb8c2378a6763d86e3097c9fbcbd85dfaca6a485450b297779"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "23707a3aa8bf26f9fe7ec314c24eb09fce18544d832131b810c50ea0fffb4128"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "2248e73967b65a47576c769b6bd7c0a2db45a3c3fecf71caf26b00a63ef7a831"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "6e297e451ee5ed3a352133066a2a81ef54d16fbb9e138d4cc583d53b022454c1"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "df104e7e61bc7d813e5b5da2796f747d238b192411c79d3bb2b30f02ecd67c41"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "01daeb3e515fa35fc935af69969fa5b354a7605621cbe1a42a3336ec27d8efc9"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "0f32cbead3abe0fd1dc1fe734dab1bebcbd4f97c17a41cc0e9af09bed8272308"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "79c27c6022915ee4c3192aa3e611bb9ba41e96d7f63b45d932b5c59724421869"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "2e69f43baf20e968e21acac7f9a52cf07614856420c1878dd8b35b98854d5723"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "49c57fff061f5be035fcc9f271b648a937ffee053008bc69a94a15f4a2c81a8c"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "e27dd5e5566d6568ecf2c00e19b8fe6df7238e56957f63fee2ff3ef119dc2684"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "a9e1816ca7b8e0595e5e30c705c716a0aa8066b023bdc055b9ea8241b29f2458"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "3b442cb3912157f13a933d0134282d032b5ffecd01a2dbf1b7790608df002ea7"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "06ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a9"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "ae33cc4bd72d90828597b144754c4404eac17e0b13c1a3ef7ac54fc873aa25ac"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "fa7b445d2c325c340fe07f2cd37990a59e35a465d5a44b3bff12d9793a6d90b1"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "0100000000000000000000000000000000000000000000000000000000000000"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "0200000000000000000000000000000000000000000000000000000000000000"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "efffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "0100000000000000000000000000000000000000000000000000000000000080"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "a3785913ca4deb75abd841414d0a700098e879777940c78c73fe6f2bee6c0352"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "0000000000000000000000000000000000000000000000000000000000000040"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "28a90230e0ea870e6bfa6f3c7ae45036f154cea8af2cae6b14d7a111d6d0e3a6"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "28a90230e0ea870e6bfa6f3c7ae45036f154cea8af2cae6b14d7a111d6d0e326"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "6ebf21a7143bcfa7a8ac547c607eb4f312c134454bb4b2ca1925176f0bc90b8f"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "6ebf21a7143bcfa7a8ac547c607eb4f312c134454bb4b2ca1925176f0bc90b8f"
+   },
+   "out": true
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": ""
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "00"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "00000000000000000000000000000000000000000000000000000000000000"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "01000000000000000000000000000000000000000000000000000000000000"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "28a90230e0ea870e6bfa6f3c7ae45036f154cea8af2cae6b14d7a111d6d0e3"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "28a90230e0ea870e6bfa6f3c7ae45036f154cea8af2cae6b14d7a111d6d0e3a600"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "000000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "out": false
+  },
+  {
+   "fn": "is_on_curve",
+   "in": {
+    "point_hex": "28a90230e0ea870e6bfa6f3c7ae45036f154cea8af2cae6b14d7a111d6d0e3a628a90230e0ea870e6bfa6f3c7ae45036f154cea8af2cae6b14d7a111d6d0e3a6"
+   },
+   "out": false
+  }
+ ],
+ "tier": 1,
+ "topic": "ed25519"
+}

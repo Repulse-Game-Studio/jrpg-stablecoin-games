@@ -145,6 +145,45 @@ def test_reverify_uses_accepted_wallets():
     assert chains_seen == ["arbitrum"]
 
 
+def test_reverify_reports_to_the_on_error_set_mid_pass():
+    # The Godot autoload replaces the Engine's on_error at quit while a pass may be in flight;
+    # a receipt's contained error reported after that reaches the new handler (all ports).
+    first, second = [], []
+    e, _, _ = make_engine()
+    e.on_error = first.append
+    e.receipts["k"] = {"chain": "arbitrum", "tx_hash": TX, "log_index": 0, "block": 900,
+                       "amount": "1.000000", "token": "USDC", "kind": "tip", "item": None}
+
+    def factory(chain):
+        e.on_error = second.append
+        raise RuntimeError("boom")
+
+    e._rpc_factory = factory
+    assert e.reverify() == []              # unverifiable: kept
+    assert first == []
+    assert [type(x) for x in second] == [RuntimeError]
+
+
+def test_reverify_prints_when_on_error_is_unset_mid_pass(monkeypatch):
+    # A handler set to None (or anything falsy) while a pass runs: the error is printed, as the
+    # pass's own `on_error or print_error` did before handlers were looked up at report time.
+    import scfg_core.engine as engine_mod
+
+    printed = []
+    monkeypatch.setattr(engine_mod, "_print_error", printed.append)
+    e, _, _ = make_engine()
+    e.receipts["k"] = {"chain": "arbitrum", "tx_hash": TX, "log_index": 0, "block": 900,
+                       "amount": "1.000000", "token": "USDC", "kind": "tip", "item": None}
+
+    def factory(chain):
+        e.on_error = None
+        raise RuntimeError("boom")
+
+    e._rpc_factory = factory
+    assert e.reverify() == []              # unverifiable: kept
+    assert [type(x) for x in printed] == [RuntimeError]
+
+
 # --- expiry, discard, restore -------------------------------------------------
 
 def test_window_expiry_is_reported_once_and_scanning_continues():

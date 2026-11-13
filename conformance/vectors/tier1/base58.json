@@ -1,0 +1,712 @@
+{
+ "cases": [
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": ""
+   },
+   "out": ""
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "00"
+   },
+   "out": "1"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "0000"
+   },
+   "out": "11"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "01"
+   },
+   "out": "2"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "0001"
+   },
+   "out": "12"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "ff"
+   },
+   "out": "5Q"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "000000000001"
+   },
+   "out": "111112"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "0000000000"
+   },
+   "out": "11111"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "out": "11111111111111111111111111111111"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+   },
+   "out": "4wBqpZM9xaSheZzJSMawUKKwhdpChKbZ5eu5ky4Vigw"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   },
+   "out": "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFG"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "00090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324252627"
+   },
+   "out": "18zfy1k9MhKQkMkHVWSpBkqajb4GYK5nzrPTroHxcf8"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142"
+   },
+   "out": "4VpzYuMH3LdMKjYmwoFUAfVyQqMBt2rjcAV2TjhbGet1VCAgn6fBaz1JCLRdmmZFuMtDv7BjALgJiwZRtYSTqpV"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "out": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   },
+   "out": "12AFv15MNPuA84RmU66xw2uMzGipcVxNpzAffoacGVvjFue3CBmf633fAWuiP9cwL9C3z3CJiGgRSFjJfeEcA6QW"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "0001"
+   },
+   "out": "12"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "61"
+   },
+   "out": "2g"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "626262"
+   },
+   "out": "a3gV"
+  },
+  {
+   "fn": "b58encode",
+   "in": {
+    "data_hex": "516b6fcd0f"
+   },
+   "out": "ABnLTmg"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "11111111111111111111111111111111"
+   },
+   "out": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   },
+   "out": "c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+   },
+   "out": "06ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a9"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "1"
+   },
+   "out": "00"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "11"
+   },
+   "out": "0000"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "111112"
+   },
+   "out": "000000000001"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "2"
+   },
+   "out": "01"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "z"
+   },
+   "out": "39"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "zzzzzzzz"
+   },
+   "out": "7479027ea0ff"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "Cn8eVZg"
+   },
+   "out": "68656c6c6f"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "11111"
+   },
+   "out": "0000000000"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "111112"
+   },
+   "out": "000000000001"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "HCeXafPPjWWKhgUBd9C3KTrXVGzNp3C4LXPMzbFvpzCL"
+   },
+   "out": "f0b6cfd9b87f5bf4c7a731da4e24ccdbf1eae94fa60f01d1b9ce573eb60afafd"
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": "abc0def"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": "0"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": "abcOdef"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": "O"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": "abcIdef"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": "I"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": "abcldef"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": "l"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": ""
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": " "
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": "abc def"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": "é"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": "+/="
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": 5
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "b58decode",
+   "in": {
+    "text": null
+   }
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+   },
+   "out": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+  },
+  {
+   "fn": "b58decode",
+   "in": {
+    "text": "1111111111111111111111111111111111111111111111111111111111111111"
+   },
+   "out": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "fn": "decode_fixed",
+   "in": {
+    "length": 32,
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   },
+   "out": "c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61"
+  },
+  {
+   "fn": "decode_fixed",
+   "in": {
+    "length": 32,
+    "text": "11111111111111111111111111111111"
+   },
+   "out": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "fn": "decode_fixed",
+   "in": {
+    "length": 64,
+    "text": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+   },
+   "out": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": 31,
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": 33,
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": 64,
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": 32,
+    "text": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": 31,
+    "text": "11111111111111111111111111111111"
+   }
+  },
+  {
+   "fn": "decode_fixed",
+   "in": {
+    "length": 1,
+    "text": "1"
+   },
+   "out": "00"
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": 0,
+    "text": "1"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": 32,
+    "text": ""
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": 32,
+    "text": "0PjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   }
+  },
+  {
+   "fn": "decode_fixed",
+   "in": {
+    "length": 32,
+    "text": "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFG"
+   },
+   "out": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  {
+   "fn": "decode_fixed",
+   "in": {
+    "length": 64,
+    "text": "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
+   },
+   "out": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  {
+   "fn": "decode_fixed",
+   "in": {
+    "length": 64,
+    "text": "1111111111111111111111111111111111111111111111111111111111111111"
+   },
+   "out": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": 64,
+    "text": "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": 64,
+    "text": "22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": 32,
+    "text": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": 64,
+    "text": "2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": 64,
+    "text": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": "32",
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": null,
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": true,
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": [
+     32
+    ],
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "decode_fixed",
+   "in": {
+    "length": "64",
+    "text": "2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+   }
+  },
+  {
+   "fn": "normalize_pubkey",
+   "in": {
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   },
+   "out": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  },
+  {
+   "fn": "normalize_pubkey",
+   "in": {
+    "text": "  EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\n"
+   },
+   "out": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  },
+  {
+   "fn": "normalize_pubkey",
+   "in": {
+    "text": "11111111111111111111111111111111"
+   },
+   "out": "11111111111111111111111111111111"
+  },
+  {
+   "fn": "normalize_pubkey",
+   "in": {
+    "text": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+   },
+   "out": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+   "fn": "normalize_pubkey",
+   "in": {
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1"
+   },
+   "out": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1"
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_pubkey",
+   "in": {
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v1"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_pubkey",
+   "in": {
+    "text": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_pubkey",
+   "in": {
+    "text": ""
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_pubkey",
+   "in": {
+    "text": "0"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_pubkey",
+   "in": {
+    "text": 12
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_pubkey",
+   "in": {
+    "text": null
+   }
+  },
+  {
+   "fn": "normalize_pubkey",
+   "in": {
+    "text": "\t67vHA8qZGCJKw1UNGUJZME4MwEWDRGWzp7MGvsut43A8 "
+   },
+   "out": "67vHA8qZGCJKw1UNGUJZME4MwEWDRGWzp7MGvsut43A8"
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+   },
+   "out": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": " 1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS "
+   },
+   "out": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS"
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": "1111111111111111111111111111111111111111111111111111111111111111"
+   },
+   "out": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
+   },
+   "out": "67rpwLCuS5DGA8KGZXKsVQ7dnPb9goRLoKfgGbLfQg9WoLUgNY77E2jT11fem3coV9nAkguBACzrU1iyZM4B8roQ"
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefg"
+   }
+  },
+  {
+   "fn": "normalize_signature",
+   "in": {
+    "text": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS1"
+   },
+   "out": "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS1"
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": ""
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": "O"
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": 3
+   }
+  },
+  {
+   "error": "invalid",
+   "fn": "normalize_signature",
+   "in": {
+    "text": null
+   }
+  }
+ ],
+ "tier": 1,
+ "topic": "base58"
+}

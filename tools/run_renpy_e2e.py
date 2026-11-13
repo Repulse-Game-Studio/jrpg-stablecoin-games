@@ -119,15 +119,31 @@ def setup_arc(anvil: str, workdir: Path):
             "SCFG_E2E_DEV": dev, "SCFG_E2E_PAYER": payer}, cleanup
 
 
-def setup_solana(validator: str, workdir: Path):
-    """Start a local Solana validator with a mock USDC and a funded player, plus a thread
-    that pays the game's payment requests (Ren'Py has no solders, so the game cannot sign).
-    Returns (env_updates, cleanup)."""
+def solana_world(validator: str):
+    """Start a local Solana validator with a mock 6-decimal USDC, a developer and a player
+    holding 1000 of it. Returns (cluster, mint, dev, player); close the cluster when done."""
     from solders.keypair import Keypair
 
     from solana_local import LocalSolana  # tests/integration is on sys.path (top of file)
 
     cluster = LocalSolana(validator)
+    try:
+        mint = cluster.create_mint()
+        dev, player = Keypair(), Keypair()
+        for owner in (dev, player):
+            cluster.create_ata(str(owner.pubkey()), mint)
+        cluster.mint_to(mint, str(player.pubkey()), 1_000 * 10**6)
+    except BaseException:
+        cluster.close()
+        raise
+    return cluster, mint, dev, player
+
+
+def setup_solana(validator: str, workdir: Path):
+    """Start a local Solana validator with a mock USDC and a funded player, plus a thread
+    that pays the game's payment requests (Ren'Py has no solders, so the game cannot sign).
+    Returns (env_updates, cleanup)."""
+    cluster, mint, dev, player = solana_world(validator)
     stop = threading.Event()
     payreq = workdir / "payreq.json"
     thread = None
@@ -139,12 +155,6 @@ def setup_solana(validator: str, workdir: Path):
         cluster.close()
 
     try:
-        mint = cluster.create_mint()
-        dev, player = Keypair(), Keypair()
-        for owner in (dev, player):
-            cluster.create_ata(str(owner.pubkey()), mint)
-        cluster.mint_to(mint, str(player.pubkey()), 1_000 * 10**6)
-
         def pay_requests():
             # The game writes payreq.json; pay it from the player and write the signature back.
             while not stop.wait(0.1):

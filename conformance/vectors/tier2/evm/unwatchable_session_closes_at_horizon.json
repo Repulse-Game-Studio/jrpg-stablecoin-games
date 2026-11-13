@@ -1,0 +1,251 @@
+{
+ "covers": [
+  "tests/unit/test_backends.py::test_reverify_keeps_receipts_of_a_family_without_wallets"
+ ],
+ "id": "evm/unwatchable_session_closes_at_horizon",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+  },
+  "custom_chains": [],
+  "items": [],
+  "pending": {
+   "ps_0123456789abcdef": {
+    "chain": "arbitrum",
+    "code": 37,
+    "created_at": 1700000000,
+    "cursor": 995,
+    "hint_at": null,
+    "hint_tx": null,
+    "id": "ps_0123456789abcdef",
+    "item": "chapter2",
+    "kind": "unlock",
+    "match": null,
+    "nonce": 42,
+    "price": "4.99",
+    "start_block": 995,
+    "state": "awaiting",
+    "title": "Chapter 2",
+    "token": "USDC",
+    "ui_status": "expired",
+    "units": 4993742
+   }
+  },
+  "receipts": {
+   "arbitrum:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:0": {
+    "amount": "1.000000",
+    "block": 5,
+    "chain": "arbitrum",
+    "item": null,
+    "kind": "tip",
+    "log_index": 0,
+    "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "source": "payment",
+    "token": "USDC",
+    "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+   }
+  }
+ },
+ "steps": [
+  {
+   "action": "reverify",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "getAccountInfo",
+     "params": [
+      "C4PRXFV6Gf5mytVZb6RoeLsG8CjcFWzR2EJ3dvwPTUJH",
+      {
+       "commitment": "confirmed",
+       "encoding": "base64"
+      }
+     ],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": {\"context\": {\"slot\": 1000}, \"value\": null}}",
+     "url": "https://solana-rpc.publicnode.com"
+    },
+    {
+     "method": "getAccountInfo",
+     "params": [
+      "CQJX9L5ynSm4TatteRXuTaRcHe88CSM5vaQNQXcHNYuo",
+      {
+       "commitment": "confirmed",
+       "encoding": "base64"
+      }
+     ],
+     "response_text": "{\"id\": 2, \"jsonrpc\": \"2.0\", \"result\": {\"context\": {\"slot\": 1000}, \"value\": null}}",
+     "url": "https://solana-rpc.publicnode.com"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_0123456789abcdef": {
+      "chain": "arbitrum",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 995,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_0123456789abcdef",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 42,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "expired",
+      "units": 4993742
+     }
+    },
+    "receipts": {
+     "arbitrum:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:0": {
+      "amount": "1.000000",
+      "block": 5,
+      "chain": "arbitrum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 0,
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     }
+    },
+    "tip_total": "1.000000",
+    "unready": [
+     [
+      "solana",
+      "USDC"
+     ],
+     [
+      "solana",
+      "USDT"
+     ]
+    ]
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700086399,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_0123456789abcdef": {
+      "chain": "arbitrum",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 995,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_0123456789abcdef",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 42,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "expired",
+      "units": 4993742
+     }
+    },
+    "receipts": {
+     "arbitrum:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:0": {
+      "amount": "1.000000",
+      "block": 5,
+      "chain": "arbitrum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 0,
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     }
+    },
+    "tip_total": "1.000000",
+    "unready": [
+     [
+      "solana",
+      "USDC"
+     ],
+     [
+      "solana",
+      "USDT"
+     ]
+    ]
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700086400,
+   "calls": [],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 0,
+     "error": null,
+     "hint_tx": null,
+     "required": 0,
+     "result": null,
+     "session_id": "ps_0123456789abcdef",
+     "status": "closed"
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {
+     "arbitrum:0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d:0": {
+      "amount": "1.000000",
+      "block": 5,
+      "chain": "arbitrum",
+      "item": null,
+      "kind": "tip",
+      "log_index": 0,
+      "payer": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+      "source": "payment",
+      "token": "USDC",
+      "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     }
+    },
+    "tip_total": "1.000000",
+    "unready": [
+     [
+      "solana",
+      "USDC"
+     ],
+     [
+      "solana",
+      "USDT"
+     ]
+    ]
+   }
+  }
+ ],
+ "tier": 2
+}

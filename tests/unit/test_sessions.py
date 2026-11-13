@@ -122,3 +122,17 @@ def test_window_and_horizon():
     assert is_past_window(rec, SESSION_WINDOW_S)
     assert not is_past_horizon(rec, SCAN_HORIZON_S - 1)
     assert is_past_horizon(rec, SCAN_HORIZON_S)
+
+
+def test_session_price_is_read_as_a_stored_amount():
+    """A stored price out of the stored-amount range (+-40 adjusted exponent) is refused, like
+    any unreadable price, instead of being compared as a near-Emax number."""
+    from scfg_core.sessions import session_price
+    from scfg_core.watcher import min_amount
+
+    assert session_price({"price": "4.99"}) == Decimal("4.99")
+    for bad in ("1E+999999", "1E+41", "Infinity"):
+        with pytest.raises(ValueError):
+            session_price({"price": bad})
+        with pytest.raises(ValueError):
+            min_amount({"kind": "unlock", "item": "gone", "price": bad}, {})

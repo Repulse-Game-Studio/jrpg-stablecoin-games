@@ -70,6 +70,17 @@ def test_unknown_file_is_404(server):
     assert request(server, "GET", base(server) + "../etc/passwd")[0].status == 404
 
 
+@pytest.mark.parametrize("method", ["PUT", "DELETE", "OPTIONS", "HEAD"])
+def test_unsupported_methods_are_501_with_the_security_headers(server, method):
+    """http.server answers these itself (send_error); they carry the same headers."""
+    resp, _ = request(server, method, base(server))
+    assert resp.status == 501
+    assert resp.getheader("X-Content-Type-Options") == "nosniff"
+    assert resp.getheader("Cache-Control") == "no-store"
+    assert resp.getheader("Referrer-Policy") == "no-referrer"
+    assert resp.getheader("Access-Control-Allow-Origin") is None
+
+
 @pytest.mark.parametrize("host", ["evil.example:80", "localhost", "127.0.0.1"])
 def test_wrong_host_header_is_403(server, host):
     assert request(server, "GET", base(server), host=host)[0].status == 403

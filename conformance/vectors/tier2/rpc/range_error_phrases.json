@@ -1,0 +1,860 @@
+{
+ "covers": [
+  "tests/unit/test_rpc_client.py::test_is_range_error",
+  "tests/unit/test_rpc_client.py::test_archive_message_counts_as_range_error"
+ ],
+ "id": "rpc/range_error_phrases",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "chains": [
+    "avalanche"
+   ],
+   "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+  },
+  "custom_chains": [
+   {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "https://snowtrace.io/tx/{}",
+    "key": "avalanche",
+    "max_log_range": 1000,
+    "name": "Avalanche",
+    "native_symbol": "AVAX",
+    "rpc": [
+     "https://rpc-a.example"
+    ],
+    "tokens": {
+     "USDC": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+    }
+   }
+  ],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {}
+ },
+ "steps": [
+  {
+   "action": "start_session",
+   "args": {
+    "chain": "avalanche",
+    "item": "chapter2",
+    "kind": "unlock"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": \"0x3e8\"}",
+     "url": "https://rpc-a.example"
+    }
+   ],
+   "entropy": [
+    {
+     "fn": "randbelow",
+     "n": 100,
+     "value": 26
+    },
+    {
+     "fn": "token_hex",
+     "n": 8,
+     "value": "99e9dcc86f71e542"
+    }
+   ],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": {
+    "chain": "avalanche",
+    "code": 37,
+    "created_at": 1700000000,
+    "cursor": 995,
+    "hint_at": null,
+    "hint_tx": null,
+    "id": "ps_99e9dcc86f71e542",
+    "item": "chapter2",
+    "kind": "unlock",
+    "match": null,
+    "nonce": 26,
+    "price": "4.99",
+    "start_block": 995,
+    "state": "awaiting",
+    "title": "Chapter 2",
+    "token": "USDC",
+    "ui_status": "open",
+    "units": 4993726
+   },
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_99e9dcc86f71e542": {
+      "chain": "avalanche",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 995,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_99e9dcc86f71e542",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 26,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993726
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 2, \"jsonrpc\": \"2.0\", \"result\": \"0x7d0\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x3e3",
+       "toBlock": "0x7ca",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"error\": {\"code\": -32600, \"message\": \"eth_getLogs block range is too large\"}, \"id\": 3, \"jsonrpc\": \"2.0\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x3e3",
+       "toBlock": "0x5d6",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"error\": {\"code\": -32600, \"message\": \"eth_getLogs block range is too large\"}, \"id\": 4, \"jsonrpc\": \"2.0\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x3e3",
+       "toBlock": "0x4dc",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 5, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x4dd",
+       "toBlock": "0x5d6",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 6, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x5d7",
+       "toBlock": "0x6d0",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 7, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x6d1",
+       "toBlock": "0x7ca",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 8, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x7cb",
+       "toBlock": "0x7d0",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 9, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 0,
+     "error": null,
+     "hint_tx": null,
+     "required": 5,
+     "result": null,
+     "session_id": "ps_99e9dcc86f71e542",
+     "status": "waiting"
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_99e9dcc86f71e542": {
+      "chain": "avalanche",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 2001,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_99e9dcc86f71e542",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 26,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993726
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 10, \"jsonrpc\": \"2.0\", \"result\": \"0x8fc\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x7d1",
+       "toBlock": "0x8ca",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"error\": {\"code\": -32005, \"message\": \"query returned more than 10000 results; limit exceeded\"}, \"id\": 11, \"jsonrpc\": \"2.0\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x7d1",
+       "toBlock": "0x84d",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"error\": {\"code\": -32005, \"message\": \"query returned more than 10000 results; limit exceeded\"}, \"id\": 12, \"jsonrpc\": \"2.0\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x7d1",
+       "toBlock": "0x80e",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 13, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x80f",
+       "toBlock": "0x84c",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 14, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x84d",
+       "toBlock": "0x88a",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 15, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x88b",
+       "toBlock": "0x8c8",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 16, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x8c9",
+       "toBlock": "0x8fc",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 17, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 0,
+     "error": null,
+     "hint_tx": null,
+     "required": 5,
+     "result": null,
+     "session_id": "ps_99e9dcc86f71e542",
+     "status": "waiting"
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_99e9dcc86f71e542": {
+      "chain": "avalanche",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 2301,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_99e9dcc86f71e542",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 26,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993726
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 18, \"jsonrpc\": \"2.0\", \"result\": \"0x942\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x8fd",
+       "toBlock": "0x93a",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"error\": {\"code\": -32602, \"message\": \"Archive requests require a personal token. Get one at x\"}, \"id\": 19, \"jsonrpc\": \"2.0\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x8fd",
+       "toBlock": "0x91b",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"error\": {\"code\": -32602, \"message\": \"Archive requests require a personal token. Get one at x\"}, \"id\": 20, \"jsonrpc\": \"2.0\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x8fd",
+       "toBlock": "0x90b",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 21, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x90c",
+       "toBlock": "0x91a",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 22, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x91b",
+       "toBlock": "0x929",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 23, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x92a",
+       "toBlock": "0x938",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 24, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x939",
+       "toBlock": "0x942",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 25, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 0,
+     "error": null,
+     "hint_tx": null,
+     "required": 5,
+     "result": null,
+     "session_id": "ps_99e9dcc86f71e542",
+     "status": "waiting"
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_99e9dcc86f71e542": {
+      "chain": "avalanche",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 2371,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_99e9dcc86f71e542",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 26,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993726
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 26, \"jsonrpc\": \"2.0\", \"result\": \"0x9a6\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x943",
+       "toBlock": "0x951",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"error\": {\"code\": -32000, \"message\": \"execution reverted\"}, \"id\": 27, \"jsonrpc\": \"2.0\"}",
+     "url": "https://rpc-a.example"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 0,
+     "error": "network_unavailable",
+     "hint_tx": null,
+     "required": 5,
+     "result": null,
+     "session_id": "ps_99e9dcc86f71e542",
+     "status": "waiting"
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_99e9dcc86f71e542": {
+      "chain": "avalanche",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 2371,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_99e9dcc86f71e542",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 26,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993726
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  },
+  {
+   "action": "tick",
+   "args": {},
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"id\": 28, \"jsonrpc\": \"2.0\", \"result\": \"0x9a6\"}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x943",
+       "toBlock": "0x951",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 29, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x952",
+       "toBlock": "0x960",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 30, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x961",
+       "toBlock": "0x96f",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 31, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x970",
+       "toBlock": "0x97e",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 32, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_getLogs",
+     "params": [
+      {
+       "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+       "fromBlock": "0x97f",
+       "toBlock": "0x98d",
+       "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        null,
+        "0x0000000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+       ]
+      }
+     ],
+     "response_text": "{\"id\": 33, \"jsonrpc\": \"2.0\", \"result\": []}",
+     "url": "https://rpc-a.example"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "confirmations": 0,
+     "error": null,
+     "hint_tx": null,
+     "required": 5,
+     "result": null,
+     "session_id": "ps_99e9dcc86f71e542",
+     "status": "waiting"
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {
+     "ps_99e9dcc86f71e542": {
+      "chain": "avalanche",
+      "code": 37,
+      "created_at": 1700000000,
+      "cursor": 2446,
+      "hint_at": null,
+      "hint_tx": null,
+      "id": "ps_99e9dcc86f71e542",
+      "item": "chapter2",
+      "kind": "unlock",
+      "match": null,
+      "nonce": 26,
+      "price": "4.99",
+      "start_block": 995,
+      "state": "awaiting",
+      "title": "Chapter 2",
+      "token": "USDC",
+      "ui_status": "open",
+      "units": 4993726
+     }
+    },
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

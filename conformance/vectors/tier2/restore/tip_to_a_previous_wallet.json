@@ -1,0 +1,90 @@
+{
+ "covers": [
+  "tests/unit/test_restore.py::test_lookup_accepts_previous_wallet",
+  "tests/unit/test_restore.py::test_classify_tip_code"
+ ],
+ "id": "restore/tip_to_a_previous_wallet",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "chains": [
+    "arbitrum",
+    "base"
+   ],
+   "previous_wallets": [
+    "0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB"
+   ],
+   "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+  },
+  "custom_chains": [],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   },
+   {
+    "code": 2,
+    "item_id": "ost",
+    "price": "2.00",
+    "title": "OST",
+    "token": "USDT"
+   }
+  ],
+  "pending": {},
+  "receipts": {}
+ },
+ "steps": [
+  {
+   "action": "restore_lookup",
+   "args": {
+    "tx": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d"
+     ],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": {\"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000032\", \"blockNumber\": \"0x32\", \"logs\": [{\"address\": \"0xaf88d065e77c8cc2239327c5edb3a432268e5831\", \"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000032\", \"blockNumber\": \"0x32\", \"data\": \"0x00000000000000000000000000000000000000000000000000000000002dc6d1\", \"logIndex\": \"0x0\", \"topics\": [\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\", \"0x000000000000000000000000fb6916095ca1df60bb79ce92ce3ea74c37c5d359\", \"0x000000000000000000000000dbf03b407c01e7cd3cbea99509d93f8dddc8c6fb\"], \"transactionHash\": \"0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d\"}], \"status\": \"0x1\", \"transactionHash\": \"0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d\"}}",
+     "url": "https://arb1.arbitrum.io/rpc"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": null,
+   "returns": [
+    {
+     "already_restored": false,
+     "chain": "arbitrum",
+     "choices": [],
+     "item": null,
+     "kind": "tip",
+     "token": "USDC",
+     "transfer": {
+      "block_hash": "0x0000000000000000000000000000000000000000000000000000000000000032",
+      "block_number": 50,
+      "class": "TransferLog",
+      "log_index": 0,
+      "recipient": "0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB",
+      "sender": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+      "token": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "tx_hash": "0x8c985b2d9224b0990ca78846b48567f739e5deb2fc2ab7f81f16fc379107e55d",
+      "value": 3000017
+     }
+    }
+   ],
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

@@ -2,7 +2,7 @@ name: test
 
 on:
   push:
-    branches: [main]      # branches are tested through their PR, tags by release.yml
+    branches: [main, multi-engine]   # other branches are tested through their PR, tags by release.yml
   pull_request:
   schedule:
     - cron: "0 6 * * 1"   # weekly: also checks the built-in public RPC endpoints
@@ -24,11 +24,124 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24   # check_text_ids.py runs a .ts file; package.py --engine rpgmaker runs the build
+      - run: npm ci
+        working-directory: rpgmaker
       - run: uv sync
       - run: uv run ruff check .
-      - run: uv run pytest
-      - name: Release zip builds
-        run: uv run python tools/package.py
+      - run: uv run pytest   # server_security's Python third; its Godot third skips here (godot-core runs it), rpgmaker_ui and node_server are deselected (rpgmaker-ui runs them)
+      - run: uv run python tools/gen_vectors.py --check   # committed conformance vectors are current
+      - run: uv run python tools/sync_web_page.py --check   # Godot addon copy of the checkout page matches plugin/game/scfg/web
+      - run: uv run python tools/make_pot.py --check   # the Godot translation template is current
+      - run: uv run python tools/check_text_ids.py --check   # the RPG Maker text ids agree with the shared messages and the Godot template
+      - name: Release zips build
+        run: |
+          uv run python tools/package.py
+          uv run python tools/package.py --engine godot
+          uv run python tools/package.py --engine rpgmaker
+
+  godot-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30   # a hung Godot fails here, not after GitHub's 6 h default (the wrapper also kills it after 900 s)
+    strategy:
+      fail-fast: false
+      matrix:
+        godot: ["4.3-stable", "4.7.2-stable"]   # the supported floor and the latest stable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Download Godot
+        run: uv run --no-project python tools/fetch_godot.py --version ${{ matrix.godot }} --dest /tmp/godot
+      - name: Import the project (registers the class_name globals, needed once per checkout)
+        run: /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64 --headless --path godot --import
+      - name: GDScript tests against the conformance vectors
+        # the wrapper also requires the runner's "<n> passed, 0 failed" summary with n > 0:
+        # Godot can exit 0 when run.gd itself fails to compile
+        run: uv run --no-project python tools/run_godot_tests.py --godot /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64
+      - name: Localhost checkout server security suite, GDScript server (Python runs in unit, Node in rpgmaker-ui)
+        env:
+          SCFG_REQUIRE_GD: "1"   # the Godot half fails, rather than skips, without a binary
+          SCFG_GODOT: /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64
+        run: uv run pytest tests/server_security -m godot_server
+      - name: The showcase project boots and its chain-free buttons work
+        env:
+          SCFG_REQUIRE_GD: "1"
+          SCFG_GODOT: /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64
+        run: uv run pytest tests/godot_showcase
+
+  js-core:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rpgmaker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run typecheck
+      - name: No floating or misused promises (an unhandled rejection halts RPG Maker MZ)
+        run: npm run lint
+      - name: TypeScript core, RPG Maker glue and bundle checks against the conformance vectors
+        run: npm test
+      - name: SCFG.js builds reproducibly (two builds are byte-identical)
+        run: |
+          npm run build
+          cp dist/js/plugins/SCFG.js /tmp/SCFG.first.js
+          npm run build
+          cmp /tmp/SCFG.first.js dist/js/plugins/SCFG.js
+
+  rpgmaker-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20   # a hung browser fails here, not after GitHub's 6 h default
+    env:
+      SCFG_REQUIRE_JS: "1"   # the DOM tests fail, rather than skip, without Node or rpgmaker/node_modules
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: npm ci
+        working-directory: rpgmaker
+      - run: uv sync
+      - name: RPG Maker payment sheet and restore screen in Chrome, on the MZ shim
+        run: uv run pytest tests/rpgmaker_ui -q   # uses the runner's preinstalled Google Chrome
+      - name: Localhost checkout server security suite, Node server (RPG Maker's desktop page)
+        run: uv run pytest tests/server_security -m node_server
+
+  rpgmaker-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45   # a hung chain, validator or browser fails here, not after GitHub's 6 h default
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+      - name: Install Agave (solana-test-validator)
+        run: |
+          curl -sSfL -o /tmp/agave.tar.bz2 \
+            "https://github.com/anza-xyz/agave/releases/download/${AGAVE_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          tar xjf /tmp/agave.tar.bz2 -C /tmp
+          echo /tmp/solana-release/bin >> "$GITHUB_PATH"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: npm ci
+        working-directory: rpgmaker
+      - run: uv sync
+      - name: RPG Maker web build end-to-end payment (EVM)
+        run: uv run python tools/run_rpgmaker_web_e2e.py --family evm
+      - name: RPG Maker web build end-to-end payment (Arc, native USDC send)
+        run: uv run python tools/run_rpgmaker_web_e2e.py --family arc
+      - name: RPG Maker desktop path end-to-end payment (EVM, in Node)
+        run: uv run python tools/run_rpgmaker_desktop_e2e.py --family evm
+      - name: RPG Maker desktop path end-to-end payment (Arc, in Node)
+        run: uv run python tools/run_rpgmaker_desktop_e2e.py --family arc
+      - name: RPG Maker desktop path end-to-end payment (Solana, in Node)
+        run: uv run python tools/run_rpgmaker_desktop_e2e.py --family solana
 
   npm-installer:
     runs-on: ubuntu-latest
@@ -51,6 +164,11 @@ jobs:
 
   integration:
     runs-on: ubuntu-latest
+    timeout-minutes: 30   # a hung engine driver or chain fixture fails here, not after GitHub's 6 h default
+    env:
+      SCFG_REQUIRE_JS: "1"   # test_js_core.py fails, rather than skips, if Node or rpgmaker/node_modules is missing
+      SCFG_REQUIRE_GD: "1"   # test_gd_core.py fails, rather than skips, if SCFG_GODOT is missing
+      SCFG_GODOT: /tmp/godot/Godot_v4.3-stable_linux.x86_64   # the supported floor
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
@@ -61,6 +179,16 @@ jobs:
             "https://github.com/anza-xyz/agave/releases/download/${AGAVE_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2"
           tar xjf /tmp/agave.tar.bz2 -C /tmp
           echo /tmp/solana-release/bin >> "$GITHUB_PATH"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Install the JS core's dev dependencies (test_js_core.py drives it through Node)
+        run: npm ci
+        working-directory: rpgmaker
+      - name: Download Godot (test_gd_core.py drives the GDScript core in a headless Godot)
+        run: uv run --no-project python tools/fetch_godot.py --version 4.3-stable --dest /tmp/godot
+      - name: Import the Godot project (registers the class_name globals)
+        run: $SCFG_GODOT --headless --path godot --import
       - run: uv sync
       - run: uv run pytest -m integration   # uses the runner's preinstalled Google Chrome
 
@@ -121,6 +249,65 @@ jobs:
         run: xvfb-run -a uv run python tools/run_renpy_web_e2e.py --sdk "/tmp/renpy-${RENPY}-sdk"
       - name: Ren'Py web build end-to-end payment (Arc)
         run: xvfb-run -a uv run python tools/run_renpy_web_e2e.py --sdk "/tmp/renpy-${RENPY}-sdk" --family arc
+
+  godot-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45   # a hung Godot, chain or browser fails here, not after GitHub's 6 h default
+    env:
+      GODOT: /tmp/godot/Godot_v4.3-stable_linux.x86_64   # the supported floor
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+      - name: Install Agave (solana-test-validator)
+        run: |
+          curl -sSfL -o /tmp/agave.tar.bz2 \
+            "https://github.com/anza-xyz/agave/releases/download/${AGAVE_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          tar xjf /tmp/agave.tar.bz2 -C /tmp
+          echo /tmp/solana-release/bin >> "$GITHUB_PATH"
+      - run: uv sync
+      - name: Download Godot
+        run: uv run --no-project python tools/fetch_godot.py --version 4.3-stable --dest /tmp/godot
+      - name: Import the project (registers the class_name globals)
+        run: $GODOT --headless --path godot --import
+      - name: Godot demo end-to-end payment (EVM)
+        run: >
+          SCFG_E2E_VIDEODRIVER=x11 xvfb-run -a
+          uv run python tools/run_godot_e2e.py --godot "$GODOT"
+      - name: Godot demo end-to-end payment (Arc, native USDC send)
+        run: >
+          SCFG_E2E_VIDEODRIVER=x11 xvfb-run -a
+          uv run python tools/run_godot_e2e.py --godot "$GODOT" --family arc
+      - name: Godot demo end-to-end payment (Solana)
+        run: >
+          SCFG_E2E_VIDEODRIVER=x11 xvfb-run -a
+          uv run python tools/run_godot_e2e.py --godot "$GODOT" --family solana
+
+  godot-web-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45   # the first run downloads about 1 GB of export templates
+    env:
+      GODOT: /tmp/godot/Godot_v4.3-stable_linux.x86_64   # the supported floor
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+      - run: uv sync
+      - name: Download Godot
+        run: uv run --no-project python tools/fetch_godot.py --version 4.3-stable --dest /tmp/godot
+      - name: Import the project (registers the class_name globals)
+        run: $GODOT --headless --path godot --import
+      - name: Cache the web export templates
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/godot-templates
+          key: godot-templates-4.3-stable-${{ hashFiles('tools/fetch_godot.py') }}   # a changed pin refreshes it
+      - name: Download the web export templates (SHA-512 checked against the release's SHA512-SUMS)
+        run: uv run --no-project python tools/fetch_godot.py --version 4.3-stable --templates
+      - name: Godot web build end-to-end payment
+        run: xvfb-run -a uv run python tools/run_godot_web_e2e.py --godot "$GODOT"
+      - name: Godot web build end-to-end payment (Arc)
+        run: xvfb-run -a uv run python tools/run_godot_web_e2e.py --godot "$GODOT" --family arc
 
   public-rpcs:
     if: github.event_name == 'schedule'
