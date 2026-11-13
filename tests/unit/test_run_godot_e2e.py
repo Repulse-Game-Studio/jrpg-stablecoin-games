@@ -52,6 +52,22 @@ def test_import_problems_let_only_the_missing_uid_warning_through():
     )
 
 
+VSYNC_LINES = (
+    "WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics"
+    " driver.\n"
+    "     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:360)\n"
+)
+
+
+def test_game_problems_let_only_the_xvfb_vsync_warning_through():
+    """CI's windowed runs (Xvfb, OpenGL) print the V-Sync warning once; anything else counts,
+    and the import-only .uid warning is not allowed in a game run."""
+    assert e2e.game_problems("Godot Engine v4.3\n" + VSYNC_LINES) == []
+    error = "ERROR: e2e config x.json: not a JSON object\n   at: push_error (variant_utility.cpp:1092)\n"
+    assert e2e.game_problems(VSYNC_LINES + error) == ["ERROR: e2e config x.json: not a JSON object"]
+    assert e2e.game_problems(UID_LINES) == [UID_LINES.splitlines()[0]]
+
+
 def _fake_godot(tmp_path, script: str) -> str:
     """An executable standing in for Godot: a Python script that ignores its arguments."""
     exe = tmp_path / "godot"

@@ -77,21 +77,36 @@ BAD_OUTPUT = re.compile(r"SCRIPT ERROR|^ERROR:|^WARNING:|leaked", re.M)
 UID_WARNING = re.compile(
     r'^WARNING: Missing \.uid file for path "res://[^"]+"\. The file was re-created from cache\.$'
 )
+# Xvfb's GLX (CI's windowed runs) cannot set a swap interval; Godot warns once at window creation.
+VSYNC_WARNING = re.compile(
+    r"^WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the "
+    r"graphics driver\.$"
+)
+
+
+def problems(log: str, allowed: re.Pattern) -> list[str]:
+    """The lines of a Godot log that mean something went wrong: every error and warning
+    (BAD_OUTPUT) except an `allowed` warning, with the "at:" line right under it."""
+    found = []
+    after_allowed = False
+    for line in log.splitlines():
+        if after_allowed and line.lstrip().startswith("at: "):
+            after_allowed = False
+            continue
+        after_allowed = bool(allowed.match(line))
+        if not after_allowed and BAD_OUTPUT.search(line):
+            found.append(line)
+    return found
 
 
 def import_problems(log: str) -> list[str]:
-    """The lines of an import (or export) log that mean something went wrong: every error and
-    warning (BAD_OUTPUT) except the missing-.uid warning, with the "at:" line right under it."""
-    problems = []
-    after_uid_warning = False
-    for line in log.splitlines():
-        if after_uid_warning and line.lstrip().startswith("at: "):
-            after_uid_warning = False
-            continue
-        after_uid_warning = bool(UID_WARNING.match(line))
-        if not after_uid_warning and BAD_OUTPUT.search(line):
-            problems.append(line)
-    return problems
+    """An import (or export) log's problems; the missing-.uid warning is allowed."""
+    return problems(log, UID_WARNING)
+
+
+def game_problems(out: str) -> list[str]:
+    """A game run's problems; the Xvfb V-Sync warning is allowed."""
+    return problems(out, VSYNC_WARNING)
 
 
 class E2EError(Exception):
@@ -579,7 +594,7 @@ def bad_hooks_quit_at_once(godot: str, env: dict, work: Path) -> None:
             out = game.output()
         finally:
             game.close()
-        bad = [line for line in out.splitlines() if BAD_OUTPUT.search(line)]
+        bad = game_problems(out)
         if (
             code != 1
             or not bad
@@ -695,7 +710,7 @@ def run(godot: str, family: str) -> int:
             still_owned_after_restart(game)
             outputs.append(quit_cleanly(game))
             browser.close()
-        bad = [line for out in outputs for line in out.splitlines() if BAD_OUTPUT.search(line)]
+        bad = [line for out in outputs for line in game_problems(out)]
         if bad:
             raise E2EError("Godot printed errors or warnings:\n" + "\n".join(bad))
     except Exception as e:
