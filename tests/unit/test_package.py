@@ -56,7 +56,7 @@ def godot_names():
     return [arcname for _path, arcname in package.godot_files_to_ship()]
 
 
-def test_godot_zip_has_addons_scfg_at_its_root():
+def test_godot_zip_ships_addons_scfg_with_its_license_inside():
     names = godot_names()
     assert "addons/scfg/plugin.cfg" in names
     assert "addons/scfg/scfg.gd" in names
@@ -64,14 +64,14 @@ def test_godot_zip_has_addons_scfg_at_its_root():
     assert "addons/scfg/ui/sheet.tscn" in names
     assert "addons/scfg/web/app.js" in names
     assert "addons/scfg/translations/scfg.pot" in names
-    assert "scfg-LICENSE.txt" in names
+    assert "addons/scfg/LICENSE" in names
     assert not any(n.startswith("godot/") for n in names)
 
 
 def test_godot_zip_leaves_out_tests_demo_and_editor_cache():
     for name in godot_names():
         parts = name.split("/")
-        assert name.startswith("addons/scfg/") or name == "scfg-LICENSE.txt", name
+        assert name.startswith("addons/scfg/"), name
         assert not name.endswith(".uid"), name
         assert not {".godot", "tests", "demo", "e2e", "__pycache__"} & set(parts), name
         assert "e2e_driver" not in name, name
@@ -117,9 +117,26 @@ def test_build_godot_zip_writes_the_versioned_archive(tmp_path):
 
     with zipfile.ZipFile(target) as zf:
         names = zf.namelist()
-    assert "scfg-README.md" in names and "scfg-NOTICES.txt" in names
-    assert "addons/scfg/plugin.cfg" in names
+        readme = zf.read(f"scfg-godot-{package.__version__}/addons/scfg/README.md").decode()
+    assert readme == package.godot_guide()
     assert not any(n.endswith(".uid") or "/tests/" in n or ".godot" in n for n in names)
+
+
+def test_godot_zip_installs_to_res_addons_scfg_from_the_asset_library(tmp_path):
+    """One wrapper folder, addons/scfg/ under it and nothing else: the editor's installer strips
+    the single top-level folder, so the addon lands in res://addons/scfg/ (which the addon
+    hardcodes). A zip whose only top-level entry is addons/ would install to res://scfg/ on
+    Godot 4.3 to 4.6, and files beside addons/ would land in the user's project root."""
+    import zipfile
+
+    target = package.build_godot_zip(tmp_path)
+    top = f"scfg-godot-{package.__version__}/"
+    with zipfile.ZipFile(target) as zf:
+        names = zf.namelist()
+    assert all(n.startswith(top + "addons/scfg/") for n in names), names
+    for doc in ("README.md", "LICENSE", "NOTICES.txt", "plugin.cfg"):
+        assert top + "addons/scfg/" + doc in names, doc
+    assert len(names) == len(set(names))
 
 
 # --- the RPG Maker MZ release zip --------------------------------------------------------------

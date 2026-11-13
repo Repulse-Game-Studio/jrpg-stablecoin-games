@@ -14,11 +14,17 @@ any EVM chain you add yourself.
 ## From the release zip
 
 1. Download `scfg-godot-<version>.zip` from the
-   [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest). If the
-   latest release has no Godot zip yet, build it from a clone of the repository with
-   `uv run python tools/package.py --engine godot` (Python 3.9+); it is written to `dist/`.
-2. Unzip it into your Godot project folder, the one that contains `project.godot`. It adds
-   `addons/scfg/` and three files at the root: `scfg-README.md`, `scfg-LICENSE.txt` and `scfg-NOTICES.txt`.
+   [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest). Or build
+   it from a clone of the repository with `uv run python tools/package.py --engine godot` (Python 3.9+); it is
+   written to `dist/`.
+2. Install it into your project, in either of these ways:
+   - In the editor, open the **AssetLib** tab, click **Import...**, pick the zip and click **Install**. Keep
+     **Ignore asset root** ticked.
+   - Or unzip it anywhere and copy the `addons` folder from inside `scfg-godot-<version>/` into your project
+     folder, the one that contains `project.godot`.
+
+   Either way the addon ends up in `addons/scfg/`. The guide, the license and the third-party notices come
+   with it, as `README.md`, `LICENSE` and `NOTICES.txt` inside that folder.
 3. In the editor, open **Project > Project Settings > Plugins** and enable **Stablecoin for Games (SCFG)**.
    That registers the autoload `Scfg`. Disabling the plugin removes it.
 
@@ -81,14 +87,12 @@ MyGame/
 │       ├── plugin.cfg, plugin.gd          (the editor plugin: registers the Scfg autoload)
 │       ├── scfg.gd                        (the Scfg autoload: the API)
 │       ├── payment_result.gd, restore_result.gd
-│       ├── sheet_host.gd, store.gd, local_server.gd, web_page.gd
+│       ├── sheet_host.gd, store.gd, local_server.gd, web_page.gd, web_mirror.gd
 │       ├── ui/                            (payment sheet, restore screen, theme, toast)
 │       ├── web/                           (the browser checkout page)
 │       ├── translations/scfg.pot          (template for your translations)
-│       └── core/                          (the engine-independent payment core, in GDScript)
-├── scfg-README.md
-├── scfg-LICENSE.txt
-└── scfg-NOTICES.txt
+│       ├── core/                          (the engine-independent payment core, in GDScript)
+│       └── README.md, LICENSE, NOTICES.txt  (zip only: this guide as one file, the license, notices)
 ```
 
 Receipts and pending payments are stored in `user://scfg/state.json`, global to the install and never inside

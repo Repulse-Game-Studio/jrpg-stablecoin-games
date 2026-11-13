@@ -18,8 +18,8 @@ watches the blockchain itself.
 
 The three share one payment core: the Ren'Py plugin's Python is the reference, and the TypeScript (RPG Maker)
 and GDScript (Godot) ports replay the same [conformance vectors](conformance/README.md). `tools/package.py` builds
-`scfg-renpy-<version>.zip`, `scfg-godot-<version>.zip` and `scfg-rpgmaker-mz-<version>.zip`; releases so far
-carry only the Ren'Py zip. Mobile builds are best effort and unverified on every engine.
+`scfg-renpy-<version>.zip`, `scfg-godot-<version>.zip` and `scfg-rpgmaker-mz-<version>.zip`; each release
+carries all three. Mobile builds are best effort and unverified on every engine.
 
 ![A player tips 3 USDC on Arc in Ruby Dreams: pick an amount, pick a network, scan the QR code, payment confirmed](.github/media/tip-arc.gif)
 
@@ -69,7 +69,7 @@ Players can read how paying works, which wallets work and how to restore a purch
 | `plugin/game/scfg/` | Ren'Py glue: API (`scfg_api.rpy`), screens, UI images (`ui/`), browser checkout page and web-build bridge (`web/`) |
 | `plugin/game/python-packages/scfg_core/` | Engine-independent core (Python 3.9, stdlib only) |
 | `examples/demo_game/` | Demo game (run `tools/sync_demo.py` first) |
-| `docs/` | The docs: `players/` for players, `developers/` for the Ren'Py developer guide (joined into one `scfg-README.md` in the zip), `developers/godot/` for the Godot one (the Godot zip's `scfg-README.md`), `developers/rpgmaker/` for the RPG Maker MZ one (the RPG Maker zip's `scfg-README.md`) |
+| `docs/` | The docs: `players/` for players, `developers/` for the Ren'Py developer guide (joined into one `scfg-README.md` in the zip), `developers/godot/` for the Godot one (the Godot zip's `addons/scfg/README.md`), `developers/rpgmaker/` for the RPG Maker MZ one (the RPG Maker zip's `scfg-README.md`) |
 | `website/` | Docusaurus site built from `docs/`, sidebar in `sidebars.json`. `.github/workflows/docs.yml` checks that it builds |
 | `tests/unit/` | Fast unit tests |
 | `tests/integration/` | Local Anvil chain (also dressed as Arc), local Solana validator and headless Chrome tests (`-m integration`), also driving the JS and GDScript cores (`test_js_core.py`, `test_gd_core.py`) |

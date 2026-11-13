@@ -10,12 +10,20 @@ project folder:
     scfg-README.md                     (developer guide, joined from docs/developers/)
     scfg-LICENSE.txt                   (MIT license)
 
-The Godot zip unzips into a Godot project folder:
+The Godot zip holds one folder, scfg-godot-<version>/, with the addon inside it:
 
-    addons/scfg/...                    (the addon: autoload, sheet, core, checkout page)
-    scfg-README.md                     (Godot developer guide, joined from docs/developers/godot/)
-    scfg-LICENSE.txt                   (MIT license)
-    scfg-NOTICES.txt                   (notices of the third-party code the addon ports)
+    scfg-godot-<version>/addons/scfg/
+        ...                            (the addon: autoload, sheet, core, checkout page)
+        README.md                      (Godot developer guide, joined from docs/developers/godot/)
+        LICENSE                        (MIT license)
+        NOTICES.txt                    (notices of the third-party code the addon ports)
+
+That is the layout the Godot Asset Library and Asset Store install from (the editor's AssetLib
+tab, or its Import button for a local zip). The editor strips a single top-level folder, so the
+addon lands in res://addons/scfg/, which six files hardcode. The wrapper is needed: when
+addons/ is the only top-level entry, Godot 4.3 to 4.6 strip it as well and install to
+res://scfg/. The license, guide and notices sit inside addons/scfg/ so nothing lands in the
+project root.
 
 The RPG Maker MZ zip unzips into an MZ project folder:
 
@@ -162,7 +170,7 @@ def godot_guide():
 
 
 def godot_notices():
-    """The notices of the code the addon vendors or ports, for scfg-NOTICES.txt.
+    """The notices of the code the addon vendors or ports, for addons/scfg/NOTICES.txt.
 
     The Nayuki notice is read from qrcodegen.gd, where the port keeps it, so the two cannot drift.
     """
@@ -187,8 +195,17 @@ def godot_notices():
     )
 
 
+GODOT_ADDON_DIR = "addons/scfg/"
+
+
+def godot_zip_root():
+    """The Godot zip's single top-level folder (see the module docstring)."""
+    return f"scfg-godot-{__version__}/"
+
+
 def godot_files_to_ship():
-    """(path, arcname) for the Godot zip's files: addons/scfg/ at the root, plus the LICENSE.
+    """(path, name) for the Godot zip's files, relative to its top-level folder: addons/scfg/,
+    with the LICENSE inside it.
 
     The tests, the demo and its e2e driver live outside addons/scfg; the editor cache and the
     *.uid files Godot 4.4+ regenerates are left out of it.
@@ -197,8 +214,8 @@ def godot_files_to_ship():
         rel = path.relative_to(GODOT_ADDON)
         if path.is_dir() or GODOT_SKIP_PARTS & set(rel.parts) or path.suffix in GODOT_SKIP_SUFFIXES:
             continue
-        yield path, ("addons/scfg/" + rel.as_posix())
-    yield ROOT / "LICENSE", "scfg-LICENSE.txt"
+        yield path, GODOT_ADDON_DIR + rel.as_posix()
+    yield ROOT / "LICENSE", GODOT_ADDON_DIR + "LICENSE"
 
 
 def godot_addon_version():
@@ -212,14 +229,18 @@ def build_godot_zip(dist):
         raise ValueError(f"plugin.cfg version {addon_version} != scfg_core {__version__}")
     dist.mkdir(exist_ok=True)
     target = dist / f"scfg-godot-{__version__}.zip"
+    top = godot_zip_root()
+    generated = {GODOT_ADDON_DIR + "README.md": godot_guide(),
+                 GODOT_ADDON_DIR + "NOTICES.txt": godot_notices()}
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
-        for path, arcname in godot_files_to_ship():
-            zf.write(path, arcname)
-            print(f"  {arcname}")
-        zf.writestr("scfg-README.md", godot_guide())
-        print("  scfg-README.md")
-        zf.writestr("scfg-NOTICES.txt", godot_notices())
-        print("  scfg-NOTICES.txt")
+        for path, name in godot_files_to_ship():
+            if name in generated:
+                raise ValueError(f"{path} would be overwritten by the generated {name}")
+            zf.write(path, top + name)
+            print(f"  {top + name}")
+        for name, text in generated.items():
+            zf.writestr(top + name, text)
+            print(f"  {top + name}")
     return target
 
 
