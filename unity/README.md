@@ -7,11 +7,13 @@ The C# port of the payment core (`Scfg.Core`), the start of the Unity port. It i
 | Path | Contents |
 |---|---|
 | `Packages/com.repulse.scfg/Runtime/Core/` | The core, one C# file per Python module (`Config.cs` is `config.py`, `Solana/Tx.cs` is `solana/tx.py`). Each file's header comment names its Python twin. netstandard2.1 BCL only, `LangVersion` 9.0, no `UnityEngine`, no NuGet package. The package ID `com.repulse.scfg` is a placeholder |
+| `Packages/com.repulse.scfg/Runtime/Desktop/` | Assembly `Scfg.Desktop` (not built for WebGL): `LocalServer.cs`, the localhost checkout server (`CheckoutServer : ICheckoutServer`, twin of `local_server.py` by way of Godot's non-blocking `local_server.gd`), on non-blocking `System.Net.Sockets` served from `Pump()` |
 | `Packages/com.repulse.scfg/Runtime/link.xml` | What the IL2CPP linker must keep: `Scfg.Core` and `Scfg.Desktop` whole, and `RNGCryptoServiceProvider`. Unity ignores a `link.xml` inside a package, so the package's Editor code must hand it to the linker (not written yet) |
 | `core/` | `Scfg.Core.csproj`, which compiles the package's `Runtime/Core/` for the .NET build |
-| `core-tests/` | NUnit tests: Tier 1 and Tier 2 conformance runners, per-module tests (`WorkerTests` with its fakes in `WorkerFakes.cs`: a manual `FakeScheduler` and a counting engine stand-in; `CheckoutTests`, `CheckoutStepsTests`, `CheckoutSolanaTests` and `RestoreFlowTests` with theirs in `CheckoutFakes.cs`: fake EVM and Solana JSON-RPC nodes behind `ITransport`, an immediate and a deferred submitter, fake pages; `OverlayTests` with a fake `IOverlayUi`), the lints, the culture reruns and the single-thread runs |
+| `desktop/` | `Scfg.Desktop.csproj`, which compiles the package's `Runtime/Desktop/` against `core/` |
+| `core-tests/` | NUnit tests: Tier 1 and Tier 2 conformance runners, per-module tests (`WorkerTests` with its fakes in `WorkerFakes.cs`: a manual `FakeScheduler` and a counting engine stand-in; `CheckoutTests`, `CheckoutStepsTests`, `CheckoutSolanaTests` and `RestoreFlowTests` with theirs in `CheckoutFakes.cs`: fake EVM and Solana JSON-RPC nodes behind `ITransport`, an immediate and a deferred submitter, fake pages; `OverlayTests` with a fake `IOverlayUi`; `LocalServerTests` over real loopback sockets with a fake clock), the lints, the culture reruns and the single-thread runs |
 | `core-driver/` | A net8.0 console app, the JSON-lines driver that `tests/integration/test_cs_core.py` runs against Anvil and solana-test-validator (protocol: `rpgmaker/test/integration/engine_driver.ts`) |
-| `Scfg.sln` | The solution holding the three projects above |
+| `Scfg.sln` | The solution holding the four projects above |
 
 ## Development
 
@@ -64,7 +66,7 @@ The core runs on Unity's main thread, so it never creates a thread or waits.
 
 ## Lints
 
-`core-tests/LintTests.cs` scans every file under `Runtime/Core/` and fails with `path:line: pattern (why)`. The rule tables in that file are the source of truth. Comments and string literals are ignored, and the holes of interpolated strings are scanned. The rules are:
+`core-tests/LintTests.cs` scans every file under `Runtime/Core/` and `Runtime/Desktop/` and fails with `path:line: pattern (why)`. The rule tables in that file are the source of truth. Comments and string literals are ignored, and the holes of interpolated strings are scanned. The rules are:
 
 | Group | Forbidden |
 |---|---|
@@ -73,6 +75,8 @@ The core runs on Unity's main thread, so it never creates a thread or waits.
 | Reflection | `System.Reflection`, `dynamic`, `Activator`, `GetType().Get...`, `System.Text.Json`, `Newtonsoft`, `record` types (IL2CPP stripping, and `IsExternalInit` on netstandard2.1) |
 | Static state | A `static` field that is not `readonly` or `const`, a `static readonly` field of a mutable collection type (`List<`, `Dictionary<`, `HashSet<`, `IList<`, an array, `JsonObject`, ...), a static property with a setter, a get-only static property of a mutable collection type, and a `static readonly` field or get-only static property of a read-only type (`IReadOnly*`, `IEnumerable`) initialized with an array or collection literal that is not wrapped (`AsReadOnly`, `ReadOnlyCollection`, `ReadOnlyDictionary`; one-line declarations only). With Unity's domain reload off statics survive between play sessions, so the public tables are `IReadOnlyList` / `IReadOnlyDictionary` over a `ReadOnlyCollection` / `ReadOnlyDictionary` |
 | Culture | `Trim*`, `char.IsDigit` / `IsWhiteSpace` / `IsLetter` and relatives, `ToLower` / `ToUpper`, `CompareTo`, `String.Compare` and `StartsWith` / `EndsWith` / `IndexOf` without `StringComparison.Ordinal`, `ToString()` and `String.Format` without `CultureInfo.InvariantCulture`, `Parse` / `TryParse` of numeric types without it, `\d` and `\s` in a `Regex`. Python's string rules come from `Py` instead |
+
+`Runtime/Desktop/` has one more group, Sockets: no `*Async(` call, no `Begin*`/`End*` (APM) socket call, no `TcpListener`, `TcpClient` or `NetworkStream`, no `Thread.Sleep`, `Poll` only with a zero timeout, no `Socket.Select`, `Connect`, `Disconnect` or `LingerState`, `Close()` without a timeout, `Receive`/`Send` only with the `out SocketError` overload, and every `new Socket(` or `.Accept(` of a file matched by a `.Blocking = false`.
 
 The lints cannot see `$"{n}"` formatting a non-string with the current culture: interpolate only strings, and put `ToString(CultureInfo.InvariantCulture)` inside the hole.
 

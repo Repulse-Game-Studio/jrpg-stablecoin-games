@@ -1,0 +1,1 @@
+{"name": "Scfg.Desktop", "rootNamespace": "Scfg.Desktop", "references": ["Scfg.Core"], "noEngineReferences": true, "excludePlatforms": ["WebGL"], "autoReferenced": true}

@@ -1,4 +1,5 @@
-// No Python twin: the lints that every Runtime/Core file must pass.
+// No Python twin: the lints that every Runtime/Core and Runtime/Desktop file must pass, and the Sockets lint of
+// Runtime/Desktop.
 //
 // THE RULES LIVE HERE. Each lint is a table of (regex, why) below. A failure prints
 // "relative/path.cs:line: <pattern> (<why>)". Comments are ignored, and so is the text of string literals
@@ -146,6 +147,26 @@ namespace Scfg.Core.Tests
                      type: MutableCollection, isStatic: true),
         };
 
+        // Runtime/Desktop only: the localhost server never waits on a socket. Its sockets are non-blocking (the
+        // NonBlockingSockets test), accepted only after Poll(0), read only as far as Available, and written with the
+        // out-SocketError overloads; nothing completes on the thread pool.
+        private static readonly Rule[] SocketRules = R(
+            (@"\b[A-Za-z_][A-Za-z0-9_]*Async\s*\(", "no *Async socket calls: they complete on the thread pool"),
+            (@"\b(?:Begin|End)(?:Accept|Connect|Disconnect|Receive|ReceiveFrom|ReceiveMessageFrom|Send|SendFile|SendTo|Read|Write)\w*\s*\(",
+                "no Begin/End (APM) calls: they complete on the thread pool"),
+            (@"\bTcpListener\b", "use a non-blocking Socket (AcceptTcpClient blocks)"),
+            (@"\bTcpClient\b", "use a non-blocking Socket"),
+            (@"\bNetworkStream\b", "a NetworkStream blocks"),
+            (@"\bThread\.Sleep\b", "never wait"),
+            (@"\.Poll\(\s*(?!0\s*,)", "Poll only with a zero timeout: any other waits"),
+            (@"\bSocket\.Select\(", "Socket.Select waits"),
+            (@"\.Blocking\s*=(?!=|\s*false\b)", "sockets stay non-blocking"),
+            (@"\.(?:Receive|Send)\((?![^;]*\bout\s+(?:SocketError|var)\b)",
+                "Receive/Send with the out SocketError overload (WouldBlock is a value, not an exception)"),
+            (@"\.Close\(\s*[^)\s]", "Close() without a timeout: a timeout makes Close wait (and Close(0) resets the connection)"),
+            (@"\bLingerState\b", "a linger makes Close wait"),
+            (@"\.(?:Connect|Disconnect)\(", "Connect and Disconnect wait"));
+
         private static readonly Rule[] AllRules =
             UnityRules.Concat(ThreadRules).Concat(ReflectionRules).Concat(CultureRules).Concat(StaticRules).ToArray();
 
@@ -154,19 +175,25 @@ namespace Scfg.Core.Tests
         // ... and from a static-state rule only through this one.
         private static readonly Regex StaticOk = new Regex(@"//\s*static-ok:\s*\S", RegexOptions.CultureInvariant);
 
-        private static string CoreDir()
+        private static string RuntimeDir()
         {
             var root = Vectors.FindUp("unity/Packages/com.repulse.scfg/Runtime/Core");
-            return Path.Combine(root, "unity", "Packages", "com.repulse.scfg", "Runtime", "Core");
+            return Path.Combine(root, "unity", "Packages", "com.repulse.scfg", "Runtime");
         }
 
-        private static List<string> CoreFiles()
+        private static List<string> Files(string dir)
         {
-            var files = Directory.GetFiles(CoreDir(), "*.cs", SearchOption.AllDirectories).ToList();
+            var path = Path.Combine(RuntimeDir(), dir);
+            var files = Directory.GetFiles(path, "*.cs", SearchOption.AllDirectories).ToList();
             files.Sort(StringComparer.Ordinal);
-            Assert.That(files, Is.Not.Empty, "scanned no files under " + CoreDir());
+            Assert.That(files, Is.Not.Empty, "scanned no files under " + path);
             return files;
         }
+
+        /// <summary>Every C# file of the package's runtime: Runtime/Core and Runtime/Desktop.</summary>
+        private static List<string> RuntimeFiles() => Files("Core").Concat(Files("Desktop")).ToList();
+
+        private static string Rel(string file) => Path.GetRelativePath(RuntimeDir(), file).Replace('\\', '/');
 
         private sealed class Frame
         {
@@ -282,15 +309,13 @@ namespace Scfg.Core.Tests
             return hits;
         }
 
-        private static void Scan(Rule[] rules, bool honourMarkers = false)
+        private static void Scan(Rule[] rules, bool honourMarkers = false, List<string>? files = null)
         {
-            var core = CoreDir();
             var hits = new List<string>();
-            foreach (var file in CoreFiles())
+            foreach (var file in files ?? RuntimeFiles())
             {
-                var rel = Path.GetRelativePath(core, file).Replace('\\', '/');
                 foreach (var (line, rule) in Violations(File.ReadAllText(file), rules, honourMarkers))
-                    hits.Add($"{rel}:{line}: {rule.Pattern} ({rule.Why})");
+                    hits.Add($"{Rel(file)}:{line}: {rule.Pattern} ({rule.Why})");
             }
             Assert.That(hits, Is.Empty, "lint violations:\n" + string.Join("\n", hits));
         }
@@ -300,19 +325,104 @@ namespace Scfg.Core.Tests
         [Test] public void NoReflection() => Scan(ReflectionRules);
         [Test] public void NoCultureSensitiveText() => Scan(CultureRules, honourMarkers: true);
         [Test] public void NoMutableStaticState() => Scan(StaticRules, honourMarkers: true);
+        [Test] public void NoWaitingSockets() => Scan(SocketRules, files: Files("Desktop"));
+
+        // A socket is non-blocking from the line it is made on: each `new Socket(` and each `.Accept(` of a file is
+        // matched by a `.Blocking = false` in that file's code (not a comment or a string).
+        private static readonly Regex MakesSocket = new Regex(@"\bnew\s+Socket\s*\(|\.Accept\s*\(", RegexOptions.CultureInvariant);
+        private static readonly Regex SetsNonBlocking = new Regex(@"\.Blocking\s*=\s*false\b", RegexOptions.CultureInvariant);
+
+        internal static bool SocketsAreNonBlocking(string text)
+        {
+            var code = string.Join("\n", Code(text));
+            int made = MakesSocket.Matches(code).Count;
+            return SetsNonBlocking.Matches(code).Count >= Math.Max(made, 1);
+        }
+
+        [Test]
+        public void NonBlockingSockets()
+        {
+            var made = Files("Desktop").Where(f => MakesSocket.IsMatch(string.Join("\n", Code(File.ReadAllText(f))))).ToList();
+            Assert.That(made, Is.Not.Empty, "Runtime/Desktop makes no socket: the lint has nothing to check");
+            var bad = made.Where(f => !SocketsAreNonBlocking(File.ReadAllText(f))).Select(Rel).ToList();
+            Assert.That(bad, Is.Empty, "a socket made without `.Blocking = false`: " + string.Join(", ", bad));
+        }
+
+        [TestCase("var s = new Socket(f, t, p);\ns.Blocking = false;\nvar p = s.Accept();\np.Blocking = false;", true)]
+        [TestCase("var s = new Socket(f, t, p);\ns.Blocking = false;", true)]
+        [TestCase("var s = new Socket(f, t, p);", false)]
+        [TestCase("var s = new Socket(f, t, p);\n// s.Blocking = false;", false)]
+        [TestCase("var s = new Socket(f, t, p);\nvar x = \"s.Blocking = false\";", false)]
+        [TestCase("var s = new Socket(f, t, p);\ns.Blocking = false;\nvar p = s.Accept();", false)]
+        [TestCase("var s = new Socket(f, t, p);\ns.Blocking = true;", false)]
+        [TestCase("var x = 1;", false)]
+        public void NonBlockingLintBites(string text, bool expected) =>
+            Assert.That(SocketsAreNonBlocking(text), Is.EqualTo(expected));
+
+        // Each case names a fragment of the ONE socket rule that must fire on it (empty = none may fire).
+        [TestCase("var n = await s.ReceiveAsync(buf, SocketFlags.None);", "Async")]
+        [TestCase("s.AcceptAsync(args);", "Async")]
+        [TestCase("var r = s.BeginAccept(cb, null);", "APM")]
+        [TestCase("var c = s.EndReceive(r);", "APM")]
+        [TestCase("s.BeginSend(b, 0, n, SocketFlags.None, cb, null);", "APM")]
+        [TestCase("var l = new TcpListener(IPAddress.Loopback, 0);", "TcpListener")]
+        [TestCase("using var c = new TcpClient();", "TcpClient")]
+        [TestCase("var st = new NetworkStream(s);", "NetworkStream")]
+        [TestCase("Thread.Sleep(1);", "never wait")]
+        [TestCase("if (s.Poll(1000, SelectMode.SelectRead)) x();", "Poll")]
+        [TestCase("if (s.Poll(-1, SelectMode.SelectRead)) x();", "Poll")]
+        [TestCase("if (s.Poll(0, SelectMode.SelectRead)) x();", "")]
+        [TestCase("Socket.Select(r, null, null, 1000);", "Select")]
+        [TestCase("s.Blocking = true;", "non-blocking")]
+        [TestCase("s.Blocking = flag;", "non-blocking")]
+        [TestCase("s.Blocking = false;", "")]
+        [TestCase("s.Blocking=false;", "")]
+        [TestCase("var b = s.Blocking == false || !s.Blocking;", "")]
+        [TestCase("var n = s.Receive(buf);", "out SocketError")]
+        [TestCase("var n = s.Receive(buf, 0, n, SocketFlags.None);", "out SocketError")]
+        [TestCase("var n = s.Receive(buf, 0, n, SocketFlags.None, out SocketError e);", "")]
+        [TestCase("var n = s.Send(buf, 0, n, SocketFlags.None, out var e);", "")]
+        [TestCase("s.Send(buf);", "out SocketError")]
+        [TestCase("s.Close(0);", "Close()")]
+        [TestCase("s.Close(1000);", "Close()")]
+        [TestCase("s.Close();", "")]
+        [TestCase("s.LingerState = new LingerOption(true, 1);", "linger")]
+        [TestCase("s.Connect(ep);", "Connect")]
+        [TestCase("s.Disconnect(false);", "Connect")]
+        [TestCase("var p = s.Accept();", "")]
+        [TestCase("SendJson(c, 200, o); Send(c, 404, \"x\");", "")]
+        [TestCase("// s.BeginAccept(cb, null); s.Close(0);", "")]
+        public void SocketMatcherBites(string line, string ruleWhy)
+        {
+            var hits = Violations(line, SocketRules, honourMarkers: false).Select(h => h.Rule.Pattern + " | " + h.Rule.Why).ToList();
+            if (ruleWhy.Length == 0)
+            {
+                Assert.That(hits, Is.Empty);
+                return;
+            }
+            Assert.That(hits.Count, Is.EqualTo(1), "expected exactly one rule, got: " + string.Join(" | ", hits));
+            Assert.That(hits[0], Does.Contain(ruleWhy));
+        }
 
         [Test]
         public void EveryFileNamesItsTwin()
         {
-            var core = CoreDir();
             var bad = new List<string>();
-            foreach (var file in CoreFiles())
+            foreach (var file in RuntimeFiles())
             {
                 var head = File.ReadLines(file).Take(5).ToList();
                 if (!head.Any(l => l.Contains("Twin of scfg_core/") || l.Contains("No Python twin")))
-                    bad.Add($"{Path.GetRelativePath(core, file).Replace('\\', '/')}:1: missing 'Twin of scfg_core/' or 'No Python twin' in the first 5 lines");
+                    bad.Add($"{Rel(file)}:1: missing 'Twin of scfg_core/' or 'No Python twin' in the first 5 lines");
             }
             Assert.That(bad, Is.Empty, string.Join("\n", bad));
+        }
+
+        [Test]
+        public void TheLocalServerNamesItsTwin()
+        {
+            var file = Path.Combine(RuntimeDir(), "Desktop", "LocalServer.cs");
+            Assert.That(File.ReadLines(file).Take(5).Any(l => l.Contains("Twin of scfg_core/local_server.py")), Is.True,
+                        "Desktop/LocalServer.cs:1: missing 'Twin of scfg_core/local_server.py' in the first 5 lines");
         }
 
         // Unity has no project-level nullable setting, so each file turns annotations on itself. The directive must
@@ -331,11 +441,10 @@ namespace Scfg.Core.Tests
         [Test]
         public void EveryFileEnablesNullable()
         {
-            var core = CoreDir();
             var bad = new List<string>();
-            foreach (var file in CoreFiles())
+            foreach (var file in RuntimeFiles())
                 if (!EnablesNullableFirst(File.ReadAllText(file)))
-                    bad.Add($"{Path.GetRelativePath(core, file).Replace('\\', '/')}: '#nullable enable' must be the first line after the header comment");
+                    bad.Add($"{Rel(file)}: '#nullable enable' must be the first line after the header comment");
             Assert.That(bad, Is.Empty, string.Join("\n", bad));
         }
 
