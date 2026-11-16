@@ -35,6 +35,8 @@ namespace Scfg.Core.Tests
             "receipts",
             "qr",
             "paylinks",
+            "page_messages",
+            "rpc_errors",
         };
 
         static Tier1()
@@ -53,6 +55,8 @@ namespace Scfg.Core.Tests
             RegisterConfig();
             RegisterReceipts();
             RegisterPaylinks();
+            RegisterPageMessages();
+            RegisterRpcErrors();
         }
 
         // ---- shared input helpers --------------------------------------------------------------------------
@@ -371,6 +375,28 @@ namespace Scfg.Core.Tests
                 foreach (var r in runs) rects.Add(new List<object?> { (long)r.X, (long)r.Y, (long)r.Width });
                 return new JsonObject { { "size", (long)size }, { "rects", rects } };
             };
+        }
+
+        // ---- page_messages ---------------------------------------------------------------------------------
+
+        private static void RegisterPageMessages()
+        {
+            Funcs["parse_tx_message"] = i =>
+            {
+                var (txHash, sender) = PageMessages.ParseTxMessage(i.Get("data"));
+                return new List<object?> { txHash, sender };
+            };
+            Funcs["parse_build_message"] = i => PageMessages.ParseBuildMessage(i.Get("data"));
+        }
+
+        // ---- rpc_errors: numbers read out of a node's error message ----------------------------------------
+
+        private static void RegisterRpcErrors()
+        {
+            Funcs["suggested_range"] = i => Rpc.SuggestedRange(new RpcError(-32005, Str(i, "message")), IntField(i, "tried"));
+            // Python's _named_version reads only the client's tx_version
+            Funcs["named_version"] = i =>
+                Solana.Rpc.NamedVersion(new RpcError(IntField(i, "code"), Str(i, "message")), IntField(i, "tx_version"));
         }
 
         private static void RegisterReceipts()
