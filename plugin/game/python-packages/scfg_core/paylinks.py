@@ -8,12 +8,44 @@ of single squares.
 
 from __future__ import annotations
 
+import re
+
 from ._qrcodegen import QrCode
+
+# The buy page offered to players who have no stablecoin yet (configure(onramp=...)): a
+# template whose {placeholders} are filled in for the network the player picked. The default
+# is thirdweb's hosted Buy page, which needs no account or key; the player connects their own
+# wallet there and buys with a card, then pays as usual. tokenEditable=false keeps the page on
+# the network and token the game asked for.
+ONRAMP_URL = ("https://thirdweb.com/bridge/buy-widget?chain={chain_id}"
+              "&tokenAddress={token_address}&amount={amount}&tokenEditable=false")
+ONRAMP_FIELDS = ("amount", "chain", "chain_id", "token", "token_address")
+ONRAMP_PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
+# On a chain whose gas coin is the token (Arc), the payment's fee is paid in it too.
+ONRAMP_GAS_UNITS = 10_000  # 0.01
 
 
 def eip681_transfer_uri(*, token_address: str, chain_id: int, recipient: str, units: int) -> str:
     """ERC-20 transfer request that mobile wallets understand when scanned or opened."""
     return f"ethereum:{token_address}@{chain_id}/transfer?address={recipient}&uint256={units}"
+
+
+def onramp_amount(units: int, gas_is_token: bool) -> str:
+    """The amount suggested on the buy page: the payment (6-decimal units), plus a cent for
+    the fee where the token is the gas coin, rounded up to whole cents: 4993742 -> '5.00'."""
+    total = units + (ONRAMP_GAS_UNITS if gas_is_token else 0)
+    cents = -(-total // 10_000)
+    return f"{cents // 100}.{cents % 100:02d}"
+
+
+def onramp_url(template: str, *, chain: str, chain_id: int, token: str, token_address: str,
+               amount: str) -> str:
+    """Fill a validated onramp template (config._onramp_url). Every value is made of URL-safe
+    characters (a chain key, digits, a 0x address, a token symbol, an amount), so none is
+    escaped."""
+    values = {"amount": amount, "chain": chain, "chain_id": str(chain_id), "token": token,
+              "token_address": token_address}
+    return ONRAMP_PLACEHOLDER.sub(lambda m: values[m.group(1)], template)
 
 
 def qr_matrix(text: str) -> list[list[bool]]:

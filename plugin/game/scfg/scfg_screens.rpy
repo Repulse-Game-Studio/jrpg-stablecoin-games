@@ -653,6 +653,15 @@ screen scfg_step_method(ctl, cid):
     vbox:
         for m, label, hint in methods:
             use scfg_option(label, Function(scfg._choose_method, cid, m), selected=(ctl.method == m), sub=hint, width=scfg._content_width(), height=row_h)
+    use scfg_onramp_link(ctl, cid)
+
+
+## "No USDC yet? Buy some with a card": opens the configure(onramp=...) page for the chosen
+## network in the player's browser. Shown on the method step, or on the payment page the
+## sheet opens on when there is a single method (CheckoutController.shows_onramp).
+screen scfg_onramp_link(ctl, cid):
+    if ctl.shows_onramp:
+        textbutton (_("No %s yet? Buy some with a card") % ctl.spec.token) style "scfg_small_button" action Function(scfg._open_onramp, cid)
 
 
 screen scfg_step_browser(ctl, cid):
@@ -667,6 +676,7 @@ screen scfg_step_browser(ctl, cid):
     else:
         text _("Opens a checkout page in your browser for MetaMask, Rabby, Coinbase Wallet and other wallet extensions.")
     text (_("Approve %s on %s in your wallet.") % (scfg._amount_line(ctl), ctl.chain.name)) style "scfg_muted" substitute False
+    use scfg_onramp_link(ctl, cid)
 
 
 screen scfg_step_qr(ctl, cid):
@@ -690,6 +700,7 @@ screen scfg_step_qr(ctl, cid):
         text _("If your wallet changes the amount, the game still finds the payment.") style "scfg_muted"
     else:
         text _("If your wallet changes the amount, use Manual transfer and paste the transaction hash.") style "scfg_muted"
+    use scfg_onramp_link(ctl, cid)
 
 
 screen scfg_step_manual(ctl, cid):
@@ -719,6 +730,7 @@ screen scfg_step_manual(ctl, cid):
             if scfg.WEB:
                 textbutton _("Paste") style "scfg_small_button" xsize scfg._px(90) yfill True action Function(scfg._paste_hash, cid)
             textbutton _("Check") style "scfg_small_button" xsize scfg._px(90) yfill True action Function(scfg._submit_hash, cid)
+    use scfg_onramp_link(ctl, cid)
 
 
 screen scfg_step_waiting(ctl, cid):

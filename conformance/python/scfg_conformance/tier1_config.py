@@ -164,6 +164,18 @@ _CONFIG_VALID = [
     _c(logo="gui/Logo.JPG"),
     _c(logo="a.webp"),
     _c(testnet=False, chains=["arc"], tokens=["USDC"]),
+    # onramp: the buy link
+    _c(onramp={}),
+    _c(onramp={"enabled": False}),
+    _c(chains=["base", "arc"], onramp={"chains": ["arc"]}),
+    _c(chains=["base", "arc"], onramp={"chains": []}),
+    _c(chains=["polygon", "base"], onramp={"chains": ("base", "polygon")}),
+    _c(testnet=True, onramp={"chains": ["base", "arc"]}),
+    _c(onramp={"url": "https://x.example/{chain}/{chain}?id={chain_id}&t={token}&a={amount}"
+                      "&c={token_address}", "enabled": True, "chains": None}),
+    _c(onramp={"url": "https://x.example/buy"}),
+    _c(onramp={"url": "https://x.example/" + "a" * 2028}),     # 2048 characters
+    _c(onramp={"url": "https://x.example/!\"#$%&'()*+,-./:;<=>?@[\\]^_`|~"}),
 ]
 
 
@@ -230,6 +242,46 @@ def _config_errors():
         _c(accent=5),
         _c(accent="#0e7c74\n"),       # full match: no trailing newline
         _c(accent="#abc\n"),
+        _c(onramp=False),
+        _c(onramp=["enabled"]),
+        _c(onramp={"enable": False}),
+        _c(onramp={"enabled": "no"}),
+        _c(onramp={"enabled": 0}),
+        _c(onramp={"enabled": None}),
+        _c(onramp={"url": "http://x.example/buy"}),
+        _c(onramp={"url": "HTTPS://x.example/buy"}),
+        _c(onramp={"url": "https://x.example/buy?a={amount} "}),
+        _c(onramp={"url": "https://x.example/buy\n"}),
+        _c(onramp={"url": "https://x.example/buy\t"}),
+        _c(onramp={"url": "https://x.example/café"}),
+        _c(onramp={"url": "https://x.example/ "}),
+        _c(onramp={"url": "https://x.example/" + "a" * 2029}),
+        _c(onramp={"url": None}),
+        _c(onramp={"url": 5}),
+        _c(onramp={"url": ""}),
+        _c(onramp={"url": "https://x.example/?w={wallet}"}),
+        _c(onramp={"url": "https://x.example/?w={}"}),
+        _c(onramp={"url": "https://x.example/?w={Amount}"}),
+        _c(onramp={"url": "https://x.example/?w={ amount}"}),
+        _c(onramp={"url": "https://x.example/?a={amount"}),
+        _c(onramp={"url": "https://x.example/?a=amount}"}),
+        _c(onramp={"url": "https://x.example/?a={{amount}}"}),
+        _c(onramp={"url": "https://x.example/?a=}{amount}{"}),
+        # the first problem wins: an unknown placeholder before a stray brace
+        _c(onramp={"url": "https://x.example/?a={x}}"}),
+        _c(onramp={"chains": "base"}),
+        _c(onramp={"chains": {"base": True}}),
+        _c(onramp={"chains": 5}),
+        _c(onramp={"chains": ["tron"]}),
+        _c(onramp={"chains": [5]}),
+        _c(onramp={"chains": [None]}),
+        _c(chains=["base"], onramp={"chains": ["arc"]}),
+        _c(onramp={"chains": ["base", "base"]}),
+        {**ok, "onramp": {"chains": ["base", "solana"]}},
+        # the url is checked before the chains
+        _c(onramp={"url": "ftp://x", "chains": ["tron"]}),
+        # methods are checked before the onramp
+        _c(methods={"qr": {"enabled": "yes"}}, onramp={"enabled": "no"}),
     ]
 
 
@@ -313,6 +365,10 @@ _CUSTOM_CONFIG = [
     # a chain id of a mainnet built-in is free on testnet
     _c(testnet=True, custom_chains=[_chain(key="fork", chain_id=1, testnet=True)]),
     _c(testnet=True, custom_chains=[_chain(testnet=True)], chains=["avalanche"], tokens=["USDC"]),
+    # onramp: the default leaves custom chains out; listing one offers the link there
+    _c(custom_chains=[CHAIN], chains=["base", "avalanche", "arc"]),
+    _c(custom_chains=[CHAIN], onramp={"chains": ["avalanche", "base"]}),
+    _c(testnet=True, custom_chains=[_TESTNET_CHAIN], onramp={"chains": ["fuji"]}),
 ]
 
 _CUSTOM_CONFIG_ERRORS = [
@@ -331,6 +387,8 @@ _CUSTOM_CONFIG_ERRORS = [
     _c(custom_chains=[CHAIN], rpc_urls={"avalanche": "http://bad.example.org"}),
     _c(custom_chains=[CHAIN], confirmations={"avalanche": 0}),
     _c(custom_chains=[CHAIN], chains=["avalanche"], tokens=["USDT"]),
+    _c(custom_chains=[CHAIN], chains=["base"], onramp={"chains": ["avalanche"]}),
+    _c(custom_chains=[_TESTNET_CHAIN], onramp={"chains": ["fuji"]}),
 ]
 
 _topic("custom_chains",

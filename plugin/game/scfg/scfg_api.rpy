@@ -117,19 +117,21 @@ init -10 python in scfg:
 
     def configure(wallet=None, testnet=False, chains=None, tokens=None, methods=None,
                   rpc_urls=None, confirmations=None, previous_wallets=None,
-                  logo=None, accent=None, solana_wallet=None):
+                  logo=None, accent=None, solana_wallet=None, onramp=None):
         """Set the developer's payout wallet and options. Call once, in an init block.
 
         solana_wallet: your Solana wallet address (base58) to accept USDC/USDT on Solana;
         wallet= may then be left out.
         logo: an image in the game folder ("images/logo.png"), shown on the payment
         screens and the browser checkout page. accent: "#rrggbb" for selected options,
-        e.g. accent=gui.accent_color."""
+        e.g. accent=gui.accent_color.
+        onramp: the "Buy some with a card" link for players without USDC/USDT, e.g.
+        {"enabled": False} to hide it, {"chains": ["arc"]} or {"url": "https://..."}."""
         config = _build_config(
             wallet, testnet=testnet, chains=chains, tokens=tokens, methods=methods,
             rpc_urls=rpc_urls, confirmations=confirmations, previous_wallets=previous_wallets,
             logo=logo, accent=accent, custom_chains=_state.custom_chains,
-            solana_wallet=solana_wallet)
+            solana_wallet=solana_wallet, onramp=onramp)
         if config.logo is not None and not renpy.loadable(config.logo):
             raise ConfigError("logo file not found in the game folder: %r" % (config.logo,),
                               code="logo.file_missing")
@@ -666,6 +668,14 @@ init -10 python in scfg:
         return None
 
     def _open_explorer(url):
+        if url:
+            _open_url(url)
+        return None
+
+    def _open_onramp(cid):
+        """The buy page for the chosen network, in the player's browser (a new tab on the web)."""
+        ctl = _state.checkouts.get(cid)
+        url = ctl.onramp_url() if ctl is not None else None
         if url:
             _open_url(url)
         return None
