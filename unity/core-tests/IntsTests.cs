@@ -82,6 +82,17 @@ namespace Scfg.Core.Tests
                         Is.EqualTo("block out of range: -9223372036854775809"));
         }
 
+        [Test]
+        public void AStoredIntBeyondLongIsAnOverflowError()
+        {
+            // Watcher.Int reads a stored session's cursor, start_block, block and log_index
+            Assert.That(Watcher.Int(5L, "cursor"), Is.EqualTo(5L));
+            Assert.That(Watcher.Int(true, "cursor"), Is.EqualTo(1L));
+            Assert.That(Assert.Throws<OverflowError>(() => Watcher.Int(BigInteger.Pow(2, 64), "cursor"))!.Message,
+                        Is.EqualTo("cursor out of range: 18446744073709551616"));
+            Assert.Throws<TypeError>(() => Watcher.Int(1.0, "cursor"));
+        }
+
         private const string Wallet = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
 
         private static JsonObject TransferLog(string logIndex, string blockNumber) => new JsonObject

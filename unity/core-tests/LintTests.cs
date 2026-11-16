@@ -113,7 +113,11 @@ namespace Scfg.Core.Tests
         // type and a name followed by `=` or `;` (so a method, `=>` property, class, local function or `using
         // static` never matches). A tuple-typed field (a parenthesised type) is not recognised.
         private const string FieldModifiers = @"^\s*(?:(?:public|private|internal|protected|new|unsafe|volatile|readonly)\s+)*static\s+";
-        private const string FieldTail = @"(?<type>[^=;(){}]+?)\s+@?[A-Za-z_][A-Za-z0-9_]*\s*(?:=(?![=>])|;)";
+        private const string FieldName = @"(?<type>[^=;(){}]+?)\s+@?[A-Za-z_][A-Za-z0-9_]*";
+        private const string FieldTail = FieldName + @"\s*(?:=(?![=>])|;)";
+        private const string ReadOnlyView = @"(?<![A-Za-z0-9_])(?:IReadOnly[A-Za-z]*|IEnumerable)\s*<";
+        private const string WritableLiteral =
+            @"(?:new\s*\[\s*\]|new\s+[A-Za-z_][A-Za-z0-9_.]*\s*\[|new\s+(?:List|Dictionary|HashSet|SortedDictionary|SortedList|SortedSet|Queue|Stack|LinkedList|JsonObject)\b)";
         private const string MutableCollection =
             @"(?<![A-Za-z0-9_])(?:I?List|I?Dictionary|HashSet|ISet|I?Collection|SortedDictionary|SortedList|SortedSet|Queue|Stack|ConcurrentDictionary|ConcurrentBag|ConcurrentQueue|LinkedList|StringBuilder)\s*<|\[[\s,]*\]|(?<![A-Za-z0-9_])(?:JsonObject|StringBuilder|ArrayList|Hashtable)(?![A-Za-z0-9_])";
 
@@ -126,6 +130,20 @@ namespace Scfg.Core.Tests
                      type: MutableCollection, isStatic: true),
             new Rule(@"\bstatic\b[^=;(]*\{[^}]*\bset\s*;",
                      "a static property must not have a setter", isStatic: true),
+            // A read-only type is no protection when the object behind it is an array or a List: the initializer must
+            // wrap it (AsReadOnly, ReadOnlyCollection, ReadOnlyDictionary). One-line declarations only: an initializer
+            // on the following lines is not seen.
+            new Rule(@"^(?=.*\breadonly\b)(?!.*\b(?:AsReadOnly|ReadOnlyCollection|ReadOnlyDictionary)\b)" + FieldModifiers.Substring(1)
+                     + @"(?:(?:readonly|new|volatile)\s+)*" + FieldName + @"\s*=\s*" + WritableLiteral,
+                     "a read-only static over a writable literal (an array or collection literal); wrap it",
+                     type: ReadOnlyView, isStatic: true),
+            new Rule(@"^(?!.*\b(?:AsReadOnly|ReadOnlyCollection|ReadOnlyDictionary)\b)" + FieldModifiers.Substring(1)
+                     + FieldName + @"\s*\{\s*get\s*;\s*\}\s*=\s*" + WritableLiteral,
+                     "a read-only static property over a writable literal (an array or collection literal); wrap it",
+                     type: ReadOnlyView, isStatic: true),
+            new Rule(FieldModifiers + FieldName + @"\s*\{\s*get\s*;\s*\}",
+                     "a get-only static property of a mutable collection type is still writable",
+                     type: MutableCollection, isStatic: true),
         };
 
         private static readonly Rule[] AllRules =
@@ -337,8 +355,8 @@ namespace Scfg.Core.Tests
             Assert.That(Vectors.Tier2Ids().Count(), Is.GreaterThan(100));
         }
 
-        // The lints must actually bite. Each case names a fragment of the ONE rule that must fire on it
-        // (empty = no rule may fire), so a line caught by the wrong rule fails.
+        // The lints must actually bite. Each case names a fragment of the ONE rule that must fire on it (of its
+        // pattern or its why; empty = no rule may fire), so a line caught by the wrong rule fails.
         [TestCase("using UnityEngine;", "UnityEngine")]
         [TestCase("var x = \"record Not found\"; // dynamic d", "")]
         [TestCase("public record Foo(int A);", "record")]
@@ -428,9 +446,27 @@ namespace Scfg.Core.Tests
         [TestCase("static int Local(int a) { return a; }", "")]
         [TestCase("Func<int, int> f = static x => x;", "")]
         [TestCase("var s = \"static int x;\";", "")]
+        // a read-only type over a writable literal (one-line declarations only), and get-only static properties
+        [TestCase("public static readonly IReadOnlyList<string> R = new[] { \"a\" };", "read-only static over")]
+        [TestCase("public static readonly IReadOnlyList<string> R = new string[] { \"a\" };", "read-only static over")]
+        [TestCase("public static readonly IReadOnlyList<int> R = new List<int> { 1 };", "read-only static over")]
+        [TestCase("public static readonly IReadOnlyDictionary<string, int> R = new Dictionary<string, int>();", "read-only static over")]
+        [TestCase("public static readonly IEnumerable<string> R = new HashSet<string>();", "read-only static over")]
+        [TestCase("public static readonly IReadOnlyCollection<string> R = new string[2];", "read-only static over")]
+        [TestCase("public static readonly IReadOnlyList<string> R = Array.AsReadOnly(new[] { \"a\" });", "")]
+        [TestCase("public static readonly IReadOnlyDictionary<string, int> R = new ReadOnlyDictionary<string, int>(new Dictionary<string, int>());", "")]
+        [TestCase("public static readonly IReadOnlyList<string> R = Build();", "")]
+        [TestCase("public static IReadOnlyList<string> P { get; } = new[] { \"a\" };", "read-only static property over")]
+        [TestCase("public static IReadOnlyList<string> P { get; } = new List<string>();", "read-only static property over")]
+        [TestCase("public static IReadOnlyList<string> P { get; } = Array.AsReadOnly(new[] { \"a\" });", "")]
+        [TestCase("public static List<string> P { get; } = new List<string>();", "get-only static property of a mutable")]
+        [TestCase("public static string[] P { get; } = { \"a\" };", "get-only static property of a mutable")]
+        [TestCase("internal static JsonObject P { get; } = new JsonObject();", "get-only static property of a mutable")]
+        [TestCase("public static Dec P { get; } = Dec.Parse(\"1\")!;", "")]
+        [TestCase("public static string Name { get; } = \"x\";", "")]
         public void MatcherBites(string line, string rulePattern)
         {
-            var hits = Violations(line, AllRules, honourMarkers: false).Select(h => h.Rule.Pattern).ToList();
+            var hits = Violations(line, AllRules, honourMarkers: false).Select(h => h.Rule.Pattern + " | " + h.Rule.Why).ToList();
             if (rulePattern.Length == 0)
             {
                 Assert.That(hits, Is.Empty);

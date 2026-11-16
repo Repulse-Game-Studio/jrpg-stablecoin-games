@@ -2,9 +2,11 @@
 // _value rules, and the load rules (and the `why` texts) are godot/addons/scfg/store.gd's load.
 // The player's payment state file is {"version": 1, "pending": {...}, "receipts": {...}}, the Engine's two stores as
 // they are, in the frozen format of conformance/schema/state.json. StateSchema holds that schema as a C# table (no
-// file is read at runtime: an IL2CPP or WebGL build has no repo); a test compares it with the file. A loaded file
-// whose records do not conform is refused as a whole (Parse's Why), so the Engine never sees a malformed store: the
-// Unity store moves such a file aside as `.corrupt`, as Godot's does.
+// file is read at runtime: an IL2CPP or WebGL build has no repo); a test compares it with the file. A file that is not
+// that document, or has a pending record that does not conform, is refused as a whole (Parse's Why), so the Engine
+// never sees a malformed session: the Unity store moves such a file aside as `.corrupt`, as Godot's does. A receipt
+// record that does not conform is kept (Parse's ReceiptProblems): the Engine's reverify removes malformed receipts
+// and reports each (tier2/reverify/malformed_entries_are_removed), so the good receipts beside it survive.
 #nullable enable
 using System;
 using System.Collections.Generic;
@@ -97,14 +99,20 @@ namespace Scfg.Core
     {
         public JsonObject? Pending { get; }
         public JsonObject? Receipts { get; }
-        /// <summary>Null for a good file; else a predicate for "the payment state file &lt;path&gt; ..." (store.gd's why).</summary>
+        /// <summary>Null for a usable file; else a predicate for "the payment state file &lt;path&gt; ..." (store.gd's why).</summary>
         public string? Why { get; }
+        /// <summary>
+        /// The problems of the receipt records of a usable file (<see cref="StateFile.CheckReceipts"/>), for the glue to
+        /// log: those receipts are kept, and the Engine's reverify removes them. Empty when <see cref="Why"/> is set.
+        /// </summary>
+        public IReadOnlyList<string> ReceiptProblems { get; }
 
-        public StateLoad(JsonObject? pending, JsonObject? receipts, string? why)
+        public StateLoad(JsonObject? pending, JsonObject? receipts, string? why, IReadOnlyList<string>? receiptProblems = null)
         {
             Pending = pending;
             Receipts = receipts;
             Why = why;
+            ReceiptProblems = Array.AsReadOnly(receiptProblems == null ? new string[0] : new List<string>(receiptProblems).ToArray());
         }
     }
 
@@ -188,6 +196,7 @@ namespace Scfg.Core
 
         // state_schema.py's _receipt_key, for a receipt that passed its record check (all fields typed). The case
         // folding is the core's own (Receipts.ReceiptKey): a 0x hash is ASCII hex.
+        // ToLowerInvariant, not Python's str.lower(): they differ only for non-ASCII text, which no 0x hash has.
         private static string ReceiptKeyOf(JsonObject r)
         {
             var txHash = (string)r["tx_hash"]!;
@@ -202,8 +211,15 @@ namespace Scfg.Core
         /// </summary>
         public static List<string> Check(JsonObject pending, JsonObject receipts)
         {
+            var problems = CheckPending(pending);
+            problems.AddRange(CheckReceipts(receipts));
+            return problems;
+        }
+
+        /// <summary>The problems of the pending records (<see cref="Check"/>'s first part).</summary>
+        public static List<string> CheckPending(JsonObject pending)
+        {
             if (pending == null) throw new TypeError("pending must be a dict");
-            if (receipts == null) throw new TypeError("receipts must be a dict");
             var problems = new List<string>();
             foreach (var kv in pending)
             {
@@ -214,6 +230,14 @@ namespace Scfg.Core
                     found.Add(path + ": id does not match its key");
                 problems.AddRange(found);
             }
+            return problems;
+        }
+
+        /// <summary>The problems of the receipt records (<see cref="Check"/>'s second part).</summary>
+        public static List<string> CheckReceipts(JsonObject receipts)
+        {
+            if (receipts == null) throw new TypeError("receipts must be a dict");
+            var problems = new List<string>();
             foreach (var kv in receipts)
             {
                 var path = "receipts[" + kv.Key + "]";
@@ -228,9 +252,10 @@ namespace Scfg.Core
 
         /// <summary>
         /// Reads a state file's text (store.gd's load, after the read). Not JSON, not an object, a version other than
-        /// the int 1 (<c>true</c> is not 1), no pending/receipts objects, or a record that fails <see cref="Check"/>:
-        /// <see cref="StateLoad.Why"/> says which, and both stores are null. Otherwise the two stores, as parsed.
-        /// Other top-level fields are ignored, as Godot's store ignores them.
+        /// the int 1 (<c>true</c> is not 1), no pending/receipts objects, or a pending record that fails
+        /// <see cref="CheckPending"/>: <see cref="StateLoad.Why"/> says which, and both stores are null. Otherwise the
+        /// two stores, as parsed, and the problems of the receipt records (<see cref="StateLoad.ReceiptProblems"/>),
+        /// which are kept for reverify to remove. Other top-level fields are ignored, as Godot's store ignores them.
         /// </summary>
         public static StateLoad Parse(string text)
         {
@@ -251,7 +276,7 @@ namespace Scfg.Core
             if (!(o.TryGetValue("pending", out var p) && p is JsonObject pending
                   && o.TryGetValue("receipts", out var r) && r is JsonObject receipts))
                 return new StateLoad(null, null, "has no pending/receipts objects");
-            var problems = Check(pending, receipts);
+            var problems = CheckPending(pending);
             if (problems.Count > 0)
             {
                 var why = "does not match the state schema (" + problems[0];
@@ -259,7 +284,7 @@ namespace Scfg.Core
                     why += ", and " + (problems.Count - 1).ToString(CultureInfo.InvariantCulture) + " more";
                 return new StateLoad(null, null, why + ")");
             }
-            return new StateLoad(pending, receipts, null);
+            return new StateLoad(pending, receipts, null, CheckReceipts(receipts));
         }
 
         /// <summary>

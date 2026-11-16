@@ -151,6 +151,9 @@ namespace Scfg.Core.Tests
                 Assert.That(a, Is.Not.Null, name);
                 Assert.That(Attr(a!, "preserve"), Is.EqualTo("all"), name);
             }
+            // Scfg.Desktop is not built for WebGL, and the IL2CPP linker fails on an assembly it cannot resolve
+            Assert.That(Attr(assemblies.Single(x => Attr(x, "fullname") == "Scfg.Desktop"), "ignoreIfMissing"), Is.EqualTo("1"));
+            Assert.That(Attr(assemblies.Single(x => Attr(x, "fullname") == "Scfg.Core"), "ignoreIfMissing"), Is.Null);
             var mscorlib = assemblies.Single(x => Attr(x, "fullname") == "mscorlib");
             var rng = mscorlib.Elements("type").Single(t => Attr(t, "fullname") == "System.Security.Cryptography.RNGCryptoServiceProvider");
             Assert.That(Attr(rng, "preserve"), Is.EqualTo("all"));

@@ -72,7 +72,7 @@ namespace Scfg.Core
 
         /// <summary>
         /// A field used where Python needs an int (hex(), range bounds, a dataclass int): an int, or a bool (an int in
-        /// Python). A float or anything else is a TypeError; an int beyond 64 bits a ValueError.
+        /// Python). A float or anything else is a TypeError; an int beyond 64 bits an OverflowError (Ints.ToLong).
         /// </summary>
         internal static long Int(object? v, string what)
         {
@@ -81,7 +81,7 @@ namespace Scfg.Core
                 case long l: return l;
                 case int i: return i;
                 case bool b: return b ? 1 : 0;
-                case BigInteger _: throw new ValueError(what + " does not fit 64 bits");
+                case BigInteger bi: return Ints.ToLong(bi, what);
                 default: throw new TypeError(what + " must be an int, not " + Py.TypeName(v));
             }
         }

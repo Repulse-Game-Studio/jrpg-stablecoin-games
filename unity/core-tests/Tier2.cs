@@ -541,6 +541,89 @@ namespace Scfg.Core.Tests
             };
         }
 
+        // ---- the state file ---------------------------------------------------------------------------------------
+
+        /// <summary>
+        /// Strict equality of JSON values as the state file must give them back: the same CLR type (a long is not a
+        /// double or a BigInteger, a bool not an int), objects with the same keys in the same order (the store order is
+        /// visible), doubles bit for bit (NaN equals NaN). Null when equal, else "path: left != right".
+        /// </summary>
+        public static string? StrictDiff(object? a, object? b, string path = "")
+        {
+            string Here(string detail) => path.Length == 0 ? detail : path + ": " + detail;
+            string Show(object? v) => v == null ? "null" : v.GetType().Name + " " + Py.Repr(v);
+            if (a is JsonObject oa && b is JsonObject ob)
+            {
+                var ka = oa.Keys.ToList();
+                var kb = ob.Keys.ToList();
+                if (!ka.SequenceEqual(kb, StringComparer.Ordinal))
+                    return Here("keys " + Py.Repr(ka.Cast<object?>().ToList()) + " != " + Py.Repr(kb.Cast<object?>().ToList()));
+                foreach (var k in ka)
+                {
+                    var d = StrictDiff(oa[k], ob[k], path.Length == 0 ? k : path + "." + k);
+                    if (d != null) return d;
+                }
+                return null;
+            }
+            if (a is List<object?> la && b is List<object?> lb)
+            {
+                if (la.Count != lb.Count)
+                    return Here("length " + la.Count.ToString(CultureInfo.InvariantCulture) + " != " + lb.Count.ToString(CultureInfo.InvariantCulture));
+                for (int i = 0; i < la.Count; i++)
+                {
+                    var d = StrictDiff(la[i], lb[i], path + "[" + i.ToString(CultureInfo.InvariantCulture) + "]");
+                    if (d != null) return d;
+                }
+                return null;
+            }
+            if (a == null || b == null) return a == null && b == null ? null : Here(Show(a) + " != " + Show(b));
+            if (a.GetType() != b.GetType()) return Here(Show(a) + " != " + Show(b));
+            bool same = a switch
+            {
+                double da => BitConverter.DoubleToInt64Bits(da) == BitConverter.DoubleToInt64Bits((double)b) || (double.IsNaN(da) && double.IsNaN((double)b)),
+                string sa => string.Equals(sa, (string)b, StringComparison.Ordinal),
+                _ => a.Equals(b),
+            };
+            return same ? null : Here(Show(a) + " != " + Show(b));
+        }
+
+        /// <summary>The keys of the receipts a vector's setup stores malformed on purpose (reverify removes them).</summary>
+        public static HashSet<string> MalformedReceipts(JsonObject? receipts)
+        {
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            if (receipts == null) return keys;
+            foreach (var kv in receipts)
+                if (StateFile.CheckReceipts(new JsonObject { { kv.Key, kv.Value } }).Count > 0) keys.Add(kv.Key);
+            return keys;
+        }
+
+        /// <summary>
+        /// Whether the Engine's stores could be written to the state file and read back as they are: null, or the first
+        /// problem. They must pass <see cref="StateFile.Check"/> (except the receipts in <paramref name="malformed"/>,
+        /// which a vector's setup stored that way), and Parse(Serialize(stores)) must give them back strictly equal
+        /// (<see cref="StrictDiff"/>), so a C# path that stores a double where the schema wants an int fails.
+        /// </summary>
+        public static string? StateFileProblem(JsonObject pending, JsonObject receipts, ISet<string> malformed)
+        {
+            bool Excused(string problem) =>
+                malformed.Any(k => problem.StartsWith("receipts[" + k + "]:", StringComparison.Ordinal)
+                                   || problem.StartsWith("receipts[" + k + "].", StringComparison.Ordinal));
+            var problems = StateFile.Check(pending, receipts).Where(p => !Excused(p)).ToList();
+            if (problems.Count > 0) return "state file: " + problems[0];
+            StateLoad load;
+            try
+            {
+                load = StateFile.Parse(StateFile.Serialize(pending, receipts));
+            }
+            catch (Exception e) when (e is TypeError || e is ValueError)
+            {
+                return "state file: cannot serialize the stores: " + e.Message;
+            }
+            if (load.Why != null) return "state file: " + load.Why;
+            var d = StrictDiff(pending, load.Pending, "pending") ?? StrictDiff(receipts, load.Receipts, "receipts");
+            return d == null ? null : "state file round trip: " + d + " (stored != read back)";
+        }
+
         // ---- replay -----------------------------------------------------------------------------------------------
 
         /// <summary>Re-run a Tier 2 vector: null when it agrees, otherwise "step {i} ({action}): ..." for the first difference.</summary>
@@ -565,6 +648,11 @@ namespace Scfg.Core.Tests
                 if (e is ReplayError) runnerError ??= Describe(e);
                 else if (!IsCoreException(e)) unexpected ??= Describe(e);
             }, entropy);
+            // The stores must survive the state file before the first step and after every one. Only the receipts the
+            // vector's own setup stores malformed (tier2/reverify/*: reverify removes them) are excused.
+            var malformed = MalformedReceipts(setup["receipts"] as JsonObject);
+            var setupProblem = StateFileProblem(engine.Pending, engine.Receipts, malformed);
+            if (setupProblem != null) return "setup: " + setupProblem;
             var steps = List(vector["steps"], "steps");
             for (int i = 0; i < steps.Count; i++)
             {
@@ -623,6 +711,8 @@ namespace Scfg.Core.Tests
                 }
                 var sd = JsonEq.FirstDiff(step.Get("snapshot"), snapshot);
                 if (sd != null) return where + ": snapshot: " + sd + " (recorded != got)";
+                var fileProblem = StateFileProblem(engine.Pending, engine.Receipts, malformed);
+                if (fileProblem != null) return where + ": " + fileProblem;
             }
             return null;
         }

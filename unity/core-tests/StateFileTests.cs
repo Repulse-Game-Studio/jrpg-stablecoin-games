@@ -239,15 +239,19 @@ namespace Scfg.Core.Tests
         }
 
         [Test]
-        public void AFileWithABadRecordIsRefusedWhole()
+        public void AFileWithABadPendingRecordIsRefusedWhole()
         {
             var bad = PendingRec();
             bad["units"] = "5";
             bad["kind"] = "gift";
-            var load = StateFile.Parse(Doc(1L, new JsonObject { { "ps_1", bad } }, new JsonObject { { "base:" + Tx + ":2", ReceiptRec() } }));
-            Assert.That(load.Why, Is.EqualTo("does not match the state schema (pending[ps_1].kind: expected one of ['unlock', 'tip'], got 'gift', and 1 more)"));
+            var badReceipt = ReceiptRec();
+            badReceipt["token"] = 5L;
+            var load = StateFile.Parse(Doc(1L, new JsonObject { { "ps_1", bad } }, new JsonObject { { "base:" + Tx + ":2", badReceipt } }));
+            Assert.That(load.Why, Is.EqualTo("does not match the state schema (pending[ps_1].kind: expected one of ['unlock', 'tip'], got 'gift', and 1 more)"),
+                        "only the pending problems count");
             Assert.That(load.Pending, Is.Null);
             Assert.That(load.Receipts, Is.Null);
+            Assert.That(load.ReceiptProblems, Is.Empty);
 
             // the "non-string stored values" divergence (README) cannot come from a file
             var nonString = PendingRec();
@@ -263,6 +267,85 @@ namespace Scfg.Core.Tests
             Assert.That(load.Why, Is.Null);
             Assert.That(load.Pending, Is.Empty);
             Assert.That(load.Receipts, Is.Empty);
+            Assert.That(load.ReceiptProblems, Is.Empty);
+        }
+
+        [Test]
+        public void BadReceiptsAreKeptForReverifyToClean()
+        {
+            // reverify removes malformed receipts (tier2/reverify/malformed_entries_are_removed), so a file with one is
+            // accepted: the receipts as they are, and their problems for the glue to log
+            var badReceipt = ReceiptRec();
+            badReceipt["token"] = 5L;
+            var receipts = new JsonObject { { "base:" + Tx + ":2", badReceipt }, { "junk", "x" } };
+            var pending = new JsonObject { { "ps_1", PendingRec() } };
+            var load = StateFile.Parse(Doc(1L, pending, receipts));
+            Assert.That(load.Why, Is.Null);
+            Assert.That(JsonEq.FirstDiff(load.Pending, pending), Is.Null);
+            Assert.That(JsonEq.FirstDiff(load.Receipts, receipts), Is.Null);
+            Assert.That(load.ReceiptProblems, Is.EqualTo(new[]
+            {
+                "receipts[base:" + Tx + ":2].token: expected str, got 5", "receipts[junk]: expected object",
+            }));
+            Assert.That(StateFile.CheckReceipts(receipts), Is.EqualTo(load.ReceiptProblems));
+            Assert.That(StateFile.CheckPending(pending), Is.Empty);
+            Assert.That(StateFile.Check(pending, receipts), Is.EqualTo(load.ReceiptProblems));
+
+            foreach (var id in MalformedSetups)
+            {
+                var setup = (JsonObject)Tier2Tests.Load(id)["setup"]!;
+                var file = StateFile.Parse(StateFile.Serialize(Store(setup, "pending"), Store(setup, "receipts")));
+                Assert.That(file.Why, Is.Null, id);
+                Assert.That(file.ReceiptProblems, Is.EqualTo(StateFile.Check(Store(setup, "pending"), Store(setup, "receipts"))), id);
+                Assert.That(file.ReceiptProblems, Is.Not.Empty, id);
+                Assert.That(Tier2.StrictDiff(file.Receipts, Store(setup, "receipts")), Is.Null, id);
+            }
+        }
+
+        // ---- the Tier 2 runner's state-file check ------------------------------------------------------------------
+
+        [Test]
+        public void TheRunnerCheckRefusesWhatAFileCouldNotCarry()
+        {
+            var none = new HashSet<string>();
+            var receipts = new JsonObject { { "base:" + Tx + ":2", ReceiptRec() } };
+            Assert.That(Tier2.StateFileProblem(new JsonObject { { "ps_1", PendingRec() } }, receipts, none), Is.Null);
+
+            var asDouble = PendingRec();
+            asDouble["units"] = 4990107.0; // a double where the schema wants an int
+            Assert.That(Tier2.StateFileProblem(new JsonObject { { "ps_1", asDouble } }, receipts, none),
+                        Is.EqualTo("state file: pending[ps_1].units: expected int, got 4990107.0"));
+
+            var asInt32 = PendingRec();
+            asInt32["code"] = 1; // an int the schema accepts, but a file reads back as a long
+            Assert.That(Tier2.StateFileProblem(new JsonObject { { "ps_1", asInt32 } }, receipts, none),
+                        Does.StartWith("state file round trip: pending.ps_1.code: "));
+
+            var wide = PendingRec();
+            wide["cursor"] = new BigInteger(100); // a BigInteger within a long reads back as a long
+            Assert.That(Tier2.StateFileProblem(new JsonObject { { "ps_1", wide } }, receipts, none),
+                        Does.StartWith("state file round trip: pending.ps_1.cursor: "));
+
+            // only the receipts the vector's own setup made malformed are excused
+            var bad = new JsonObject { { "junk", "x" }, { "base:" + Tx + ":2", ReceiptRec() } };
+            Assert.That(Tier2.StateFileProblem(new JsonObject(), bad, new HashSet<string> { "junk" }), Is.Null);
+            Assert.That(Tier2.StateFileProblem(new JsonObject(), bad, none), Is.EqualTo("state file: receipts[junk]: expected object"));
+            var badToken = ReceiptRec();
+            badToken["token"] = 5L;
+            Assert.That(Tier2.StateFileProblem(new JsonObject(), new JsonObject { { "base:" + Tx + ":2", badToken } }, new HashSet<string> { "junk" }),
+                        Is.EqualTo("state file: receipts[base:" + Tx + ":2].token: expected str, got 5"));
+        }
+
+        [Test]
+        public void StrictDiffTellsIntsFromFloats()
+        {
+            Assert.That(Tier2.StrictDiff(new JsonObject { { "a", 1L } }, new JsonObject { { "a", 1L } }), Is.Null);
+            Assert.That(Tier2.StrictDiff(new JsonObject { { "a", 1L } }, new JsonObject { { "a", 1.0 } }), Is.Not.Null);
+            Assert.That(Tier2.StrictDiff(new JsonObject { { "a", double.NaN } }, new JsonObject { { "a", double.NaN } }), Is.Null);
+            Assert.That(Tier2.StrictDiff(new JsonObject { { "a", 1L }, { "b", 2L } }, new JsonObject { { "b", 2L }, { "a", 1L } }), Is.Not.Null,
+                        "store order counts");
+            Assert.That(Tier2.StrictDiff(new List<object?> { true }, new List<object?> { 1L }), Is.Not.Null);
+            Assert.That(Tier2.StrictDiff(new List<object?> { "x", null }, new List<object?> { "x", null }), Is.Null);
         }
 
         [Test]

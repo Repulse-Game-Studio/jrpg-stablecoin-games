@@ -32,7 +32,9 @@ uv run pytest -m integration tests/integration/test_cs_core.py
 
 ## State file
 
-`StateFile` reads and writes the player's payment state, `{"version": 1, "pending": {...}, "receipts": {...}}` (the Engine's two stores, in the frozen format of `conformance/schema/state.json`). `StateSchema` is that schema as a C# table, and a test compares it with the file. `StateFile.Parse(text)` gives the stores, or a `Why` (Godot's `store.gd` texts: not JSON, not an object, an unknown version, no pending/receipts objects, or the first record that `StateFile.Check` refuses, with `state_schema.py`'s problem text). A file with a `Why` is refused whole. `StateFile.Serialize` writes the stores in insertion order.
+`StateFile` reads and writes the player's payment state, `{"version": 1, "pending": {...}, "receipts": {...}}` (the Engine's two stores, in the frozen format of `conformance/schema/state.json`). `StateSchema` is that schema as a C# table, and a test compares it with the file. `StateFile.Parse(text)` gives the stores, or a `Why` (Godot's `store.gd` texts: not JSON, not an object, an unknown version, no pending/receipts objects, or the first pending record that `StateFile.CheckPending` refuses, with `state_schema.py`'s problem text). A file with a `Why` is refused whole. A receipt record that `StateFile.CheckReceipts` refuses does not refuse the file: the receipts are kept as they are, because the Engine's reverify removes malformed receipts and reports each one (`tier2/reverify/malformed_entries_are_removed`), and `StateLoad.ReceiptProblems` lists them for the glue to log. `StateFile.Serialize` writes the stores in insertion order.
+
+The Tier 2 runner checks every vector's stores against the state file before the first step and after each one: they must pass `StateFile.Check` and come back from `Parse(Serialize(...))` strictly equal (a long is not a double). Only the receipts a vector's own setup stores malformed are excused.
 
 ## Error model
 
@@ -61,7 +63,7 @@ The core runs on Unity's main thread, so it never creates a thread or waits.
 | Unity | `using UnityEngine` |
 | Threads | The threads and timers listed under "Async rules" |
 | Reflection | `System.Reflection`, `dynamic`, `Activator`, `GetType().Get...`, `System.Text.Json`, `Newtonsoft`, `record` types (IL2CPP stripping, and `IsExternalInit` on netstandard2.1) |
-| Static state | A `static` field that is not `readonly` or `const`, a `static readonly` field of a mutable collection type (`List<`, `Dictionary<`, `HashSet<`, `IList<`, an array, `JsonObject`, ...), a static property with a setter. With Unity's domain reload off statics survive between play sessions, so the public tables are `IReadOnlyList` / `IReadOnlyDictionary` over a `ReadOnlyCollection` / `ReadOnlyDictionary` |
+| Static state | A `static` field that is not `readonly` or `const`, a `static readonly` field of a mutable collection type (`List<`, `Dictionary<`, `HashSet<`, `IList<`, an array, `JsonObject`, ...), a static property with a setter, a get-only static property of a mutable collection type, and a `static readonly` field or get-only static property of a read-only type (`IReadOnly*`, `IEnumerable`) initialized with an array or collection literal that is not wrapped (`AsReadOnly`, `ReadOnlyCollection`, `ReadOnlyDictionary`; one-line declarations only). With Unity's domain reload off statics survive between play sessions, so the public tables are `IReadOnlyList` / `IReadOnlyDictionary` over a `ReadOnlyCollection` / `ReadOnlyDictionary` |
 | Culture | `Trim*`, `char.IsDigit` / `IsWhiteSpace` / `IsLetter` and relatives, `ToLower` / `ToUpper`, `CompareTo`, `String.Compare` and `StartsWith` / `EndsWith` / `IndexOf` without `StringComparison.Ordinal`, `ToString()` and `String.Format` without `CultureInfo.InvariantCulture`, `Parse` / `TryParse` of numeric types without it, `\d` and `\s` in a `Regex`. Python's string rules come from `Py` instead |
 
 The lints cannot see `$"{n}"` formatting a non-string with the current culture: interpolate only strings, and put `ToString(CultureInfo.InvariantCulture)` inside the hole.
@@ -82,10 +84,10 @@ Deliberate or accepted differences. None is reachable with valid, schema-conform
 | Area | C# | Python |
 |---|---|---|
 | Decimal exponent | `Dec` clamps an integer exponent at ±2^30, so `stored_amount("0E-1000000000000000000")` prints `0E-1073741824` | Keeps the exponent |
-| Large integers | Some fields are `long`-bounded: `LogIndex`, `BlockNumber`, a Solana slot, a receipt `log_index` and `block`, a chain's `chain_id`, `confirmations` and `max_log_range`. Beyond a long is an `OverflowError` (`Ints.ToLong`), not the Python result | Unbounded |
+| Large integers | Some fields are `long`-bounded: `LogIndex`, `BlockNumber`, a Solana slot, a receipt `log_index` and `block`, a stored session's `cursor` and `start_block` and its match's `block` and `log_index`, a chain's `chain_id`, `confirmations` and `max_log_range`. Beyond a long is an `OverflowError` (`Ints.ToLong`), not the Python result | Unbounded |
 | Non-finite numbers | `Json.Loads` accepts `NaN`, `Infinity` and `-Infinity` as doubles (the TypeScript port rejects them) | Accepts them |
 | Malformed node data (Solana) | A string `accountIndex`, a non-string `owner` or a non-integer `accountIndex` keeps a receipt that Python drops | Drops it |
-| Non-string stored values | A non-string `kind`, `item`, `token` or `chain` in a stored session makes `Expire` throw out of `Tick`, or loops `internal_error`. Unreachable from a state file: `StateFile.Parse` refuses a file whose records do not match `conformance/schema/state.json` | Carries the value |
+| Non-string stored values | A non-string `kind`, `item`, `token` or `chain` in a stored session makes `Expire` throw out of `Tick`, or loops `internal_error`. Unreachable from a state file: `StateFile.Parse` refuses a file whose pending records do not match `conformance/schema/state.json` | Carries the value |
 | Tips | `PreparePayment` with a non-string `title` or `item` on a tip is a `TypeError` | Accepted |
 | Config | `confirmations` of 2**70 is an `OverflowError`, raised before `config.no_usable_token` | `ConfigError` |
 | Config | A non-dict `methods`, `rpc_urls` or `confirmations` is a `TypeError` | `AttributeError` |
