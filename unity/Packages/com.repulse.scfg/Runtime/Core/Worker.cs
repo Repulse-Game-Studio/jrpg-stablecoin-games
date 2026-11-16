@@ -16,6 +16,14 @@
 // or use Wake(). A command submitted while the commands run joins them; one submitted during the tick runs in the
 // follow-up pass, never inside a tick.
 //
+// DRAINING CAN SPIN. The pass drains the queue until it is empty, as Python's does, so done callbacks (or commands)
+// that keep submitting commands which complete synchronously never let the pass reach its tick: on Unity's main
+// thread that is a frozen frame, where Python only spins its worker thread. Resubmit from a later frame instead.
+//
+// STOP. Stop() cancels the timer and the queued jobs and ends the chain after the pass in flight. An explicit
+// RunOnce() after Stop() runs one pass of its own when nothing is in flight; while a pass is in flight it joins that
+// chain and gets no pass of its own (as worker.ts).
+//
 // The worker creates no thread and no timer: the loop's timer is the injected IScheduler, and the Tasks are promises
 // that the transport (and the scheduler's callbacks) complete on the caller's thread. A Job is not a Task: callers
 // poll it or use AddDoneCallback, so a failed job nobody looks at is never an unobserved Task exception.
@@ -40,6 +48,7 @@ namespace Scfg.Core
         private object? _value;
         private ExceptionDispatchInfo? _error;
         private CancelledError? _cancelled;
+        private bool _notified; // Python's CANCELLED_AND_NOTIFIED: SetRunningOrNotifyCancel saw the cancel
         private List<Action<Job>>? _callbacks = new List<Action<Job>>();
         private readonly Action<System.Exception> _callbackError;
 
@@ -116,11 +125,16 @@ namespace Scfg.Core
 
         /// <summary>
         /// Python's <c>set_running_or_notify_cancel</c>: false for a cancelled job (do not run it), true for a pending
-        /// one, which is then running. A running or finished job is a <c>RuntimeError</c>, as in Python.
+        /// one, which is then running. A running or finished job is a <c>RuntimeError</c>, as in Python, and so is a
+        /// second call on a cancelled job (Python's CANCELLED_AND_NOTIFIED state).
         /// </summary>
         public bool SetRunningOrNotifyCancel()
         {
-            if (_state == State.Cancelled) return false;
+            if (_state == State.Cancelled && !_notified)
+            {
+                _notified = true;
+                return false;
+            }
             if (_state != State.Pending) throw new RuntimeError("job in unexpected state");
             _state = State.Running;
             return true;
@@ -188,7 +202,8 @@ namespace Scfg.Core
     /// Delayed work, injected: the core never creates a timer. <see cref="Schedule"/> runs <c>fn</c> once, on the
     /// game's thread, after <c>seconds</c> (0: as soon as it can, never inline), and returns a handle for
     /// <see cref="Cancel"/>, which keeps a callback that has not run from running. Unity's glue implements it with its
-    /// frame loop.
+    /// frame loop. The worker survives a callback run inline or after its Cancel (it ignores a stale one), but a
+    /// scheduler that runs every 0-second callback inline recurses when the passes complete synchronously.
     /// </summary>
     public interface IScheduler
     {
@@ -280,6 +295,7 @@ namespace Scfg.Core
         private bool _stopped;
         private object? _timer;
         private bool _timerSet;
+        private long _timerGen; // which Arm the live timer belongs to: a stale or inline Fire is told apart
 
         /// <param name="interval">Seconds between passes; default 15.</param>
         /// <param name="onError">Default: ignore (Python's <c>lambda e: None</c>).</param>
@@ -376,8 +392,17 @@ namespace Scfg.Core
                 _chain = null;
                 _again = false;
             }
-            if (failure != null) chain.SetException(failure);
-            else chain.SetResult(null);
+            if (failure != null)
+            {
+                chain.SetException(failure);
+                // Mark the fault observed: a RunOnce() Task nobody awaits (a re-entrant call, a forgotten one) must not
+                // be logged as an unobserved Task exception when it is collected. Awaiters still get the exception.
+                _ = chain.Task.Exception;
+            }
+            else
+            {
+                chain.SetResult(null);
+            }
         }
 
         private async Task Pass()
@@ -399,7 +424,12 @@ namespace Scfg.Core
                 {
                     error = e;
                 }
-                if (cmd.Job.Done()) continue; // settled from outside while it ran
+                if (cmd.Job.Done())
+                {
+                    // settled from outside while it ran: the command's own failure has no job left to carry it
+                    if (error != null) Report(error);
+                    continue;
+                }
                 if (error != null) cmd.Job.SetException(error);
                 else cmd.Job.SetResult(value);
             }
@@ -444,20 +474,35 @@ namespace Scfg.Core
         {
             if (!_timerSet) return;
             _timerSet = false;
-            var handle = _timer!;
+            _timerGen++;
+            var handle = _timer;
             _timer = null;
-            _scheduler.Cancel(handle);
+            if (handle != null) _scheduler.Cancel(handle);
         }
 
         private void Arm(double seconds)
         {
             Disarm();
-            _timer = _scheduler.Schedule(Fire, Math.Max(0, seconds));
+            // The flag and the generation are set BEFORE Schedule (as worker.ts): a scheduler that fires inline, against
+            // the contract, then clears them itself, and the handle is kept only if this Arm's timer is still the live one.
+            long gen = ++_timerGen;
             _timerSet = true;
+            object handle;
+            try
+            {
+                handle = _scheduler.Schedule(() => Fire(gen), Math.Max(0, seconds));
+            }
+            catch (Exception)
+            {
+                if (gen == _timerGen) _timerSet = false;
+                throw;
+            }
+            if (gen == _timerGen && _timerSet) _timer = handle;
         }
 
-        private void Fire()
+        private void Fire(long gen)
         {
+            if (gen != _timerGen || !_timerSet) return; // a cancelled or superseded timer that fired anyway
             _timerSet = false;
             _timer = null;
             if (!Running) return;

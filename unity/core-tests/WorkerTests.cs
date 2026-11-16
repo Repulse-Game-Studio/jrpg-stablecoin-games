@@ -403,41 +403,62 @@ namespace Scfg.Core.Tests
         }
 
         [Test]
-        public void JobUnobservedFailureRaisesNoUnobservedTaskException()
+        public void NeitherAJobNorAForgottenRunOnceRaisesAnUnobservedTaskException()
         {
-            var seen = new List<Exception>();
+            var seen = new List<string>();
             void On(object? sender, UnobservedTaskExceptionEventArgs args)
             {
                 foreach (var x in args.Exception!.Flatten().InnerExceptions)
-                    if (x.Message == "never observed" || x is CancelledError) seen.Add(x);
+                    if (x.Message == "never observed" || x.Message == "control" || x.Message == "forgotten run" || x is CancelledError)
+                        seen.Add(x.Message);
             }
             TaskScheduler.UnobservedTaskException += On;
             try
             {
-                RunAndForget();
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
+                Forget();
+                for (int i = 0; i < 3 && !seen.Contains("control"); i++)
+                {
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+                }
                 GC.Collect();
             }
             finally
             {
                 TaskScheduler.UnobservedTaskException -= On;
             }
-            Assert.That(seen, Is.Empty);
+            // the positive control shows the handler sees an unobserved fault, so the rest cannot pass vacuously
+            Assert.That(seen, Is.EqualTo(new[] { "control" }));
+        }
 
-            static void RunAndForget()
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static void Forget()
+        {
+            _ = Task.FromException(new RuntimeError("control"));
+
+            var w = new FakeEngine().Worker();
+            w.Submit(_ => throw new RuntimeError("never observed"));
+            w.Submit(async _ =>
             {
-                var w = new FakeEngine().Worker();
-                w.Submit(_ => throw new RuntimeError("never observed"));
-                w.Submit(async _ =>
-                {
-                    await Task.FromResult(0);
-                    throw new RuntimeError("never observed");
-                });
-                var c = w.Submit(Value(1));
-                c.Cancel();
-                Completed(w.RunOnce());
-            }
+                await Task.FromResult(0);
+                throw new RuntimeError("never observed");
+            });
+            var c = w.Submit(Value(1));
+            c.Cancel();
+            Completed(w.RunOnce());
+
+            // a failing RunOnce nobody awaits: synchronous, and completed later through a gate
+            var e = new FakeEngine { TickImpl = () => throw new RuntimeError("forgotten run") };
+            _ = e.Worker().RunOnce();
+            var gate = new Gate();
+            var later = new FakeEngine();
+            later.TickImpl = async () =>
+            {
+                await gate.Wait();
+                throw new RuntimeError("forgotten run");
+            };
+            _ = later.Worker().RunOnce();
+            gate.Open();
         }
 
         [Test]
@@ -722,7 +743,10 @@ namespace Scfg.Core.Tests
             var c = new Job();
             c.Cancel();
             Assert.That(c.SetRunningOrNotifyCancel(), Is.False, "a cancelled job is not started");
-            Assert.That(c.SetRunningOrNotifyCancel(), Is.False);
+            // Python: CANCELLED_AND_NOTIFIED, and a second call is a RuntimeError
+            Assert.That(Assert.Throws<RuntimeError>(() => c.SetRunningOrNotifyCancel())!.Message, Is.EqualTo("job in unexpected state"));
+            Assert.That(c.Cancelled() && c.Done() && c.Cancel(), Is.True, "still cancelled");
+            Assert.That(c.Exception(), Is.InstanceOf<CancelledError>());
             Assert.Throws<InvalidStateError>(() => c.SetResult(1));
             Assert.That(c.Cancelled(), Is.True);
 
@@ -972,6 +996,87 @@ namespace Scfg.Core.Tests
             t.Fire();
             Assert.That(t.Pending!.Seconds, Is.EqualTo(10));
             w.Stop();
+        }
+
+        /// <summary>A scheduler that breaks the contract: it runs a 0-second callback inline, inside Schedule.</summary>
+        private sealed class InlineZeroScheduler : IScheduler
+        {
+            public readonly FakeScheduler Later = new FakeScheduler();
+
+            public object Schedule(Action fn, double seconds)
+            {
+                if (seconds > 0) return Later.Schedule(fn, seconds);
+                fn();
+                return "spent";
+            }
+
+            public void Cancel(object handle)
+            {
+                if (handle is FakeScheduler.Entry) Later.Cancel(handle);
+            }
+        }
+
+        [Test]
+        public void AnInlineFiringSchedulerLeavesNoStaleTimer()
+        {
+            var e = new FakeEngine();
+            var t = new InlineZeroScheduler();
+            var w = e.Worker(t, () => 10);
+            w.Start(); // the 0-second timer fires inside Schedule: the pass, then a 10-second re-arm
+            Assert.That(e.Ticks, Is.EqualTo(1));
+            Assert.That(t.Later.Entries.Count(x => x.Live), Is.EqualTo(1));
+            Assert.That(t.Later.Pending!.Seconds, Is.EqualTo(10));
+            w.Wake(); // must replace the 10-second timer, not leave it beside a second one
+            Assert.That(e.Ticks, Is.EqualTo(2));
+            Assert.That(t.Later.Entries.Count(x => x.Live), Is.EqualTo(1));
+            w.Stop();
+            Assert.That(t.Later.Entries.Count(x => x.Live), Is.EqualTo(0), "Stop cancelled the live timer");
+        }
+
+        [Test]
+        public void ACancelledTimerThatFiresAnywayIsIgnored()
+        {
+            var e = new FakeEngine();
+            var t = new FakeScheduler();
+            var w = e.Worker(t, () => 10);
+            w.Start();
+            var first = t.Pending!;
+            w.Wake(); // replaces the first timer
+            first.Fn(); // a scheduler that ignored the Cancel
+            Assert.That(e.Ticks, Is.EqualTo(0));
+            t.Fire();
+            Assert.That(e.Ticks, Is.EqualTo(1));
+            var stale = t.Pending!;
+            w.Stop();
+            stale.Fn();
+            Assert.That(e.Ticks, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void ACommandsFailureIsReportedWhenItsJobWasSettledMeanwhile()
+        {
+            var e = new FakeEngine();
+            var reported = new List<Exception>();
+            e.Engine.OnError = reported.Add;
+            var w = e.Worker();
+            var gate = new Gate();
+            var job = w.Submit(async _ =>
+            {
+                await gate.Wait();
+                throw new ValueError("lost");
+            });
+            var quiet = w.Submit(async _ =>
+            {
+                await gate.Wait();
+                return "value";
+            });
+            var run = w.RunOnce();
+            job.SetResult("settled elsewhere");
+            gate.Open();
+            Completed(run);
+            Assert.That(job.Result(), Is.EqualTo("settled elsewhere"));
+            Assert.That(quiet.Result(), Is.EqualTo("value"));
+            Assert.That(reported.Select(x => x.Message), Is.EqualTo(new[] { "lost" }), "the command's own failure is not dropped");
         }
 
         [Test]
