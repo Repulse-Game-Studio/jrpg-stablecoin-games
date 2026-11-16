@@ -1,0 +1,10 @@
+{
+    "name": "Scfg.Tests.Editor",
+    "rootNamespace": "Scfg.Tests",
+    "references": ["Scfg.Core", "Scfg.Desktop", "Scfg.Unity", "Scfg.Editor", "UnityEngine.TestRunner", "UnityEditor.TestRunner"],
+    "includePlatforms": ["Editor"],
+    "precompiledReferences": ["nunit.framework.dll"],
+    "overrideReferences": true,
+    "autoReferenced": false,
+    "defineConstraints": ["UNITY_INCLUDE_TESTS"]
+}
