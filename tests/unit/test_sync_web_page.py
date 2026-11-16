@@ -156,3 +156,19 @@ def test_check_reports_a_hard_linked_copy(sync, capsys, tmp_path):
     assert module.main(["--check"]) == 1
     out = capsys.readouterr().out
     assert "hard link" in out and "app.js" in out
+
+
+def test_unity_target_gets_bytes_copies_and_keeps_meta_files(sync, monkeypatch):
+    module, src, target = sync
+    monkeypatch.setattr(module, "UNITY_TARGETS", {target})
+    target.mkdir()
+    (target / "app.js.bytes.meta").write_text("guid: 1\n")
+    (target / "old.js.bytes").write_bytes(b"x")
+    assert module.main([]) == 0
+    assert (target / "app.js.bytes").read_bytes() == (src / "app.js").read_bytes()
+    assert (target / "index.html.bytes").read_bytes() == (src / "index.html").read_bytes()
+    assert not (target / "app.js").exists() and not (target / "old.js.bytes").exists()
+    assert (target / "app.js.bytes.meta").read_text() == "guid: 1\n"  # never removed
+    assert module.main(["--check"]) == 0  # a .meta is not an extra file
+    (target / "app.js.bytes").write_bytes(b"drift")
+    assert module.main(["--check"]) == 1

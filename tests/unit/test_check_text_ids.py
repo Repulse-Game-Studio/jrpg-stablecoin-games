@@ -75,3 +75,29 @@ def test_godot_sheet_strings_are_compared_by_value_only(tool, tmp_path):
     texts = dict(tool.default_texts())
     texts["extra_cancel_copy"] = texts.pop("cancel")
     assert tool.problems(texts=texts, src=tmp_path) == []
+
+
+def test_the_unity_table_matches_rm_by_id(tool, tmp_path):
+    table = tmp_path / "ScfgUiTexts.cs"
+    original = tool.UNITY_TEXTS.read_text(encoding="utf-8")
+    table.write_text(original.replace('{ "cancel", "Cancel" },', '{ "cancel", "Abort" },'), encoding="utf-8")
+    texts = tool.default_texts()
+    vectors = json.loads((ROOT / "conformance" / "vectors" / "messages.json").read_text(encoding="utf-8"))["messages"]
+    found = tool.unity_problems(texts, vectors, table=table)
+    assert any("'cancel'" in p and "Abort" in p for p in found), found
+    table.write_text(original.replace('                { "close", "Close" },\n', ""), encoding="utf-8")
+    found = tool.unity_problems(texts, vectors, table=table)
+    assert any("'close' has no Unity text" in p for p in found), found
+
+
+def test_an_id_the_unity_code_asks_for_must_exist(tool, tmp_path):
+    (tmp_path / "View.cs").write_text(
+        'var a = ScfgUiTexts.Get(x == "solana" ? "copy_hash" : "no_such_unity_id");\n'
+        'var b = ScfgUiTexts.Format("which_network", token);\n'
+        '// ScfgUiTexts.Get("in_a_comment")\n',
+        encoding="utf-8")
+    texts = tool.default_texts()
+    vectors = json.loads((ROOT / "conformance" / "vectors" / "messages.json").read_text(encoding="utf-8"))["messages"]
+    found = tool.unity_problems(texts, vectors, src=tmp_path)
+    assert [p for p in found if "asks for" in p] == ["View.cs asks for Unity text id 'no_such_unity_id', which the table does not define"]
+    assert tool.unity_used_ids(tmp_path).keys() == {"copy_hash", "no_such_unity_id", "which_network"}

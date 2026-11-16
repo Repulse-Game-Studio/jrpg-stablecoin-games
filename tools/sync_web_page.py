@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Copy (or --check) the shared browser checkout page into each engine's addon.
 
-plugin/game/scfg/web/ is the single source; every target gets a byte-for-byte copy.
+plugin/game/scfg/web/ is the single source; every target gets a byte-for-byte copy. The Unity
+package's copy (a Resources folder) names each file `<name>.bytes`, so Unity imports it as a
+TextAsset, and keeps the `.meta` files Unity writes next to them (their GUIDs must stay stable):
+sync never removes a `.meta`, and --check ignores them (tools/check_unity_meta.py checks that each
+copy has one).
 
 Only regular files are ever written, and never through a link. A symlink in a target (or a
 target directory that is a symlink) is never followed: sync removes a symlinked entry before
@@ -22,7 +26,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "plugin" / "game" / "scfg" / "web"
 # RPG Maker MZ is no target: rpgmaker/build.mjs embeds the page in SCFG.js at build time.
-TARGETS = [ROOT / "godot" / "addons" / "scfg" / "web"]
+UNITY_TARGET = (ROOT / "unity" / "Packages" / "com.repulse.scfg" / "Runtime" / "Unity" / "Resources"
+                / "ScfgWeb")
+TARGETS = [ROOT / "godot" / "addons" / "scfg" / "web", UNITY_TARGET]
+# Targets whose copies carry a suffix (Unity imports only known extensions as TextAssets) and
+# Unity .meta files.
+UNITY_TARGETS = {UNITY_TARGET}
+UNITY_SUFFIX = ".bytes"
+
+
+def _suffix(target: Path) -> str:
+    return UNITY_SUFFIX if target in UNITY_TARGETS else ""
+
+
+def _kept(target: Path, name: str) -> bool:
+    """An entry of `target` that is not a copy and is left alone (a Unity .meta)."""
+    return target in UNITY_TARGETS and name.endswith(".meta")
 
 
 def _files(directory: Path) -> dict:
@@ -46,6 +65,8 @@ def _entry_problems(want: dict, target: Path) -> list:
     if not target.is_dir():
         return [f"not a directory: {_label(target)}"] if target.exists() else []
     for p in sorted(target.iterdir()):
+        if _kept(target, p.name) and stat.S_ISREG(p.lstat().st_mode):
+            continue
         mode = p.lstat().st_mode
         if stat.S_ISLNK(mode):
             problems.append(f"symlink: {_label(p)}")
@@ -59,7 +80,7 @@ def _entry_problems(want: dict, target: Path) -> list:
 
 
 def check(src: Path, target: Path) -> list:
-    want = _files(src)
+    want = {name + _suffix(target): path for name, path in _files(src).items()}
     problems = _entry_problems(want, target)
     if problems and target.is_symlink():
         return problems
@@ -72,7 +93,7 @@ def check(src: Path, target: Path) -> list:
         elif name in have and have[name].read_bytes() != path.read_bytes():
             problems.append(f"drifted: {label}/{name}")
     for name in have:
-        if name not in want:
+        if name not in want and not _kept(target, name):
             problems.append(f"extra: {label}/{name}")
     return problems
 
@@ -83,12 +104,14 @@ def sync(src: Path, target: Path) -> list:
     if target.is_symlink() or (target.exists() and not target.is_dir()):
         return _entry_problems({}, target)
     target.mkdir(parents=True, exist_ok=True)
-    want = _files(src)
+    want = {name + _suffix(target): path for name, path in _files(src).items()}
     refused = [p for p in _entry_problems(want, target)
                if p.startswith(("not a file", "subdirectory"))]
     if refused:
         return refused
     for p in sorted(target.iterdir()):
+        if _kept(target, p.name) and stat.S_ISREG(p.lstat().st_mode):
+            continue
         if not stat.S_ISREG(p.lstat().st_mode) or p.name not in want:
             p.unlink()  # a symlink is removed itself, never followed
     for name, path in want.items():

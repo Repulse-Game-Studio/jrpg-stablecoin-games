@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Check that every file and folder of the Unity package has its `.meta`, and every `.meta` its asset.
+"""Check that every file and folder of the Unity package has its `.meta`, and every `.meta` its
+asset.
 
     uv run python tools/check_unity_meta.py          # exit 1 and list the problems, else 0
 
-Unity writes a `.meta` (with the asset's GUID) next to each file and folder it imports. A package installed from a
-git URL is read-only, so Unity cannot write them there: a missing `.meta` makes the asset unusable (and its GUID, which
-other assets reference, would differ per install). An orphan `.meta` (its asset gone) is left behind by a rename.
-Unity skips hidden entries (a leading dot) and folders ending in `~` (Samples~, Documentation~), and so does this
-check. Each GUID must also be unique.
+Unity writes a `.meta` (with the asset's GUID) next to each file and folder it imports. A package
+installed from a git URL is read-only, so Unity cannot write them there: a missing `.meta` makes
+the asset unusable (and its GUID, which other assets reference, would differ per install). An
+orphan `.meta` (its asset gone) is left behind by a rename. Unity skips hidden entries (a leading
+dot) and folders ending in `~` (Samples~, Documentation~), and so does this check. Each GUID must
+also be unique.
 """
 
 from __future__ import annotations
@@ -60,8 +62,8 @@ def main() -> int:
     for p in found:
         print(p)
     if found:
-        print("open unity/Project in the Unity editor once (it writes the .meta files), then commit them",
-              file=sys.stderr)
+        print("open unity/Project in the Unity editor once (it writes the .meta files), "
+              "then commit them", file=sys.stderr)
         return 1
     return 0
 
