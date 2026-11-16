@@ -28,7 +28,7 @@ namespace Scfg.Core
         // What int() skips around the digits: CPython maps every non-ASCII whitespace character to a space but
         // leaves ASCII ones as they are, then skips only ASCII whitespace (Py_ISSPACE), so the four separators
         // \x1c-\x1f that str.strip() removes make int() fail: int("\x1c5") is a ValueError.
-        private static bool IsIntSpace(int cp) => IsSpace(cp) && !(cp >= 0x1c && cp <= 0x1f);
+        internal static bool IsIntSpace(int cp) => IsSpace(cp) && !(cp >= 0x1c && cp <= 0x1f);
 
         /// <summary>Exactly Python's <c>str.strip()</c> with no argument. Linear: one scan from each end.</summary>
         public static string Strip(string s)

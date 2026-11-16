@@ -21,6 +21,8 @@ namespace Scfg.Core.Tests
         public static readonly HashSet<string> Implemented = new HashSet<string>(StringComparer.Ordinal)
         {
             "amounts",
+            "keccak",
+            "evm_address",
         };
 
         static Tier1()
@@ -32,6 +34,8 @@ namespace Scfg.Core.Tests
         private static void RegisterAll()
         {
             RegisterAmounts();
+            RegisterKeccak();
+            RegisterEvm();
         }
 
         // ---- shared input helpers --------------------------------------------------------------------------
@@ -89,6 +93,36 @@ namespace Scfg.Core.Tests
             };
             Funcs["format_units"] = i => Amounts.FormatUnits(Units(i["units"]));
             Funcs["stored_amount"] = i => Str(Amounts.StoredAmount(VectorValue(i["value"])));
+        }
+
+        // ---- keccak ----------------------------------------------------------------------------------------
+
+        private static void RegisterKeccak()
+        {
+            Funcs["keccak256"] = i => Bytes.ToHex(Keccak.Keccak256(Bytes.FromHex(Str(i, "data_hex"))));
+        }
+
+        // ---- evm_address (the address fields are passed through untouched: non-strings are Python's errors) --
+
+        private static void RegisterEvm()
+        {
+            Funcs["to_checksum_address"] = i => Evm.ToChecksumAddress(i.Get("address"));
+            Funcs["is_checksum_address"] = i => Evm.IsChecksumAddress(i.Get("address"));
+            Funcs["normalize_address"] = i => Evm.NormalizeAddress(i.Get("address"));
+            Funcs["address_topic"] = i => Evm.AddressTopic(i.Get("address"));
+            Funcs["parse_transfer_log"] = i =>
+            {
+                if (!(i.Get("log") is JsonObject log)) throw new ValueError("vector input log must be an object");
+                var t = Evm.ParseTransferLog(log);
+                if (t == null) return null;
+                return new JsonObject
+                {
+                    { "token", t.Token }, { "sender", t.Sender }, { "recipient", t.Recipient },
+                    { "value", t.Value.ToString(CultureInfo.InvariantCulture) },
+                    { "tx_hash", t.TxHash }, { "log_index", t.LogIndex }, { "block_number", t.BlockNumber },
+                    { "block_hash", t.BlockHash },
+                };
+            };
         }
 
         // ---- the runner ------------------------------------------------------------------------------------
