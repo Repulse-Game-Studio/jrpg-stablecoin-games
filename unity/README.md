@@ -106,4 +106,6 @@ Deliberate or accepted differences. None is reachable with valid, schema-conform
 | Digit limit | `Py.Int` of a 5000-digit string with a bad character gives the invalid-literal message | The digit-limit message |
 | Stored sessions | A non-dict session value is a `KeyError` | `TypeError` |
 | Transaction size | `Tx` casts to byte unchecked: more than 255 accounts wraps | `ValueError` |
+| Checkout start | A start job that succeeds with anything but a session (`JsonObject`) is `start_failed` in `Poll`, as `checkout.gd` does; only a stand-in submit can produce one | Takes the value as the session and fails later |
+| Checkout start | A cancelled start job (`Worker.Submit` after `Stop`) is `start_failed` in `Poll`: `Job.Exception()` returns its `CancelledError` | `poll()` raises `CancelledError` from `fut.exception()` |
 | Recorded data (test runner) | Malformed recorded data throws `ReplayError` and is not added to the problem list | Not applicable |

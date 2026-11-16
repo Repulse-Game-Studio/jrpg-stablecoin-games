@@ -15,6 +15,7 @@ namespace Scfg.Core.Tests
     {
         private const string DevEvm = "0x52908400098527886E0F7030069857D2E4169EE7";
         private const string Dev = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
+        private const string Payer = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
         private static string Mint => Chains.Mainnet["solana"].Tokens["USDC"].Address;
         private static readonly string EvmTx = "0x" + string.Concat(Enumerable.Repeat("ab", 32));
         private static readonly string Sig = SigOf(7);
@@ -235,11 +236,40 @@ namespace Scfg.Core.Tests
             Assert.That(info["recipient"], Is.EqualTo(Dev));
             Assert.That(s.Args.BuildTx, Is.Not.Null);
             int before = r.Submitter.Jobs.Count;
-            var job = s.Args.BuildTx!(DevEvm);
+            int calls = r.Rig.Sol.Requests.Count;
+            var job = s.Args.BuildTx!(DevEvm); // the TS test's account: not a Solana key
             await r.Submitter.Idle();
             Assert.That(job.Done(), Is.True);
             Assert.That(r.Submitter.Jobs, Has.Count.EqualTo(before + 1), "the build went through submit");
-            Assert.That(job.Exception(), Is.Not.Null, "the fake node cannot build a transfer, and the job says so");
+            Assert.That(job.Exception(), Is.TypeOf<ValueError>(), "an EVM address is no Solana account");
+            Assert.That(r.Rig.Sol.Requests, Has.Count.EqualTo(calls), "refused before any RPC call");
+        }
+
+        [Test]
+        public async Task BuildTxBuildsTheTransferForThePlayersAccount()
+        {
+            var r = await Started("solana");
+            var ctl = r.Ctl;
+            ctl.StartBrowser();
+            var source = Pda.AssociatedTokenAddress(Payer, Mint);
+            r.Rig.Sol.TokenBalances[source] = 7000000;
+            r.Rig.Sol.Lamports[Payer] = 5000;
+            r.Rig.Sol.Requests.Clear();
+            var job = r.Servers[0].Args.BuildTx!(Payer);
+            await r.Submitter.Idle();
+            Assert.That(job.Exception(), Is.Null);
+            var built = (JsonObject)job.Result()!;
+            Assert.That(built.Keys, Is.EqualTo(new[] { "transaction", "token_balance", "sol_balance" }));
+            Assert.That(built["token_balance"], Is.EqualTo("7000000"));
+            Assert.That(built["sol_balance"], Is.EqualTo("5000"));
+            Assert.That(built["transaction"], Is.TypeOf<string>().And.Not.Empty);
+            Assert.That(r.Rig.Sol.Requests.Select(q => q.Method), Is.EqualTo(new[]
+            {
+                "getAccountInfo", "getBalance", "getLatestBlockhash", "getRecentPrioritizationFees",
+            }));
+            Assert.That(r.Rig.Sol.Requests[0].Params[0], Is.EqualTo(source), "the player's token account");
+            Assert.That(r.Rig.Sol.Requests[1].Params[0], Is.EqualTo(Payer), "the player's SOL balance");
+            Assert.That(r.Rig.Sol.Requests[3].Params[0], Is.EqualTo(new List<object?> { ctl.Session!["dest"] }));
         }
     }
 }

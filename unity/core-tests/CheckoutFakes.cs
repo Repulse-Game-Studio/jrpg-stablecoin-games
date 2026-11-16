@@ -109,16 +109,24 @@ namespace Scfg.Core.Tests
 
     /// <summary>
     /// An in-memory Solana node (solana_fakes.ts's FakeSolanaChain), as far as a session start asks: <c>Slot</c>,
-    /// <c>Addresses</c> (address -&gt; signature infos, newest first), <c>Accounts</c> (getAccountInfo) and <c>Down</c>.
-    /// Any other method fails the call, so a build that needs more fails its job.
+    /// <c>Addresses</c> (address -&gt; signature infos, newest first), <c>Accounts</c> and <c>TokenBalances</c>
+    /// (getAccountInfo), <c>Lamports</c> (getBalance), <c>Blockhash</c>, no prioritization fees, and <c>Down</c>. Any
+    /// other method fails the call.
     /// </summary>
     public sealed class FakeSolanaNode : ITransport
     {
         public long Slot;
         public readonly Dictionary<string, List<JsonObject>> Addresses = new Dictionary<string, List<JsonObject>>(StringComparer.Ordinal);
         public readonly HashSet<string> Accounts = new HashSet<string>(StringComparer.Ordinal);
+        /// <summary>Token account -&gt; balance in base units (getAccountInfo, jsonParsed).</summary>
+        public readonly Dictionary<string, long> TokenBalances = new Dictionary<string, long>(StringComparer.Ordinal);
+        /// <summary>Address -&gt; lamports (getBalance; 0 when unlisted).</summary>
+        public readonly Dictionary<string, long> Lamports = new Dictionary<string, long>(StringComparer.Ordinal);
+        public string Blockhash = Base58.B58Encode(Enumerable.Repeat((byte)7, 32).ToArray());
         public bool Down;
         public readonly List<string> Calls = new List<string>();
+        /// <summary>Every request, method and params.</summary>
+        public readonly List<(string Method, List<object?> Params)> Requests = new List<(string, List<object?>)>();
 
         public FakeSolanaNode(long slot = 1000) { Slot = slot; }
 
@@ -127,6 +135,7 @@ namespace Scfg.Core.Tests
             var method = (string)payload["method"]!;
             var prms = (List<object?>)payload["params"]!;
             Calls.Add(method);
+            Requests.Add((method, prms));
             if (Down) return Task.FromException<object?>(new TransportError("fake outage"));
             try
             {
@@ -151,11 +160,40 @@ namespace Scfg.Core.Tests
                     return list.Take((int)limit).Cast<object?>().ToList();
                 }
                 case "getAccountInfo":
+                {
+                    var address = (string)prms[0]!;
+                    object? value = null;
+                    if (TokenBalances.TryGetValue(address, out var amount))
+                    {
+                        value = new JsonObject
+                        {
+                            { "lamports", 2039280L },
+                            { "data", new JsonObject { { "parsed", new JsonObject { { "info", new JsonObject
+                            {
+                                { "tokenAmount", new JsonObject { { "amount", amount.ToString(CultureInfo.InvariantCulture) }, { "decimals", 6L } } },
+                            } } } } } },
+                        };
+                    }
+                    else if (Accounts.Contains(address))
+                    {
+                        value = new JsonObject { { "lamports", 1L } };
+                    }
+                    return new JsonObject { { "context", new JsonObject { { "slot", Slot } } }, { "value", value } };
+                }
+                case "getBalance":
                     return new JsonObject
                     {
                         { "context", new JsonObject { { "slot", Slot } } },
-                        { "value", Accounts.Contains((string)prms[0]!) ? new JsonObject { { "lamports", 1L } } : null },
+                        { "value", Lamports.TryGetValue((string)prms[0]!, out var lamports) ? lamports : 0L },
                     };
+                case "getLatestBlockhash":
+                    return new JsonObject
+                    {
+                        { "context", new JsonObject { { "slot", Slot } } },
+                        { "value", new JsonObject { { "blockhash", Blockhash }, { "lastValidBlockHeight", Slot + 150 } } },
+                    };
+                case "getRecentPrioritizationFees":
+                    return new List<object?>();
                 default:
                     throw new InvalidOperationException("unexpected RPC method " + method);
             }

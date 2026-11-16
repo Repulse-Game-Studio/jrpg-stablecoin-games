@@ -95,7 +95,7 @@ namespace Scfg.Core
         public string? Error { get; private set; }
         public long Confirmations { get; private set; }
         public long Required { get; private set; }
-        public string? HintTx { get; internal set; }
+        public string? HintTx { get; private set; }
         /// <summary>The hint that never landed (tx_not_landed).</summary>
         public string? DroppedTx { get; private set; }
         public PaymentResult? Result { get; private set; }
@@ -164,7 +164,11 @@ namespace Scfg.Core
             return output;
         }
 
-        /// <summary>Python's <c>key in chains</c> for the configured QR chain list.</summary>
+        /// <summary>
+        /// Python's <c>key in chains</c> for the configured QR chain list. A string is a substring test, and a null key
+        /// in a string is false here where Python raises TypeError; neither is reachable, as build_config refuses a
+        /// <c>methods.qr.chains</c> that is not a list of enabled chain keys.
+        /// </summary>
         private static bool In(string? key, object chains)
         {
             if (chains is string s) return key != null && s.Contains(key);

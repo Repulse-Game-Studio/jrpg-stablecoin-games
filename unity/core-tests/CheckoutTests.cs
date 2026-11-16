@@ -214,7 +214,8 @@ namespace Scfg.Core.Tests
         public async Task ReorgAndHintErrors()
         {
             var ctl = (await Started()).Ctl;
-            ctl.HintTx = Tx;
+            Assert.That(ctl.SubmitHash(Tx), Is.True); // Python's test sets hint_tx; the C# setter is private
+            Assert.That(ctl.HintTx, Is.EqualTo(Tx));
             ctl.OnOutcome(new StepOutcome(ctl.SessionId!, "confirming", confirmations: 3, required: 20));
             ctl.OnOutcome(new StepOutcome(ctl.SessionId!, "reorged"));
             Assert.That(ctl.State, Is.EqualTo("waiting"));
@@ -222,6 +223,22 @@ namespace Scfg.Core.Tests
             ctl.OnOutcome(new StepOutcome(ctl.SessionId!, "waiting", error: "tx_not_a_payment"));
             Assert.That(ctl.Error, Is.EqualTo("tx_not_a_payment"));
             Assert.That(ctl.HintTx, Is.Null);
+        }
+
+        [Test]
+        public async Task AConfirmingOutcomeClearsAnErrorUnlessItCarriesOne()
+        {
+            var ctl = (await Started()).Ctl;
+            ctl.OnOutcome(new StepOutcome(ctl.SessionId!, "waiting", error: "network_unavailable"));
+            Assert.That(ctl.Error, Is.EqualTo("network_unavailable"));
+            ctl.OnOutcome(new StepOutcome(ctl.SessionId!, "confirming", confirmations: 1, required: 20));
+            Assert.That(ctl.Error, Is.Null, "a confirming outcome without an error clears the old one");
+            Assert.That(ctl.State, Is.EqualTo("confirming"));
+            Assert.That(ctl.Confirmations, Is.EqualTo(1L));
+            ctl.OnOutcome(new StepOutcome(ctl.SessionId!, "confirming", confirmations: 2, required: 20, error: "network_unavailable"));
+            Assert.That(ctl.Error, Is.EqualTo("network_unavailable"), "one that carries an error keeps it");
+            Assert.That(ctl.Confirmations, Is.EqualTo(2L));
+            Assert.That(ctl.Message(), Is.EqualTo(Checkout.Messages["network_unavailable"]));
         }
 
         [Test]
@@ -683,6 +700,7 @@ namespace Scfg.Core.Tests
             Assert.That(submit.Queue, Has.Count.EqualTo(1));
             await submit.Run();
             Assert.That(engine.Pending.Count, Is.EqualTo(0));
+            Assert.That(submit.CallbackErrors, Is.Empty);
         }
     }
 }
