@@ -89,18 +89,22 @@ namespace Scfg.Core.Solana
         public async Task<long> GetSlot(string commitment = "confirmed") =>
             Scfg.Core.Rpc.ToLong(Ints.IntFrom(await Call("getSlot", new List<object?> { new JsonObject { { "commitment", commitment } } })), "slot");
 
-        /// <summary>Python <c>get_signatures_for_address</c>: the result, or an empty list for a falsy one (<c>... or []</c>).</summary>
-        public async Task<object?> GetSignaturesForAddress(string address, string? until = null, string? before = null,
+        /// <summary>
+        /// Python <c>get_signatures_for_address</c>: the result, or an empty list for a falsy one (<c>... or []</c>).
+        /// The address and the bounds go out as given (a stored record's fields are sent unchecked, as in Python); a
+        /// falsy bound is left out.
+        /// </summary>
+        public async Task<object?> GetSignaturesForAddress(object? address, object? until = null, object? before = null,
             long limit = 100, string commitment = "confirmed")
         {
             var opts = new JsonObject { { "limit", limit }, { "commitment", commitment } };
-            if (!string.IsNullOrEmpty(until)) opts["until"] = until;
-            if (!string.IsNullOrEmpty(before)) opts["before"] = before;
+            if (Py.Truthy(until)) opts["until"] = until;
+            if (Py.Truthy(before)) opts["before"] = before;
             var res = await Call("getSignaturesForAddress", new List<object?> { address, opts });
             return Py.Truthy(res) ? res : new List<object?>();
         }
 
-        private List<object?> TxParams(string sig, string commitment, long? version = null) =>
+        private List<object?> TxParams(object? sig, string commitment, long? version = null) =>
             new List<object?>
             {
                 sig,
@@ -123,7 +127,8 @@ namespace Scfg.Core.Solana
             return false;
         }
 
-        public async Task<object?> GetTransaction(string sig, string commitment = "confirmed")
+        /// <summary>Python <c>get_transaction</c>: the signature goes out as given (a stored hint is sent unchecked).</summary>
+        public async Task<object?> GetTransaction(object? sig, string commitment = "confirmed")
         {
             long? version;
             try
@@ -161,7 +166,7 @@ namespace Scfg.Core.Solana
         /// a null answer is authoritative (an endpoint whose history reaches <paramref name="minSlot"/> said so).
         /// RpcUnavailable when no endpoint answered.
         /// </summary>
-        public async Task<(object? Tx, bool Authoritative)> GetTransactionAny(string sig, long? minSlot = null, string commitment = "finalized")
+        public async Task<(object? Tx, bool Authoritative)> GetTransactionAny(object? sig, long? minSlot = null, string commitment = "finalized")
         {
             bool answered = false, authoritative = false;
             foreach (var url in Client.LiveUrls())
@@ -188,11 +193,11 @@ namespace Scfg.Core.Solana
                 if (res != null) return (res, false);
                 if (minSlot != null && await FirstAvailable(url) <= minSlot.Value) authoritative = true;
             }
-            if (!answered) throw new RpcUnavailable("no endpoint answered getTransaction for " + sig);
+            if (!answered) throw new RpcUnavailable("no endpoint answered getTransaction for " + Coio.Str(sig));
             return (null, authoritative);
         }
 
-        public async Task<object?> GetSignatureStatuses(IEnumerable<string> sigs)
+        public async Task<object?> GetSignatureStatuses(IEnumerable<object?> sigs)
         {
             var list = new List<object?>();
             foreach (var s in sigs) list.Add(s);
@@ -236,7 +241,7 @@ namespace Scfg.Core.Solana
         }
 
         /// <summary>Python <c>get_priority_fee</c>: the median (upper middle) recent prioritization fee, 0 for none.</summary>
-        public async Task<BigInteger> GetPriorityFee(IEnumerable<string> accounts)
+        public async Task<BigInteger> GetPriorityFee(IEnumerable<object?> accounts)
         {
             var list = new List<object?>();
             foreach (var a in accounts) list.Add(a);

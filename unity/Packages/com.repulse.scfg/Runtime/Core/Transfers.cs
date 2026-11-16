@@ -11,8 +11,8 @@ namespace Scfg.Core
     {
         /// <summary>Token contract (EVM) or mint (Solana).</summary>
         public string Token { get; }
-        /// <summary>Payer.</summary>
-        public string Sender { get; }
+        /// <summary>Payer. Solana: null (Python's None) when no account lost the token and the transaction names no fee payer.</summary>
+        public string? Sender { get; }
         /// <summary>Developer wallet (the owner, never a token account).</summary>
         public string Recipient { get; }
         /// <summary>Base units.</summary>
@@ -24,7 +24,7 @@ namespace Scfg.Core
         /// <summary>EVM: block number; Solana: slot.</summary>
         public long BlockNumber { get; }
 
-        public Transfer(string token, string sender, string recipient, BigInteger value, string txHash,
+        public Transfer(string token, string? sender, string recipient, BigInteger value, string txHash,
                         long logIndex, long blockNumber)
         {
             Token = token;

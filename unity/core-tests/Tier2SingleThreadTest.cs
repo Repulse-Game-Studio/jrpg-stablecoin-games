@@ -38,6 +38,8 @@ namespace Scfg.Core.Tests
         [TestCase("evm/hint_verified")]
         [TestCase("evm/reorg_during_confirming")]
         [TestCase("rpc/failover_on_transport_faults")] // recorded transport errors fail the deferred tasks
+        [TestCase("solana/paid_by_hint")]
+        [TestCase("solana/build_payment")]
         public void ReplaysOnTheTestThread(string id)
         {
             Assert.That(Tier2.Runs(id), id + " must be an enabled vector");
@@ -122,5 +124,9 @@ namespace Scfg.Core.Tests
             Assert.That(posts, Is.GreaterThan(0), "continuations went through the context");
             Assert.That(resumes, Is.GreaterThan(0));
         }
+
+        // The largest vector (about 0.5 MB of recorded answers, signature pages of SIG_PAGE): it must stay fast.
+        [Test, MaxTime(10_000)]
+        public void ScanFarBehindReplaysOnTheTestThreadInUnderTenSeconds() => ReplaysOnTheTestThread("solana/scan_far_behind");
     }
 }

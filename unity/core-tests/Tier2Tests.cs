@@ -29,10 +29,9 @@ namespace Scfg.Core.Tests
         {
             var ids = Vectors.Tier2Ids().ToList();
             Assert.That(Tier2.Deferred.Keys.Where(id => !ids.Contains(id) || !Tier2.IsEnabled(id)), Is.Empty);
-            Assert.That(Tier2.Deferred.Values.Where(t => t != 11 && t != 12), Is.Empty);
+            Assert.That(Tier2.Deferred.Values.Where(t => t != 12), Is.Empty);
         }
 
-        // config/ has one vector, deferred to task 11: a group may run none yet, but it must exist.
         [Test]
         public void EveryEnabledGroupHasVectors()
         {

@@ -102,7 +102,7 @@ namespace Scfg.Core
         internal static object IntValue(BigInteger n) => n >= long.MinValue && n <= long.MaxValue ? (object)(long)n : n;
 
         /// <summary>Python <c>value == x</c> for an int and a JSON value: equal ints, an equal integral float, a bool as 0/1.</summary>
-        private static bool IntEquals(BigInteger value, object? x)
+        internal static bool IntEquals(BigInteger value, object? x)
         {
             switch (x)
             {

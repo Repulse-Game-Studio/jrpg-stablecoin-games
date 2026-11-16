@@ -124,8 +124,11 @@ namespace Scfg.Core
             return (JsonObject)DeepCopy.Of(rec)!;
         }
 
-        /// <summary>The unsigned transaction a browser wallet signs for a Solana session (<paramref name="account"/> pays).</summary>
-        public async Task<object?> BuildSolanaPayment(string sid, string account)
+        /// <summary>
+        /// The unsigned transaction a browser wallet signs for a Solana session (<paramref name="account"/> pays):
+        /// <c>transaction</c> (base64), <c>token_balance</c> and <c>sol_balance</c> (decimal strings of base units).
+        /// </summary>
+        public async Task<JsonObject> BuildSolanaPayment(string sid, string account)
         {
             var rec = Pending[sid];
             var chain = Chain(ChainKeyOf(rec));
