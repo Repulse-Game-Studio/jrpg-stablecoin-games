@@ -2,6 +2,7 @@
 // locale with a decimal comma), where printf("%g"), strtod and toupper('i') change.
 #include "support/Locales.h"
 #include "support/Test.h"
+#include "support/Tier1.h"
 
 #include "Scfg/Json.h"
 #include "Scfg/Py.h"
@@ -13,6 +14,7 @@
 #include <cstring>
 #include <locale>
 #include <string>
+#include <vector>
 
 using scfg::Json;
 namespace locales = scfg_test::locales;
@@ -52,6 +54,23 @@ SCFG_TEST(LocaleTests, FloatsUnderEveryLocale) {
     t.check(!r.ran.empty(), "ran under no locale");
     SCFG_CHECK_EQ(t, std::string(std::setlocale(LC_ALL, nullptr)), "C");
     SCFG_CHECK_EQ(t, std::locale().name(), "C");
+}
+
+// Every ported Tier 1 topic again under each locale (task 13 reruns all of them once every topic is ported).
+SCFG_TEST(LocaleTests, Tier1UnderEveryLocale) {
+    std::vector<std::string> topics = scfg_test::tier1::ported_topics();
+    t.check(!topics.empty(), "no ported Tier 1 topic to rerun");
+    locales::Report r = locales::rerun([&](std::string_view name) {
+        t.check(std::strcmp(std::localeconv()->decimal_point, ".") != 0, "decimal point is \".\" under " + std::string(name));
+        for (const std::string& topic : topics) {
+            std::vector<std::string> failures = scfg_test::tier1::run_topic(topic);
+            t.check(failures.empty(), scfg_test::tier1::report("tier1/" + topic + " under " + std::string(name), failures));
+        }
+    });
+    print_ran("LocaleTests.Tier1UnderEveryLocale", r);
+    t.check(r.error.empty(), r.error);
+    t.check(!r.ran.empty(), "ran under no locale");
+    SCFG_CHECK_EQ(t, std::string(std::setlocale(LC_ALL, nullptr)), "C");
 }
 
 SCFG_TEST(LocaleTests, RerunReportsWhatItCouldNotRun) {
