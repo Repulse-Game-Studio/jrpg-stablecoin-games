@@ -1,6 +1,7 @@
 """The shared localhost checkout server security suite: every test runs against the Python server
-(scfg_core/local_server.py), the GDScript one (godot/addons/scfg/local_server.gd) and the Node one
-(rpgmaker/src/mz/local_server.ts, RPG Maker MZ's desktop page).
+(scfg_core/local_server.py), the GDScript one (godot/addons/scfg/local_server.gd), the Node one
+(rpgmaker/src/mz/local_server.ts, RPG Maker MZ's desktop page) and the C# one
+(unity/Packages/com.repulse.scfg/Runtime/Desktop/LocalServer.cs, Unity's desktop page).
 
 The `godot` half (marked `godot_server`) needs a Godot 4.3+ binary in SCFG_GODOT and an imported
 project (`$SCFG_GODOT --headless --path godot --import`). Without one it skips; with
@@ -10,6 +11,11 @@ version: `pytest tests/server_security -m godot_server`.
 The `node` half needs Node 22.18+ on PATH and rpgmaker/node_modules (`cd rpgmaker && npm ci`).
 Without them it skips; with SCFG_REQUIRE_JS=1 it fails instead. The node half is marked
 `node_server` and deselected by default; CI's rpgmaker-ui job runs it: `pytest -m node_server`.
+
+The `cs` half (marked `cs_server`) needs the .NET 8 SDK (`dotnet` on PATH, in $DOTNET_ROOT or in
+~/.dotnet); the first cs test builds unity/server-driver (`dotnet build -c Release`). Without
+dotnet it skips; with SCFG_REQUIRE_CS=1 it fails instead (a failed build always fails). It runs in
+the default run; CI's cs-core job runs it alone: `pytest tests/server_security -m cs_server`.
 """
 import os
 from pathlib import Path
@@ -17,11 +23,14 @@ from pathlib import Path
 import pytest
 
 from server_handles import (
+    CsDriver,
+    CsServer,
     GodotDriver,
     GodotServer,
     NodeDriver,
     NodeServer,
     PythonServer,
+    cs_binary,
     godot_binary,
     node_binary,
 )
@@ -37,6 +46,12 @@ def _engine_errors(text):
 def _node_errors(text):
     """Every line Node wrote to stderr: the driver writes nothing there, so a line is an uncaught
     exception or a warning from a socket handler."""
+    return [line for line in text.splitlines() if line.strip()]
+
+
+def _cs_errors(text):
+    """Every line the C# driver wrote to stderr: it writes there only when Pump() lets an
+    exception escape (the server promises it never does) or the runtime itself fails."""
     return [line for line in text.splitlines() if line.strip()]
 
 
@@ -58,8 +73,18 @@ def node_driver():
     assert not errors, "the Node server driver logged errors:\n" + "\n".join(errors)
 
 
+@pytest.fixture(scope="session")
+def cs_driver():
+    driver = CsDriver(cs_binary())
+    yield driver
+    driver.close()
+    errors = _cs_errors(driver.stderr_text())
+    assert not errors, "the C# server driver logged errors:\n" + "\n".join(errors)
+
+
 @pytest.fixture(params=["python", pytest.param("godot", marks=pytest.mark.godot_server),
-                        pytest.param("node", marks=pytest.mark.node_server)])
+                        pytest.param("node", marks=pytest.mark.node_server),
+                        pytest.param("cs", marks=pytest.mark.cs_server)])
 def make_server(request, monkeypatch):
     """make_server(**config) -> a started server handle (see server_handles.py)."""
     made = []
@@ -68,6 +93,8 @@ def make_server(request, monkeypatch):
         driver, handle_class, errors_in = request.getfixturevalue("godot_driver"), GodotServer, _engine_errors
     elif request.param == "node":
         driver, handle_class, errors_in = request.getfixturevalue("node_driver"), NodeServer, _node_errors
+    elif request.param == "cs":
+        driver, handle_class, errors_in = request.getfixturevalue("cs_driver"), CsServer, _cs_errors
     seen = len(driver.stderr_text()) if driver is not None else 0
 
     def make(**config):

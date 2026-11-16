@@ -13,7 +13,8 @@ The C# port of the payment core (`Scfg.Core`), the start of the Unity port. It i
 | `desktop/` | `Scfg.Desktop.csproj`, which compiles the package's `Runtime/Desktop/` against `core/` |
 | `core-tests/` | NUnit tests: Tier 1 and Tier 2 conformance runners, per-module tests (`WorkerTests` with its fakes in `WorkerFakes.cs`: a manual `FakeScheduler` and a counting engine stand-in; `CheckoutTests`, `CheckoutStepsTests`, `CheckoutSolanaTests` and `RestoreFlowTests` with theirs in `CheckoutFakes.cs`: fake EVM and Solana JSON-RPC nodes behind `ITransport`, an immediate and a deferred submitter, fake pages; `OverlayTests` with a fake `IOverlayUi`; `LocalServerTests` over real loopback sockets with a fake clock), the lints, the culture reruns and the single-thread runs |
 | `core-driver/` | A net8.0 console app, the JSON-lines driver that `tests/integration/test_cs_core.py` runs against Anvil and solana-test-validator (protocol: `rpgmaker/test/integration/engine_driver.ts`) |
-| `Scfg.sln` | The solution holding the four projects above |
+| `server-driver/` | A net8.0 console app, the JSON-lines driver that runs `Scfg.Desktop.CheckoutServer` for the shared localhost server security suite `tests/server_security/` (protocol: `rpgmaker/test/integration/server_driver.ts`); it pumps the server about every millisecond and reads stdin on a thread of its own (it is not package code) |
+| `Scfg.sln` | The solution holding the five projects above |
 
 ## Development
 
@@ -24,13 +25,17 @@ export PATH=$HOME/.dotnet:$PATH DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
 
 dotnet test unity/Scfg.sln -c Release                   # all tests; none may fail or skip
 dotnet build unity/core/Scfg.Core.csproj -warnaserror   # the core compiles without warnings
+dotnet build unity/desktop/Scfg.Desktop.csproj -warnaserror   # so does the localhost server
 dotnet build unity/core-driver -c Release               # the integration driver (the pytest twins build it themselves)
 
 # the driver against local chains (anvil / solana-test-validator on PATH)
 uv run pytest -m integration tests/integration/test_cs_core.py
+
+# the C# server against the shared localhost server security suite (builds unity/server-driver itself)
+uv run pytest tests/server_security -m cs_server
 ```
 
-`SCFG_VECTORS` overrides the vectors directory the tests read. `tests/integration/cs_driver.py` looks for `dotnet` on `PATH`, then in `$DOTNET_ROOT`, then in `~/.dotnet`. Without one the twins skip; `SCFG_REQUIRE_CS=1` (set in CI) makes that a failure. The EVM and Arc twins need `anvil`, which CI installs.
+`SCFG_VECTORS` overrides the vectors directory the tests read. `tests/integration/cs_driver.py` and `tests/server_security/server_handles.py` look for `dotnet` on `PATH`, then in `$DOTNET_ROOT`, then in `~/.dotnet`. Without one the twins and the `cs_server` tests skip; `SCFG_REQUIRE_CS=1` (set in CI) makes that a failure, and a driver build that fails is always a failure. The EVM and Arc twins need `anvil`, which CI installs. The `cs_server` tests are part of the default `uv run pytest` run, next to the Python server's; CI's cs-core job runs them alone with `SCFG_REQUIRE_CS=1`.
 
 ## State file
 

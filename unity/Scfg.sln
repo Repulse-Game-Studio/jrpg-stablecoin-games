@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scfg.Core.Driver", "core-dr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scfg.Desktop", "desktop\Scfg.Desktop.csproj", "{244217E6-4386-4726-A5DE-B2DCB88ED7C6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scfg.Server.Driver", "server-driver\Scfg.Server.Driver.csproj", "{67180245-C769-4CB0-89ED-C63F60E7E0E9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{244217E6-4386-4726-A5DE-B2DCB88ED7C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{244217E6-4386-4726-A5DE-B2DCB88ED7C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{244217E6-4386-4726-A5DE-B2DCB88ED7C6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{67180245-C769-4CB0-89ED-C63F60E7E0E9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{67180245-C769-4CB0-89ED-C63F60E7E0E9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{67180245-C769-4CB0-89ED-C63F60E7E0E9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{67180245-C769-4CB0-89ED-C63F60E7E0E9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
