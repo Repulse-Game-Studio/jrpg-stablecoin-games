@@ -34,15 +34,12 @@ namespace Scfg.Core.Tests
             public override SynchronizationContext CreateCopy() => this;
         }
 
-        [TestCase("smoke/evm_unlock_paid")]
-        [TestCase("evm/hint_verified")]
-        [TestCase("evm/reorg_during_confirming")]
-        [TestCase("rpc/failover_on_transport_faults")] // recorded transport errors fail the deferred tasks
-        [TestCase("solana/paid_by_hint")]
-        [TestCase("solana/build_payment")]
+        private static IEnumerable<string> Ids() => Vectors.Tier2Ids();
+
+        /// <summary>Every vector (recorded transport errors fail the deferred tasks, as in rpc/failover_on_transport_faults).</summary>
+        [TestCaseSource(nameof(Ids))]
         public void ReplaysOnTheTestThread(string id)
         {
-            Assert.That(Tier2.Runs(id), id + " must be an enabled vector");
             int testThread = Thread.CurrentThread.ManagedThreadId;
             var violations = new List<string>();
             void Check(string where)
@@ -119,9 +116,9 @@ namespace Scfg.Core.Tests
             Assert.That(run.IsCompleted && !run.IsFaulted && !run.IsCanceled, "the replay completed: " + run.Exception);
             Assert.That(run.GetAwaiter().GetResult(), Is.Null); // completed: this does not wait
             Assert.That(violations, Is.Empty);
-            Assert.That(calls, Is.GreaterThan(0));
             Assert.That(delivered, Is.EqualTo(calls), "every answer went through the pump");
-            Assert.That(posts, Is.GreaterThan(0), "continuations went through the context");
+            // a vector that makes no network call (a config error, an invalid hash) never waits, so posts nothing
+            if (calls > 0) Assert.That(posts, Is.GreaterThan(0), "continuations went through the context");
             Assert.That(resumes, Is.GreaterThan(0));
         }
 

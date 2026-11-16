@@ -69,6 +69,38 @@ namespace Scfg.Core.Tests
             Assert.ThrowsAsync<TypeError>(() => engine.StartSession("unlock", "base", new JsonObject { { "colour", "red" } }));
         }
 
+        private static RestoreCandidate Ambiguous(List<string> choices) => new RestoreCandidate(
+            "base", "USDC", new TransferLog("0xT", "0xS", Wallet, 5000000, "0x" + new string('a', 64), 3, 10, "0xb"), null, null,
+            choices, false);
+
+        [Test]
+        public void ARestoreCandidateIsEqualByValueAndKeepsACopyOfItsChoices()
+        {
+            var choices = new List<string> { "chapter2", "tip" };
+            var c = Ambiguous(choices);
+            choices.Add("chapter3");
+            Assert.That(c.Choices, Is.EqualTo(new[] { "chapter2", "tip" }));
+            Assert.That(c, Is.EqualTo(Ambiguous(new List<string> { "chapter2", "tip" })));
+            Assert.That(c, Is.Not.EqualTo(Ambiguous(new List<string> { "tip" })));
+        }
+
+        [Test]
+        public void RestoreApplyRefusesAChoiceTheCandidateDoesNotOffer()
+        {
+            var engine = new Engine(BaseConfig(), new FakeTransport(new Dictionary<string, Handler>()), null, null, () => 0);
+            var candidates = new List<RestoreCandidate> { Ambiguous(new List<string> { "chapter2", "tip" }) };
+            // Python: `5 not in c.choices` is a ValueError, as an item id it does not offer is
+            Assert.Throws<ValueError>(() => engine.RestoreApply(candidates, new Dictionary<int, object?> { { 0, 5L } }));
+            Assert.Throws<ValueError>(() => engine.RestoreApply(candidates, new Dictionary<int, object?> { { 0, "chapter9" } }));
+            Assert.That(engine.RestoreApply(candidates), Is.Empty, "no choice: skipped");
+            Assert.That(engine.RestoreApply(candidates, new Dictionary<int, object?> { { 0, null } }), Is.Empty);
+            var added = engine.RestoreApply(candidates, new Dictionary<int, object?> { { 0, "tip" } });
+            Assert.That(added, Has.Count.EqualTo(1));
+            Assert.That(added[0]["kind"], Is.EqualTo("tip"));
+            Assert.That(added[0]["source"], Is.EqualTo("restore"));
+            Assert.That(engine.RestoreApply(candidates, new Dictionary<int, object?> { { 0, "chapter2" } }), Is.Empty, "already stored");
+        }
+
         [Test]
         public async Task ACrashWithNoHandlerIsStillContained()
         {

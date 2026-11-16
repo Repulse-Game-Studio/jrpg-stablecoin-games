@@ -18,27 +18,61 @@ namespace Scfg.Core.Tests
         [TestCaseSource(nameof(Ids))]
         public async Task Vector(string id)
         {
-            if (!Tier2.IsEnabled(id)) Assert.Ignore("not ported yet");
-            if (Tier2.Deferred.TryGetValue(id, out var task)) Assert.Ignore("deferred to task " + task);
             var diff = await Tier2.Replay(Load(id));
             Assert.That(diff, Is.Null, id + ": " + diff);
         }
 
         [Test]
-        public void EveryDeferredVectorExistsInAnEnabledGroup()
+        public void EveryGroupHasVectors()
         {
             var ids = Vectors.Tier2Ids().ToList();
-            Assert.That(Tier2.Deferred.Keys.Where(id => !ids.Contains(id) || !Tier2.IsEnabled(id)), Is.Empty);
-            Assert.That(Tier2.Deferred.Values.Where(t => t != 12), Is.Empty);
+            foreach (var prefix in new[] { "smoke/", "evm/", "config/", "custom_chains/", "rpc/", "solana/", "reverify/", "restore/" })
+                Assert.That(ids.Any(id => id.StartsWith(prefix, StringComparison.Ordinal)), prefix);
         }
 
+        /// <summary>
+        /// Both runners, over every Tier 1 topic and every Tier 2 vector: none is ignored or inconclusive. A vector
+        /// that fails also fails this test (NUnit records the assertion even though it is thrown here).
+        /// </summary>
         [Test]
-        public void EveryEnabledGroupHasVectors()
+        public async Task NoVectorIgnored()
         {
-            var ids = Vectors.Tier2Ids().ToList();
-            foreach (var prefix in Tier2.Enabled)
-                Assert.That(ids.Any(id => id.StartsWith(prefix, StringComparison.Ordinal)), prefix);
-            Assert.That(ids.Count(Tier2.Runs), Is.GreaterThan(0));
+            var skipped = new List<string>();
+            int ran = 0;
+            foreach (var topic in Vectors.Tier1Topics())
+            {
+                try
+                {
+                    new Tier1Tests().Topic(topic);
+                    ran++;
+                }
+                catch (IgnoreException e)
+                {
+                    skipped.Add("tier1/" + topic + " ignored: " + e.Message);
+                }
+                catch (InconclusiveException e)
+                {
+                    skipped.Add("tier1/" + topic + " inconclusive: " + e.Message);
+                }
+            }
+            foreach (var id in Vectors.Tier2Ids())
+            {
+                try
+                {
+                    await new Tier2Tests().Vector(id);
+                    ran++;
+                }
+                catch (IgnoreException e)
+                {
+                    skipped.Add("tier2/" + id + " ignored: " + e.Message);
+                }
+                catch (InconclusiveException e)
+                {
+                    skipped.Add("tier2/" + id + " inconclusive: " + e.Message);
+                }
+            }
+            Assert.That(skipped, Is.Empty, skipped.Count + " skipped:\n" + string.Join("\n", skipped));
+            Assert.That(ran, Is.EqualTo(Vectors.Tier1Topics().Count() + Vectors.Tier2Ids().Count()));
         }
 
         // ---- the runner catches a vector that does not match ------------------------------------------------------

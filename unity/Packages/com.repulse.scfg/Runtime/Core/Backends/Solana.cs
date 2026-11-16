@@ -9,8 +9,6 @@
 // value that is not a dict has no .get: Python's AttributeError, a TypeError here), Py.Truthy for `or`. A malformed
 // reply or record throws a non-RPC error, which the Engine contains. Stored fields that Python sends to the node as
 // they are (a hint, a reference, a cursor) are sent unchecked here too.
-//
-// Restore (Lookup) needs restore.py's classify_or_skip and is ported with it (task 12).
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -42,8 +40,6 @@ namespace Scfg.Core
         /// (~60-90 s) never lands. A hint unseen for this long was dropped.
         /// </summary>
         public const long SolanaHintTimeoutS = 180;
-        /// <summary>reverify.py's FUTURE_TOLERANCE_BLOCKS: a receipt this far past the node's finalized slot is dropped.</summary>
-        internal const long FutureToleranceBlocks = 10_000;
 
         public string Family => "solana";
 
@@ -166,6 +162,21 @@ namespace Scfg.Core
         /// </summary>
         public static Transfer? TransferTo(object? tx, string sig, string mint, string owner)
         {
+            var r = Received(tx, mint, owner);
+            if (r == null) return null;
+            var (payer, gained, index, slot) = r.Value;
+            long block = Scfg.Core.Rpc.ToLong(slot, "slot");
+            // Python carries any payer value; a node sends a base58 str (or nothing).
+            return new Transfer(mint, Watcher.StrOrNone(payer, "payer"), owner, gained, sig, index, block);
+        }
+
+        /// <summary>
+        /// <see cref="TransferTo"/>'s reading of the transaction, with the payer as the node sent it and the slot as
+        /// Python's unbounded int: what Reverify compares, so a payer or a slot that a <see cref="Transfer"/> cannot hold
+        /// still gets Python's verdict. Throws what Python's transfer_to throws, in its order.
+        /// </summary>
+        private static (object? Payer, BigInteger Gained, long Index, BigInteger Slot)? Received(object? tx, string mint, string owner)
+        {
             var meta = Or(DictGet(tx, "meta"), new JsonObject());
             if (DictGet(meta, "err") != null) return null;
             var pre = Table(meta, "preTokenBalances", mint);
@@ -205,9 +216,7 @@ namespace Scfg.Core
             {
                 payer = FeePayer(tx);
             }
-            long slot = Scfg.Core.Rpc.ToLong(Ints.IntFrom(Py.Get(tx, "slot")), "slot");
-            // Python carries any payer value; a node sends a base58 str (or nothing).
-            return new Transfer(mint, Watcher.StrOrNone(payer, "payer"), owner, gained, sig, index.Value, slot);
+            return (payer, gained, index.Value, Ints.IntFrom(Py.Get(tx, "slot")));
         }
 
         private static JsonObject MatchDict(Transfer t) => new JsonObject
@@ -520,7 +529,7 @@ namespace Scfg.Core
             try
             {
                 long current = await client.GetSlot("finalized");
-                if (slot > current) return slot > current + FutureToleranceBlocks ? "drop" : "keep";
+                if (slot > current) return slot > current + Scfg.Core.Reverify.FutureToleranceBlocks ? "drop" : "keep";
                 (tx, authoritative) = await client.GetTransactionAny(Py.Get(receipt, "tx_hash"), minSlot: (long)slot);
             }
             catch (Exception e) when (e is RpcUnavailable || e is RpcError)
@@ -528,25 +537,52 @@ namespace Scfg.Core
                 return "keep";
             }
             if (tx == null) return authoritative ? "drop" : "keep";
-            Transfer? t;
+            (object? Payer, BigInteger Gained, long Index, BigInteger Slot)? t;
             try
             {
-                var sig = Py.Get(receipt, "tx_hash");
-                t = TransferTo(tx, Sig(sig), Watcher.TokenOf(chain, receipt).Address, ownerKey);
+                // transfer_to: read without building a Transfer, so a slot beyond 64 bits (or a payer that is not a
+                // str) is compared as Python compares it instead of failing here
+                t = Received(tx, Watcher.TokenOf(chain, receipt).Address, ownerKey);
             }
             catch (Exception e) when (e is KeyError || e is TypeError || e is ValueError)
             {
-                return "keep"; // a payload this build can't read (AttributeError in Python too): can't judge the receipt
+                // a payload this build can't read (AttributeError in Python too): can't judge the receipt. Anything
+                // else (an OverflowError from an infinite amount) leaves, as in Python, for the Engine to contain.
+                return "keep";
             }
-            bool genuine = t != null && t.BlockNumber == slot
-                           && t.LogIndex == Ints.IntFrom(Py.Get(receipt, "log_index"))
-                           && t.Value == Amounts.DecimalToUnits(Amounts.StoredAmount(Py.Get(receipt, "amount")));
+            bool genuine = t != null && t.Value.Slot == slot
+                           && t.Value.Index == Ints.IntFrom(Py.Get(receipt, "log_index"))
+                           && t.Value.Gained == Amounts.DecimalToUnits(Amounts.StoredAmount(Py.Get(receipt, "amount")));
             return genuine ? "keep" : "drop";
         }
 
-        public Task<List<RestoreCandidate>?> Lookup(string tx, ConfigData config, Chain chain, object rpc,
-                                                    JsonObject receipts, Action<Exception>? onError) =>
-            throw new NotImplementedException("restore: task 12"); // needs restore.py's classify_or_skip
+        /// <summary>
+        /// The transfers to each accepted Solana wallet, of each of the chain's tokens, in the transaction (asked of each
+        /// endpoint in turn), or null when no endpoint has it.
+        /// </summary>
+        public async Task<List<RestoreCandidate>?> Lookup(string tx, ConfigData config, Chain chain, object rpc,
+                                                          JsonObject receipts, Action<Exception>? onError)
+        {
+            var (found, _) = await Client(rpc).GetTransactionAny(tx);
+            if (found == null) return null;
+            if (DictGet(Or(DictGet(found, "meta"), new JsonObject()), "err") != null) throw new RestoreError("tx_reverted");
+            var output = new List<RestoreCandidate>();
+            foreach (var kv in chain.Tokens)
+            {
+                foreach (var owner in config.AcceptedWalletsFor("solana"))
+                {
+                    var t = TransferTo(found, tx, kv.Value.Address, owner);
+                    if (t == null) continue;
+                    var classified = Restore.ClassifyOrSkip(config, t.Value, onError);
+                    if (classified == null) continue;
+                    var (kind, item, choices) = classified.Value;
+                    output.Add(new RestoreCandidate(chain.Key, kv.Key, t, kind, item, choices,
+                                                    Restore.Restored(receipts, chain.Key, t.TxHash, t.LogIndex)));
+                }
+            }
+            if (output.Count == 0) throw new RestoreError("tx_not_a_payment");
+            return output;
+        }
 
         /// <summary>
         /// Wallets refuse to pay a wallet with no token account for the mint. A getAccountInfo result without

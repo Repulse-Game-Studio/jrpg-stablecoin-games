@@ -163,44 +163,6 @@ namespace Scfg.Core.Tests
             "reverify", "restore_lookup", "restore_apply",
         };
 
-        /// <summary>Id prefixes of the vector groups the C# core runs. A vector outside them is ignored, never passed.</summary>
-        public static readonly IReadOnlyList<string> Enabled = new[] { "smoke/", "evm/", "config/", "custom_chains/", "rpc/", "solana/" };
-
-        /// <summary>
-        /// Vectors of an enabled group that need code a later task ports, keyed by id, with the number of that task
-        /// (12: reverify and restore). They are ignored with that reason, never passed. Task 12 removes this map and
-        /// <see cref="Enabled"/>.
-        /// </summary>
-        public static readonly IReadOnlyDictionary<string, int> Deferred = new Dictionary<string, int>(StringComparer.Ordinal)
-        {
-            { "evm/arc_large_restore", 12 }, // restore_lookup, restore_apply and reverify
-            { "evm/arc_restore_and_reverify", 12 }, // restore_lookup and reverify
-            { "evm/config_overrides_and_full_registry", 12 }, // reverify
-            { "evm/restore_through_engine", 12 }, // restore_lookup and restore_apply
-            { "evm/reverify_accepted_wallets", 12 }, // reverify
-            { "evm/unwatchable_session_closes_at_horizon", 12 }, // reverify
-            { "custom_chains/pay_restore_reverify", 12 }, // restore_lookup and reverify
-            { "custom_chains/removed_chain_receipt_kept", 12 }, // reverify
-            { "solana/history_covering_endpoint_drops", 12 }, // reverify
-            { "solana/history_endpoints_fail", 12 }, // restore_lookup and reverify
-            { "solana/history_found_on_second_endpoint", 12 }, // reverify
-            { "solana/history_pruned_endpoints_keep", 12 }, // reverify
-            { "solana/paid_by_reference", 12 }, // restore_lookup and reverify
-            { "solana/readiness", 12 }, // reverify (its readiness check)
-            { "solana/readiness_crash", 12 }, // reverify (its readiness check)
-            { "solana/restore_lookup", 12 }, // restore_lookup and restore_apply
-            { "solana/restore_too_large_to_decode_is_skipped", 12 }, // restore_lookup
-            { "solana/reverify_outage_and_future_slot", 12 }, // reverify
-            { "solana/reverify_receipts", 12 }, // reverify
-            { "solana/reverify_unreadable_transactions", 12 }, // reverify
-            { "solana/tx_version_named_by_node", 12 }, // reverify
-        };
-
-        public static bool IsEnabled(string id) => Enabled.Any(p => id.StartsWith(p, StringComparison.Ordinal));
-
-        /// <summary>Whether the runner replays this vector now: in an enabled group and not deferred.</summary>
-        public static bool Runs(string id) => IsEnabled(id) && !Deferred.ContainsKey(id);
-
         /// <summary>A vector file's text as the runner reads it (Python's json.load).</summary>
         public static JsonObject Parse(string text) =>
             Json.Loads(text) as JsonObject ?? throw new ReplayError("a vector is not a JSON object");
@@ -342,7 +304,7 @@ namespace Scfg.Core.Tests
                 _ => throw new TypeError("value must be an int"),
             };
             object transfer = want.Length == TransferFields.Length
-                ? (object)new Transfer(S(fields, "token"), S(fields, "sender"), S(fields, "recipient"), value, S(fields, "tx_hash"),
+                ? (object)new Transfer(S(fields, "token"), SOrNone(fields, "sender"), S(fields, "recipient"), value, S(fields, "tx_hash"),
                                        L(fields, "log_index"), L(fields, "block_number"))
                 : new TransferLog(S(fields, "token"), S(fields, "sender"), S(fields, "recipient"), value, S(fields, "tx_hash"),
                                   L(fields, "log_index"), L(fields, "block_number"), S(fields, "block_hash"));

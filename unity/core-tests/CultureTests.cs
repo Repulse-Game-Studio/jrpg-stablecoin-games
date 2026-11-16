@@ -56,8 +56,8 @@ namespace Scfg.Core.Tests
         // One runner per tier.
         private static IEnumerable<string> Tier1Failures()
         {
-            var topics = Tier1.Implemented.OrderBy(t => t, StringComparer.Ordinal).ToList();
-            if (topics.Count == 0) yield return "no Tier 1 topic is implemented";
+            var topics = Vectors.Tier1Topics().ToList();
+            if (topics.Count == 0) yield return "no Tier 1 topic";
             foreach (var topic in topics)
                 foreach (var f in Tier1.RunTopic(topic))
                     yield return topic + " " + f;
@@ -76,8 +76,8 @@ namespace Scfg.Core.Tests
         // result of a completed task does not wait, and the culture set on this thread is the one the core runs under.
         private static IEnumerable<string> Tier2Failures()
         {
-            var ids = Vectors.Tier2Ids().Where(Tier2.Runs).ToList();
-            if (ids.Count == 0) yield return "no Tier 2 vector is enabled";
+            var ids = Vectors.Tier2Ids().ToList();
+            if (ids.Count == 0) yield return "no Tier 2 vector";
             foreach (var id in ids)
             {
                 var run = Tier2.Replay(Tier2Tests.Load(id));

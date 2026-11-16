@@ -1,7 +1,5 @@
-// No Python twin: checks of Backends/Solana.cs that the enabled Tier 2 vectors cannot reach yet. The Engine's
-// reverify (task 12) is what calls the backend's Reverify and CheckReady, so the Solana reverify and readiness vectors
-// are replayed here straight through the backend, as reverify_receipts and Engine._check_ready would call it for
-// well-formed Solana receipts. transfer_to's cases were checked against the Python reference.
+// No Python twin: checks of Backends/Solana.cs below what the Tier 2 vectors pin (they replay its reverify,
+// readiness and restore through the Engine). transfer_to's cases were checked against the Python reference.
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,99 +12,50 @@ namespace Scfg.Core.Tests
 {
     public class SolanaBackendTests
     {
-        // ---- reverify and readiness, against the recorded vectors -------------------------------------------------
+        // ---- reverify ----------------------------------------------------------------------------------------------
 
-        [TestCase("solana/readiness")]
-        [TestCase("solana/readiness_crash")]
-        [TestCase("solana/reverify_receipts")]
-        [TestCase("solana/reverify_outage_and_future_slot")]
-        [TestCase("solana/reverify_unreadable_transactions")]
-        [TestCase("solana/history_covering_endpoint_drops")]
-        [TestCase("solana/history_found_on_second_endpoint")]
-        [TestCase("solana/history_pruned_endpoints_keep")]
-        public async Task ReverifyAndReadinessAgreeWithTheVector(string id)
+        private const string BigSlotTx = "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn";
+        private const string InfiniteAmountTx = "4yo3LtPZ3x5oz5XTid5pbHMdERC9JTsrFGfpruW3YG5m9a1ox5PQYV663q3BfHExK2shap9pKt31TYzho5GCCJXQ";
+
+        private static void Tamper(JsonObject call, string from, string to)
         {
-            var v = Tier2Tests.Load(id);
-            var setup = (JsonObject)v["setup"]!;
-            long now = (long)setup["clock"]!;
-            int errors = 0;
-            var transport = new ReplayTransport();
-            var engine = Tier2.BuildEngine(setup, transport, () => now, _ => errors++, new StepEntropy());
-            var wallets = engine.Config.AcceptedWalletsFor("solana");
-            var steps = (List<object?>)v["steps"]!;
-            for (int i = 0; i < steps.Count; i++)
-            {
-                var step = (JsonObject)steps[i]!;
-                var where = id + " step " + i;
-                Assert.That(step["action"], Is.EqualTo("reverify"), where);
-                now = (long)step["at"]!;
-                errors = 0;
-                transport.Load((List<object?>)step["calls"]!);
-
-                // reverify_receipts for well-formed receipts on a known chain with wallets: the backend's verdict, and
-                // an exception is reported and keeps the receipt
-                var removed = new List<object?>();
-                foreach (var kv in engine.Receipts.ToList())
-                {
-                    var receipt = (JsonObject)kv.Value!;
-                    Assert.That(receipt["chain"], Is.EqualTo("solana"), where + ": the replay covers Solana receipts only");
-                    var chain = engine.Chain("solana");
-                    Assert.That(chain.Tokens.ContainsKey((string)receipt["token"]!) && wallets.Count > 0, where);
-                    string verdict;
-                    try
-                    {
-                        verdict = await new SolanaBackend().Reverify(receipt, engine.Rpc("solana"), chain, wallets);
-                    }
-                    catch (Exception)
-                    {
-                        errors++;
-                        continue;
-                    }
-                    if (verdict == "drop")
-                    {
-                        engine.Receipts.Remove(kv.Key);
-                        removed.Add(kv.Key);
-                    }
-                }
-
-                // Engine._check_ready
-                var unready = new List<(string Chain, string Token)>();
-                foreach (var kv in Config.EnabledChains(engine.Config))
-                {
-                    Dictionary<string, bool> ready;
-                    try
-                    {
-                        ready = await Backends.BackendFor(kv.Value).CheckReady(() => engine.Rpc(kv.Key), kv.Value,
-                                                                               engine.Config.WalletFor(kv.Value));
-                    }
-                    catch (Exception e) when (e is RpcUnavailable || e is RpcError)
-                    {
-                        continue;
-                    }
-                    catch (Exception)
-                    {
-                        errors++;
-                        continue;
-                    }
-                    foreach (var r in ready)
-                        if (!r.Value) unready.Add((kv.Key, r.Key));
-                }
-                unready.Sort((x, y) =>
-                {
-                    int c = Py.CompareCodePoints(x.Chain, y.Chain);
-                    return c != 0 ? c : Py.CompareCodePoints(x.Token, y.Token);
-                });
-
-                Assert.That(transport.Problems.Concat(transport.Leftover()), Is.Empty, where);
-                Assert.That(JsonEq.FirstDiff(step["returns"], removed), Is.Null, where + ": removed keys");
-                Assert.That(errors, Is.EqualTo((long)step["internal_errors"]!), where + ": internal errors");
-                var recordedUnready = ((JsonObject)step["snapshot"]!)["unready"];
-                var got = unready.Select(p => (object?)new List<object?> { p.Chain, p.Token }).ToList();
-                Assert.That(JsonEq.FirstDiff(recordedUnready, got), Is.Null, where + ": unready");
-                var recordedReceipts = (JsonObject)((JsonObject)step["snapshot"]!)["receipts"]!;
-                Assert.That(engine.Receipts.Keys, Is.EqualTo(recordedReceipts.Keys), where + ": receipts kept");
-            }
+            var text = (string)call["response_text"]!;
+            Assert.That(text.Split(new[] { from }, StringSplitOptions.None).Length, Is.EqualTo(2), from);
+            call["response_text"] = text.Replace(from, to);
         }
+
+        /// <summary>
+        /// solana/reverify_receipts with two node answers changed, and the outcome the Python reference gives them
+        /// (checked with replay.run_action): a transaction slot of 2**64 is a slot the receipt's is not, so its receipt
+        /// is dropped; an infinite token amount is an OverflowError, which Python's reverify contains as one internal
+        /// error, keeping the receipt.
+        /// </summary>
+        [Test]
+        public async Task NodeDataBeyondSixtyFourBitsGetsPythonsVerdict()
+        {
+            var v = Tier2Tests.Load("solana/reverify_receipts");
+            var step = (JsonObject)((List<object?>)v["steps"]!)[0]!;
+            foreach (var c in (List<object?>)step["calls"]!)
+            {
+                var call = (JsonObject)c!;
+                if ((string)call["method"]! != "getTransaction") continue;
+                var sig = ((List<object?>)call["params"]!)[0];
+                if (Equals(sig, BigSlotTx)) Tamper(call, "\"slot\": 950", "\"slot\": 18446744073709551616");
+                if (Equals(sig, InfiniteAmountTx)) Tamper(call, "\"amount\": \"995006258\"", "\"amount\": Infinity");
+            }
+            var returns = (List<object?>)step["returns"]!;
+            var key = "solana:" + BigSlotTx + ":2";
+            returns.Insert(3, key); // store order
+            step["internal_errors"] = 1L;
+            var receipts = (JsonObject)((JsonObject)step["snapshot"]!)["receipts"]!;
+            Assert.That(receipts.Remove(key));
+            Assert.That(receipts.ContainsKey("solana:" + InfiniteAmountTx + ":2"));
+            Assert.That(receipts.Count, Is.EqualTo(1));
+            ((JsonObject)step["snapshot"]!)["tip_total"] = "4.993742"; // the one tip left
+            Assert.That(await Tier2.Replay(v), Is.Null);
+        }
+
+        // ---- readiness ---------------------------------------------------------------------------------------------
 
         [Test]
         public void AnAccountInfoResultWithoutValueIsAKeyErrorNotAnRpcError()

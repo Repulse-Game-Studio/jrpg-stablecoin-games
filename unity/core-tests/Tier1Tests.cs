@@ -17,7 +17,6 @@ namespace Scfg.Core.Tests
         [TestCaseSource(nameof(Topics))]
         public void Topic(string topic)
         {
-            if (!Tier1.Implemented.Contains(topic)) Assert.Ignore("not ported yet");
             var failures = Tier1.RunTopic(topic);
             Assert.That(failures, Is.Empty, Report(topic, failures));
         }
@@ -30,13 +29,6 @@ namespace Scfg.Core.Tests
             var tail = more > 0 ? "\n... and " + more.ToString(CultureInfo.InvariantCulture) + " more" : "";
             return what + ": " + failures.Count.ToString(CultureInfo.InvariantCulture) + " failing case(s)\n"
                    + string.Join("\n", shown) + tail;
-        }
-
-        [Test]
-        public void EveryImplementedTopicHasAVectorFile()
-        {
-            var topics = Vectors.Tier1Topics().ToList();
-            Assert.That(Tier1.Implemented.Where(t => !topics.Contains(t)), Is.Empty);
         }
 
         private static JsonObject Case(string fn, string key, object? value) =>

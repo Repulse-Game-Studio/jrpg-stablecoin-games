@@ -1,7 +1,7 @@
 // No Python twin: the Tier 1 runner, replaying conformance/vectors/tier1/*.json against the C# core.
 // Modeled on conformance/js/tier1.ts. Funcs maps the Python function name of a case (its "fn") to an adapter
-// from the JSON-friendly input to a JSON-friendly output; each later task adds its topics to Implemented and
-// its adapters to Funcs, in a block of its own under RegisterAll.
+// from the JSON-friendly input to a JSON-friendly output, registered in one block per topic group under RegisterAll.
+// Every topic runs: a case whose fn has no adapter is reported as a failure.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -17,35 +17,12 @@ namespace Scfg.Core.Tests
         public static readonly Dictionary<string, Func<JsonObject, object?>> Funcs =
             new Dictionary<string, Func<JsonObject, object?>>(StringComparer.Ordinal);
 
-        /// <summary>Topics (vector file names without .json) whose adapters are all in <see cref="Funcs"/>.</summary>
-        public static readonly HashSet<string> Implemented = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "amounts",
-            "keccak",
-            "evm_address",
-            "base58",
-            "ed25519",
-            "pda",
-            "solana_tx",
-            "chains",
-            "config",
-            "custom_chains",
-            "items",
-            "payments",
-            "receipts",
-            "qr",
-            "paylinks",
-            "page_messages",
-            "rpc_errors",
-            "tx_ids",
-        };
-
         static Tier1()
         {
             RegisterAll();
         }
 
-        // One block per topic group, in conformance/js/tier1.ts's order; later tasks add theirs here.
+        // One block per topic group, in conformance/js/tier1.ts's order.
         private static void RegisterAll()
         {
             RegisterAmounts();

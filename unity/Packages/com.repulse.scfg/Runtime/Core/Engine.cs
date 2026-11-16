@@ -4,9 +4,6 @@
 // It owns all plugin state (deep copies of what the game persists) and is NOT re-entrant: one caller drives it, one
 // command at a time, on one thread. Readers get Snapshots, which are detached copies. Methods that need the network
 // are async and only await the injected transport (Python's cooperative *_co jobs); the others are plain.
-//
-// Reverify, RestoreLookup and RestoreApply are ported with reverify.py and restore.py (task 12); until then they
-// throw NotImplementedException.
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -225,10 +222,20 @@ namespace Scfg.Core
         // --- receipts ---------------------------------------------------------------
 
         /// <summary>
-        /// Launch checks: re-verify stored receipts, then check that the developer can receive each enabled token
-        /// (Solana needs a token account). Returns the removed receipt keys. Task 12: reverify_receipts, then CheckReady.
+        /// Launch checks: re-verify stored receipts against the full registry (so old receipts stay verifiable), then
+        /// check that the developer can receive each enabled token (Solana needs a token account). Returns the removed
+        /// receipt keys, in store order. A receipt whose check crashed is kept and reported to <see cref="OnError"/>.
         /// </summary>
-        public Task<object?> Reverify() => throw new NotImplementedException("reverify: task 12");
+        public async Task<List<string>> Reverify()
+        {
+            var chains = new Dictionary<string, Chain>(StringComparer.Ordinal);
+            foreach (var k in Config.Registry.Keys) chains[k] = Chain(k);
+            var wallets = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+            foreach (var f in new[] { "evm", "solana" }) wallets[f] = Config.AcceptedWalletsFor(f);
+            var removed = await Scfg.Core.Reverify.ReverifyReceipts(Receipts, Rpc, chains, wallets, Report);
+            await CheckReady();
+            return removed;
+        }
 
         /// <summary>
         /// Python <c>_check_ready</c>: the (chain, token) routes of the enabled chains the developer cannot receive. A
@@ -261,12 +268,24 @@ namespace Scfg.Core
             _unready = unready;
         }
 
-        /// <summary>Restore candidates for a pasted transaction id. Task 12.</summary>
-        public Task<List<RestoreCandidate>> RestoreLookup(string tx) => throw new NotImplementedException("restore: task 12");
+        /// <summary>
+        /// Restore candidates for a pasted transaction id, from the first chain that knows it: the game's chains in
+        /// its order, then the rest of the registry. Throws RestoreError (see <see cref="Restore.Lookup"/>).
+        /// </summary>
+        public Task<List<RestoreCandidate>> RestoreLookup(string tx)
+        {
+            var registry = Config.Registry;
+            var ordered = Config.Chains.Concat(registry.Keys.Where(k => !Config.Chains.Contains(k)));
+            var chains = ordered.Select(k => new KeyValuePair<string, Chain>(k, Chain(k))).ToList();
+            return Restore.Lookup(tx, Config, chains, Rpc, Receipts, Report);
+        }
 
-        /// <summary>Store the chosen candidates as receipts; returns the receipts added. Task 12.</summary>
-        public List<JsonObject> RestoreApply(List<RestoreCandidate> candidates, Dictionary<int, object?>? choices = null) =>
-            throw new NotImplementedException("restore: task 12");
+        /// <summary>
+        /// Store the candidates as receipts; returns the receipts added. <paramref name="choices"/> maps a candidate's
+        /// index to an item id or "tip" for the candidates the player must choose for (see <see cref="Restore.Apply"/>).
+        /// </summary>
+        public List<JsonObject> RestoreApply(IReadOnlyList<RestoreCandidate> candidates, IReadOnlyDictionary<int, object?>? choices = null) =>
+            Restore.Apply(Receipts, candidates, choices);
 
         /// <summary>
         /// Where a contained crash goes: <see cref="OnError"/> as it is when the error is reported (a host may replace

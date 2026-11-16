@@ -1,6 +1,5 @@
 // Twin of scfg_core/backends/evm.py (and of rpgmaker/src/core/backends/evm.ts).
-// EVM chains: the watcher, re-verification and restore code behind the IBackend interface. Re-verification and
-// restore are ported with reverify.py and restore.py (task 12); until then they throw NotImplementedException.
+// EVM chains: the watcher, re-verification and restore code behind the IBackend interface.
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -34,11 +33,11 @@ namespace Scfg.Core
             Watcher.Advance(pending, receipts, sid, Client(rpc), chain, wallet, items, now);
 
         public Task<string> Reverify(JsonObject receipt, object rpc, Chain chain, IReadOnlyList<string> wallets) =>
-            throw new NotImplementedException("reverify: task 12");
+            Scfg.Core.Reverify.CheckEvmReceipt(receipt, Client(rpc), chain, wallets);
 
         public Task<List<RestoreCandidate>?> Lookup(string tx, ConfigData config, Chain chain, object rpc,
                                                     JsonObject receipts, Action<Exception>? onError) =>
-            throw new NotImplementedException("restore: task 12");
+            Restore.LookupEvm(tx, config, chain, Client(rpc), receipts, onError);
 
         /// <summary>Every token can be received on an EVM chain: no network needed (the RPC is never built).</summary>
         public Task<Dictionary<string, bool>> CheckReady(Func<object> rpc, Chain chain, string? wallet)
