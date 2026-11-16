@@ -624,6 +624,32 @@ Result<std::string> quote(std::string_view s, std::string_view safe) {
     return out;
 }
 
+// ---- hex(), str(), iteration ----
+
+std::string hex(const BigInt& n) { return n.sign() < 0 ? "-0x" + n.abs().to_hex() : "0x" + n.to_hex(); }
+
+std::string str(const Json& v) { return v.is_str() ? v.as_str() : repr(v); }
+
+Result<std::vector<Json>> iterate(const Json& v) {
+    if (v.is_list()) return v.as_list();
+    if (v.is_dict()) {
+        std::vector<Json> out;
+        for (const auto& [key, value] : v.as_dict()) out.emplace_back(key);
+        return out;
+    }
+    if (v.is_str()) {
+        std::vector<Json> out;
+        std::string_view s = v.as_str();
+        for (size_t i = 0; i < s.size();) {
+            size_t start = i;
+            utf8_decode(s, i);
+            out.emplace_back(s.substr(start, i - start));
+        }
+        return out;
+    }
+    return Err::type_error("'" + std::string(v.type_name()) + "' object is not iterable");
+}
+
 // ---- str(int) ----
 
 Result<std::string> int_str(const BigInt& n) {

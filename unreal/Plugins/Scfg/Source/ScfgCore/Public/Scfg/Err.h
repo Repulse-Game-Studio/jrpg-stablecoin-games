@@ -73,5 +73,9 @@ namespace detail {
 // and aborts, as std::get does without exceptions.
 [[noreturn]] void bad_result_access(const char* what, const Err* e);
 
+// Any other misuse of the core's own machinery (a Promise completed twice, a coroutine that ended without
+// co_return, ...): a programming error. Prints what and aborts.
+[[noreturn]] void programming_error(const char* what);
+
 }  // namespace detail
 }  // namespace scfg

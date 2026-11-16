@@ -180,6 +180,19 @@ SCFG_TEST(LintTests, PortableTypes) {
 }
 SCFG_TEST(LintTests, NoAnonymousHelpers) { run_rules(t, anonymous_rules()); }
 SCFG_TEST(LintTests, CoroutineParamsByValue) { run_check(t, lint::coroutine_params); }
+// Ruling R8, over the tests too: they run on the Clang CI leg as well.
+SCFG_TEST(LintTests, NoCoroutineLambdas) {
+    run_check(t, lint::coroutine_lambdas);
+    std::string error;
+    std::vector<File> tests = lint::test_files(&error);
+    t.check(error.empty(), "listing the tests failed: " + error);
+    SCFG_CHECK(t, tests.size() > 20);
+    std::vector<std::string> hits;
+    for (const File& f : tests) {
+        for (std::string& h : lint::coroutine_lambdas(f)) hits.push_back(std::move(h));
+    }
+    t.check(hits.empty(), "lint violations under " + lint::tests_dir() + ":\n" + lint::join(hits));
+}
 SCFG_TEST(LintTests, OnlyStdIncludes) { run_check(t, lint::only_std_includes); }
 SCFG_TEST(LintTests, EveryFileNamesItsTwin) { run_check(t, lint::names_its_twin); }
 SCFG_TEST(LintTests, UniqueBasenames) {
@@ -336,6 +349,33 @@ SCFG_TEST(LintTests, FileChecksBite) {
     SCFG_CHECK(t, lint::coroutine_params({"Private/A.cpp", "Co<Json> get(Json x, std::string m, std::function<void(int)> f);\n"}).empty());
     SCFG_CHECK(t, lint::coroutine_params({"Private/A.cpp", "Co<Json> c = get(x); return Co<int>(&p); MyCo<int> f(int& x);\n"}).empty());
     SCFG_CHECK(t, lint::coroutine_params({"Private/A.cpp", "auto g = [](Json x) -> Co<Json> {}; std::vector<Co<int>> v;\n"}).empty());
+    SCFG_CHECK_EQ(t, lint::coroutine_params({"Private/A.cpp", "Co<Json> f(std::span<const uint8_t> b);\n"}).size(), 1);
+    SCFG_CHECK(t, lint::coroutine_params({"Private/A.cpp", "Co<Json> f(std::vector<uint8_t> b, Json timespan);\n"}).empty());
+
+    // Ruling R8: a lambda whose body holds co_await, co_return or co_yield.
+    for (const char* bad : {
+             "auto f = [](Json x) -> Co<Json> { co_return x; };\n",
+             "run([&] { co_await step(); });\n",
+             "auto g = [x]<class T>(T y) -> Co<std::pair<T, int>> {\n  co_yield y;\n};\n",
+             "return [this](int n) mutable noexcept -> Co<int> { SCFG_CO_TRY(int v, co_await f(n)); co_return v; };\n",
+             "auto h = [] { return 1; }; auto k = [] { co_return 2; };\n",
+             "Co<int> f() { auto g = [](int a) -> Co<int> { co_return a; }; co_return 1; }\n",
+         }) {
+        t.check(lint::coroutine_lambdas({"Private/A.cpp", bad}).size() == 1, std::string("coroutine lambda missed: ") + bad);
+    }
+    for (const char* good : {
+             "Co<Json> f(Json x) { auto g = [](int a) { return a; }; co_return co_await h(x[0]); }\n",
+             "Co<int> f() { a[i] = co_await g(); auto& [k, v] = co_await h(); co_return k; }\n",
+             "Co<int> f(Json d) { for (auto& [k, v] : d) { co_await g(k); } co_return 0; }\n",
+             "[[nodiscard]] Co<int> f() { co_return 1; }\n",
+             "auto s = \"[] { co_return 1; }\"; // [] { co_await x; }\n",
+             "Co<int> f() { int arr[3] = {}; co_return arr[0]; }\n",
+             "Co<int> f() { std::sort(v.begin(), v.end(), [](int a, int b) { return a < b; }); co_return v[0]; }\n",
+         }) {
+        t.check(lint::coroutine_lambdas({"Private/A.cpp", good}).empty(), std::string("not a coroutine lambda: ") + good);
+    }
+    std::vector<std::string> where = lint::coroutine_lambdas({"Private/A.cpp", "int x;\nauto f = [] {\n  co_return 1;\n};\n"});
+    if (SCFG_CHECK_EQ(t, where.size(), 1)) SCFG_CHECK(t, where[0].rfind("Private/A.cpp:2: coroutine lambda (", 0) == 0);
 
     SCFG_CHECK_EQ(t, lint::only_std_includes({"Private/A.cpp", "#include <windows.h>\n"}).size(), 1);
     SCFG_CHECK_EQ(t, lint::only_std_includes({"Private/A.cpp", "#include <stdint.h>\n"}).size(), 1);

@@ -24,6 +24,10 @@ struct File {
 std::string core_dir();
 // Every .h and .cpp under core_dir(), sorted by rel. A directory or read error is appended to *error.
 std::vector<File> core_files(std::string* error = nullptr);
+// Absolute path of unreal/core-tests.
+std::string tests_dir();
+// Every .h and .cpp under tests_dir(), rel prefixed "core-tests/" ("core-tests/CoTests.cpp"), sorted.
+std::vector<File> test_files(std::string* error = nullptr);
 // "Private/Version.cpp" -> "Version.cpp".
 std::string basename(std::string_view rel);
 bool ends_with(std::string_view s, std::string_view suffix);
@@ -48,6 +52,7 @@ std::string join(const std::vector<std::string>& lines);
 // The file-level checks. Each returns "rel:line: rule (why)" messages, none when the file passes.
 std::vector<std::string> pragma_once(const File& f);        // a header without #pragma once
 std::vector<std::string> coroutine_params(const File& f);   // Co<T> f(const X&), auto f(X*) -> Co<T>, lambdas too
+std::vector<std::string> coroutine_lambdas(const File& f);  // co_await/co_return/co_yield in a lambda body (R8)
 std::vector<std::string> only_std_includes(const File& f);  // <x> not standard C++20, "x" not Public/Scfg/<x>.h
 std::vector<std::string> names_its_twin(const File& f);     // first comment line names no (existing) twin
 std::vector<std::string> duplicate_basenames(const std::vector<File>& all);  // case-insensitive, as on Windows

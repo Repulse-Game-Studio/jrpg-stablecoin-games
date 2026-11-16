@@ -77,27 +77,6 @@ Json arg(const Json::Dict& d, std::string_view name, Json fallback = Json()) {
     return v != nullptr ? *v : fallback;
 }
 
-// tuple(v) / `for x in v`: a list's items, a dict's keys, a str's characters; anything else is the TypeError.
-Result<std::vector<Json>> iterate(const Json& v) {
-    if (v.is_list()) return v.as_list();
-    if (v.is_dict()) {
-        std::vector<Json> out;
-        for (const auto& [key, value] : v.as_dict()) out.emplace_back(key);
-        return out;
-    }
-    if (v.is_str()) {
-        std::vector<Json> out;
-        std::string_view s = v.as_str();
-        for (size_t i = 0; i < s.size();) {
-            size_t start = i;
-            py::utf8_decode(s, i);
-            out.emplace_back(s.substr(start, i - start));
-        }
-        return out;
-    }
-    return Err::type_error("'" + type_name(v) + "' object is not iterable");
-}
-
 // `v in some_set` / `v in some_dict` hashes v: a list or dict is the TypeError.
 Status hashable(const Json& v) {
     if (v.is_list() || v.is_dict()) return Err::type_error("unhashable type: '" + type_name(v) + "'");
@@ -416,7 +395,7 @@ Result<Json> merge_methods(const Json& methods, const std::vector<std::string>& 
     if (!any) return Err::config_error("methods.none_enabled", "at least one payment method must be enabled");
     Json qr_chains = m.find("qr")->as_dict().get("chains");
     if (!qr_chains.is_null()) {
-        SCFG_TRY(std::vector<Json> entries, iterate(qr_chains));
+        SCFG_TRY(std::vector<Json> entries, py::iterate(qr_chains));
         for (const Json& c : entries) {
             if (!(c.is_str() && contains(chains, c.as_str()))) {  // `c not in chains`: a tuple, compared with ==
                 return Err::config_error("methods.qr_disabled_chain",
@@ -442,7 +421,7 @@ Result<Config> build(const Json& kwargs, const std::vector<CustomChain>* typed) 
     if (typed == nullptr) {
         Json given = arg(*kw, "custom_chains");
         if (py::truthy(given)) {  // `for chain in custom or ()`
-            SCFG_TRY(std::vector<Json> entries, iterate(given));
+            SCFG_TRY(std::vector<Json> entries, py::iterate(given));
             for (Json& e : entries) raw.emplace_back(std::move(e));
         }
         typed = &raw;
@@ -469,7 +448,7 @@ Result<Config> build(const Json& kwargs, const std::vector<CustomChain>* typed) 
     std::vector<std::string> prev_sol;
     Json previous = arg(*kw, "previous_wallets");
     if (py::truthy(previous)) {  // `for w in previous_wallets or ()`
-        SCFG_TRY(std::vector<Json> entries, iterate(previous));
+        SCFG_TRY(std::vector<Json> entries, py::iterate(previous));
         for (const Json& w : entries) {
             SCFG_TRY(Wallet found, any_wallet(w, "previous_wallets"));
             bool is_sol = found.family == "solana";
@@ -494,7 +473,7 @@ Result<Config> build(const Json& kwargs, const std::vector<CustomChain>* typed) 
             }
         }
     } else {
-        SCFG_TRY(chain_values, iterate(chains_arg));
+        SCFG_TRY(chain_values, py::iterate(chains_arg));
     }
     if (chain_values.empty()) return Err::config_error("chains.empty", "chains must not be empty");
     std::vector<std::string> chain_keys;
@@ -531,7 +510,7 @@ Result<Config> build(const Json& kwargs, const std::vector<CustomChain>* typed) 
     if (tokens_arg.is_null()) {
         for (std::string_view t : TOKENS) token_values.emplace_back(t);
     } else {
-        SCFG_TRY(token_values, iterate(tokens_arg));
+        SCFG_TRY(token_values, py::iterate(tokens_arg));
     }
     if (token_values.empty()) return Err::config_error("tokens.empty", "tokens must not be empty");
     for (const Json& t : token_values) {

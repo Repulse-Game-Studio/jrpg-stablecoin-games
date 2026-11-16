@@ -168,5 +168,11 @@ void bad_result_access(const char* what, const Err* e) {
     std::abort();
 }
 
+void programming_error(const char* what) {
+    std::string line = std::string("scfg: programming error: ") + what + "\n";
+    std::fputs(line.c_str(), stderr);
+    std::abort();
+}
+
 }  // namespace detail
 }  // namespace scfg

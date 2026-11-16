@@ -114,13 +114,16 @@ std::string core_dir() {
     return (fs::path(SCFG_REPO_ROOT) / "unreal" / "Plugins" / "Scfg" / "Source" / "ScfgCore").generic_string();
 }
 
-std::vector<File> core_files(std::string* error) {
+std::string tests_dir() { return (fs::path(SCFG_REPO_ROOT) / "unreal" / "core-tests").generic_string(); }
+
+// Every .h and .cpp under root, rel = prefix + the path relative to root, sorted by rel.
+static std::vector<File> files_under(const std::string& dir, const std::string& prefix, std::string* error) {
     auto report = [error](const std::string& what) {
         if (error != nullptr) *error += (error->empty() ? "" : "; ") + what;
     };
     std::vector<File> out;
     std::error_code ec;
-    fs::path root(core_dir());
+    fs::path root(dir);
     for (fs::recursive_directory_iterator it(root, ec), end; !ec && it != end; it.increment(ec)) {
         std::error_code kind;
         if (!it->is_regular_file(kind)) {
@@ -131,7 +134,7 @@ std::vector<File> core_files(std::string* error) {
         if (ext != ".h" && ext != ".cpp") continue;
         std::ifstream in(it->path(), std::ios::binary);
         File f;
-        f.rel = it->path().lexically_relative(root).generic_string();
+        f.rel = prefix + it->path().lexically_relative(root).generic_string();
         f.text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
         if (!in && !in.eof()) report(f.rel + ": cannot read");
         out.push_back(std::move(f));
@@ -140,6 +143,10 @@ std::vector<File> core_files(std::string* error) {
     std::sort(out.begin(), out.end(), [](const File& a, const File& b) { return a.rel < b.rel; });
     return out;
 }
+
+std::vector<File> core_files(std::string* error) { return files_under(core_dir(), "", error); }
+
+std::vector<File> test_files(std::string* error) { return files_under(tests_dir(), "core-tests/", error); }
 
 std::string basename(std::string_view rel) {
     size_t slash = rel.rfind('/');
@@ -258,11 +265,93 @@ std::vector<std::string> coroutine_params(const File& f) {
         if (i > 0 && ident_char(code[i - 1])) continue;
         std::string params = co_params(code, i);
         if (params.find('&') == std::string::npos && params.find('*') == std::string::npos &&
-            params.find("string_view") == std::string::npos)
+            params.find("string_view") == std::string::npos && params.find("span<") == std::string::npos)
             continue;
         size_t line = 1 + static_cast<size_t>(std::count(code.begin(), code.begin() + static_cast<std::ptrdiff_t>(i), '\n'));
         hits.push_back(at(f, line, "Co<...> parameter by reference",
-                          "a reference, string_view or pointer dangles after the first co_await; pass by value"));
+                          "a reference, string_view, span or pointer dangles after the first co_await; pass by value"));
+    }
+    return hits;
+}
+
+// Is the '[' at i a lambda introducer? Not the [[ of an attribute, and not a subscript or an array declarator
+// (a '[' after a name, ')' or ']'), except after the keywords a lambda can follow.
+static bool lambda_introducer(std::string_view s, size_t i) {
+    if (i + 1 < s.size() && s[i + 1] == '[') return false;
+    size_t k = i;
+    while (k > 0 && (s[k - 1] == ' ' || s[k - 1] == '\t' || s[k - 1] == '\n')) --k;
+    if (k == 0) return true;
+    char p = s[k - 1];
+    if (ident_char(p)) {
+        size_t w = k;
+        while (w > 0 && ident_char(s[w - 1])) --w;
+        std::string_view word = s.substr(w, k - w);
+        return word == "return" || word == "co_return" || word == "co_yield" || word == "co_await";
+    }
+    return p != ')' && p != ']' && p != '[';
+}
+
+// [begin, end) of the body of the lambda whose introducer is at i, or {npos, npos} when the '[' starts none:
+// [captures] <template params> (params) specifiers -> return type { body }. A ';', ',', '=', ']' or '}' (or an
+// unbalanced ')') before the body's '{' means it was something else (a structured binding, say).
+static std::pair<size_t, size_t> lambda_body(std::string_view s, size_t i) {
+    const std::pair<size_t, size_t> none{std::string_view::npos, std::string_view::npos};
+    size_t j = skip_balanced(s, i, '[', ']');
+    if (j == std::string_view::npos) return none;
+    j = skip_space(s, j);
+    if (j < s.size() && s[j] == '<') {
+        j = skip_balanced(s, j, '<', '>');
+        if (j == std::string_view::npos) return none;
+        j = skip_space(s, j);
+    }
+    if (j < s.size() && s[j] == '(') {
+        j = skip_balanced(s, j, '(', ')');
+        if (j == std::string_view::npos) return none;
+    }
+    int paren = 0, angle = 0;
+    for (; j < s.size(); ++j) {
+        char c = s[j];
+        if (c == '-' && j + 1 < s.size() && s[j + 1] == '>') {
+            ++j;
+        } else if (c == '(') {
+            ++paren;
+        } else if (c == ')') {
+            if (paren-- == 0) return none;
+        } else if (c == '<') {
+            ++angle;
+        } else if (c == '>') {
+            if (angle > 0) --angle;
+        } else if (paren == 0 && angle == 0 && (c == ';' || c == ',' || c == '=' || c == ']' || c == '}')) {
+            return none;
+        } else if (paren == 0 && angle == 0 && c == '{') {
+            size_t end = skip_balanced(s, j, '{', '}');
+            return {j + 1, end == std::string_view::npos ? s.size() : end - 1};
+        }
+    }
+    return none;
+}
+
+std::vector<std::string> coroutine_lambdas(const File& f) {
+    Views v = lint::views(f.text);
+    std::string code;
+    for (const std::string& line : v.code) code += line + "\n";
+    std::vector<std::string> hits;
+    for (size_t i = code.find('['); i != std::string::npos; i = code.find('[', i + 1)) {
+        if (!lambda_introducer(code, i)) continue;
+        auto [begin, end] = lambda_body(code, i);
+        if (begin == std::string::npos) continue;
+        bool coroutine = false;
+        for (size_t k = begin; !coroutine && k + 3 <= end; ++k) {
+            if (code.compare(k, 3, "co_") != 0 || (k > 0 && ident_char(code[k - 1]))) continue;
+            size_t w = k + 3;
+            while (w < end && ident_char(code[w])) ++w;
+            std::string_view word = std::string_view(code).substr(k, w - k);
+            coroutine = word == "co_await" || word == "co_return" || word == "co_yield";
+        }
+        if (!coroutine) continue;
+        size_t line = 1 + static_cast<size_t>(std::count(code.begin(), code.begin() + static_cast<std::ptrdiff_t>(i), '\n'));
+        hits.push_back(at(f, line, "coroutine lambda",
+                          "ruling R8: Clang miscompiles lambda coroutines (llvm#91983); write a named function"));
     }
     return hits;
 }

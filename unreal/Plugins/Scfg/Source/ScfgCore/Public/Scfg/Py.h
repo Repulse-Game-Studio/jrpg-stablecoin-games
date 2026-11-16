@@ -127,7 +127,17 @@ Result<BigInt> py_int_hex(const Json& x);
 // outside int64 (decided from its count of significant digits, before anything is converted).
 Result<std::optional<int64_t>> py_int_hex_int64(const Json& x);
 
+// hex(n): "0x" and lowercase hex digits ("0x0" for zero), "-0x5" for a negative. No digit limit (base 16).
+std::string hex(const BigInt& n);
+
 // ---- values ----
+
+// str(v) of a JSON value: a str as it is, anything else its repr (str and repr agree on None, bools, ints,
+// floats, lists and dicts).
+std::string str(const Json& v);
+// `for x in v` (list(v), tuple(v), list.extend(v)) of a JSON value: a list's items, a dict's keys, a str's
+// characters (each a str); anything else is CPython's TypeError "'int' object is not iterable".
+Result<std::vector<Json>> iterate(const Json& v);
 
 // bool(v): None, False, 0, 0.0, -0.0, "", [] and {} are falsy (a NaN is truthy).
 bool truthy(const Json& v);

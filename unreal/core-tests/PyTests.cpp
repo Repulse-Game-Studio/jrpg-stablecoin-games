@@ -346,6 +346,32 @@ SCFG_TEST(PyTests, LowerForAsciiSearch) {
     SCFG_CHECK(t, py::lower_for_ascii("L" + U(0x130) + "MIT").find("limit") == std::string::npos);
 }
 
+// hex(n), str(v) and `for x in v`, as Python 3.9 gives them.
+SCFG_TEST(PyTests, HexStrAndIterate) {
+    SCFG_CHECK_EQ(t, py::hex(0), "0x0");
+    SCFG_CHECK_EQ(t, py::hex(255), "0xff");
+    SCFG_CHECK_EQ(t, py::hex(-5), "-0x5");
+    SCFG_CHECK_EQ(t, py::hex(BigInt(1) << 64), "0x10000000000000000");
+    SCFG_CHECK_EQ(t, py::hex(BigInt(INT64_MIN)), "-0x8000000000000000");
+    SCFG_CHECK_EQ(t, py::str("a'b"), "a'b");
+    SCFG_CHECK_EQ(t, py::str(Json()), "None");
+    SCFG_CHECK_EQ(t, py::str(1.5), "1.5");
+    SCFG_CHECK_EQ(t, py::str(Json::dict({{"a", Json::list({1, true})}})), "{'a': [1, True]}");
+    scfg::Result<std::vector<Json>> chars = py::iterate("a\xf0\x9f\x98\x80" "b");
+    if (SCFG_CHECK(t, chars.ok() && chars.value().size() == 3)) SCFG_CHECK_EQ(t, chars.value()[1].as_str(), "\xf0\x9f\x98\x80");
+    scfg::Result<std::vector<Json>> keys = py::iterate(Json::dict({{"k", 1}, {"j", 2}}));
+    if (SCFG_CHECK(t, keys.ok() && keys.value().size() == 2)) SCFG_CHECK_EQ(t, keys.value()[1].as_str(), "j");
+    Json list = Json::list({Json::list()});
+    scfg::Result<std::vector<Json>> items = py::iterate(list);
+    if (SCFG_CHECK(t, items.ok() && items.value().size() == 1)) SCFG_CHECK(t, items.value()[0].same_object(list.as_list()[0]));
+    for (const auto& [v, name] : {std::pair<Json, const char*>{Json(5), "int"}, {Json(true), "bool"}, {Json(), "NoneType"},
+                                  {Json(1.5), "float"}}) {
+        scfg::Result<std::vector<Json>> r = py::iterate(v);
+        t.check(!r.ok() && r.err().kind == "TypeError" && r.err().message == "'" + std::string(name) + "' object is not iterable",
+                name);
+    }
+}
+
 SCFG_TEST(PyTests, Format1MatchesStrFormat) {
     auto f = [](std::string_view tmpl, std::string_view arg) {
         scfg::Result<std::string> r = py::format1(tmpl, arg);
