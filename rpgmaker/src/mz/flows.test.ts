@@ -663,7 +663,12 @@ test("mobileOffersWalletAppLink", async () => {
   s.openExplorer("");
   assert.equal(world.opened.length, 2, "openExplorer opens a URL, and nothing for none");
   s.openWalletApp({ paymentUri: () => "ethereum:0xevil" } as any);
+  s.openOnramp({ onrampUrl: () => "https://evil.example" } as any);
   assert.equal(world.opened.length, 2, "only an open sheet's controller");
+  const buy = ctl.onrampUrl();
+  assert.ok(buy !== null && buy.startsWith("https://thirdweb.com/"), `the buy page (${buy})`);
+  s.openOnramp(ctl);
+  assert.deepEqual(world.opened[2], ["window", buy, "_blank", "noopener"], "the buy link opens with window.open");
 });
 
 test("linksOpenWithNwShellOnDesktopAndNeverThrowWithoutIt", async () => {
@@ -673,14 +678,17 @@ test("linksOpenWithNwShellOnDesktopAndNeverThrowWithoutIt", async () => {
   const ctl = await session(env);
   s.openWalletApp(ctl);
   s.openExplorer("https://arbiscan.io/tx/" + TX);
-  assert.deepEqual(world.opened, [["nw", ctl.paymentUri()], ["nw", "https://arbiscan.io/tx/" + TX]], "nw.Shell.openExternal on desktop");
+  s.openOnramp(ctl);
+  assert.deepEqual(world.opened, [["nw", ctl.paymentUri()], ["nw", "https://arbiscan.io/tx/" + TX], ["nw", ctl.onrampUrl()]],
+    "nw.Shell.openExternal on desktop");
   world.nwAvailable = false; // NW.js without its `nw` object: the page's window.open
   s.openExplorer("https://arbiscan.io/tx/1");
-  assert.deepEqual(world.opened[2], ["window", "https://arbiscan.io/tx/1", "_blank", "noopener"]);
+  assert.deepEqual(world.opened[3], ["window", "https://arbiscan.io/tx/1", "_blank", "noopener"]);
   delete world.win.open; // and with neither: nothing, never an exception
   assert.doesNotThrow(() => s.openExplorer("https://arbiscan.io/tx/2"));
+  assert.doesNotThrow(() => s.openOnramp(ctl));
   assert.doesNotThrow(() => s.copy("x"));
-  assert.equal(world.opened.length, 3);
+  assert.equal(world.opened.length, 4);
   assert.equal(host.closes, 0);
 });
 

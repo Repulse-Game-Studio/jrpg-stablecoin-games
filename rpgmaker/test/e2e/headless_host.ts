@@ -94,6 +94,9 @@ export class HeadlessHost implements SheetHost {
     const s = this.scfg;
     const out: Button[] = [];
     const add = (name: string, text: string, press: () => void) => out.push({ name, text, press });
+    const onramp = () => {
+      if (c.showsOnramp) add("onramp", this.t("onramp_link", c.spec.token), () => s.openOnramp(c));
+    };
     if (c.canGoBack) add("back", this.t("back"), () => c.back());
     if (c.state !== "closed") {
       switch (c.step) {
@@ -107,12 +110,15 @@ export class HeadlessHost implements SheetHost {
           break;
         case "method":
           for (const m of c.methods()) add(`method_${m}`, m, () => c.chooseMethod(m));
+          onramp();
           break;
         case "browser":
+          onramp();
           add("forward", this.t("open_checkout_browser"), () => s.openBrowser(c));
           break;
         case "qr":
           if (s._platform.isMobile() && c.config.methods["qr"]?.["wallet_button"]) add("wallet_app", this.t("open_wallet_app"), () => s.openWalletApp(c));
+          onramp();
           add("forward", this.t("i_sent_it"), () => c.markSent());
           break;
         case "manual": {
@@ -122,6 +128,7 @@ export class HeadlessHost implements SheetHost {
           }
           // (the sheet's Paste button is web only: on desktop the player pastes into the field)
           if (c.config.methods["manual"]?.["allow_tx_paste"]) add("check", this.t("check"), () => c.submitHash());
+          onramp();
           add("forward", this.t("i_sent_it"), () => c.markSent());
           break;
         }

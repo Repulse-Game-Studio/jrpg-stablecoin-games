@@ -8,6 +8,7 @@ import {
 import { preparePayment } from "./payments.ts";
 import { classify } from "./restore.ts";
 import { asUnits } from "./amounts.ts";
+import { ONRAMP_URL } from "./paylinks.ts";
 
 const W = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
 const AVAX = {
@@ -25,7 +26,7 @@ test("test_defaults", () => {
   assert.equal(c.accent, DEFAULT_ACCENT);
   assert.equal(c.logo, null);
   assert.deepEqual(Object.keys(c).sort(), [
-    "accent", "chains", "confirmations", "custom_chains", "items", "logo", "methods", "previous_solana_wallets",
+    "accent", "chains", "confirmations", "custom_chains", "items", "logo", "methods", "onramp", "previous_solana_wallets",
     "previous_wallets", "rpc_urls", "solana_wallet", "testnet", "tokens", "wallet"]);
   assert.deepEqual(c.methods["qr"], { enabled: true, wallet_button: true, chains: null });
   assert.deepEqual(acceptedWallets(c), [W]);
@@ -147,4 +148,67 @@ test("test_integer_like_keys_keep_insertion_order", () => {
   assert.deepEqual([...registry(c).keys()], ["ethereum", "arbitrum", "polygon", "base", "arc", "solana", "zeta", "10", "2"]);
   assert.deepEqual([...enabledChains(c).keys()], evm);
   assert.equal(itemByCode(c, 2)!.item_id, "10");
+});
+
+// --- onramp (the "Buy some with a card" link) ----------------------------------------------
+
+const SOL = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
+
+test("test_onramp_defaults_to_the_builtin_evm_chains_on_mainnet", () => {
+  const c = buildConfig({ wallet: W, solana_wallet: SOL });
+  assert.deepEqual(c.onramp, { enabled: true, url: ONRAMP_URL, chains: ["arbitrum", "base", "arc", "polygon", "ethereum"] });
+});
+
+test("test_onramp_is_not_offered_on_testnet_unless_chains_are_listed", () => {
+  assert.deepEqual(buildConfig({ wallet: W, testnet: true }).onramp.chains, []);
+  assert.deepEqual(buildConfig({ wallet: W, testnet: true, onramp: { chains: ["base"] } }).onramp.chains, ["base"]);
+});
+
+test("test_onramp_default_follows_the_enabled_chains_and_skips_custom_ones", () => {
+  const avax = buildChain("avalanche", AVAX);
+  let c = buildConfig({ wallet: W, chains: ["base", "avalanche", "arc"], custom_chains: [avax] });
+  assert.deepEqual(c.onramp.chains, ["base", "arc"]);
+  c = buildConfig({ wallet: W, chains: ["base", "avalanche"], custom_chains: [avax], onramp: { chains: ["avalanche"] } });
+  assert.deepEqual(c.onramp.chains, ["avalanche"]);
+});
+
+test("test_onramp_options_merge", () => {
+  const url = "https://example.com/buy?net={chain}&id={chain_id}&t={token}@{token_address}&a={amount}";
+  const c = buildConfig({ wallet: W, onramp: { enabled: false, url, chains: ["arc"] } });
+  assert.deepEqual(c.onramp, { enabled: false, url, chains: ["arc"] });
+  assert.deepEqual(buildConfig({ wallet: W, onramp: {} }).onramp, buildConfig({ wallet: W }).onramp);
+});
+
+test("test_bad_onramp", () => {
+  for (const [onramp, want] of [
+    [false, "onramp.not_a_dict"],
+    [{ enable: false }, "onramp.unknown_option"],
+    [{ enabled: "no" }, "onramp.enabled_not_bool"],
+    [{ enabled: 0 }, "onramp.enabled_not_bool"],
+    [{ url: "http://example.com/buy" }, "onramp.bad_url"],
+    [{ url: "https://example.com/buy?a={amount} " }, "onramp.bad_url"],
+    [{ url: "https://example.com/café" }, "onramp.bad_url"],
+    [{ url: "https://example.com/" + "a".repeat(2029) }, "onramp.bad_url"],
+    [{ url: null }, "onramp.bad_url"],
+    [{ url: "https://example.com/?w={wallet}" }, "onramp.unknown_placeholder"],
+    [{ url: "https://example.com/?w={}" }, "onramp.unknown_placeholder"],
+    [{ url: "https://example.com/?a={amount" }, "onramp.unmatched_brace"],
+    [{ url: "https://example.com/?a=amount}" }, "onramp.unmatched_brace"],
+    [{ url: "https://example.com/?a={{amount}}" }, "onramp.unmatched_brace"],
+    [{ chains: "base" }, "onramp.chains_not_a_list"],
+    [{ chains: ["tron"] }, "onramp.disabled_chain"],
+    [{ chains: [5] }, "onramp.disabled_chain"],
+    [{ chains: ["base", "base"] }, "onramp.duplicate_chain"],
+  ] as const) {
+    assert.equal(code(() => buildConfig({ wallet: W, onramp: onramp as any })), want, JSON.stringify(onramp));
+  }
+});
+
+test("test_onramp_url_limit_is_inclusive", () => {
+  const url = "https://example.com/" + "a".repeat(2028);
+  assert.ok(url.length === 2048 && buildConfig({ wallet: W, onramp: { url } }).onramp.url === url);
+});
+
+test("test_onramp_chains_must_be_evm", () => {
+  assert.equal(code(() => buildConfig({ wallet: W, solana_wallet: SOL, onramp: { chains: ["base", "solana"] } })), "onramp.not_evm");
 });

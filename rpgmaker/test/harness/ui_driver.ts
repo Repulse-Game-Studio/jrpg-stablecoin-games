@@ -182,7 +182,7 @@ w.scfgTest = {
       step: c.step, state: c.state, canGoBack: c.canGoBack, txSeen: c.txSeen, dots: c.stepDots(), method: c.method,
       chainKey: c.chain_key, chainOptions: c.chainOptions(), methods: c.methods(), session: c.sessionId, hint: c.hint_tx,
       txInput: c.tx_input, error: c.error, uri: c.paymentUri(), payAmount: c.payAmountText, recipient: c.recipient,
-      tokenAddress: c.tokenAddress,
+      tokenAddress: c.tokenAddress, onramp: c.onrampUrl(),
     };
   },
 

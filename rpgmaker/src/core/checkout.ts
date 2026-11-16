@@ -15,7 +15,7 @@
  *
  * Stored fields keep the Python (snake_case) names; methods and computed properties are camelCase.
  */
-import { asUnits, formatUnits, parseAmount } from "./amounts.ts";
+import { asUnits, decimalToUnits, formatUnits, parseAmount } from "./amounts.ts";
 import { backendFor } from "./backends/index.ts";
 import { explorerUrl, type Chain } from "./chains.ts";
 import { enabledChains, registry, textOn, walletFor, type Config } from "./config.ts";
@@ -23,7 +23,7 @@ import type { Dec } from "./decimal.ts";
 import { parseUnreadyKey, unreadyKey, type Engine } from "./engine.ts";
 import { ValueError } from "./errors.ts";
 import { makePaymentResult, type PaymentResult } from "./models.ts";
-import { eip681TransferUri } from "./paylinks.ts";
+import { eip681TransferUri, onrampAmount, onrampUrl } from "./paylinks.ts";
 import { MIN_TIP, TIP_PRESETS, type PaymentSpec } from "./payments.ts";
 import { RpcUnavailable } from "./rpc.ts";
 import { solanaPayUri } from "./solana/paylinks.ts";
@@ -227,6 +227,33 @@ export class CheckoutController {
     return eip681TransferUri({
       token_address: this.tokenAddress as string, chain_id: chain!.chain_id, recipient: this.recipient, units,
     });
+  }
+
+  /**
+   * The page where a player without the token buys some with a card, for the chosen network, with
+   * the payment (plus a cent for the fee on Arc) suggested as the amount. null when
+   * configure({onramp}) doesn't offer it on this network.
+   */
+  onrampUrl(): string | null {
+    const opts = this.config.onramp;
+    const chain = this.chain;
+    if (!opts.enabled || chain === null || !opts.chains.includes(chain.key)) return null;
+    const units = this.session ? asUnits(BigInt(this.session["units"])) : decimalToUnits(this.amount);
+    return onrampUrl(opts.url, {
+      chain: chain.key, chainId: chain.chain_id, token: this.spec.token, tokenAddress: this.tokenAddress as string,
+      amount: onrampAmount(units, chain.native_token === this.spec.token),
+    });
+  }
+
+  /**
+   * Whether this step offers the buy link: the method step, or the payment page the sheet opens on
+   * when the method step is skipped (a single method).
+   */
+  get showsOnramp(): boolean {
+    if (this.step !== "method" && !(["browser", "qr", "manual"].includes(this.step) && !this.stepPath().includes("method"))) {
+      return false;
+    }
+    return this.onrampUrl() !== null;
   }
 
   explorerUrl(): string | null {

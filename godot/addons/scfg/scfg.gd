@@ -256,8 +256,10 @@ func add_chain(key: Variant, opts: Dictionary = {}) -> Variant:
 
 ## Set the payout wallet and options. `opts` (Ren'Py's keyword arguments): wallet (an EVM 0x
 ## address) and/or solana_wallet, testnet, chains, tokens, methods, rpc_urls, confirmations,
-## previous_wallets, logo and accent. `logo` is an image in the project: "res://images/logo.png"
-## (or "images/logo.png"), .png, .jpg or .webp. `accent` is "#rrggbb". Two keys are Godot's own:
+## previous_wallets, logo, accent and onramp. `logo` is an image in the project:
+## "res://images/logo.png" (or "images/logo.png"), .png, .jpg or .webp. `accent` is "#rrggbb".
+## `onramp` is the "Buy some with a card" link: {"enabled": false} hides it, {"chains": [...]} or
+## {"url": "https://..."} change it. Two keys are Godot's own:
 ## `theme` (a Theme merged over the screens' built-in look; see ui/theme.gd) and `sheet_scene` (a
 ## PackedScene that replaces the payment sheet; see godot/README.md). Call it before the first
 ## frame that needs payments; it can be called again until the plugin has started (the frame
@@ -1082,6 +1084,19 @@ func open_wallet_app(ctl: ScfgCheckoutController) -> void:
 		return
 	if ScfgPy.py_truthy(uri):
 		_open_url(str(uri))
+
+
+## The sheet's "Buy some with a card": open configure's onramp page for the chosen network (a new
+## tab on the web).
+func open_onramp(ctl: ScfgCheckoutController) -> void:
+	if _screen_id(ctl) == "":
+		return
+	var url: Variant = ctl.onramp_url()
+	if url is ScfgErr:
+		_report_error("cannot build the buy link:", url)
+		return
+	if ScfgPy.py_truthy(url):
+		_open_url(str(url))
 
 
 ## The sheet's "View on explorer": open `url` (nothing for null or "").

@@ -145,6 +145,17 @@ var can_go_back: bool:
 			return false
 		return _previous_step() != null
 
+## Whether this step offers the buy link: the method step, or the payment page the sheet opens on
+## when the method step is skipped (a single method).
+var shows_onramp: bool:
+	get:
+		if step != "method" and not (step in ["browser", "qr", "manual"] and not step_path().has("method")):
+			return false
+		var url: Variant = onramp_url()
+		if url is ScfgErr:
+			return false
+		return url != null
+
 
 func _init(opts: Dictionary) -> void:
 	config = opts.get("config")
@@ -228,6 +239,24 @@ func payment_uri() -> Variant:
 			"mint": token_address, "reference": session["reference"], "label": game_name, "message": spec["title"]})
 	return ScfgPaylinks.eip681_transfer_uri({"token_address": token_address, "chain_id": chain["chain_id"],
 		"recipient": recipient, "units": session["units"]})
+
+
+## The page where a player without the token buys some with a card, for the chosen network, with
+## the payment (plus a cent for the fee on Arc) suggested as the amount. Null when configure's
+## `onramp` doesn't offer it on this network.
+## @fallible
+func onramp_url() -> Variant:
+	var opts: Variant = config.get("onramp")
+	var c: Variant = chain
+	if not opts is Dictionary or not opts["enabled"] or c == null or not (opts["chains"] as Array).has(c["key"]):
+		return null
+	var units: Variant = session["units"] if ScfgPy.py_truthy(session) else null
+	if units == null:
+		units = ScfgAmounts.decimal_to_units(amount)
+		if units is ScfgErr:
+			return units
+	return ScfgPaylinks.onramp_url(opts["url"], c["key"], c["chain_id"], spec["token"], token_address,
+		ScfgPaylinks.onramp_amount(units, c["native_token"] == spec["token"]))
 
 
 ## @fallible

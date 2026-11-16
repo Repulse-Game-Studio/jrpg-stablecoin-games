@@ -28,6 +28,7 @@ init python:
 | `previous_wallets` | none | Wallets used by earlier versions of your game, EVM (`0x…`) and Solana addresses can be mixed. Keeps old purchases valid after you change wallets |
 | `logo` | none | An image in your game folder, e.g. `"images/logo.png"` (`.png`, `.jpg` or `.webp`). Shown at the top of the payment screens and the browser checkout page, fitted into 240 × 64 (at 1280 × 720). A wide wordmark works best |
 | `accent` | `"#0e7c74"` | Color of selected options and the main browser button, e.g. `accent=gui.accent_color`. Text on it switches between white and dark automatically |
+| `onramp` | on, built-in EVM chains on mainnet | The "Buy some with a card" link for players without stablecoin, see [below](#the-buy-link) |
 
 ## Payment methods
 
@@ -41,6 +42,38 @@ init python:
 scfg.configure(wallet="0x...", methods={"browser": {"enabled": False},
                                               "qr": {"chains": ["base", "polygon"]}})
 ```
+
+## The buy link
+
+Players who have no USDC or USDT yet see a **No USDC yet? Buy some with a card** link (with
+the payment's token) on the method step, or on the only payment page when there is one
+method. It opens a buy page for the network they picked in their browser (a new tab in a
+web build). They buy the token with a card into their own wallet, come back and pay as usual:
+the payment itself is unchanged and still goes straight to your wallet.
+
+The default page is [thirdweb's hosted Buy widget](https://portal.thirdweb.com/bridge/buy-widget/iframe).
+It needs no account or key on your side. The link locks it to the network and token, and
+suggests the payment rounded up to whole cents (plus a cent on Arc, where the fee is paid in
+USDC) as the amount. The page only learns the network, the token and that amount: no wallet
+address and nothing about the item. The player connects their wallet there, and thirdweb's
+card partners handle the purchase and the identity checks. Their regions, minimum amounts
+and fees apply, and the player pays the fees.
+
+```renpy
+scfg.configure(wallet="0x...", onramp={"enabled": False})            # hide it
+scfg.configure(wallet="0x...", onramp={"chains": ["base", "arc"]})   # only on these networks
+scfg.configure(wallet="0x...", onramp={"url": "https://buy.example/?net={chain_id}&a={amount}"})
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `enabled` | `True` | `False` hides the link |
+| `chains` | built-in EVM chains | The networks it is offered on, from `chains=` (EVM only). Left out: the built-in EVM chains of a mainnet game, and none on testnet, where cards buy no test tokens; list chains to see the link while testing. Chains you added with `add_chain()` are only offered when listed |
+| `url` | thirdweb | Your own `https://` page, without spaces, at most 2048 characters. `{chain}` (the chain key), `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused |
+
+A mistake raises a `ConfigError` at startup with a code such as `onramp.unknown_option`,
+`onramp.bad_url`, `onramp.unknown_placeholder`, `onramp.disabled_chain` or `onramp.not_evm`.
+Solana isn't offered yet: thirdweb's page buys on EVM networks only.
 
 ## Your own RPC endpoints and chains
 

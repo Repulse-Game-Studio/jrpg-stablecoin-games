@@ -251,6 +251,43 @@ def test_desktop_branches(make_game):
     assert game.key("paste").count() == 0, "no Paste button on desktop (Ren'Py: web only)"
 
 
+def test_buy_link_on_the_method_step_opens_the_buy_page(make_game):
+    game = make_game()
+    game.js("() => scfgTest.desktop()")
+    game.setup()
+    game.pay()
+    assert game.key("onramp").count() == 0, "no link before a network is chosen"
+    game.key("network_arbitrum").click()
+    game.pass_()
+    game.wait_step("method")
+    url = game.view()["onramp"]
+    assert url.startswith("https://thirdweb.com/bridge/buy-widget?chain=42161&") and "&amount=5.00&" in url
+    assert game.key("onramp").inner_text() == "No USDC yet? Buy some with a card"
+    game.key("onramp").click()
+    game.frames(2)
+    assert game.js("() => scfgTest.opened") == [url], "nw.Shell.openExternal"
+    game.key("method_qr").click()
+    game.wait_step("qr")
+    assert game.key("onramp").count() == 0, "the method step showed it"
+
+
+def test_buy_link_moves_to_the_only_payment_page_and_follows_the_option(make_game):
+    game = make_game()
+    game.setup(config={"methods": {"browser": {"enabled": False}, "qr": {"enabled": False}}})
+    game.pay()
+    game.key("network_arbitrum").click()
+    game.pass_()
+    game.wait_step("manual")
+    assert game.key("onramp").is_visible()
+    game2 = make_game()
+    game2.setup(config={"onramp": {"enabled": False}})
+    game2.pay()
+    game2.key("network_arbitrum").click()
+    game2.pass_()
+    game2.wait_step("method")
+    assert game2.key("onramp").count() == 0
+
+
 def test_typing_a_hash_keeps_backspace_and_blocks_the_game(make_game):
     game = make_game()
     # a WASD plugin: the letters are the game's direction keys

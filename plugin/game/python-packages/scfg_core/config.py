@@ -300,7 +300,7 @@ def _onramp_url(value) -> str:
     for name in ONRAMP_PLACEHOLDER.findall(value):
         if name not in ONRAMP_FIELDS:
             raise ConfigError(f"onramp url: unknown placeholder {{{name}}} (use "
-                              + ", ".join("{%s}" % f for f in ONRAMP_FIELDS) + ")",
+                              + ", ".join(f"{{{f}}}" for f in ONRAMP_FIELDS) + ")",
                               code="onramp.unknown_placeholder")
     rest = ONRAMP_PLACEHOLDER.sub("", value)
     if "{" in rest or "}" in rest:

@@ -12,8 +12,8 @@
  *
  * The sheet reads only the CheckoutController's fields and getters and calls its methods; SCFG
  * polls it every frame. Buttons that leave the game go through SCFG (openBrowser, openWalletApp,
- * openExplorer, copy, pasteInto). `closed` resolves "cancel", "keep_playing" or "finish", Ren'Py's
- * _close_checkout hows.
+ * openExplorer, openOnramp, copy, pasteInto). `closed` resolves "cancel", "keep_playing" or
+ * "finish", Ren'Py's _close_checkout hows.
  *
  * Keyboard and gamepad (screen.ts): each step focuses its primary control (the selected option,
  * the forward button, the first Copy, Continue); cancel goes back, or closes as Cancel on the
@@ -64,7 +64,7 @@ export class PaymentSheet extends Screen {
   protected signature(): unknown[] {
     const c = this.ctl;
     return [c.step, c.state, c.error, c.canGoBack, c.hint_tx, c.confirmations, c.required, c.method, c.chain_key,
-      c.priceText, c.sessionId, c.browser_failed, c.chainOptions(), c.methods(), c.result?.tx_hash ?? null, c.message(),
+      c.priceText, c.sessionId, c.browser_failed, c.chainOptions(), c.methods(), c.result?.tx_hash ?? null, c.message(), c.showsOnramp,
       [...c.unready()].sort(), this.env.logo()];
   }
 
@@ -245,6 +245,17 @@ export class PaymentSheet extends Screen {
     const list = this.div("stack");
     for (const m of c.methods()) list.append(this.option(`method_${m}`, this.methodLabel(m), this.methodHint(m), c.method === m, () => c.chooseMethod(m)));
     body.append(list);
+    this.onrampLink(body);
+  }
+
+  /**
+   * "No USDC yet? Buy some with a card" (Ren'Py's scfg_onramp_link): the configure({onramp}) page
+   * for the chosen network. On the method step, or the payment page the sheet opens on when there
+   * is a single method (the controller's showsOnramp).
+   */
+  private onrampLink(body: HTMLElement): void {
+    const c = this.ctl;
+    if (c.showsOnramp) body.append(this.div("row", this.button("onramp", this.text("onramp_link", c.spec.token), "small", () => this.scfg.openOnramp(c))));
   }
 
   private stepBrowser(body: HTMLElement): void {
@@ -255,6 +266,7 @@ export class PaymentSheet extends Screen {
     if (this.web) note = solana ? this.text("solana_opens_here_note") : this.text("evm_opens_here_note");
     else note = solana ? this.text("solana_opens_browser_note") : this.text("evm_opens_browser_note");
     body.append(this.label(note), this.label(this.text("approve_in_wallet", this.amountLine(false), this.chainDisplay()), "muted"));
+    this.onrampLink(body);
   }
 
   private stepQr(body: HTMLElement): void {
@@ -287,6 +299,7 @@ export class PaymentSheet extends Screen {
       body.append(this.button("wallet_app", this.text("open_wallet_app"), "", () => this.scfg.openWalletApp(c)));
     }
     body.append(this.label(c.family === "solana" ? this.text("wallet_changes_amount") : this.text("wallet_changes_amount_manual"), "muted"));
+    this.onrampLink(body);
   }
 
   private stepManual(body: HTMLElement): void {
@@ -302,7 +315,13 @@ export class PaymentSheet extends Screen {
       const copy = this.button(`copy_${key}`, this.text("copy"), "small", () => this.scfg.copy(value.split(" ")[0]));
       body.append(this.div("stack tight", this.label(label, "label"), this.div("value-row", this.value(value, "mono grow", `value_${key}`), copy)));
     }
-    if (!c.config.methods["manual"]?.["allow_tx_paste"]) return;
+    if (c.config.methods["manual"]?.["allow_tx_paste"]) this.txPaste(body);
+    this.onrampLink(body);
+  }
+
+  /** The manual step's "Sent from an exchange? Paste the transaction hash:" field. */
+  private txPaste(body: HTMLElement): void {
+    const c = this.ctl;
     body.append(this.label(this.text("sent_from_exchange_paste", this.txWord()), "label"));
     const field = this.field("tx_input", c.tx_input, PASTE_MAX, TX_CHARS, (t) => {
       c.tx_input = t;

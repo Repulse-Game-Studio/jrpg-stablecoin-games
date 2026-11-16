@@ -5,8 +5,8 @@
  * twice. Booleans are "true" / "false", numbers and switch ids their digits, an unset value "".
  *
  * `parseParams` turns them into `configure()` options (the Python option names), the items, and
- * the plugin's own settings. The advanced options (chains, tokens, methods, rpcUrls,
- * confirmations, previousWallets, customChains: Ren'Py's chains, tokens, methods, rpc_urls,
+ * the plugin's own settings. The advanced options (chains, tokens, methods, onramp, rpcUrls,
+ * confirmations, previousWallets, customChains: Ren'Py's chains, tokens, methods, onramp, rpc_urls,
  * confirmations, previous_wallets and add_chain) are JSON text, as written in a `multiline_string`
  * (also accepted JSON-quoted, as a `note` stores it). A value it cannot read is a ConfigError
  * naming the parameter; boot reports it and leaves the plugin disabled (boot never throws). What the
@@ -30,6 +30,7 @@ export const PARAM = {
   chains: "chains",
   tokens: "tokens",
   methods: "methods",
+  onramp: "onramp",
   rpcUrls: "rpcUrls",
   confirmations: "confirmations",
   previousWallets: "previousWallets",
@@ -167,7 +168,7 @@ export function parseParams(raw: Record<string, unknown> | null | undefined): Pa
     const accent = str(p, PARAM.accent);
     if (accent !== "") configure["accent"] = accent;
     for (const [param, option] of [[PARAM.chains, "chains"], [PARAM.tokens, "tokens"], [PARAM.methods, "methods"],
-      [PARAM.rpcUrls, "rpc_urls"], [PARAM.confirmations, "confirmations"], [PARAM.previousWallets, "previous_wallets"]] as const) {
+      [PARAM.onramp, "onramp"], [PARAM.rpcUrls, "rpc_urls"], [PARAM.confirmations, "confirmations"], [PARAM.previousWallets, "previous_wallets"]] as const) {
       const v = jsonOption(p, param);
       if (v !== undefined) configure[option] = v;
     }

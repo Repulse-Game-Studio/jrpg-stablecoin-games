@@ -9,6 +9,16 @@ network's own coin for the fee: ETH on Ethereum, Arbitrum and Base, POL on Polyg
 Solana. On Arc the fee is paid in USDC itself, so USDC is all you need; keep a cent or so
 spare for it.
 
+## No USDC yet?
+
+Many games show a **No USDC yet? Buy some with a card** link once you have picked a network.
+It opens a page in your browser where you connect your wallet and buy the token on that
+network with a card. The company selling it checks your identity and takes a fee; which
+countries and cards it accepts is up to them. The USDC lands in your own wallet. Then come back to the game and pay as usual.
+
+Except on Arc, you also need a little of the network's own coin for the fee (ETH on Base,
+for example). Arc needs nothing else: buying USDC there is enough to pay.
+
 ## The steps
 
 The sheet shows one step at a time. Steps with only one choice are skipped. The ← arrow,

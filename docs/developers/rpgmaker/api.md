@@ -59,6 +59,7 @@ These take JSON text. Empty means the defaults.
 | **Chains** | `["base", "arbitrum"]`: only these networks |
 | **Tokens** | `["USDC"]`: only these tokens |
 | **Methods** | `{"manual": {"allow_tx_paste": false}}`: payment method options |
+| **Buy Link** | `{"enabled": false}`: hides the sheet's "No USDC yet? Buy some with a card" link. The link opens a buy page for the network the player picked, where they buy the token with a card into their own wallet and then pay as usual. It sits on the method step (or on the only payment page when there is one method). The default page is thirdweb's hosted Buy widget, locked to the network and token, with the payment rounded up to cents (plus a cent for the fee on Arc) as the suggested amount. Options: `enabled` (default `true`); `chains`, the networks it is offered on, like `["base", "arc"]` (EVM networks only; left out: the built-in EVM networks on mainnet and none on testnet, since cards don't buy test tokens); `url`, your own `https://` page, where `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in (no spaces, at most 2048 characters) |
 | **RPC URLs** | `{"base": ["https://..."]}`: your own RPC URLs per network |
 | **Confirmations** | `{"base": 12}`: blocks to wait before a payment counts, per EVM network (Solana's are fixed) |
 | **Previous Wallets** | `["0x..."]`: wallets you were paid to before, so Restore Purchases still finds those payments |
@@ -166,6 +167,7 @@ interface ConfigureOptions {
   solana_wallet?: string;
   testnet?: boolean;
   chains?: string[];  tokens?: string[];  methods?: object;
+  onramp?: { enabled?: boolean; url?: string; chains?: string[] };  // the Buy Link parameter
   rpc_urls?: Record<string, string[]>;
   confirmations?: Record<string, number>;
   previous_wallets?: string[];
@@ -322,8 +324,8 @@ engines. From least to most work:
    The handle's `closed` promise resolves once, when the player is done: `"cancel"`, `"keep_playing"` (only
    once a session exists) or `"finish"` (after a final state). Read the controller's fields and call its
    methods; never call `poll()` (the plugin does, every frame). Buttons that leave the game call the plugin's
-   actions: `SCFG.openBrowser(ctl)`, `SCFG.openWalletApp(ctl)`, `SCFG.openExplorer(url)`, `SCFG.copy(text)` and
-   `SCFG.pasteInto(ctl)`. A host that returns `null` shows nothing, and `pay()` resolves `failed` with the `error`
+   actions: `SCFG.openBrowser(ctl)`, `SCFG.openWalletApp(ctl)`, `SCFG.openExplorer(url)`, `SCFG.openOnramp(ctl)`
+   (the buy link, shown while `ctl.showsOnramp`), `SCFG.copy(text)` and `SCFG.pasteInto(ctl)`. A host that returns `null` shows nothing, and `pay()` resolves `failed` with the `error`
    `sheet.unavailable`.
    The controllers' fields are those of the core in `rpgmaker/src/core/checkout.ts`; `rpgmaker/src/mz/sheet_host.ts`
    holds the full contract.
@@ -440,6 +442,7 @@ The built-in English of every text. `%s` is where an argument goes.
 | `solana_opens_browser_note` | Opens a checkout page in your browser for Phantom, Solflare, Backpack and other wallet extensions. |
 | `evm_opens_here_note` | Opens your wallet right here, over the game: MetaMask, Rabby, Coinbase Wallet and other wallet extensions. |
 | `solana_opens_here_note` | Opens your wallet right here, over the game: Phantom, Solflare, Backpack and other wallet extensions. |
+| `onramp_link` | No %s yet? Buy some with a card |
 | `preparing_payment` | Preparing the payment... |
 | `qr_step_open` | 1. Open your wallet app |
 | `qr_step_scan` | 2. Scan the code |

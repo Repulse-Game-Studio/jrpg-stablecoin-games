@@ -85,6 +85,26 @@ func test_steps_follow_the_controller() -> bool:
 	return T.done()
 
 
+func test_the_buy_link_sits_on_the_method_step_and_opens_the_buy_page() -> bool:
+	var env := await UI.make("onramp")
+	var s: Node = env["node"]
+	var opened := await _open_unlock(s)
+	var sheet: Node = opened[1]
+	var ctl: ScfgCheckoutController = opened[2]
+	T.eq(sheet.control("onramp"), null, "not before a network is chosen")
+	await _to_method_step(s, sheet, "qr")
+	T.eq(sheet.control("onramp"), null, "not on a method's page the method step led to")
+	(sheet.control("back") as Button).pressed.emit()
+	await UI.frames(2)
+	var link: Button = sheet.control("onramp")
+	T.eq(link.text if link != null else null, "No USDC yet? Buy some with a card", "on the method step")
+	if link != null:
+		link.pressed.emit()
+	T.eq(env["platform"].opened, [ctl.onramp_url()], "opens the buy page")
+	await UI.drop(env)
+	return T.done()
+
+
 func test_back_arrow_hidden_once_tx_seen() -> bool:
 	var env := await UI.make("back")
 	var s: Node = env["node"]

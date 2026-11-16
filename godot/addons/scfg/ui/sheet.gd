@@ -260,6 +260,16 @@ func _step_method(body: VBoxContainer) -> void:
 	for m: String in ctl.methods():
 		list.add_child(option("method_" + m, _method_label(m), _method_hint(m), ctl.method == m, _choose_method.bind(m)))
 	body.add_child(list)
+	_onramp_link(body)
+
+
+## "No USDC yet? Buy some with a card": opens configure's onramp page for the chosen network. On
+## the method step, or on the payment page the sheet opens on when there is a single method
+## (ScfgCheckoutController.shows_onramp).
+func _onramp_link(body: VBoxContainer) -> void:
+	if controller.shows_onramp:
+		body.add_child(_small(button("onramp", tr("No %s yet? Buy some with a card") % controller.spec["token"], "ScfgSmall",
+			_open_onramp)))
 
 
 func _step_browser(body: VBoxContainer) -> void:
@@ -274,6 +284,7 @@ func _step_browser(body: VBoxContainer) -> void:
 	else:
 		body.add_child(label(tr("Opens a checkout page in your browser for MetaMask, Rabby, Coinbase Wallet and other wallet extensions.")))
 	body.add_child(label(tr("Approve %s on %s in your wallet.") % [_amount_line(false), _chain_display()], "ScfgMuted"))
+	_onramp_link(body)
 
 
 func _step_qr(body: VBoxContainer) -> void:
@@ -307,6 +318,7 @@ func _step_qr(body: VBoxContainer) -> void:
 		body.add_child(label(tr("If your wallet changes the amount, the game still finds the payment."), "ScfgMuted"))
 	else:
 		body.add_child(label(tr("If your wallet changes the amount, use Manual transfer and paste the transaction hash."), "ScfgMuted"))
+	_onramp_link(body)
 
 
 func _step_manual(body: VBoxContainer) -> void:
@@ -344,6 +356,7 @@ func _step_manual(body: VBoxContainer) -> void:
 		row.add_child(fixed_width(button("check", tr("Check"), "ScfgSmall", _submit_hash, "tx"), 90))
 		body.add_child(row)
 		_synced["tx_input"] = ctl.tx_input
+	_onramp_link(body)
 
 
 func _step_waiting(body: VBoxContainer) -> void:
@@ -611,6 +624,11 @@ func _open_wallet_app() -> void:
 func _open_explorer(url: Variant) -> void:
 	if scfg != null:
 		scfg.open_explorer(url)
+
+
+func _open_onramp() -> void:
+	if scfg != null:
+		scfg.open_onramp(controller)
 
 
 func _copy(text: String) -> void:
