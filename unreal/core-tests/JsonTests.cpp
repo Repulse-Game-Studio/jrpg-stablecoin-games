@@ -152,8 +152,34 @@ SCFG_TEST(JsonTests, LoneSurrogatesSurviveAsWtf8) {
     SCFG_CHECK_EQ(t, scfg::py::len(L(t, "\"\\ude00\\ud83d\"").as_str()), 2);
     SCFG_CHECK_EQ(t, D(L(t, "\"\\ud83d\\u0041\"")), "\"\\ud83dA\"");
     SCFG_CHECK_EQ(t, D(L(t, "\"\\ud83d\\ud83d\\ude00\"")), "\"\\ud83d\\ud83d\\ude00\"");
-    // raw WTF-8 surrogate bytes in the input are read as Python's surrogatepass decoding reads them
-    SCFG_CHECK_EQ(t, D(L(t, "\"\xED\xB0\x80\"")), "\"\\udc00\"");
+}
+
+SCFG_TEST(JsonTests, EncodedSurrogatesOnlyInAlreadyDecodedText) {
+    // Network bytes (rpc.py: json_loads(raw.decode("utf-8")), strict): an encoded surrogate is a UnicodeDecodeError.
+    SCFG_CHECK_EQ(t, loads_error("\"\xED\xB0\x80\""), "'utf-8' codec can't decode byte 0xed in position 1: invalid continuation byte");
+    SCFG_CHECK_EQ(t, loads_error("\"\xED\xA0\xBD\xED\xB8\x80\""),  // CESU-8 for U+1F600
+                  "'utf-8' codec can't decode byte 0xed in position 1: invalid continuation byte");
+    SCFG_CHECK_EQ(t, loads_error("[1, \"\xC3\xA9\xED\xA0\x80\"]"),
+                  "'utf-8' codec can't decode byte 0xed in position 7: invalid continuation byte");
+    // A str (coio.py's envelope["body"]) may hold lone surrogates, WTF-8 here: loads_text keeps each as one code point.
+    scfg::Result<Json> low = json::loads_text("\"\xED\xB0\x80\"");
+    SCFG_CHECK(t, low.ok() && D(low.value()) == "\"\\udc00\"");
+    scfg::Result<Json> cesu = json::loads_text("\"\xED\xA0\xBD\xED\xB8\x80\"");
+    SCFG_CHECK(t, cesu.ok() && scfg::py::len(cesu.value().as_str()) == 2);
+    if (cesu.ok()) SCFG_CHECK_EQ(t, D(cesu.value()), "\"\\ud83d\\ude00\"");
+    // What dumps writes with ensure_ascii=False reads back through loads_text, not loads.
+    std::string body = json::dumps(Json::dict({{"s", Json("\xED\xA0\x80")}}), {.ensure_ascii = false});
+    SCFG_CHECK(t, json::loads_text(body).ok() && !json::loads(body).ok());
+    // Escapes decode to WTF-8 in both, and other invalid UTF-8 is refused by both, with the same message.
+    SCFG_CHECK_EQ(t, json::loads("\"\\ud800\"").value().as_str(), "\xED\xA0\x80");
+    SCFG_CHECK_EQ(t, json::loads_text("\"\\ud800\"").value().as_str(), "\xED\xA0\x80");
+    for (std::string bad : {"\"\xFF\"", "\"\xC3(\"", "\"\xE2\x82", "\"\xED\xA0\"", "\"\xF0\x9F\x98\""}) {
+        scfg::Result<Json> a = json::loads(bad), b = json::loads_text(bad);
+        if (t.check(!a.ok() && !b.ok(), "accepted invalid UTF-8"))
+            SCFG_CHECK_EQ(t, b.err().message, a.err().message);
+    }
+    // Text after the encoded surrogate is still parsed (positions count it as one character).
+    SCFG_CHECK_EQ(t, json::loads_text("[\"\xED\xA0\x80\", x]").err().message, "Expecting value: line 1 column 7 (char 6)");
 }
 
 SCFG_TEST(JsonTests, ErrorMessagesAreJsonDecodeErrors) {

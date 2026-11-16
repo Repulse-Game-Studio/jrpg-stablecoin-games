@@ -172,15 +172,24 @@ namespace json {
 // (1000); here deeper nesting is a ValueError rather than a stack overflow.
 inline constexpr size_t MAX_DEPTH = 1000;
 
-// json.loads(text) as ints.json_loads calls it (integer literals through ints.int_from), on UTF-8 text:
+// json_loads(raw.decode("utf-8")) as rpc.py reads a node's answer (integer literals through ints.int_from):
+// - the bytes must be strict UTF-8: invalid UTF-8, an encoded surrogate (ED A0..BF xx, CESU-8/WTF-8) included, is a
+//   ValueError with the strict decoder's UnicodeDecodeError message ("... byte 0xed in position 1: invalid
+//   continuation byte"), which rpc.py turns into TransportError("invalid JSON response");
 // - an integer literal stays an int (int64, or BigInt beyond); one of more than 4300 digits is a ValueError;
 // - a fraction or an exponent makes a float (1e400 is inf, as float() makes it);
 // - NaN, Infinity and -Infinity are read, as CPython reads them;
-// - malformed text, trailing data, a BOM and invalid UTF-8 are ValueErrors with Python's messages
-//   (JSONDecodeError's "msg: line L column C (char N)", counted in code points; UnicodeDecodeError's for bytes).
-//   WTF-8 surrogates in the text are accepted, as json.loads(bytes) decodes with surrogatepass.
-// Not done: json.loads(bytes)'s UTF-16 and UTF-32 detection (the text must be UTF-8).
+// - malformed text, trailing data and a BOM are ValueErrors with JSONDecodeError's message ("msg: line L column C
+//   (char N)", counted in code points; a BOM is "Unexpected UTF-8 BOM", as for a str);
+// - a JSON \ud800 escape decodes to WTF-8 (a lone surrogate is kept, as in a Python str).
+// Use it for bytes from the network (an RPC response body).
 Result<Json> loads(std::string_view text);
+
+// json.loads(s) of text that is already a Python str, which may hold lone surrogates (kept here as WTF-8): the same
+// as loads, except that encoded surrogates (ED A0..BF xx) are accepted, each as one code point. Other invalid UTF-8
+// is still a ValueError. Use it for text the core's own JSON produced or that arrived as a str, such as coio.py's
+// envelope["body"].
+Result<Json> loads_text(std::string_view text);
 
 struct DumpOptions {
     bool sort_keys = false;

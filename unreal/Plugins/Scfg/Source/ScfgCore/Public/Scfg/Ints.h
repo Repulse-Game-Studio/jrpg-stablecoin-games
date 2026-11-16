@@ -32,7 +32,8 @@ Result<BigInt> int_from(const Json& value);
 Result<std::optional<int64_t>> digit_run_value(std::string_view run);
 
 // json.loads(text), its integer literals read with int_from: one of more than INT_MAX_STR_DIGITS digits is a
-// ValueError. Fractions and exponents are floats, as json makes them. This is json::loads.
+// ValueError. Fractions and exponents are floats, as json makes them. This is json::loads (strict UTF-8; for text
+// that is already a str, json::loads_text).
 Result<Json> json_loads(std::string_view text);
 
 namespace detail {

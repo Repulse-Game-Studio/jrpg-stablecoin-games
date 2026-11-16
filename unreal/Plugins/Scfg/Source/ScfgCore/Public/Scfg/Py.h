@@ -33,10 +33,13 @@ void utf8_encode(uint32_t cp, std::string& out);
 std::string utf8_encode(uint32_t cp);
 // Every code point of s, in order (utf8_decode's).
 std::vector<uint32_t> code_points(std::string_view s);
-// OK when s is well-formed UTF-8 with surrogates allowed (Python's decode("utf-8", "surrogatepass")); otherwise
-// the ValueError Python's UnicodeDecodeError carries ("'utf-8' codec can't decode byte 0xff in position 3:
-// invalid start byte").
+// OK when s is well-formed UTF-8 (Python's strict b.decode("utf-8")): an encoded surrogate (ED A0..BF xx) is an
+// error too. Otherwise the ValueError Python's UnicodeDecodeError carries ("'utf-8' codec can't decode byte 0xff
+// in position 3: invalid start byte"; ED A0 is "byte 0xed ...: invalid continuation byte").
 Status utf8_check(std::string_view s);
+// The same with surrogates allowed (WTF-8; Python's decode("utf-8", "surrogatepass")): for text that is already a
+// Python str, which may hold lone surrogates.
+Status wtf8_check(std::string_view s);
 // s.encode("utf-8"): the bytes of s; a lone surrogate is a ValueError (UnicodeEncodeError's message).
 Result<std::vector<uint8_t>> utf8_bytes(std::string_view s);
 

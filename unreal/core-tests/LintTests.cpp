@@ -141,8 +141,7 @@ static const std::vector<Rule>& anonymous_rules() {
 
 // Ruling R3: the only files exempt from a rule, and the one thing each needs.
 static const std::vector<lint::Waiver> kWaivers = {
-    {"PyFloat.cpp", "printf"},      {"PyFloat.cpp", "strto*"},      {"PyFloat.cpp", "localeconv"},
-    {"PyFloat.cpp", "<locale>, <clocale>, <locale.h>"},             {"PyFloat.cpp", "<cstdio>, <stdio.h>"},
+    {"PyFloat.cpp", "printf"},      {"PyFloat.cpp", "strto*"},      {"PyFloat.cpp", "<cstdio>, <stdio.h>"},
     {"Err.cpp", "puts"},            {"Err.cpp", "<cstdio>, <stdio.h>"},
     {"Entropy.cpp", "<random>"},    {"Entropy.cpp", "random_device"},
     {"Rpc.cpp", "steady_clock"},    {"Rpc.cpp", "<chrono>"},

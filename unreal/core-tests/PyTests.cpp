@@ -95,8 +95,14 @@ SCFG_TEST(PyTests, Utf8Helpers) {
     i = 0;
     SCFG_CHECK_EQ(t, py::utf8_decode("\xFF", i), py::REPLACEMENT);  // an invalid byte is U+FFFD, one byte wide
     SCFG_CHECK_EQ(t, i, 1);
-    SCFG_CHECK(t, py::utf8_check("ok \xC3\xA9 \xED\xA0\x80").ok());
-    SCFG_CHECK(t, !py::utf8_check("\xC3").ok());
+    SCFG_CHECK(t, py::utf8_check("ok \xC3\xA9 \xF0\x9F\x98\x80").ok());
+    SCFG_CHECK(t, py::wtf8_check("ok \xC3\xA9 \xED\xA0\x80").ok());
+    // strict UTF-8 refuses an encoded surrogate as CPython's decoder does (at its second byte)
+    scfg::Status strict = py::utf8_check("ok \xED\xA0\x80");
+    SCFG_CHECK(t, !strict.ok() && strict.err().message ==
+                                      "'utf-8' codec can't decode byte 0xed in position 3: invalid continuation byte");
+    SCFG_CHECK(t, py::utf8_check("\xED\x9F\xBF").ok());  // U+D7FF, just below the surrogates
+    SCFG_CHECK(t, !py::utf8_check("\xC3").ok() && !py::wtf8_check("\xC3").ok());
     // s.encode("utf-8"): a lone surrogate is a ValueError (UnicodeEncodeError)
     scfg::Result<std::vector<uint8_t>> b = py::utf8_bytes("\xE2\x82\xAC");
     SCFG_CHECK(t, b.ok() && b.value() == std::vector<uint8_t>({0xe2, 0x82, 0xac}));

@@ -248,6 +248,41 @@ bool ascii_digits(std::string_view s) {
     return true;
 }
 
+Status check_utf8(std::string_view s, bool surrogates) {
+    for (size_t i = 0; i < s.size();) {
+        size_t n = sequence_length(s, i);
+        // sequence_length allows a surrogate (ED A0..BF xx); the strict decoder refuses it at its second byte.
+        if (n == 3 && !surrogates && byte_at(s, i) == 0xED && byte_at(s, i + 1) >= 0xA0) n = 0;
+        if (n != 0) {
+            i += n;
+            continue;
+        }
+        // CPython's UTF-8 decoder: the error covers the start byte and the valid prefix after it.
+        uint8_t b0 = byte_at(s, i);
+        const char* reason = "invalid start byte";
+        size_t k = 1;
+        if ((b0 >= 0xC2 && b0 <= 0xF4)) {
+            size_t need = b0 <= 0xDF ? 2 : b0 <= 0xEF ? 3 : 4;
+            uint8_t lo = b0 == 0xE0 ? 0xA0 : b0 == 0xF0 ? 0x90 : 0x80;
+            uint8_t hi = b0 == 0xED ? 0x9F : b0 == 0xF4 ? 0x8F : 0xBF;  // strict: ED A0..BF is a surrogate
+            reason = "invalid continuation byte";
+            for (; k < need; ++k) {
+                if (i + k >= s.size()) {
+                    reason = "unexpected end of data";
+                    break;
+                }
+                uint8_t b = byte_at(s, i + k);
+                if (b < (k == 1 ? lo : 0x80) || b > (k == 1 ? hi : 0xBF)) break;
+            }
+        }
+        std::string where = k == 1 ? "byte 0x" + std::string{kLowerHex[b0 >> 4], kLowerHex[b0 & 15]} +
+                                         " in position " + dec(i)
+                                   : "bytes in position " + dec(i) + "-" + dec(i + k - 1);
+        return Err::value_error("'utf-8' codec can't decode " + where + ": " + reason);
+    }
+    return ok();
+}
+
 }  // namespace scfg::py::detail
 
 namespace scfg::py {
@@ -306,38 +341,9 @@ std::vector<uint32_t> code_points(std::string_view s) {
     return out;
 }
 
-Status utf8_check(std::string_view s) {
-    for (size_t i = 0; i < s.size();) {
-        size_t n = detail::sequence_length(s, i);
-        if (n != 0) {
-            i += n;
-            continue;
-        }
-        // CPython's UTF-8 decoder: the error covers the start byte and the valid prefix after it.
-        uint8_t b0 = detail::byte_at(s, i);
-        const char* reason = "invalid start byte";
-        size_t k = 1;
-        if ((b0 >= 0xC2 && b0 <= 0xF4)) {
-            size_t need = b0 <= 0xDF ? 2 : b0 <= 0xEF ? 3 : 4;
-            uint8_t lo = b0 == 0xE0 ? 0xA0 : b0 == 0xF0 ? 0x90 : 0x80;
-            uint8_t hi = b0 == 0xED ? 0x9F : b0 == 0xF4 ? 0x8F : 0xBF;  // strict: ED A0..BF is a surrogate
-            reason = "invalid continuation byte";
-            for (; k < need; ++k) {
-                if (i + k >= s.size()) {
-                    reason = "unexpected end of data";
-                    break;
-                }
-                uint8_t b = detail::byte_at(s, i + k);
-                if (b < (k == 1 ? lo : 0x80) || b > (k == 1 ? hi : 0xBF)) break;
-            }
-        }
-        std::string where = k == 1 ? "byte 0x" + std::string{detail::kLowerHex[b0 >> 4], detail::kLowerHex[b0 & 15]} +
-                                         " in position " + detail::dec(i)
-                                   : "bytes in position " + detail::dec(i) + "-" + detail::dec(i + k - 1);
-        return Err::value_error("'utf-8' codec can't decode " + where + ": " + reason);
-    }
-    return ok();
-}
+Status utf8_check(std::string_view s) { return detail::check_utf8(s, false); }
+
+Status wtf8_check(std::string_view s) { return detail::check_utf8(s, true); }
 
 Result<std::vector<uint8_t>> utf8_bytes(std::string_view s) {
     std::vector<uint8_t> out;

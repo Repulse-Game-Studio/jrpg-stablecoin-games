@@ -87,10 +87,10 @@ int32_t hex4(std::string_view s, size_t p) {
 
 class Reader {
 public:
-    explicit Reader(std::string_view s) : s_(s) {}
+    Reader(std::string_view s, bool surrogates) : s_(s), surrogates_(surrogates) {}
 
     Result<Json> document() {
-        SCFG_TRY_VOID(py::utf8_check(s_));
+        SCFG_TRY_VOID(surrogates_ ? py::wtf8_check(s_) : py::utf8_check(s_));
         if (s_.substr(0, 3) == "\xEF\xBB\xBF") return error("Unexpected UTF-8 BOM (decode using utf-8-sig)", 0);
         skip_ws();
         SCFG_TRY(Json v, value());
@@ -101,6 +101,7 @@ public:
 
 private:
     std::string_view s_;
+    bool surrogates_;
     size_t i_ = 0;
     size_t depth_ = 0;
 
@@ -627,7 +628,9 @@ Json deep_copy(const Json& v) {
 
 namespace json {
 
-Result<Json> loads(std::string_view text) { return json_detail::Reader(text).document(); }
+Result<Json> loads(std::string_view text) { return json_detail::Reader(text, false).document(); }
+
+Result<Json> loads_text(std::string_view text) { return json_detail::Reader(text, true).document(); }
 
 std::string dumps(const Json& v, const DumpOptions& opts) {
     json_detail::Writer w(opts);
