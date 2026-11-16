@@ -13,9 +13,70 @@ namespace Scfg.Core.Tests
 
         private sealed class Scripted : IEntropy
         {
-            public string TokenHex(int n) => new string('a', 2 * n);
-            public long RandBelow(long n) => 42;
-            public byte[] TokenBytes(int n) => new byte[n];
+            public readonly List<string> Log = new List<string>();
+            public string TokenHex(int n) { Log.Add("token_hex " + n); return new string('a', 2 * n); }
+            public long RandBelow(long n) { Log.Add("randbelow " + n); return 42; }
+            public byte[] TokenBytes(int n) { Log.Add("token_bytes " + n); return new byte[n]; }
+        }
+
+        private static JsonObject Create(string kind, object? price, long? nonce, Scripted e, JsonObject? extra = null) =>
+            Sessions.CreateSession(new JsonObject(), kind, null, "t", "USDC", "base", price, 2, 100, 1000L, nonce, extra, e);
+
+        [Test]
+        public void CreateSessionDrawOrder()
+        {
+            var e = new Scripted();
+            Create("unlock", "4.99", null, e);
+            Assert.That(e.Log, Is.EqualTo(new[] { "randbelow 100", "token_hex 8" }));
+
+            e = new Scripted();
+            Create("unlock", "4.99", 7, e);
+            Assert.That(e.Log, Is.EqualTo(new[] { "token_hex 8" }));
+
+            e = new Scripted();
+            Assert.Throws<ValueError>(() => Create("refund", "4.99", null, e));
+            Assert.That(e.Log, Is.Empty);
+
+            e = new Scripted();
+            Assert.Throws<ValueError>(() => Create("unlock", "abc", null, e));
+            Assert.That(e.Log, Is.EqualTo(new[] { "randbelow 100" })); // Python draws the nonce before parsing the price
+        }
+
+        private static JsonObject Store(params object?[] createdAt)
+        {
+            var s = new JsonObject();
+            for (int i = 0; i < createdAt.Length; i++)
+                s["k" + i] = new JsonObject { { "id", (long)i }, { "created_at", createdAt[i] } };
+            return s;
+        }
+
+        private static string Order(params object?[] createdAt)
+        {
+            var ids = new List<string>();
+            foreach (var r in Sessions.ListSessions(Store(createdAt))) ids.Add(r["id"]!.ToString()!);
+            return string.Join(",", ids);
+        }
+
+        // Expected values from scfg_core.sessions.list_sessions run under CPython.
+        [Test]
+        public void ListSessionsOrdersAsPythonSorted()
+        {
+            Assert.That(Order("x"), Is.EqualTo("0"));             // a lone record is never compared
+            Assert.That(Order((object?)null), Is.EqualTo("0"));
+            Assert.That(Order("b", "a"), Is.EqualTo("1,0"));      // strings order by code point
+            Assert.That(Order(2L, 1.5), Is.EqualTo("1,0"));       // int vs float
+            Assert.That(Order(true, 0L), Is.EqualTo("1,0"));      // bool vs int
+            Assert.That(Order(true, 1L, 0.5), Is.EqualTo("2,0,1"));
+            Assert.That(Order(1L, 1.0, 1L), Is.EqualTo("0,1,2")); // stable
+        }
+
+        [Test]
+        public void ListSessionsRaisesPythonTypeError()
+        {
+            Assert.Throws<TypeError>(() => Order("x", 1L));
+            Assert.Throws<TypeError>(() => Order(1L, "x"));
+            Assert.Throws<TypeError>(() => Order(1L, 2L, "x"));
+            Assert.Throws<TypeError>(() => Order(null, null));
         }
 
         [Test]

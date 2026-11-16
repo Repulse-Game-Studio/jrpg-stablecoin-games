@@ -148,21 +148,43 @@ namespace Scfg.Core
             }
         }
 
+        private static bool IsNumber(object? v) => v is bool || v is long || v is int || v is double || v is BigInteger;
+
+        private static double ToNumber(object? v) => v is bool b ? (b ? 1 : 0) : v is long l ? l : v is int i ? i : v is BigInteger bi ? (double)bi : (double)v!;
+
         /// <summary>Oldest first (a stable sort, like Python's <c>sorted</c>; one record is never compared).</summary>
         public static List<JsonObject> ListSessions(JsonObject store)
         {
-            var items = new List<(JsonObject Rec, int Index)>();
+            var items = new List<(JsonObject Rec, object? Key, int Index)>();
             int n = 0;
             foreach (var kv in store)
             {
-                // Python's key=lambda r: r["created_at"] reads every record: a non-dict one is a TypeError
-                Py.Get(kv.Value, "created_at");
-                items.Add(((JsonObject)kv.Value!, n++));
+                // Python's key=lambda r: r["created_at"] reads every record: a non-dict one is a KeyError/TypeError
+                var key = Py.Get(kv.Value, "created_at");
+                items.Add(((JsonObject)kv.Value!, key, n++));
+            }
+            // Python orders numbers (bool, int, float) among themselves and strings among themselves, and raises
+            // TypeError for anything else. With two or more records some comparison across a mixed pair must happen
+            // (any sort has to connect them), so validate up front; a lone record is never compared. Doing it here
+            // also keeps exceptions out of List.Sort's comparer, which would wrap them.
+            for (int i = 1; i < items.Count; i++)
+            {
+                var a = items[i].Key;
+                var b = items[i - 1].Key;
+                if (!(IsNumber(a) && IsNumber(b)) && !(a is string && b is string))
+                    throw new TypeError("'<' not supported between instances of '" + Py.TypeName(a) + "' and '" + Py.TypeName(b) + "'");
             }
             items.Sort((a, b) =>
             {
-                double x = NumField(a.Rec, "created_at"), y = NumField(b.Rec, "created_at");
-                return x < y ? -1 : x > y ? 1 : a.Index < b.Index ? -1 : 1;
+                int c;
+                if (a.Key is string sa) c = Py.CompareCodePoints(sa, (string)b.Key!);
+                else
+                {
+                    var x = ToNumber(a.Key);
+                    var y = ToNumber(b.Key);
+                    c = x < y ? -1 : x > y ? 1 : 0;
+                }
+                return c != 0 ? c : (a.Index < b.Index ? -1 : 1);
             });
             var result = new List<JsonObject>(items.Count);
             foreach (var it in items) result.Add(it.Rec);
