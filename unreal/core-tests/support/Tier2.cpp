@@ -324,11 +324,12 @@ namespace scfg_test::tier2 {
 
 // ---- what is ported ----
 
-std::vector<std::string> ported_prefixes() { return {"smoke/", "evm/", "config/", "custom_chains/", "rpc/"}; }
+std::vector<std::string> ported_prefixes() {
+    return {"smoke/", "evm/", "config/", "custom_chains/", "rpc/", "solana/"};
+}
 
 std::vector<PendingId> pending_ids() {
     return {
-        {"config/rpc_and_confirmation_overrides", "starts and steps Solana sessions (task 12)"},
         {"custom_chains/pay_restore_reverify", "restore_lookup and reverify (task 13)"},
         {"custom_chains/removed_chain_receipt_kept", "reverify (task 13)"},
         {"evm/arc_large_restore", "restore_lookup, restore_apply and reverify (task 13)"},
@@ -336,9 +337,30 @@ std::vector<PendingId> pending_ids() {
         {"evm/config_overrides_and_full_registry", "reverify (task 13)"},
         {"evm/restore_through_engine", "restore_lookup and restore_apply (task 13)"},
         {"evm/reverify_accepted_wallets", "reverify (task 13)"},
-        {"evm/unwatchable_session_closes_at_horizon", "reverify (task 13), whose readiness check reaches Solana (task 12)"},
-        {"smoke/solana_unlock_paid", "a Solana session (task 12)"},
+        {"evm/unwatchable_session_closes_at_horizon", "reverify of a stored receipt (task 13)"},
+        {"solana/history_covering_endpoint_drops", "reverify of stored receipts (task 13)"},
+        {"solana/history_endpoints_fail", "reverify of stored receipts and restore_lookup (task 13)"},
+        {"solana/history_found_on_second_endpoint", "reverify of a stored receipt (task 13)"},
+        {"solana/history_pruned_endpoints_keep", "reverify of a stored receipt (task 13)"},
+        {"solana/paid_by_reference", "reverify of the receipt it stored, and restore_lookup (task 13)"},
+        {"solana/restore_lookup", "restore_lookup and restore_apply (task 13)"},
+        {"solana/restore_too_large_to_decode_is_skipped", "restore_lookup (task 13)"},
+        {"solana/reverify_outage_and_future_slot", "reverify of stored receipts (task 13)"},
+        {"solana/reverify_receipts", "reverify of stored receipts (task 13)"},
+        {"solana/reverify_unreadable_transactions", "reverify of stored receipts (task 13)"},
+        {"solana/tx_version_named_by_node", "reverify of the receipt it stored (task 13)"},
     };
+}
+
+std::optional<std::string> deferred_problem(const ReplayTransport& transport, const Json& calls, bool suspended) {
+    if (transport.mode() != ReplayMode::Deferred) return std::nullopt;
+    if (transport.queued() != 0) {
+        return std::to_string(transport.queued()) + " request(s) left queued after the action finished (deferred mode)";
+    }
+    if (calls.is_list() && !calls.as_list().empty() && !suspended) {
+        return std::string("the step's requests were answered, yet the action never suspended (deferred mode)");
+    }
+    return std::nullopt;
 }
 
 bool ported(std::string_view id) {
@@ -791,9 +813,7 @@ std::optional<std::string> replay(const Json& vector, ReplayTransport& transport
         for (const std::string& p : entropy.problems) problems.push_back(p);
         for (std::string& p : entropy.leftover()) problems.push_back(std::move(p));
         if (!problems.empty()) return where + ": " + detail::join(problems, "; ");
-        if (transport.mode() == ReplayMode::Deferred && calls.is_list() && !calls.as_list().empty() && !got.suspended) {
-            return where + ": the step's requests were answered, yet the action never suspended (deferred mode)";
-        }
+        if (std::optional<std::string> d = deferred_problem(transport, calls, got.suspended)) return where + ": " + *d;
         if (got.failure) return where + ": " + *got.failure;
         if (bad_error) return where + ": on_error got an Err that no contained Python exception stands for: " + *bad_error;
         const Json recorded_raises = step.as_dict().get("raises");

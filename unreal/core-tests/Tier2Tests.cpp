@@ -207,33 +207,52 @@ SCFG_TEST(Tier2Tests, OnlyPythonExceptionsStandForOther) {
     }
 }
 
-// A stub (reverify is one until task 13) raising where the vector recorded "other" fails the step.
+// A stub (reverify of a stored receipt is one until task 13) raising where the vector recorded "other" fails the step.
 SCFG_TEST(Tier2Tests, AStubNeverSatisfiesARecordedOther) {
-    Json v = one_step(smoke_setup(), plain_step("reverify", Json::dict(), Json::dict({{"type", "other"}})));
+    Json setup = smoke_setup();
+    setup.as_dict().set("receipts", Json::dict({{"k", Json::dict()}}));  // an empty store is answered, as Python does
+    Json v = one_step(setup, plain_step("reverify", Json::dict(), Json::dict({{"type", "other"}})));
     std::optional<std::string> diff = tier2::replay(v);
     t.check(contains(diff, "step 0 (reverify): raised an Err that no recorded raise stands for: NotImplementedError"),
             shown(diff));
 }
 
-// A stub reached while stepping a session (Solana's advance until task 12) is contained by the Engine, but the
-// runner refuses to count it as a recorded internal error.
-SCFG_TEST(Tier2Tests, AContainedStubFailsTheStep) {
-    Json setup = smoke_setup();
-    setup.as_dict().find("config")->as_dict().set("solana_wallet", "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU");
-    setup.as_dict().find("config")->as_dict().set("chains", Json::list({"base", "solana"}));
-    Json rec = Json::dict({{"id", "ps_x"}, {"chain", "solana"}, {"state", "awaiting"}, {"ui_status", "cancelled"},
-                           {"created_at", 1700000000}, {"hint_tx", Json()}});
-    setup.as_dict().set("pending", Json::dict({{"ps_x", rec}}));
-    Json snapshot = empty_snapshot();
-    snapshot.as_dict().set("pending", Json::dict({{"ps_x", scfg::deep_copy(rec)}}));
-    Json s = plain_step("tick", Json::dict(), Json(), 1, snapshot);
-    s.as_dict().set("returns", Json::list({Json::dict({{"session_id", "ps_x"}, {"status", "waiting"}, {"confirmations", 0},
-                                                       {"required", 0}, {"result", Json()}, {"error", "internal_error"},
-                                                       {"hint_tx", Json()}})}));
-    std::optional<std::string> diff = tier2::replay(one_step(setup, s));
-    t.check(contains(diff, "step 0 (tick): on_error got an Err that no contained Python exception stands for: "
-                           "NotImplementedError"),
-            shown(diff));
+// What the Engine contains (a step's crash, a readiness check's) must be an exception Python would have contained
+// too: not a stub's NotImplementedError, the Godot-only HostGone or a CancelledError (which Python never contains).
+// No stub is reached while stepping a session any more (Solana's advance was one until task 12), so this checks the
+// rule on_error's check applies.
+SCFG_TEST(Tier2Tests, OnlyAPythonExceptionStandsForAContainedError) {
+    for (const char* kind : {"KeyError", "TypeError", "ValueError", "AttributeError", "OverflowError", "RestoreError",
+                             "ConfigError", "InvalidOperation"}) {
+        t.check(tier2::stands_for_python(Err::make(kind, "x")), std::string(kind) + " stands for Python's");
+    }
+    for (const char* kind : {"NotImplementedError", "HostGone", "CancelledError"}) {
+        t.check(!tier2::stands_for_python(Err::make(kind, "x")), std::string(kind) + " stands for nothing of Python's");
+    }
+}
+
+// Deferred mode's own checks: a networked step that never suspended, and a request left in the queue, each fail it.
+SCFG_TEST(Tier2Tests, DeferredModeFailsAStepThatNeverSuspendedOrLeftARequestQueued) {
+    Json call = Json::dict({{"url", "https://x.example"}, {"method", "getSlot"}, {"params", Json::list()},
+                            {"response_text", "{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": 7}"}});
+    Json calls = Json::list({call});
+    tier2::ReplayTransport immediate;
+    t.check(!tier2::deferred_problem(immediate, calls, false).has_value(), "immediate mode has no such checks");
+    tier2::ReplayTransport deferred(tier2::ReplayMode::Deferred);
+    deferred.load(calls);
+    t.check(!tier2::deferred_problem(deferred, calls, true).has_value(), "a step that suspended and drained passes");
+    t.check(!tier2::deferred_problem(deferred, Json::list(), false).has_value(), "a step with no calls need not suspend");
+    std::optional<std::string> never = tier2::deferred_problem(deferred, calls, false);
+    t.check(contains(never, "the step's requests were answered, yet the action never suspended (deferred mode)"),
+            shown(never));
+    scfg::Future<Json> unanswered =
+        deferred.post_json("https://x.example", Json::dict({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "getSlot"},
+                                                           {"params", Json::list()}}), 10);
+    t.check(deferred.problems.empty() && deferred.queued() == 1, "one request queued");
+    std::optional<std::string> queued = tier2::deferred_problem(deferred, calls, true);
+    t.check(contains(queued, "1 request(s) left queued after the action finished (deferred mode)"), shown(queued));
+    t.check(deferred.pump_one(), "answered");
+    t.check(!tier2::deferred_problem(deferred, calls, true).has_value(), "nothing queued any more");
 }
 
 // Python's set_ui_status and discard_session look the sid up (`sid in pending`, pending.get(sid)): a sid that is not

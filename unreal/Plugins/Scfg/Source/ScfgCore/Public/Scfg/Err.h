@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -58,8 +59,14 @@ struct Err {
 namespace errors {
 
 // The default `on_error`: a crash the core contained (one session's step, one stored receipt, one restore
-// candidate) is printed to stderr and the work goes on.
+// candidate) is printed and the work goes on: its line ("scfg: contained error: <str()>", no newline) goes to the
+// print sink, or to stderr while none is set.
 void print_error(const Err& e);
+
+// Where print_error's lines go instead of stderr (a host's log, a test's capture); an empty one restores stderr.
+// Returns the sink it replaces. Single-threaded, as the core is.
+using PrintSink = std::function<void(std::string_view line)>;
+PrintSink set_print_sink(PrintSink sink);
 
 // Programming errors reported so far (an unknown kind given to Err::make or Err::is_a), oldest first.
 std::vector<std::string>& misuse();

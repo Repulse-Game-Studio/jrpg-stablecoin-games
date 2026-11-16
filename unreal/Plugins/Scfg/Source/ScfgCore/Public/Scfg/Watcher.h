@@ -11,8 +11,7 @@
 // network outage never corrupts a session. Stored records are loosely typed, as in Python: a field is read with
 // Python's rec["..."] (a KeyError or TypeError for a malformed record, which the Engine contains per session),
 // compared and subtracted with Python's number rules (py::compare, py::sub), and a value Python only carries along
-// (kind, item, token, id, a match's payer) is carried as it is. Port limit: a match whose value is not an int is a
-// TypeError where Python's Decimal() would read a str or a float.
+// (kind, item, token, id, a match's payer) is carried as it is.
 #pragma once
 
 #include "Scfg/BigInt.h"
@@ -54,6 +53,11 @@ struct StepOutcome {
 // The least an unlock must pay: its item's min_price when the game still sells the item, else the session's own
 // price (stored_amount of rec["price"]); a tip's least is one base unit, Decimal("0.000001").
 Result<Dec> min_amount(const Json& rec, const OrderedMap<models::Item>& items);
+
+// units_to_decimal(v) of a stored value (a match's value): Decimal(v) with the point moved 6 places, as Decimal()
+// reads an int, a bool, a str or a float exactly. A NaN or an infinity is the TypeError of Python's exponent
+// arithmetic; a value Decimal() refuses is its error.
+Result<Dec> units_of(const Json& v);
 
 // The PaymentResult of a matched session: kind, item, token and id from rec, amount, tx_hash and payer from the
 // match m, read in Python's keyword order.

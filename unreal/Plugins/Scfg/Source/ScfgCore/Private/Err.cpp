@@ -5,6 +5,7 @@
 #include <charconv>
 #include <cstdio>
 #include <cstdlib>
+#include <utility>
 
 namespace scfg {
 namespace errors::detail {
@@ -68,6 +69,11 @@ std::vector<std::string>& misuse_list() {
 }
 
 void report_misuse(std::string message) { misuse_list().push_back(std::move(message)); }
+
+PrintSink& print_sink() {
+    static PrintSink sink;
+    return sink;
+}
 
 std::string int_text(int64_t v) {
     char buf[24];
@@ -149,8 +155,18 @@ namespace errors {
 
 // Python prints the traceback (traceback.print_exception); a value has none, so this is err.gd's one line.
 void print_error(const Err& e) {
-    std::string line = "scfg: contained error: " + e.str() + "\n";
-    std::fputs(line.c_str(), stderr);
+    const std::string line = "scfg: contained error: " + e.str();
+    if (const PrintSink& sink = detail::print_sink()) {
+        sink(line);
+        return;
+    }
+    std::fputs((line + "\n").c_str(), stderr);
+}
+
+PrintSink set_print_sink(PrintSink sink) {
+    PrintSink previous = std::move(detail::print_sink());
+    detail::print_sink() = std::move(sink);
+    return previous;
 }
 
 std::vector<std::string>& misuse() { return detail::misuse_list(); }

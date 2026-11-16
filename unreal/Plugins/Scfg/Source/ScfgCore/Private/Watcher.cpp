@@ -43,19 +43,6 @@ Result<chains::Token> token_of(const chains::Chain& chain, const Json& rec) {
     return Err::key_error(py::repr(key));
 }
 
-// units_to_decimal(v) of a stored value: Decimal(v) with the point moved 6 places (Decimal() reads an int, a bool,
-// a str or a float exactly). A NaN or an infinity has no digits to move: Python's exponent arithmetic on its 'n'
-// or 'F' exponent is a TypeError.
-Result<Dec> units_of(const Json& v) {
-    if (v.is_int() || v.is_bool()) {
-        SCFG_TRY(BigInt n, py::index(v));
-        return amounts::units_to_decimal(n);
-    }
-    SCFG_TRY(std::optional<Dec> d, Dec::from_json(v));
-    if (!d) return Err::type_error("unsupported operand type(s) for -: 'str' and 'int'");
-    return d->move_point(-amounts::TOKEN_DECIMALS);
-}
-
 Json match_dict(const evm::TransferLog& t) {
     return Json::dict({{"tx_hash", Json(t.tx_hash)},
                        {"log_index", Json(t.log_index)},
@@ -275,6 +262,17 @@ Co<void> steps(std::shared_ptr<Step> s) {
 
 namespace scfg::watcher {
 
+// A NaN or an infinity has no digits to move: Python's exponent arithmetic on its 'n' or 'F' exponent is a TypeError.
+Result<Dec> units_of(const Json& v) {
+    if (v.is_int() || v.is_bool()) {
+        SCFG_TRY(BigInt n, py::index(v));
+        return amounts::units_to_decimal(n);
+    }
+    SCFG_TRY(std::optional<Dec> d, Dec::from_json(v));
+    if (!d) return Err::type_error("unsupported operand type(s) for -: 'str' and 'int'");
+    return d->move_point(-amounts::TOKEN_DECIMALS);
+}
+
 Result<Dec> min_amount(const Json& rec, const OrderedMap<models::Item>& items) {
     SCFG_TRY(Json kind, py::get(rec, "kind"));
     if (py::eq(kind, Json("unlock"))) {
@@ -295,7 +293,7 @@ Result<models::PaymentResult> result_from_match(const Json& rec, std::string sta
     SCFG_TRY(r.kind, py::get(rec, "kind"));
     SCFG_TRY(r.item, py::get(rec, "item"));
     SCFG_TRY(Json value, py::get(m, "value"));
-    SCFG_TRY(Dec amount, detail::units_of(value));
+    SCFG_TRY(Dec amount, units_of(value));
     r.amount = amount;
     SCFG_TRY(r.token, py::get(rec, "token"));
     r.chain = Json(std::move(chain_key));

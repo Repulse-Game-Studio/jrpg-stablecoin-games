@@ -44,7 +44,7 @@ enum class ReplayMode { Immediate, Deferred };
 // rerun (Tier2Deferred.<id>) and LocaleTests.Tier2UnderEveryLocale cover exactly the ids ported() accepts.
 std::vector<std::string> ported_prefixes();
 // Vectors under a ported prefix that still need a later task, named one by one (none is skipped silently), with
-// the reason: Solana (task 12) or reverify/restore (task 13). Tier2.<id> still runs and fails for each of them;
+// the reason: reverify or restore (task 13). Tier2.<id> still runs and fails for each of them;
 // Tier2Tests.PendingIdsAreNamedAndStillFail checks that every one exists and still fails.
 struct PendingId {
     std::string id;
@@ -158,6 +158,10 @@ bool stands_for_python(const scfg::Err& e);
 
 // The vector file's text as Python's json.load reads it.
 scfg::Result<scfg::Json> parse(std::string_view text);
+
+// Deferred mode's own checks of one step, once its action has run (nullopt in immediate mode or when they pass): a
+// step with recorded calls must have suspended at least once, and no request may be left in the queue.
+std::optional<std::string> deferred_problem(const ReplayTransport& transport, const scfg::Json& calls, bool suspended);
 
 // Re-run a Tier 2 vector: nullopt when it agrees, otherwise "step {i} ({action}): ..." for the first difference.
 std::optional<std::string> replay(const scfg::Json& vector, ReplayMode mode = ReplayMode::Immediate);

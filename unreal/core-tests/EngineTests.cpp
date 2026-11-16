@@ -1,13 +1,14 @@
 // No Python twin: Engine behaviour the Tier 2 vectors do not reach (their runner always passes its own RPC factory
 // and error handler), ported from unity/core-tests/EngineTests.cs, plus what the C++ port adds: cancellation and
 // teardown (a suspended tick destroyed, a transport that drops its requests), stored values carried as Python carries
-// them, the backends registry and the stubs of later tasks.
+// them, the backends registry, and print_error's sink.
 #include "support/JsonEq.h"
 #include "support/Test.h"
 #include "support/Tier2.h"
 
 #include "Scfg/Backends.h"
 #include "Scfg/BackendsBase.h"
+#include "Scfg/Chains.h"
 #include "Scfg/Co.h"
 #include "Scfg/Coio.h"
 #include "Scfg/Config.h"
@@ -24,6 +25,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -159,8 +161,14 @@ SCFG_TEST(EngineTests, ACrashIsContainedAndCounted) {
     t.check(errors == std::vector<std::string>{"KeyError"}, "one KeyError reported");
     // an unset handler prints instead (Python's `on_error or print_error`), and the step is still contained
     eng.on_error = {};
+    std::vector<std::string> printed;
+    scfg::errors::PrintSink previous =
+        scfg::errors::set_print_sink([&printed](std::string_view line) { printed.emplace_back(line); });
     got = run_now(eng.tick());
+    scfg::errors::set_print_sink(std::move(previous));
     t.check(got && got->ok() && got->value().size() == 1, "contained with no handler");
+    t.check(printed == std::vector<std::string>{"scfg: contained error: KeyError: 'created_at'"},
+            "printed: " + (printed.empty() ? std::string("nothing") : printed[0]));
 }
 
 // Python's except Exception does not catch a CancelledError: a dropped request leaves tick() at once, without
@@ -261,7 +269,7 @@ SCFG_TEST(EngineTests, AFloatCursorFailsWherePythonFails) {
     }
 }
 
-SCFG_TEST(EngineTests, BackendsAndTheirStubs) {
+SCFG_TEST(EngineTests, TheBackendsRegistry) {
     Result<const scfg::backends::base::Backend*> evm = scfg::backends::backend_for_family("evm");
     Result<const scfg::backends::base::Backend*> sol = scfg::backends::backend_for_family("solana");
     Result<const scfg::backends::base::Backend*> none = scfg::backends::backend_for_family("bitcoin");
@@ -269,19 +277,22 @@ SCFG_TEST(EngineTests, BackendsAndTheirStubs) {
     t.check(sol.ok() && sol.value()->family() == "solana", "solana");
     t.check(!none.ok() && none.err().kind == "ValueError" && none.err().message == "unknown chain family 'bitcoin'",
             "an unknown family");
-    // Solana's normalize_tx and make_rpc are real; its network methods are task 12's
     HeadTransport transport;
     scfg::chains::Chain chain;
     chain.key = "solana";
     chain.family = "solana";
     chain.rpc = {"https://solana.example"};
+    chain.tokens.set("USDC", scfg::chains::Token::make("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU").take());
     Result<scfg::backends::base::Rpc> rpc = sol.value()->make_rpc(chain, transport);
     t.check(rpc.ok() && scfg::backends::base::solana_client(rpc.value()).ok(), "a SolanaRpc");
     if (rpc.ok()) SCFG_CHECK_EQ(t, scfg::backends::base::client_of(rpc.value()).urls()[0], "https://solana.example");
     scfg_test::tier2::ScriptedEntropy entropy;
     std::optional<Result<Json>> started =
         run_now(sol.value()->start(rpc.value(), chain, std::nullopt, "USDC", std::ref<scfg::Entropy>(entropy)));
-    t.check(started && !started->ok() && started->err().kind == "NotImplementedError", "solana start is a stub");
+    // no wallet: associated_token_address(None, mint) is decode_fixed's ValueError, before any request
+    t.check(started && !started->ok() && started->err().kind == "ValueError" && started->err().message == "not base58: None",
+            "solana start without a wallet");
+    t.check(transport.methods.empty(), "no request");
     t.check(rpc.ok() && !scfg::backends::base::evm_client(rpc.value()).ok(), "a SolanaRpc is no RpcClient");
     chain.rpc.clear();
     Result<scfg::backends::base::Rpc> no_urls = evm.value()->make_rpc(chain, transport);

@@ -1,4 +1,4 @@
-// No Python twin: tests of scfg::BigInt (Python's int) and scfg::bytes (bytes.hex / bytes.fromhex).
+// No Python twin: tests of scfg::BigInt (Python's int) and scfg::bytes (bytes.hex / bytes.fromhex / base64).
 #include "support/Test.h"
 
 #include "Scfg/BigInt.h"
@@ -6,6 +6,8 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 using scfg::BigInt;
@@ -332,4 +334,23 @@ SCFG_TEST(BytesTests, HexRoundTrip) {
         scfg::Result<std::vector<uint8_t>> r = scfg::bytes::from_hex(s);
         t.check(!r.ok() && r.err().is_a("ValueError"), "from_hex accepted " + std::string(s));
     }
+}
+
+// RFC 4648 section 10's vectors and every byte value, as base64.b64encode(...).decode("ascii") gives them.
+SCFG_TEST(BytesTests, Base64) {
+    const std::pair<std::string_view, std::string_view> rows[] = {
+        {"", ""},           {"f", "Zg=="},         {"fo", "Zm8="},        {"foo", "Zm9v"},
+        {"foob", "Zm9vYg=="}, {"fooba", "Zm9vYmE="}, {"foobar", "Zm9vYmFy"},
+    };
+    for (const auto& [plain, encoded] : rows) {
+        std::vector<uint8_t> b(plain.begin(), plain.end());
+        SCFG_CHECK_EQ(t, scfg::bytes::b64encode(b), std::string(encoded));
+    }
+    std::vector<uint8_t> all;
+    for (int i = 0; i < 256; ++i) all.push_back(uint8_t(i));
+    // python3 -c 'import base64; t = base64.b64encode(bytes(range(256))).decode(); print(len(t), t[:12], t[-8:])'
+    const std::string text = scfg::bytes::b64encode(all);
+    SCFG_CHECK_EQ(t, text.size(), size_t{344});
+    SCFG_CHECK_EQ(t, text.substr(0, 12), "AAECAwQFBgcI");
+    SCFG_CHECK_EQ(t, text.substr(text.size() - 8), "/P3+/w==");
 }
