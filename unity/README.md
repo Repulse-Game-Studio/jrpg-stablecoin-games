@@ -1,6 +1,17 @@
 # unity
 
-The C# side of the Unity port, in development. It has the engine-independent payment core (`Scfg.Core`: the port of `scfg_core` including the worker and the checkout, restore and web overlay controllers), the localhost checkout server (`Scfg.Desktop`), their tests and the drivers for the integration tests and the server security suite. There is no Unity glue, UI or release yet: that needs the Unity editor (see the spec's phase 2). The Python core (`plugin/game/python-packages/scfg_core/`) is the reference, and the TypeScript port (`rpgmaker/src/core/`) is the closest template. The core replays every conformance vector in `conformance/vectors/`, and the server passes the shared `tests/server_security` suite.
+The C# side of the Unity port, in development (desktop works; WebGL, the samples, the docs and the release are later phases). It has the engine-independent payment core (`Scfg.Core`: the port of `scfg_core` including the worker and the checkout, restore and web overlay controllers), the localhost checkout server (`Scfg.Desktop`), the Unity glue (`Scfg.Unity`: the `SCFG` facade, its runner, store, transport and UI Toolkit screens), their tests, the dev project and the drivers for the integration tests, the server security suite and the Linux e2e. The Python core (`plugin/game/python-packages/scfg_core/`) is the reference, the TypeScript port (`rpgmaker/src/core/`) the closest template for the core, and the Godot addon (`godot/addons/scfg/`) the template for the glue. The core replays every conformance vector in `conformance/vectors/`, and the server passes the shared `tests/server_security` suite.
+
+```csharp
+using Scfg;
+
+SCFG.Configure(new ScfgOptions { Wallet = "0x…", Testnet = true, Accent = "#7a5cff" });
+SCFG.AddItem("chapter2", new ScfgItem { Code = 1, Price = "4.99", Token = "USDC", Title = "Chapter 2" });
+ScfgPaymentResult r = await SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
+bool owned = SCFG.Owns("chapter2");
+```
+
+The facade is `SCFG`, not `Scfg`: C# cannot resolve `Scfg.Configure` while a namespace `Scfg` exists (the name means the namespace).
 
 ## Layout
 
@@ -8,13 +19,17 @@ The C# side of the Unity port, in development. It has the engine-independent pay
 |---|---|
 | `Packages/com.repulse.scfg/Runtime/Core/` | The core, one C# file per Python module (`Config.cs` is `config.py`, `Solana/Tx.cs` is `solana/tx.py`). Each file's header comment names its Python twin. netstandard2.1 BCL only, `LangVersion` 9.0, no `UnityEngine`, no NuGet package. The package ID `com.repulse.scfg` is a placeholder |
 | `Packages/com.repulse.scfg/Runtime/Desktop/` | Assembly `Scfg.Desktop` (not built for WebGL): `LocalServer.cs`, the localhost checkout server (`CheckoutServer : ICheckoutServer`, twin of `local_server.py` by way of Godot's non-blocking `local_server.gd`), on non-blocking `System.Net.Sockets` served from `Pump()` |
-| `Packages/com.repulse.scfg/Runtime/link.xml` | What the IL2CPP linker must keep: `Scfg.Core` and `Scfg.Desktop` whole, and `RNGCryptoServiceProvider`. Unity ignores a `link.xml` inside a package, so the package's Editor code must hand it to the linker (not written yet) |
+| `Packages/com.repulse.scfg/Runtime/Unity/` | Assembly `Scfg.Unity`, the only one with `UnityEngine`: the `SCFG` facade (`SCFG.cs`, `SCFG.Flows.cs`, `SCFG.Persistence.cs`, the twin of Godot's `scfg.gd`), its typed options and results, `ScfgRunner` (the hidden MonoBehaviour that pumps it every frame), `UnityScheduler` (the Worker's timer on unscaled real time), `UnityWebRequestTransport`, `ScfgStore` (`persistentDataPath/scfg/state.json`, Godot's `store.gd`), `ScfgDesktop` (the localhost page's factory) and `UI/` (the screen contract `IScfgSheetHost` in `ScfgScreens.cs`, the default host, the payment sheet, the restore screen, the QR view, the toast and the text table `ScfgUiTexts`). `Resources/ScfgWeb/` holds the checkout page as `.bytes` TextAssets (copies of `plugin/game/scfg/web/` made by `tools/sync_web_page.py`), `Resources/ScfgUI/` the USS, the theme and the PanelSettings asset |
+| `Packages/com.repulse.scfg/Runtime/link.xml` | What the IL2CPP linker must keep: `Scfg.Core` and `Scfg.Desktop` whole, and `RNGCryptoServiceProvider`. Unity ignores a `link.xml` inside a package, so `Editor/ScfgLinkXml.cs` (an `IUnityLinkerProcessor`) hands it to the linker of every player build |
+| `Packages/com.repulse.scfg/Editor/` | Assembly `Scfg.Editor`: `ScfgLinkXml` and `ScfgMaintenance` (remakes the PanelSettings asset; maintainers only) |
+| `Packages/com.repulse.scfg/Tests/` | Unity Test Framework assemblies: `Editor/` (edit mode: the facade over a fake EVM node with the frames pumped by hand, the store, the scheduler, the linker hook, a core smoke test) and `Runtime/` (play mode: the transport against a local socket server, the runner, `await`, the real localhost page, the screens on a real panel driven by navigation events, the domain-reload reset; `ScfgFakes.cs` holds the fakes both use) |
+| `Project/` | The dev project (Unity 6000.6.9f1, `ProjectSettings/ProjectVersion.txt`), which references the package by path and lists it as testable. `Assets/E2E/` is the Linux e2e's driver (assembly `Scfg.E2E`, idle unless `SCFG_E2E_CONFIG` is set) and its build script |
 | `core/` | `Scfg.Core.csproj`, which compiles the package's `Runtime/Core/` for the .NET build |
 | `desktop/` | `Scfg.Desktop.csproj`, which compiles the package's `Runtime/Desktop/` against `core/` |
 | `core-tests/` | NUnit tests: Tier 1 and Tier 2 conformance runners, per-module tests (`WorkerTests` with its fakes in `WorkerFakes.cs`: a manual `FakeScheduler` and a counting engine stand-in; `CheckoutTests`, `CheckoutStepsTests`, `CheckoutSolanaTests` and `RestoreFlowTests` with theirs in `CheckoutFakes.cs`: fake EVM and Solana JSON-RPC nodes behind `ITransport`, an immediate and a deferred submitter, fake pages; `OverlayTests` with a fake `IOverlayUi`; `LocalServerTests` over real loopback sockets with a fake clock), the lints, the culture reruns and the single-thread runs |
 | `core-driver/` | A net8.0 console app, the JSON-lines driver that `tests/integration/test_cs_core.py` runs against Anvil and solana-test-validator (protocol: `rpgmaker/test/integration/engine_driver.ts`) |
 | `server-driver/` | A net8.0 console app, the JSON-lines driver that runs `Scfg.Desktop.CheckoutServer` for the shared localhost server security suite `tests/server_security/` (protocol: `rpgmaker/test/integration/server_driver.ts`); it pumps the server about every millisecond and reads stdin on a thread of its own (it is not package code) |
-| `Scfg.sln` | The solution holding the five projects above |
+| `Scfg.sln` | The solution holding the five .NET projects above |
 
 ## Development
 
@@ -36,6 +51,37 @@ uv run pytest tests/server_security -m cs_server
 ```
 
 `SCFG_VECTORS` overrides the vectors directory the tests read. `tests/integration/cs_driver.py` and `tests/server_security/server_handles.py` look for `dotnet` on `PATH`, then in `$DOTNET_ROOT`, then in `~/.dotnet`. Without one the twins and the `cs_server` tests skip; `SCFG_REQUIRE_CS=1` (set in CI) makes that a failure, and a driver build that fails is always a failure. The EVM and Arc twins need `anvil`, which CI installs. The `cs_server` tests are part of the default `uv run pytest` run, next to the Python server's; CI's cs-core job runs them alone with `SCFG_REQUIRE_CS=1`. Both drivers target net8.0 with `RollForward` `Major`, so they also run where only a newer .NET runtime is installed (CI's unit job and release gate use the runner image's preinstalled dotnet). The pytest runs build `core/` and `desktop/` in Release, so a manual `dotnet test -c Release` at the same time can collide on their `obj/` folders: run one at a time.
+
+## Unity
+
+The editor tests and the e2e need a Unity 6 editor (the dev project is on 6000.6.9f1; the package declares `"unity": "6000.0"`) installed with Unity Hub, plus the Linux Build Support (IL2CPP) module for the IL2CPP e2e (Hub → Installs → the editor's gear → Add modules). Close the project in the editor first: one project opens in one editor at a time. Each run takes a minute or more (the first import several).
+
+```bash
+UNITY=~/Unity/Hub/Editor/6000.6.9f1/Editor/Unity
+
+# import / compile (writes the package's .meta files; commit new ones; tools/check_unity_meta.py checks them)
+"$UNITY" -batchmode -nographics -quit -projectPath unity/Project -logFile /tmp/scfg-import.log
+
+# the Unity Test Framework suites, headless
+"$UNITY" -batchmode -nographics -projectPath unity/Project -runTests -testPlatform EditMode -testResults /tmp/em.xml -logFile /tmp/em.log
+"$UNITY" -batchmode -nographics -projectPath unity/Project -runTests -testPlatform PlayMode -testResults /tmp/pm.xml -logFile /tmp/pm.log
+
+# the Linux e2e: builds the player, then plays it against a local chain (anvil or solana-test-validator on PATH)
+uv run python tools/run_unity_e2e.py --unity "$UNITY" --backend mono --family solana
+uv run python tools/run_unity_e2e.py --unity "$UNITY" --backend il2cpp --family evm
+```
+
+Both test runs exit 0 when every test passed (2 when a test failed) and write NUnit XML. The play-mode suite runs headless too: UI Toolkit lays out, focuses and dispatches events under `-nographics`, it only draws nothing. The e2e player also runs with `-batchmode -nographics`; `SCFG_E2E_WINDOWED=1` opens a window (under `xvfb-run` when installed). The player redirects its stdout into its log, so its driver answers on a named pipe the runner makes (`SCFG_E2E_OUT`).
+
+### The facade
+
+`SCFG` is a static facade with typed options (`ScfgOptions`, `ScfgItem`, `ScfgChain`, `ScfgPayRequest`) that become the core's keyword arguments, so the core validates them and reports the ConfigError codes the vectors pin. Misuse never throws: it logs `scfg: …` with `Debug.LogError` and `Configure` / `AddItem` / `AddChain` return the code, `Pay` / `Restore` resolve `Failed` with it as `Error`. `Pay` returns an `Awaitable<ScfgPaymentResult>` (awaitable once, as every `Awaitable`) or takes a callback; the semantics follow Godot and Ren'Py: `AlreadyOwned` at once, keep playing resolves `Pending` and the later result goes to the callback or `PaymentResolved`, quitting with a screen open resolves without delivering anything.
+
+The first `Configure` in play mode creates a hidden `ScfgRunner` (`DontDestroyOnLoad`, `HideAndDontSave`). Its `Update` pumps the facade in Godot's order: the scheduler, the screens closed since the last frame, the Worker's outcomes, every open and kept-playing controller (`Poll()` pumps its localhost page), the restore controllers, then the save. Every timeout runs on `Time.realtimeSinceStartupAsDouble`, so payments keep being watched at `Time.timeScale = 0`. `Application.quitting` and the `SubsystemRegistration` reset (Enter Play Mode Options with domain reload off) close every controller, stop the Worker, end requests in flight and flush the state; every static of the facade lives in one `State` object that the reset replaces.
+
+### The screens
+
+`SCFG.SheetHost` (an `IScfgSheetHost`) shows the flows; the default gives each screen its own `UIDocument` on the package's PanelSettings (sort order 1000), never touching the game's Canvas, TextMeshPro or prefabs. A custom host returns an `IScfgScreen` that raises `Closed` with `cancel`, `keep_playing` or `finish`, and binds to `ScfgCheckoutController` / `ScfgRestoreController` (the core controller plus the actions that leave the game). Restyle the default screens with a style sheet set as `ScfgDefaultSheetHost.SheetStyle` (`.scfg-screen { --scfg-accent: …; --scfg-ink: …; }`). Focus is wired by hand on `NavigationMoveEvent`, which UI Toolkit's own input and the Input System's UI module both send: up and down move through the controls in visual order, left and right within a row, and the ends stay put. The texts are English only, in `ScfgUiTexts` keyed by RPG Maker's ids; `tools/check_text_ids.py` keeps them in step.
 
 ## State file
 
