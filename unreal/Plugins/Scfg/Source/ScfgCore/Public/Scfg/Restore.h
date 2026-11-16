@@ -1,9 +1,14 @@
-// Twin of scfg_core/restore.py (and of unity/.../Core/Restore.cs): restoring purchases from a transaction hash.
+// Twin of scfg_core/restore.py (and of unity/.../Core/Restore.cs): restoring purchases from a transaction hash, the
+// chain being the ledger.
 //
-// Task 11 holds only what the Engine and the Tier 2 runner need to compile against: RestoreCandidate, TIP_CHOICE
-// and the signatures of lookup and apply. Their bodies are stubs returning Err NotImplementedError ("restore ...:
-// task 13"), which never satisfies a vector (the runner refuses NotImplementedError as a recorded "other"); task 13
-// ports them. Task 12 ports classify and classify_or_skip, which the Solana backend's lookup calls.
+// The player pastes a tx hash. We find the chain it lives on, pick out the USDC/USDT transfers to the developer, and
+// work out what each one bought from the code encoded in its amount. Amounts that carry no code (e.g. an exchange
+// sent a round 5.00) are ambiguous, so the player chooses which item it paid for, or keeps it as a tip.
+//
+// Errors are Python's: RestoreError (Err::restore_error, its code also its message) invalid_hash | tx_not_found |
+// tx_reverted | tx_not_a_payment | network_unavailable. lookup swallows only RpcUnavailable and RpcError; anything
+// else (a malformed log or receipt) fails the whole lookup, except a transfer of 10**32 units or more, which
+// amounts::decode cannot price: that one is skipped and reported (classify_or_skip).
 #pragma once
 
 #include "Scfg/BackendsBase.h"
@@ -15,10 +20,12 @@
 #include "Scfg/Json.h"
 #include "Scfg/OrderedMap.h"
 #include "Scfg/Result.h"
+#include "Scfg/Rpc.h"
 #include "Scfg/Transfers.h"
 
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -29,7 +36,8 @@ namespace scfg::restore {
 
 inline constexpr std::string_view TIP_CHOICE = "tip";
 
-// Python's RestoreCandidate dataclass: one transfer of a looked-up transaction and what it bought.
+// Python's RestoreCandidate dataclass: one transfer of a looked-up transaction and what it bought. transfer is a
+// TransferLog (EVM) or a Transfer (Solana), the node's values carried as Python carries them (Transfers.h).
 struct RestoreCandidate {
     std::string chain;
     std::string token;
@@ -62,14 +70,28 @@ Result<Classified> classify(const config::Config& config, const BigInt& value);
 Result<std::optional<Classified>> classify_or_skip(const config::Config& config, const BigInt& value,
                                                    const backends::base::ErrorSink& on_error);
 
-// The candidates of the first chain that knows tx_hash (RestoreError invalid_hash | tx_not_found | tx_reverted |
-// tx_not_a_payment | network_unavailable). Stub until task 13.
+// Python lookup_evm(tx_hash, config=, chain=, rpc=, receipts=, on_error=): the candidates of a normalized tx hash on
+// one EVM chain, nullopt if the chain lacks it. Each Transfer log (chain.parse_transfer) of one of the chain's tokens,
+// of a positive value, to an accepted wallet is one candidate, already_restored when its receipt key is in receipts.
+// RestoreError tx_reverted (status 0x0) or tx_not_a_payment (no candidate); a receipt that is not a dict is the
+// AttributeError of its .get.
+Co<std::optional<std::vector<RestoreCandidate>>> lookup_evm(std::string tx_hash, config::Config config,
+                                                            chains::Chain chain, std::shared_ptr<rpc::RpcClient> rpc,
+                                                            Json receipts, backends::base::ErrorSink on_error);
+
+// Python lookup(tx_hash, config=, chains=, rpc_for=, receipts=, on_error=): the candidates of the first chain, in
+// chains' order, whose family reads tx_hash (normalize_tx) and that knows the transaction. RestoreError invalid_hash
+// when no family reads it, else network_unavailable when a chain could not be asked (RpcUnavailable, RpcError), else
+// tx_not_found; a backend's tx_reverted / tx_not_a_payment, and any other Err, leave at once.
 Co<std::vector<RestoreCandidate>> lookup(Json tx_hash, config::Config config, OrderedMap<chains::Chain> chains,
                                          backends::base::RpcFor rpc_for, Json receipts,
                                          backends::base::ErrorSink on_error);
 
-// Store receipts for the candidates; choices maps a candidate's index to an item id or "tip" for the candidates
-// whose kind is None. Returns the receipts added. Stub until task 13.
+// Python apply(receipts, candidates, choices): store a receipt (source "restore") for each candidate and return the
+// receipts added (a list; the dicts the store now holds), in candidate order. choices maps a candidate's index to an
+// item id or TIP_CHOICE for the candidates whose kind is None; one without a choice (or a None choice) is skipped,
+// and a choice it does not offer is ValueError("<repr> is not an allowed choice"), raised with the earlier
+// candidates' receipts already stored. A receipt whose key is already stored is not added again.
 Result<Json> apply(Json::Dict& receipts, const std::vector<RestoreCandidate>& candidates,
                    const std::optional<std::map<int64_t, Json>>& choices);
 

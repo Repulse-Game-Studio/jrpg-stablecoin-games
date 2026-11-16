@@ -322,36 +322,6 @@ ActionOutcome run_action(engine::Engine& eng, const std::string& action, const J
 
 namespace scfg_test::tier2 {
 
-// ---- what is ported ----
-
-std::vector<std::string> ported_prefixes() {
-    return {"smoke/", "evm/", "config/", "custom_chains/", "rpc/", "solana/"};
-}
-
-std::vector<PendingId> pending_ids() {
-    return {
-        {"custom_chains/pay_restore_reverify", "restore_lookup and reverify (task 13)"},
-        {"custom_chains/removed_chain_receipt_kept", "reverify (task 13)"},
-        {"evm/arc_large_restore", "restore_lookup, restore_apply and reverify (task 13)"},
-        {"evm/arc_restore_and_reverify", "restore_lookup and reverify (task 13)"},
-        {"evm/config_overrides_and_full_registry", "reverify (task 13)"},
-        {"evm/restore_through_engine", "restore_lookup and restore_apply (task 13)"},
-        {"evm/reverify_accepted_wallets", "reverify (task 13)"},
-        {"evm/unwatchable_session_closes_at_horizon", "reverify of a stored receipt (task 13)"},
-        {"solana/history_covering_endpoint_drops", "reverify of stored receipts (task 13)"},
-        {"solana/history_endpoints_fail", "reverify of stored receipts and restore_lookup (task 13)"},
-        {"solana/history_found_on_second_endpoint", "reverify of a stored receipt (task 13)"},
-        {"solana/history_pruned_endpoints_keep", "reverify of a stored receipt (task 13)"},
-        {"solana/paid_by_reference", "reverify of the receipt it stored, and restore_lookup (task 13)"},
-        {"solana/restore_lookup", "restore_lookup and restore_apply (task 13)"},
-        {"solana/restore_too_large_to_decode_is_skipped", "restore_lookup (task 13)"},
-        {"solana/reverify_outage_and_future_slot", "reverify of stored receipts (task 13)"},
-        {"solana/reverify_receipts", "reverify of stored receipts (task 13)"},
-        {"solana/reverify_unreadable_transactions", "reverify of stored receipts (task 13)"},
-        {"solana/tx_version_named_by_node", "reverify of the receipt it stored (task 13)"},
-    };
-}
-
 std::optional<std::string> deferred_problem(const ReplayTransport& transport, const Json& calls, bool suspended) {
     if (transport.mode() != ReplayMode::Deferred) return std::nullopt;
     if (transport.queued() != 0) {
@@ -361,16 +331,6 @@ std::optional<std::string> deferred_problem(const ReplayTransport& transport, co
         return std::string("the step's requests were answered, yet the action never suspended (deferred mode)");
     }
     return std::nullopt;
-}
-
-bool ported(std::string_view id) {
-    bool under = false;
-    for (const std::string& p : ported_prefixes()) under = under || id.starts_with(p);
-    if (!under) return false;
-    for (const PendingId& p : pending_ids()) {
-        if (p.id == id) return false;
-    }
-    return true;
 }
 
 // ---- entropy ----
@@ -513,6 +473,9 @@ scfg::Future<Json> ReplayTransport::post_json(std::string url, Json payload, dou
     if (!answer) {
         problems.push_back("unexpected call " + url + " " + py::str(method) + " " + detail::show(params));
         answer = Err::make("AssertionError", problems.back());
+    }
+    if (fault) {
+        if (std::optional<Err> e = fault(url, payload)) answer = std::move(*e);
     }
     if (mode_ == ReplayMode::Immediate) return scfg::Future<Json>::completed(std::move(*answer));
     scfg::Promise<Json> promise;

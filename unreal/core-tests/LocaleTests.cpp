@@ -60,10 +60,10 @@ SCFG_TEST(LocaleTests, FloatsUnderEveryLocale) {
     SCFG_CHECK_EQ(t, std::locale().name(), "C");
 }
 
-// Every ported Tier 1 topic again under each locale (task 13 reruns all of them once every topic is ported).
+// Every Tier 1 topic again under each locale.
 SCFG_TEST(LocaleTests, Tier1UnderEveryLocale) {
-    std::vector<std::string> topics = scfg_test::tier1::ported_topics();
-    t.check(!topics.empty(), "no ported Tier 1 topic to rerun");
+    std::vector<std::string> topics = scfg_test::vectors::tier1_topics();
+    t.check(!topics.empty(), "no Tier 1 topic to rerun");
     locales::Report r = locales::rerun([&](std::string_view name) {
         t.check(std::strcmp(std::localeconv()->decimal_point, ".") != 0, "decimal point is \".\" under " + std::string(name));
         for (const std::string& topic : topics) {
@@ -77,15 +77,14 @@ SCFG_TEST(LocaleTests, Tier1UnderEveryLocale) {
     SCFG_CHECK_EQ(t, std::string(std::setlocale(LC_ALL, nullptr)), "C");
 }
 
-// Every ported Tier 2 vector (tier2::ported) again under each locale, immediate mode (task 13 reruns all of them).
+// Every Tier 2 vector again under each locale, immediate mode.
 SCFG_TEST(LocaleTests, Tier2UnderEveryLocale) {
     std::vector<std::pair<std::string, std::string>> texts;
     for (const std::string& id : scfg_test::vectors::tier2_ids()) {
-        if (!scfg_test::tier2::ported(id)) continue;
         std::optional<std::string> text = scfg_test::vectors::read_text("tier2/" + id + ".json");
         if (t.check(text.has_value(), "tier2/" + id + " cannot be read")) texts.emplace_back(id, std::move(*text));
     }
-    t.check(!texts.empty(), "no ported Tier 2 vector to rerun");
+    t.check(!texts.empty(), "no Tier 2 vector to rerun");
     locales::Report r = locales::rerun([&](std::string_view name) {
         t.check(std::strcmp(std::localeconv()->decimal_point, ".") != 0, "decimal point is \".\" under " + std::string(name));
         for (const auto& [id, text] : texts) {

@@ -1,7 +1,7 @@
 // No Python twin: Tier2.<id> replays each conformance/vectors/tier2 vector through support/Tier2 (one runtime test
-// per vector file, so a vector whose task has not landed fails), and Tier2Tests checks the runner itself (as
-// unity/core-tests/Tier2Tests.cs): a vector that does not match fails, malformed data is a difference rather than an
-// abort, and a stub can satisfy nothing.
+// per vector file), and Tier2Tests checks the runner itself (as unity/core-tests/Tier2Tests.cs): a vector that does
+// not match fails, malformed data is a difference rather than an abort, and an Err that stands for no Python
+// exception satisfies nothing.
 #include "support/JsonEq.h"
 #include "support/Test.h"
 #include "support/Tier2.h"
@@ -122,27 +122,6 @@ SCFG_TEST(Tier2Tests, EveryGroupHasVectors) {
     }
 }
 
-// Nothing under a ported prefix is skipped silently: every pending id is a real vector under a ported prefix, and it
-// still fails (so the task that ports it must take it off the list).
-SCFG_TEST(Tier2Tests, PendingIdsAreNamedAndStillFail) {
-    std::vector<std::string> ids = scfg_test::vectors::tier2_ids();
-    std::vector<std::string> prefixes = tier2::ported_prefixes();
-    for (const tier2::PendingId& p : tier2::pending_ids()) {
-        t.check(std::find(ids.begin(), ids.end(), p.id) != ids.end(), p.id + " is pending but has no vector");
-        t.check(std::any_of(prefixes.begin(), prefixes.end(), [&p](const std::string& x) { return p.id.starts_with(x); }),
-                p.id + " is pending but not under a ported prefix");
-        t.check(!p.reason.empty(), p.id + " has no reason");
-        t.check(!tier2::ported(p.id), p.id + " is pending yet ported()");
-        std::optional<Json> v = load(p.id);
-        if (!t.check(v.has_value(), p.id + " cannot be read")) continue;
-        std::optional<std::string> diff = tier2::replay(*v);
-        t.check(diff.has_value(), p.id + " passes now: take it off tier2::pending_ids()");
-    }
-    size_t ported = 0;
-    for (const std::string& id : ids) ported += tier2::ported(id) ? 1 : 0;
-    t.check(ported > 0, "no vector is ported");
-}
-
 // ---- the runner catches a vector that does not match ----
 
 SCFG_TEST(Tier2Tests, AMissingRecordedCallIsAnUnexpectedCall) {
@@ -207,20 +186,75 @@ SCFG_TEST(Tier2Tests, OnlyPythonExceptionsStandForOther) {
     }
 }
 
-// A stub (reverify of a stored receipt is one until task 13) raising where the vector recorded "other" fails the step.
-SCFG_TEST(Tier2Tests, AStubNeverSatisfiesARecordedOther) {
-    Json setup = smoke_setup();
-    setup.as_dict().set("receipts", Json::dict({{"k", Json::dict()}}));  // an empty store is answered, as Python does
-    Json v = one_step(setup, plain_step("reverify", Json::dict(), Json::dict({{"type", "other"}})));
-    std::optional<std::string> diff = tier2::replay(v);
-    t.check(contains(diff, "step 0 (reverify): raised an Err that no recorded raise stands for: NotImplementedError"),
+namespace scfg_test::tier2_tests {
+
+// A vector's first step alone, its calls cut to the first `keep`, then changed.
+Json first_step_only(const std::string& id, size_t keep, const std::function<void(Json& step)>& change) {
+    std::optional<Json> v = load(id);
+    if (!v) return Json();
+    Json copy = scfg::deep_copy(*v);
+    Json::List& steps = field(copy, "steps").as_list();
+    steps.resize(1);
+    Json::List& c = field(steps[0], "calls").as_list();
+    c.resize(std::min(c.size(), keep));
+    change(steps[0]);
+    return copy;
+}
+
+std::optional<std::string> replay_with_fault(const Json& v, const std::string& kind) {
+    if (v.is_null()) return std::string("the vector cannot be read");
+    tier2::ReplayTransport transport;
+    transport.fault = [kind](const std::string&, const Json&) -> std::optional<Err> { return Err::make(kind, "x"); };
+    return tier2::replay(v, transport);
+}
+
+}  // namespace scfg_test::tier2_tests
+
+// An Err that stands for no Python exception (the Godot-only HostGone, from a host's transport) raised where the
+// vector recorded "other" fails the step; a Python exception in its place satisfies it. restore/unlock_found's
+// lookup, its first request failing: Python's lookup swallows only RpcUnavailable and RpcError.
+SCFG_TEST(Tier2Tests, ANonPythonErrNeverSatisfiesARecordedOther) {
+    Json v = first_step_only("restore/unlock_found", 1, [](Json& s) {
+        s.as_dict().set("raises", Json::dict({{"type", "other"}}));
+        s.as_dict().set("returns", Json());
+    });
+    std::optional<std::string> python = replay_with_fault(v, "KeyError");
+    t.check(!python.has_value(), "a KeyError is a recorded other: " + shown(python));
+    std::optional<std::string> diff = replay_with_fault(v, "HostGone");
+    t.check(contains(diff, "step 0 (restore_lookup): raised an Err that no recorded raise stands for: HostGone"),
             shown(diff));
 }
 
-// What the Engine contains (a step's crash, a readiness check's) must be an exception Python would have contained
-// too: not a stub's NotImplementedError, the Godot-only HostGone or a CancelledError (which Python never contains).
-// No stub is reached while stepping a session any more (Solana's advance was one until task 12), so this checks the
-// rule on_error's check applies.
+// What the Engine contains (a check that failed on node data in reverify, a session step's crash in tick) must be
+// an exception Python would have contained too: an Err that stands for none (HostGone) reaching on_error fails the
+// step, end to end, even where the vector counted that internal error.
+SCFG_TEST(Tier2Tests, AContainedNonPythonErrFailsTheStep) {
+    // reverify/genuine_receipt_is_kept: eth_blockNumber fails, so the receipt is unverifiable: kept, one report
+    Json v = first_step_only("reverify/genuine_receipt_is_kept", 1, [](Json& s) { s.as_dict().set("internal_errors", 1); });
+    std::optional<std::string> python = replay_with_fault(v, "KeyError");
+    t.check(!python.has_value(), "a contained KeyError is one internal error: " + shown(python));
+    std::optional<std::string> diff = replay_with_fault(v, "HostGone");
+    t.check(contains(diff, "step 0 (reverify): on_error got an Err that no contained Python exception stands for: HostGone"),
+            shown(diff));
+    // smoke/evm_unlock_paid's first tick: its session's step crashes on the first request (contained by tick)
+    std::optional<Json> smoke = load("smoke/evm_unlock_paid");
+    if (!t.check(smoke.has_value(), "smoke/evm_unlock_paid")) return;
+    Json ticked = scfg::deep_copy(*smoke);
+    Json::List& steps = field(ticked, "steps").as_list();
+    steps.resize(2);
+    calls(ticked, 1).resize(1);
+    field(steps[1], "internal_errors") = Json(1);
+    tier2::ReplayTransport transport;
+    transport.fault = [&transport](const std::string&, const Json&) -> std::optional<Err> {
+        if (transport.posts() < 2) return std::nullopt;  // start_session's request is answered as recorded
+        return Err::make("HostGone", "the host left");
+    };
+    std::optional<std::string> ticks = tier2::replay(ticked, transport);
+    t.check(contains(ticks, "step 1 (tick): on_error got an Err that no contained Python exception stands for: HostGone"),
+            shown(ticks));
+}
+
+// The rule both checks apply.
 SCFG_TEST(Tier2Tests, OnlyAPythonExceptionStandsForAContainedError) {
     for (const char* kind : {"KeyError", "TypeError", "ValueError", "AttributeError", "OverflowError", "RestoreError",
                              "ConfigError", "InvalidOperation"}) {

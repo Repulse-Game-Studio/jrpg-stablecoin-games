@@ -1,8 +1,7 @@
 // Twin of scfg_core/backends/evm.py (and of unity/.../Core/Backends/Evm.cs): EVM chains, the watcher,
 // re-verification and restore code behind the Backend interface.
 //
-// reverify and lookup call reverify.check_evm_receipt and restore.lookup_evm in Python; until task 13 ports those
-// modules they return Err NotImplementedError ("evm reverify: task 13", "evm lookup: task 13").
+// reverify is reverify::check_evm_receipt and lookup is restore::lookup_evm, on the chain's RpcClient.
 #pragma once
 
 #include "Scfg/BackendsBase.h"

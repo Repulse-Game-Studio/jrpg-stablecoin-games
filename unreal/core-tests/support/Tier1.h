@@ -51,10 +51,6 @@ private:
     std::string name_;
 };
 
-// The topics whose task has landed. LocaleTests.Tier1UnderEveryLocale reruns exactly these; each task adds its
-// topics, and task 13 deletes this list once every topic runs everywhere.
-std::vector<std::string> ported_topics();
-
 // Recomputes one case through the adapters: nullopt when it agrees with the vector, otherwise a message naming the
 // first difference. The vector's expectation is whichever of "out" and "error" the case has (key presence, so an
 // explicit "error": null expects an error null and fails). An "error" with a dot is a ConfigError with that code;

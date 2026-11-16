@@ -40,6 +40,8 @@ public:
     void on_start(std::function<void(Registry&)> fn);
     // The distinct groups registered so far (sorted).
     std::vector<std::string> groups() const;
+    // The names of a group's tests registered so far, in registration order.
+    std::vector<std::string> names(std::string_view group) const;
     // args are the command-line arguments without argv[0]. Returns the process exit code.
     int run(const std::vector<std::string>& args, const Sink& out);
 

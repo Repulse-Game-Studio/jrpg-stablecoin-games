@@ -1,12 +1,19 @@
 // No Python twin: tests of the test runner itself, and that ctest runs every group.
+#include "support/Lint.h"
 #include "support/Test.h"
+#include "support/Vectors.h"
 
 #include "Scfg/Err.h"
 #include "Scfg/Version.h"
 
 #include <algorithm>
 #include <cstdlib>
+#include <fstream>
+#include <iterator>
+#include <regex>
 #include <set>
+#include <string>
+#include <vector>
 
 using scfg_test::Ctx;
 using scfg_test::Registry;
@@ -176,17 +183,75 @@ SCFG_TEST(RunnerTests, ChecksReportBothValues) {
     SCFG_CHECK(t, contains(c.messages()[3], "1 + 1 == 3"));
 }
 
-// Ruling R1: a group in the binary that ctest does not run must be listed as pending in CMakeLists.txt.
+// Every group in the binary is run by ctest, and none is pending any more (ruling R1: task 13 emptied the list).
 SCFG_TEST(RunnerTests, EveryGroupIsRegistered) {
     std::set<std::string> ctest = split(SCFG_CTEST_GROUPS), pending = split(SCFG_PENDING_GROUPS);
+    t.check(pending.empty(), "SCFG_PENDING_GROUPS must be empty: every group is run by ctest");
     std::vector<std::string> groups = scfg_test::registry().groups();
     for (const std::string& g : groups) {
-        t.check(ctest.count(g) || pending.count(g),
-                "group " + g + " is not run by ctest: add it to SCFG_TEST_GROUPS in unreal/CMakeLists.txt");
+        t.check(ctest.count(g) != 0, "group " + g + " is not run by ctest: add it to SCFG_TEST_GROUPS in unreal/CMakeLists.txt");
     }
     for (const std::string& g : ctest) {
         t.check(std::find(groups.begin(), groups.end(), g) != groups.end(),
                 "ctest runs group " + g + " but the binary has no test in it");
-        t.check(!pending.count(g), "group " + g + " is in both SCFG_TEST_GROUPS and SCFG_PENDING_GROUPS");
     }
+}
+
+// The registered names of group, compared with the names it must have (one test per vector file, no more, no less).
+static void expect_names(Ctx& t, std::string_view group, std::vector<std::string> want) {
+    std::vector<std::string> got = scfg_test::registry().names(group);
+    t.check(got.size() == want.size(), std::string(group) + " has " + std::to_string(got.size()) + " tests for " +
+                                           std::to_string(want.size()) + " vector files");
+    std::sort(got.begin(), got.end());
+    std::sort(want.begin(), want.end());
+    for (const std::string& w : want) {
+        t.check(std::binary_search(got.begin(), got.end(), w), std::string(group) + "." + w + " is not registered");
+    }
+    for (const std::string& g : got) {
+        t.check(std::binary_search(want.begin(), want.end(), g), std::string(group) + "." + g + " is no vector file");
+    }
+}
+
+// No vector is left out: Tier1 has one test per topic file, Tier2 and Tier2Deferred one per vector file, all three
+// are ctest groups, and neither the runner nor any test source has a way to skip, ignore or park one.
+SCFG_TEST(RunnerTests, NothingLeftOut) {
+    std::vector<std::string> topics = scfg_test::vectors::tier1_topics(), ids = scfg_test::vectors::tier2_ids();
+    t.check(!topics.empty() && !ids.empty(), "no vector files under " + scfg_test::vectors::root());
+    expect_names(t, "Tier1", topics);
+    expect_names(t, "Tier2", ids);
+    expect_names(t, "Tier2Deferred", ids);
+    std::set<std::string> ctest = split(SCFG_CTEST_GROUPS);
+    for (const char* g : {"Tier1", "Tier2", "Tier2Deferred", "LocaleTests"}) {
+        t.check(ctest.count(g) != 0, std::string(g) + " is not run by ctest");
+    }
+
+    // No skip facility in the code of any test source (comments and string literals do not count): no list of ported
+    // topics or prefixes, no pending ids, no skip, ignore, xfail or disabled marker.
+    const std::regex banned(R"(\b(ported|ported_topics|ported_prefixes|ported_ids|pending_ids|PendingId|skip|skips|)"
+                            R"(skipped|Skip|SKIP|SKIPPED|ignore|ignored|Ignore|IGNORE|xfail|XFAIL|DISABLED_\w*)\b)");
+    std::string error;
+    std::vector<scfg_test::lint::File> files = scfg_test::lint::test_files(&error);
+    t.check(error.empty() && !files.empty(), "cannot read the test sources: " + error);
+    for (const scfg_test::lint::File& f : files) {
+        const scfg_test::lint::Views v = scfg_test::lint::views(f.text);
+        for (size_t i = 0; i < v.code.size(); ++i) {
+            std::smatch m;
+            if (std::regex_search(v.code[i], m, banned)) {
+                t.fail(f.rel + ":" + std::to_string(i + 1) + ": '" + m.str() + "' looks like a way to leave a test out");
+            }
+        }
+    }
+    // ...nor in ctest's own test properties
+    std::ifstream in(std::string(SCFG_REPO_ROOT) + "/unreal/CMakeLists.txt", std::ios::binary);
+    std::string cmake((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    t.check(!cmake.empty(), "cannot read unreal/CMakeLists.txt");
+    for (const char* p : {"DISABLED", "WILL_FAIL", "SKIP_RETURN_CODE", "SKIP_REGULAR_EXPRESSION", "set_tests_properties"}) {
+        t.check(cmake.find(p) == std::string::npos, std::string("unreal/CMakeLists.txt uses ") + p);
+    }
+    // ...and the runner reports passed and failed only
+    Registry r;
+    r.add("G", "Pass", [](Ctx&) {});
+    int code = 0;
+    std::string out = run(r, {}, code);
+    SCFG_CHECK_EQ(t, out, "ok   G.Pass\n1 passed, 0 failed\n");
 }

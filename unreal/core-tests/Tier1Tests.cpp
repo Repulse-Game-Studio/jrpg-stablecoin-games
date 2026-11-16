@@ -139,19 +139,17 @@ SCFG_TEST(Tier1Tests, ReportShowsTheFirstFailures) {
     SCFG_CHECK(t, r.find("... and 5 more") != std::string::npos);
 }
 
-SCFG_TEST(Tier1Tests, EveryPortedTopicIsRegisteredOnceAndHasVectors) {
+// Every topic file has its adapters' registration, once, and every registration has a topic file.
+SCFG_TEST(Tier1Tests, EveryTopicIsRegisteredOnceAndHasVectors) {
     const tier1::Registry& r = tier1::registry();
     for (const std::string& e : r.errors) t.fail(e);
     std::vector<std::string> files = scfg_test::vectors::tier1_topics();
-    std::vector<std::string> ported = tier1::ported_topics();
-    SCFG_CHECK(t, !ported.empty());
-    for (const std::string& topic : ported) {
-        t.check(std::find(r.topics.begin(), r.topics.end(), topic) != r.topics.end(), topic + " is ported but not registered");
-        t.check(std::find(files.begin(), files.end(), topic) != files.end(), topic + " is ported but has no vector file");
+    SCFG_CHECK(t, !files.empty());
+    for (const std::string& topic : files) {
+        t.check(std::find(r.topics.begin(), r.topics.end(), topic) != r.topics.end(),
+                "tier1/" + topic + ".json has no SCFG_TIER1_TOPIC(" + topic + ")");
     }
     for (const std::string& topic : r.topics) {
         t.check(std::find(files.begin(), files.end(), topic) != files.end(), "SCFG_TIER1_TOPIC(" + topic + ") has no vector file");
-        t.check(std::find(ported.begin(), ported.end(), topic) != ported.end(),
-                topic + " is registered but not in tier1::ported_topics(), so no locale rerun covers it");
     }
 }

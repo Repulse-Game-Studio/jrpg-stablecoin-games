@@ -261,7 +261,7 @@ SCFG_TEST(SolanaBackendTests, ANanAccountIndexIsOneKeyOrderedLast) {
 
 // ---- reverify ----
 
-// solana/reverify_receipts' receipts judged one by one (reverify_receipts, task 13, validates them first), then with
+// solana/reverify_receipts' receipts judged one by one (reverify_receipts validates their fields first), then with
 // the node's answers tampered as the C# ledger's malformed data: Python drops a receipt whose transaction has a slot
 // of 2**64, or str accountIndexes, or a developer row whose owner is not a str; it keeps one whose payer's owner is an
 // int (the payer is not compared), and an infinite amount is its OverflowError (for reverify_receipts to contain).
@@ -320,7 +320,7 @@ SCFG_TEST(SolanaBackendTests, ReverifyGivesPythonsVerdicts) {
 
 // ---- restore lookup ----
 
-// solana/restore_lookup's Solana steps through the backend's lookup (restore.lookup, task 13, picks the chain): the
+// solana/restore_lookup's Solana steps through the backend's lookup (restore::lookup picks the chain): the
 // recorded candidates, already_restored once the receipt is stored, and the RestoreErrors.
 SCFG_TEST(SolanaBackendTests, LookupGivesTheRecordedCandidates) {
     std::optional<Json> v = load("solana/restore_lookup");
@@ -403,7 +403,8 @@ SCFG_TEST(SolanaBackendTests, LookupSkipsAnUnpriceableTransfer) {
 //
 // Python printed, for each: one candidate (unlock chapter2, value 4993742) whose transfer holds the sender, log_index
 // and block_number below; restore_apply stored one receipt with exactly those as payer, log_index and block, under
-// the key below; the second lookup found it already restored; nothing was reported.
+// the key below; the second lookup found it already restored; nothing was reported. The receipts hold ints at or
+// beyond 2**53, which no vector may (canonical.py), so the test compares them here rather than through a vector.
 namespace scfg_test::solana_backend_tests {
 
 struct R10Case {
@@ -512,23 +513,25 @@ void expect_receipt(Ctx& t, const Json& got, const Json& want, const std::string
 SCFG_TEST(SolanaBackendTests, ACandidateCarriesTheTransferAsPythonDoes) {
     std::optional<Json> v = load("solana/restore_lookup");
     if (!t.check(v.has_value(), "solana/restore_lookup")) return;
-    const sol::SolanaBackend backend;
     for (const R10Case& c : r10_cases()) {
         Rig rig;
         if (!rig.build(t, v->as_dict().get("setup"))) return;
         const Json calls = r10_calls(t, step_of(*v, 0), c);
-        Json store = Json::dict();
+        // restore_lookup, restore_apply, then restore_lookup again (the candidate is already restored)
         for (bool second : {false, true}) {
             rig.transport.load(calls);
-            std::optional<Result<std::optional<std::vector<scfg::restore::RestoreCandidate>>>> got = run_now(
-                backend.lookup(kR10Sig, rig.engine->config(), rig.chain(), rig.rpc(), store, rig.engine->on_error));
+            std::optional<Result<std::vector<scfg::restore::RestoreCandidate>>> got =
+                run_now(rig.engine->restore_lookup(Json(kR10Sig)));
             t.check(rig.transport.problems.empty() && rig.transport.leftover().empty(), c.name + ": the recorded calls");
-            if (!t.check(got && got->ok() && got->value() && got->value()->size() == 1,
+            if (!t.check(got && got->ok() && got->value().size() == 1,
                          c.name + ": " + (got && !got->ok() ? got->err().str() : std::string("not one candidate")))) {
                 break;
             }
-            const scfg::restore::RestoreCandidate& cand = (*got->value())[0];
-            t.check(cand.kind == std::optional<std::string>("unlock") && cand.item == std::optional<std::string>("chapter2"),
+            const std::vector<scfg::restore::RestoreCandidate>& candidates = got->value();
+            const scfg::restore::RestoreCandidate& cand = candidates[0];
+            t.check(cand.chain == "solana" && cand.token == "USDC" && cand.choices.empty() &&
+                        cand.kind == std::optional<std::string>("unlock") &&
+                        cand.item == std::optional<std::string>("chapter2"),
                     c.name + ": what it bought");
             t.check(cand.already_restored == second, c.name + ": already_restored");
             const auto* tr = std::get_if<scfg::transfers::Transfer>(&cand.transfer);
@@ -538,15 +541,17 @@ SCFG_TEST(SolanaBackendTests, ACandidateCarriesTheTransferAsPythonDoes) {
             t.check(tr->block_number == c.block, c.name + ": block_number " + tr->block_number.to_decimal());
             t.check(same(tr->tx_hash, Json(kR10Sig)) && tr->value == BigInt(4993742), c.name + ": the rest");
             if (second) break;
-            // what restore_apply stores for it (task 13 drives this through the Engine)
-            Result<Json> r = scfg::receipts::make_receipt(Json(cand.chain), *tr, Json("unlock"), Json("chapter2"),
-                                                          Json(cand.token), Json("restore"));
-            if (!t.check(r.ok(), c.name + ": make_receipt")) break;
-            expect_receipt(t, r.value(), r10_receipt(c), c.name);
-            Result<bool> added = scfg::receipts::add_receipt(store.as_dict(), r.value());
-            t.check(added.ok() && added.value(), c.name + ": added");
-            t.check(store.as_dict().contains(std::string("solana:") + kR10Sig + ":" + c.key_suffix),
-                    c.name + ": the key, in " + scfg::py::repr(store));
+            Result<Json> added = rig.engine->restore_apply(candidates);
+            if (!t.check(added.ok() && added.value().is_list() && added.value().as_list().size() == 1,
+                         c.name + ": restore_apply " + (added.ok() ? scfg::py::repr(added.value()) : added.err().str()))) {
+                break;
+            }
+            expect_receipt(t, added.value().as_list()[0], r10_receipt(c), c.name);
+            const Json::Dict& store = rig.engine->receipts().as_dict();
+            const Json* stored = store.find(std::string("solana:") + kR10Sig + ":" + c.key_suffix);
+            if (t.check(store.size() == 1 && stored != nullptr, c.name + ": the key, in " + scfg::py::repr(rig.engine->receipts()))) {
+                expect_receipt(t, *stored, r10_receipt(c), c.name + " (stored)");
+            }
         }
         t.check(rig.reported.empty(), c.name + ": nothing reported");
     }

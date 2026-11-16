@@ -12,8 +12,9 @@
 // as Unreal's HTTP callbacks complete them on a later tick; a step that recorded calls must have suspended).
 //
 // What a recorded {"type": "other"} accepts, and what may be counted as an internal error: an Err of a Python kind
-// (Err.cpp's table) other than NotImplementedError (a later task's stub), CancelledError and HostGone. An Err of a
-// kind outside the table already fails the test through errors::misuse().
+// (Err.cpp's table) other than NotImplementedError (no Python core path raises one; a port's stub would),
+// CancelledError and HostGone (Godot's). An Err of a kind outside the table already fails the test through
+// errors::misuse().
 #pragma once
 
 #include "Scfg/Coio.h"
@@ -39,20 +40,6 @@
 namespace scfg_test::tier2 {
 
 enum class ReplayMode { Immediate, Deferred };
-
-// The vector groups whose task has landed (each task extends it; task 13 deletes it with pending_ids). The deferred
-// rerun (Tier2Deferred.<id>) and LocaleTests.Tier2UnderEveryLocale cover exactly the ids ported() accepts.
-std::vector<std::string> ported_prefixes();
-// Vectors under a ported prefix that still need a later task, named one by one (none is skipped silently), with
-// the reason: reverify or restore (task 13). Tier2.<id> still runs and fails for each of them;
-// Tier2Tests.PendingIdsAreNamedAndStillFail checks that every one exists and still fails.
-struct PendingId {
-    std::string id;
-    std::string reason;
-};
-std::vector<PendingId> pending_ids();
-// id is under a ported prefix and not pending.
-bool ported(std::string_view id);
 
 // Hands out one step's recorded draws in order; any difference is a problem (and the Engine gets a placeholder of
 // the right shape: token_bytes(n) is always exactly n bytes, Entropy's contract).
@@ -104,6 +91,9 @@ public:
     std::vector<std::string> problems;
     // Called first on every request (a test's probe).
     std::function<void(const std::string& url, const scfg::Json& payload)> on_call;
+    // A test's fault: an Err it returns for a request answers that request instead of the recorded call (which is
+    // still consumed), as a host's transport fails a request with an error of its own (Godot's HostGone).
+    std::function<std::optional<scfg::Err>(const std::string& url, const scfg::Json& payload)> fault;
 
 private:
     struct Waiting {

@@ -42,7 +42,7 @@ constexpr std::array<Kind, 28> kKinds = {{
     {"AssertionError", "Exception BaseException"},
     // coio.run_sync's "no transport to reach <url>"
     {"RuntimeError", "Exception BaseException"},
-    // not in err.gd: the stubs of modules a later task ports
+    // not in err.gd: what a stub would raise (none is left; the Tier 2 runner refuses it as any Python exception)
     {"NotImplementedError", "RuntimeError Exception BaseException"},
     {"ScfgError", "Exception BaseException"},
     {"ConfigError", "ScfgError ValueError Exception BaseException"},

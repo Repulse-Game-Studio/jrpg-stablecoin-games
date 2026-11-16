@@ -3,6 +3,7 @@
 
 #include "Scfg/Err.h"
 #include "Scfg/Restore.h"
+#include "Scfg/Reverify.h"
 #include "Scfg/Sessions.h"
 
 #include <algorithm>
@@ -38,16 +39,18 @@ Co<watcher::StepOutcome> EvmBackend::advance(Json pending, Json receipts, std::s
 
 Co<std::string> EvmBackend::reverify(Json receipt, base::Rpc rpc, chains::Chain chain,
                                      std::vector<std::string> wallets) const {
-    (void)receipt, (void)rpc, (void)chain, (void)wallets;
-    co_return Err::make("NotImplementedError", "evm reverify: task 13");
+    SCFG_CO_TRY(std::shared_ptr<rpc::RpcClient> client, base::evm_client(rpc));
+    co_return co_await ::scfg::reverify::check_evm_receipt(std::move(receipt), std::move(client), std::move(chain),
+                                                           std::move(wallets));
 }
 
 Co<std::optional<std::vector<restore::RestoreCandidate>>> EvmBackend::lookup(std::string tx, config::Config config,
                                                                              chains::Chain chain, base::Rpc rpc,
                                                                              Json receipts,
                                                                              base::ErrorSink on_error) const {
-    (void)tx, (void)config, (void)chain, (void)rpc, (void)receipts, (void)on_error;
-    co_return Err::make("NotImplementedError", "evm lookup: task 13");
+    SCFG_CO_TRY(std::shared_ptr<rpc::RpcClient> client, base::evm_client(rpc));
+    co_return co_await restore::lookup_evm(std::move(tx), std::move(config), std::move(chain), std::move(client),
+                                           std::move(receipts), std::move(on_error));
 }
 
 Co<OrderedMap<bool>> EvmBackend::check_ready(base::LazyRpc rpc, chains::Chain chain,

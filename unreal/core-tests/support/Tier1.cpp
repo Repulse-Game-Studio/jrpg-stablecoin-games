@@ -32,12 +32,6 @@ void Topic::operator()(std::string fn, Adapter adapter) {
     r_.fns.emplace(std::move(fn), std::move(adapter));
 }
 
-std::vector<std::string> ported_topics() {
-    return {"amounts", "keccak", "evm_address", "base58", "ed25519",
-            "chains", "config", "custom_chains", "items", "payments", "receipts",
-            "pda", "solana_tx", "qr", "paylinks", "rpc_errors", "tx_ids", "page_messages"};
-}
-
 namespace detail {
 
 TopicRegistrar::TopicRegistrar(const char* name, void (*body)(Topic& fn)) {

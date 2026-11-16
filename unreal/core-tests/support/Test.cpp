@@ -29,6 +29,14 @@ std::vector<std::string> Registry::groups() const {
     return out;
 }
 
+std::vector<std::string> Registry::names(std::string_view group) const {
+    std::vector<std::string> out;
+    for (const Test& t : tests_) {
+        if (t.group == group) out.push_back(t.name);
+    }
+    return out;
+}
+
 int Registry::run(const std::vector<std::string>& args, const Sink& out) {
     bool list = false;
     std::string group, test;
