@@ -78,8 +78,9 @@ namespace Scfg.Core.Tests
             (@"\.ToString\(\s*\)", "pass CultureInfo.InvariantCulture, or end the line with // culture-ok: <reason>"),
             (@"\.ToString\(\s*""(?![^)]*InvariantCulture)", "a format string needs CultureInfo.InvariantCulture"),
             (@"\b[Ss]tring\.Format\((?!\s*CultureInfo\.InvariantCulture)", "pass CultureInfo.InvariantCulture first"),
-            // BCL numeric types only (R6): the core's own Parse APIs (Dec.Parse) are culture-free.
-            (@"\b(s?byte|u?short|u?int|u?long|float|double|decimal|BigInteger)\.(Try)?Parse\((?!.*InvariantCulture)",
+            // BCL numeric types only, keyword and CLR spellings (R6, R6b): the core's own Parse APIs (Dec.Parse)
+            // are culture-free.
+            (@"\b(s?byte|u?short|u?int|u?long|float|double|decimal|BigInteger|S?Byte|U?Int(16|32|64)|Single|Double|Decimal)\.(Try)?Parse\((?!.*InvariantCulture)",
                 "Parse/TryParse must pass CultureInfo.InvariantCulture"),
             (@"\.(?:StartsWith|EndsWith)\((?!.*StringComparison\.Ordinal\b)", "culture-sensitive by default; pass StringComparison.Ordinal"),
             (@"\.(?:Last)?IndexOf\((?!.*StringComparison\.Ordinal\b)", "culture-sensitive by default; pass StringComparison.Ordinal"),
@@ -288,6 +289,10 @@ namespace Scfg.Core.Tests
         [TestCase("var ok = int.TryParse(t, out var v);", "Parse")]
         [TestCase("var ok = BigInteger.TryParse(t, NumberStyles.None, CultureInfo.InvariantCulture, out var v);", "")]
         [TestCase("var b = BigInteger.Parse(t);", "Parse")]
+        [TestCase("var n = Int32.Parse(t);", "Parse")] // the CLR spellings too (R6b)
+        [TestCase("var d = Double.Parse(t);", "Parse")]
+        [TestCase("var ok = UInt64.TryParse(t, out x);", "Parse")]
+        [TestCase("var n = Int64.Parse(t, CultureInfo.InvariantCulture);", "")]
         [TestCase("var d = Dec.Parse(t);", "")] // the core's own Parse APIs are culture-free (R6)
         [TestCase("var d = Dec.TryParse(t, out var v);", "")]
         [TestCase("var b = s.StartsWith(\"x\");", "StartsWith")]
