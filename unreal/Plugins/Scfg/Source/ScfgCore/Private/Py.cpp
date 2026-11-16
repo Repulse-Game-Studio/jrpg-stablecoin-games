@@ -2,6 +2,7 @@
 // rpgmaker/src/core/pystr.ts, whose tables are copied here.
 #include "Scfg/Py.h"
 
+#include "Scfg/Ints.h"
 #include "Scfg/PyFloat.h"
 
 #include <array>
@@ -621,6 +622,20 @@ Result<std::string> quote(std::string_view s, std::string_view safe) {
         }
     }
     return out;
+}
+
+// ---- str(int) ----
+
+Result<std::string> int_str(const BigInt& n) {
+    // A number of b bits is at least 2**(b-1); 2**14285 > 10**4300, so 14286 bits or more always exceed the limit.
+    auto too_long = [] {
+        return Err::value_error("Exceeds the limit (4300) for integer string conversion; use "
+                                "sys.set_int_max_str_digits() to increase the limit");
+    };
+    if (n.bit_length() >= 14286) return too_long();
+    std::string text = n.to_decimal();
+    if (text.size() - (n.sign() < 0 ? 1 : 0) > ints::INT_MAX_STR_DIGITS) return too_long();
+    return text;
 }
 
 // ---- int() ----

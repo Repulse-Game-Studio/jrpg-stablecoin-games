@@ -1,8 +1,8 @@
 // No Python twin: the CPython 3.9 built-ins the core relies on (str.strip(), str.isdecimal(), int(), len(), ==,
 // d[key], truthiness, repr(), str.format() with one argument, str.lower() for an ASCII search, s.encode("utf-8"),
-// urllib.parse.quote), mirroring unity/.../Py.cs and rpgmaker/src/core/pystr.ts, whose tables (the whitespace set
-// and the Unicode 13.0.0 decimal digits) are copied here. Use these instead of <cctype>, <regex> or the C library:
-// their Unicode tables differ, and they follow the C locale.
+// urllib.parse.quote, str() of an int), mirroring unity/.../Py.cs and rpgmaker/src/core/pystr.ts, whose tables (the
+// whitespace set and the Unicode 13.0.0 decimal digits) are copied here. Use these instead of <cctype>, <regex> or the
+// C library: their Unicode tables differ, and they follow the C locale.
 //
 // Text is UTF-8 in std::string; a lone surrogate (from a JSON \ud800 escape) is WTF-8, and every helper here reads
 // it as one code point, as Python's str holds it.
@@ -106,6 +106,12 @@ inline Result<BigInt> py_int(const std::string& s) { return py_int(std::string_v
 // int(x) of a JSON value: a bool is 0 or 1, an int itself, a finite float truncated towards zero (int(-1.9) == -1),
 // a str as above. NaN is a ValueError and an infinity an OverflowError (as Python); anything else a TypeError.
 Result<BigInt> py_int(const Json& x);
+
+// str(n) (and f"{n}") of an int: its decimal digits, "-" first when negative. More than 4300 digits (the sign not
+// counted) is CPython 3.9's ValueError "Exceeds the limit (4300) for integer string conversion; use
+// sys.set_int_max_str_digits() to increase the limit", decided from the bit length first so that a huge n is
+// refused without being converted.
+Result<std::string> int_str(const BigInt& n);
 
 // int(s, 16): the same surrounding whitespace and script-independent decimal digits as py_int, an optional sign, an
 // optional 0x/0X prefix (with one optional underscore after it), then hex digits with single underscores between
