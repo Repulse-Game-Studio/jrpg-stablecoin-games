@@ -94,6 +94,21 @@ jobs:
           npm run build
           cmp /tmp/SCFG.first.js dist/js/plugins/SCFG.js
 
+  cs-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20   # a hung test fails here, not after GitHub's 6 h default
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: 8.0.x
+      - name: C# core tests against the conformance vectors, the lints, the culture reruns and the single-thread run
+        run: dotnet test unity/Scfg.sln -c Release
+      - name: The core builds without warnings
+        run: dotnet build unity/core/Scfg.Core.csproj -warnaserror
+      - name: The core builds without warnings with nullable off, as Unity compiles it
+        run: dotnet build unity/core/Scfg.Core.csproj -c Release -p:Nullable=disable -warnaserror
+
   rpgmaker-ui:
     runs-on: ubuntu-latest
     timeout-minutes: 20   # a hung browser fails here, not after GitHub's 6 h default
@@ -168,6 +183,7 @@ jobs:
     env:
       SCFG_REQUIRE_JS: "1"   # test_js_core.py fails, rather than skips, if Node or rpgmaker/node_modules is missing
       SCFG_REQUIRE_GD: "1"   # test_gd_core.py fails, rather than skips, if SCFG_GODOT is missing
+      SCFG_REQUIRE_CS: "1"   # test_cs_core.py fails, rather than skips, if dotnet is missing or the driver does not build
       SCFG_GODOT: /tmp/godot/Godot_v4.3-stable_linux.x86_64   # the supported floor
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -182,6 +198,9 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: 8.0.x   # test_cs_core.py drives the C# core through unity/core-driver
       - name: Install the JS core's dev dependencies (test_js_core.py drives it through Node)
         run: npm ci
         working-directory: rpgmaker
