@@ -117,9 +117,14 @@ namespace Scfg.Core.Tests
         [TestCase("{\"a\" 1}")]
         [TestCase("\"\\u12\"")]
         [TestCase("\"abc")]
-        [TestCase("NaN")]
-        [TestCase("Infinity")]
-        [TestCase("-Infinity")]
+        // python3.9 -c "import json; json.loads(s)" refuses each of these spellings of the constants
+        [TestCase("nan")]
+        [TestCase("+Infinity")]
+        [TestCase("-NaN")]
+        [TestCase("Infinityx")]
+        [TestCase("NaNx")]
+        [TestCase("-Inf")]
+        [TestCase("Infinit")]
         [TestCase("[1.]")]
         [TestCase("[.5]")]
         [TestCase("[1e]")]
@@ -131,6 +136,31 @@ namespace Scfg.Core.Tests
         public void RejectsWhatJsonLoadsRejects(string text)
         {
             Assert.Throws<ValueError>(() => Json.Loads(text));
+        }
+
+        // Ruling R8: json.loads reads NaN, Infinity and -Infinity (its default parse_constant), as CPython does.
+        [Test]
+        public void ReadsTheConstantsCPythonReads()
+        {
+            Assert.That(Json.Loads("NaN"), Is.TypeOf<double>().And.NaN);
+            Assert.That(Json.Loads("Infinity"), Is.EqualTo(double.PositiveInfinity));
+            Assert.That(Json.Loads("-Infinity"), Is.EqualTo(double.NegativeInfinity));
+            Assert.That(Json.Loads(" NaN "), Is.NaN);
+            var list = (List<object?>)Json.Loads("[NaN,Infinity, -Infinity]")!;
+            Assert.That(list[0], Is.NaN);
+            Assert.That(list[1], Is.EqualTo(double.PositiveInfinity));
+            Assert.That(list[2], Is.EqualTo(double.NegativeInfinity));
+            Assert.That(((JsonObject)Json.Loads("{\"a\":NaN}")!)["a"], Is.NaN);
+            Assert.That(Assert.Throws<ValueError>(() => Json.Loads("nan"))!.Message, Is.EqualTo("Expecting value: line 1 column 1 (char 0)"));
+            Assert.That(Assert.Throws<ValueError>(() => Json.Loads("Infinityx"))!.Message, Is.EqualTo("Extra data: line 1 column 9 (char 8)"));
+        }
+
+        [Test]
+        public void NonFiniteDoublesRoundTrip()
+        {
+            Assert.That(Json.Loads(Json.Dumps(double.NaN)), Is.NaN);
+            Assert.That(Json.Loads(Json.Dumps(double.PositiveInfinity)), Is.EqualTo(double.PositiveInfinity));
+            Assert.That(Json.Loads(Json.Dumps(double.NegativeInfinity)), Is.EqualTo(double.NegativeInfinity));
         }
 
         [Test]

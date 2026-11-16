@@ -23,9 +23,10 @@ namespace Scfg.Core
         /// <summary>
         /// Python's <c>json.loads(text, parse_int=ints.int_from)</c>: an integer literal stays an integer (long, or
         /// BigInteger outside long) and one of more than 4300 digits is a ValueError; a fraction or exponent makes
-        /// a double (<c>1e400</c> is infinity, as Python's float()). Malformed text, trailing data, a BOM, and
-        /// (unlike Python, as the TypeScript core's JSON.parse) NaN and Infinity are ValueErrors, with
-        /// json.JSONDecodeError's message.
+        /// a double (<c>1e400</c> is infinity, as Python's float()). The constants <c>NaN</c>, <c>Infinity</c> and
+        /// <c>-Infinity</c> are read as Python reads them (double.NaN and the infinities; unlike the TypeScript
+        /// core's JSON.parse), so Loads(Dumps(x)) round-trips a non-finite double. Malformed text, trailing data
+        /// and a BOM are ValueErrors, with json.JSONDecodeError's message.
         /// </summary>
         public static object? Loads(string text) => new Reader(text).Document();
 
@@ -103,6 +104,16 @@ namespace Scfg.Core
                     case 'f' when At("false"):
                         _i += 5;
                         return false;
+                    // json's default parse_constant: exactly NaN, Infinity and -Infinity (not nan, +Infinity, -NaN).
+                    case 'N' when At("NaN"):
+                        _i += 3;
+                        return double.NaN;
+                    case 'I' when At("Infinity"):
+                        _i += 8;
+                        return double.PositiveInfinity;
+                    case '-' when At("-Infinity"):
+                        _i += 9;
+                        return double.NegativeInfinity;
                     default:
                         if (c == '-' || (c >= '0' && c <= '9')) return Number();
                         throw Error("Expecting value", _i);
