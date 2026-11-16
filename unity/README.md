@@ -7,6 +7,7 @@ The C# port of the payment core (`Scfg.Core`), the start of the Unity port. It i
 | Path | Contents |
 |---|---|
 | `Packages/com.repulse.scfg/Runtime/Core/` | The core, one C# file per Python module (`Config.cs` is `config.py`, `Solana/Tx.cs` is `solana/tx.py`). Each file's header comment names its Python twin. netstandard2.1 BCL only, `LangVersion` 9.0, no `UnityEngine`, no NuGet package. The package ID `com.repulse.scfg` is a placeholder |
+| `Packages/com.repulse.scfg/Runtime/link.xml` | What the IL2CPP linker must keep: `Scfg.Core` and `Scfg.Desktop` whole, and `RNGCryptoServiceProvider`. Unity ignores a `link.xml` inside a package, so the package's Editor code must hand it to the linker (not written yet) |
 | `core/` | `Scfg.Core.csproj`, which compiles the package's `Runtime/Core/` for the .NET build |
 | `core-tests/` | NUnit tests: Tier 1 and Tier 2 conformance runners, per-module tests, the lints, the culture reruns and the single-thread run |
 | `core-driver/` | A net8.0 console app, the JSON-lines driver that `tests/integration/test_cs_core.py` runs against Anvil and solana-test-validator (protocol: `rpgmaker/test/integration/engine_driver.ts`) |
@@ -46,6 +47,7 @@ The core runs on Unity's main thread, so it never creates a thread or waits.
 - No threads and no timers: no `Task.Run`, `Task.Delay`, `Task.Yield`, `ConfigureAwait`, `Thread`, `ThreadPool`, `Timer`, `Parallel` and no `async void`.
 - `Task<T>` is only a promise (a `TaskCompletionSource` the caller completes). The transport returns one; the core awaits it and never blocks on it (`.Result`, `.Wait()`).
 - Clocks: `RpcClient.Clock` defaults to `Rpc.MonotonicSeconds` (a `Stopwatch`, as Python uses `time.monotonic`), and the backends' `MakeRpc` pass no clock, so RPC cooldowns run on that default. The Engine's and Watcher's clocks are injected, and so is the Tier 2 runner's. Entropy is injected too (`IEntropy`).
+- IL2CPP and WebGL: nothing resolves a type by name. SHA-256 is the core's own (`Sha256`, as `SHA256.Create()` looks its implementation up through `CryptoConfig`), and `SystemEntropy` draws from one `RNGCryptoServiceProvider` it constructs directly (`SystemEntropy.Fill` hands out its bytes). `System.Security.Cryptography` appears only in `Sessions.cs`.
 
 ## Lints
 

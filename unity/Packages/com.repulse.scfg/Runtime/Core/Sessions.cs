@@ -28,24 +28,43 @@ namespace Scfg.Core
         byte[] TokenBytes(int n);
     }
 
-    /// <summary>The OS random source (<see cref="RandomNumberGenerator"/>).</summary>
+    /// <summary>
+    /// The OS random source: one <see cref="RandomNumberGenerator"/> for the process, built with the
+    /// <see cref="RNGCryptoServiceProvider"/> constructor (a direct call the IL2CPP linker sees and link.xml keeps,
+    /// not <c>RandomNumberGenerator.Create()</c>'s CryptoConfig name lookup). It is safe to share: GetBytes may be
+    /// called from any thread.
+    /// </summary>
     public sealed class SystemEntropy : IEntropy
     {
         public static readonly SystemEntropy Instance = new SystemEntropy();
+
+        private static readonly RandomNumberGenerator Rng = new RNGCryptoServiceProvider(); // static-ok: the process's one OS random source; it holds no game state
+
+        /// <summary>Fills <paramref name="buffer"/> with OS random bytes (the local server's secret, the tokens below).</summary>
+        public static void Fill(byte[] buffer)
+        {
+            if (buffer == null) throw new TypeError("buffer must be bytes");
+            if (buffer.Length > 0) Rng.GetBytes(buffer);
+        }
 
         public byte[] TokenBytes(int n)
         {
             if (n < 0) throw new ValueError("negative argument not allowed");
             var b = new byte[n];
-            if (n > 0)
-                using (var rng = RandomNumberGenerator.Create())
-                    rng.GetBytes(b);
+            Fill(b);
             return b;
         }
 
+        /// <summary><c>secrets.token_hex(n)</c>: lowercase (Bytes.ToHex).</summary>
         public string TokenHex(int n) => Bytes.ToHex(TokenBytes(n));
 
-        public long RandBelow(long n)
+        public long RandBelow(long n) => RandBelow(n, TokenBytes);
+
+        /// <summary>
+        /// <c>secrets.randbelow(n)</c> over a byte source (<paramref name="tokenBytes"/> draws that many bytes): the
+        /// bits of n - 1 are drawn as a big-endian number until one is below n.
+        /// </summary>
+        internal static long RandBelow(long n, Func<int, byte[]> tokenBytes)
         {
             if (n <= 0) throw new ValueError("Upper bound must be positive.");
             int bits = 0;
@@ -56,7 +75,7 @@ namespace Scfg.Core
             // Rejection sampling on `bits` random bits (CPython's randbelow): uniform, no modulo bias.
             while (true)
             {
-                var b = TokenBytes(len);
+                var b = tokenBytes(len);
                 ulong x = 0;
                 foreach (var by in b) x = (x << 8) | by;
                 x &= mask;

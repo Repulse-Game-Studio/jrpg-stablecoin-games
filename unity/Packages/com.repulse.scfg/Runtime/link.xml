@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the IL2CPP linker must keep for SCFG. Unity ignores a link.xml inside a package, so the package's Editor
+  code hands this file to the linker (an IUnityLinkerProcessor, planned in notes/unity-port/phase2-plan.md).
+  Scfg.Core and Scfg.Desktop are kept whole; the core draws randomness from RNGCryptoServiceProvider, which it
+  constructs directly (Runtime/Core/Sessions.cs), and keeps that type too.
+-->
+<linker>
+  <assembly fullname="Scfg.Core" preserve="all" />
+  <assembly fullname="Scfg.Desktop" preserve="all" />
+  <assembly fullname="mscorlib">
+    <type fullname="System.Security.Cryptography.RNGCryptoServiceProvider" preserve="all" />
+  </assembly>
+</linker>
