@@ -140,6 +140,8 @@ namespace Scfg.Core
             switch (value)
             {
                 case long l:
+                    // beyond 2**53 the page's JavaScript cannot have sent it nor read the reply's id back exactly: only
+                    // a hostile page makes one up, and it gets an answer it cannot match (no harm to the game)
                     id = l;
                     return true;
                 case int i:
@@ -218,7 +220,7 @@ namespace Scfg.Core
             var moot = older.Job; // the page reused an id: the older build is moot (its place in the order is kept)
             older.Job = job;
             older.Deadline = deadline;
-            moot.Cancel();
+            if (!ReferenceEquals(moot, job)) moot.Cancel(); // BuildTx may hand back the same Job: it is not moot
         }
 
         private void FinishBuilds()
@@ -255,7 +257,11 @@ namespace Scfg.Core
             }
         }
 
-        /// <summary>A copy of the lists and dicts of a JSON value; any other value is kept as it is (immutable or opaque).</summary>
+        /// <summary>
+        /// A copy of the lists and dicts of a JSON value; any other value is kept as it is (immutable or opaque). Like
+        /// <see cref="Py.Eq"/> it knows the shapes Json.Loads produces (JsonObject, <c>List&lt;object?&gt;</c>): another
+        /// list or dict type is kept, not copied.
+        /// </summary>
         private static object? Copy(object? v, int depth)
         {
             switch (v)

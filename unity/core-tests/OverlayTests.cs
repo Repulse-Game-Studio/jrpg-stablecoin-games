@@ -586,5 +586,112 @@ namespace Scfg.Core.Tests
             Assert.That(Py.Eq(new JsonObject(), new List<object?>()), Is.False);
             Assert.That(Py.Eq(new JsonObject { { "a", null } }, new JsonObject()), Is.False);
         }
+
+        [Test]
+        public void PyEqTakesTheIdentityShortcutOnlyForItemsOfContainers()
+        {
+            object nan = double.NaN;
+            Assert.That(Py.Eq(nan, nan), Is.False, "Python: x == x is False for a NaN");
+            var list = new List<object?> { nan };
+            Assert.That(Py.Eq(new List<object?> { nan }, new List<object?> { nan }), Is.True, "the same item inside lists");
+            Assert.That(Py.Eq(list, list), Is.True);
+            Assert.That(Py.Eq(new JsonObject { { "x", nan } }, new JsonObject { { "x", nan } }), Is.True, "and inside dicts");
+            Assert.That(Py.Eq(new List<object?> { double.NaN }, new List<object?> { double.NaN }), Is.False, "two NaN objects");
+        }
+
+        [Test]
+        public void PyEqOfTooDeepOrCircularValuesIsAValueError()
+        {
+            List<object?> Deep(int n)
+            {
+                var v = new List<object?>();
+                for (int i = 0; i < n; i++) v = new List<object?> { v };
+                return v;
+            }
+            Assert.Throws<ValueError>(() => Py.Eq(Deep(Json.MaxDepth + 1), Deep(Json.MaxDepth + 1)));
+            var a = new List<object?>();
+            a.Add(a);
+            var b = new List<object?>();
+            b.Add(b);
+            Assert.Throws<ValueError>(() => Py.Eq(a, b), "circular lists");
+            var oa = new JsonObject();
+            oa["self"] = oa;
+            var ob = new JsonObject();
+            ob["self"] = ob;
+            Assert.Throws<ValueError>(() => Py.Eq(oa, ob), "circular dicts");
+        }
+
+        [Test]
+        public void AReusedIdThatHandsBackTheSameJobKeepsIt()
+        {
+            var fut = new Job();
+            var m = Make(_ => fut);
+            m.O.Start();
+            m.Ui.Inbox = new List<object?> { Build(1L), Build(1L) };
+            m.O.Pump();
+            Assert.That(fut.Cancelled(), Is.False, "the same Job is not moot");
+            Assert.That(m.O.PendingBuilds, Is.EqualTo(1));
+            Succeed(fut, new JsonObject { { "transaction", "T" } });
+            m.O.Pump();
+            Assert.That(m.Ui.Replies(), Is.EqualTo("[" + R(1, 200, "{\"transaction\": \"T\"}") + "]"));
+        }
+
+        [Test]
+        public void AReusedIdGetsAFreshDeadline()
+        {
+            var clock = new Clock();
+            var m = Make(_ => new Job(), clock);
+            m.O.Start();
+            m.Ui.Inbox = new List<object?> { Build(1L) };
+            m.O.Pump();
+            clock.Advance(PageMessages.BuildTimeoutS - 1);
+            m.Ui.Inbox = new List<object?> { Build(1L) };
+            m.O.Pump();
+            clock.Advance(2); // past the first request's deadline, not the second's
+            m.O.Pump();
+            Assert.That(m.Ui.Replies(), Is.EqualTo("[]"), "no 503 at the old deadline");
+            clock.Advance(PageMessages.BuildTimeoutS);
+            m.O.Pump();
+            Assert.That(m.Ui.Replies(), Is.EqualTo("[" + R(1, 503, Unavailable) + "]"));
+        }
+
+        [Test]
+        public void AReusedIdKeepsItsPlaceInTheReplyOrder()
+        {
+            var jobs = new List<Job>();
+            var m = Make(_ =>
+            {
+                jobs.Add(new Job());
+                return jobs[jobs.Count - 1];
+            });
+            m.O.Start();
+            m.Ui.Inbox = new List<object?> { Build(1L), Build(2L), Build(1L) };
+            m.O.Pump();
+            Succeed(jobs[1], new JsonObject { { "transaction", "B" } });
+            Succeed(jobs[2], new JsonObject { { "transaction", "C" } });
+            m.O.Pump();
+            Assert.That(m.Ui.Replies(), Is.EqualTo("[" + R(1, 200, "{\"transaction\": \"C\"}") + ", "
+                                                   + R(2, 200, "{\"transaction\": \"B\"}") + "]"), "id 1 was asked first");
+        }
+
+        [Test]
+        public void ABuildTxThatStopsTheOverlayAndThrowsGetsNoReply()
+        {
+            var ui = new FakeUi();
+            OverlayCheckout o = null!;
+            o = new OverlayCheckout(ui, "o1", new JsonObject { { "title", "T" } }, (_, __) => { },
+                                    () => new JsonObject { { "state", "waiting" } },
+                                    buildTx: _ =>
+                                    {
+                                        o.Stop();
+                                        throw new RuntimeError("the controller is gone");
+                                    });
+            o.Start();
+            ui.Inbox = new List<object?> { Build(1L), Build(2L) };
+            o.Pump();
+            Assert.That(ui.Replies(), Is.EqualTo("[]"));
+            Assert.That(ui.Count("close"), Is.EqualTo(1));
+            Assert.That(o.PendingBuilds, Is.EqualTo(0));
+        }
     }
 }

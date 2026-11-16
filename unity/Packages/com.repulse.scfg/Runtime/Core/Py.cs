@@ -255,16 +255,20 @@ namespace Scfg.Core
         /// <summary>
         /// Python <c>a == b</c> for JSON values: numbers by exact value across bool, int and float
         /// (<c>True == 1 == 1.0</c>, <c>2**53 + 1 != 2.0**53</c>, NaN equals nothing), strings by code units, lists in
-        /// order, dicts by their key sets whatever the order, None only to None. Python's identity shortcut inside
-        /// containers holds for the same reference only (a boxed NaN equals itself). Other values use Equals. Nested
-        /// deeper than <see cref="Json.MaxDepth"/> is a ValueError (Python's RecursionError).
+        /// order, dicts by their key sets whatever the order, None only to None. Python compares the items of a
+        /// container by identity first, so the same reference inside a list or dict is equal to itself (a boxed NaN
+        /// too), while at the top level <c>x == x</c> is False for a NaN. Nested deeper than
+        /// <see cref="Json.MaxDepth"/> is a ValueError (Python's RecursionError).
+        /// <para>It covers the shapes <see cref="Json.Loads"/> and <see cref="JsonObject"/> produce: JsonObject,
+        /// <c>List&lt;object?&gt;</c>, string, bool, int / long / BigInteger, double and null. Any other list, dict or
+        /// number type (an array, a Dictionary, a float or a decimal) compares by its own Equals.</para>
         /// </summary>
         internal static bool Eq(object? a, object? b) => EqAt(a, b, 0);
 
         private static bool EqAt(object? a, object? b, int depth)
         {
-            if (ReferenceEquals(a, b)) return true;
-            if (a == null || b == null) return false;
+            if (depth > 0 && ReferenceEquals(a, b)) return true; // a container's items: identity first, as Python
+            if (a == null || b == null) return a == null && b == null; // None is None
             if (IsNumber(a) && IsNumber(b)) return NumberEq(a, b);
             switch (a)
             {
