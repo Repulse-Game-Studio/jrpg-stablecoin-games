@@ -122,7 +122,7 @@ uv run python tools/run_rpgmaker_desktop_e2e.py --family evm      # or arc, sola
 dotnet test unity/Scfg.sln -c Release
 uv run pytest tests/server_security -m cs_server      # the C# localhost server against the shared security suite
 uv run pytest -m integration tests/integration/test_cs_core.py
-# the Unity glue (a Unity 6 editor): Unity Test Framework suites and the Linux e2e, Mono or IL2CPP; see unity/README.md
+# the Unity glue (Unity 6.3 LTS or newer): Unity Test Framework suites and the Linux e2e, Mono or IL2CPP; see unity/README.md
 "$UNITY" -batchmode -nographics -projectPath unity/Project -runTests -testPlatform EditMode -testResults /tmp/em.xml
 uv run python tools/run_unity_e2e.py --unity "$UNITY" --backend mono --family solana   # or il2cpp; evm, arc
 

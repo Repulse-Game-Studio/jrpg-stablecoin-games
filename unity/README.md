@@ -54,7 +54,7 @@ uv run pytest tests/server_security -m cs_server
 
 ## Unity
 
-The editor tests and the e2e need a Unity 6 editor (the dev project is on 6000.6.9f1; the package declares `"unity": "6000.0"`) installed with Unity Hub, plus the Linux Build Support (IL2CPP) module for the IL2CPP e2e (Hub → Installs → the editor's gear → Add modules). Close the project in the editor first: one project opens in one editor at a time. Each run takes a minute or more (the first import several).
+The editor tests and the e2e need a Unity editor of 6.3 LTS or newer (the package declares `"unity": "6000.3"`, the oldest supported LTS; the dev project is on 6000.6.9f1, and CI is to test both 6.3 LTS and 6000.6; so far only 6000.6.9f1 has compiled it) installed with Unity Hub, plus the Linux Build Support (IL2CPP) module for the IL2CPP e2e (Hub → Installs → the editor's gear → Add modules). Close the project in the editor first: one project opens in one editor at a time. Each run takes a minute or more (the first import several).
 
 ```bash
 UNITY=~/Unity/Hub/Editor/6000.6.9f1/Editor/Unity
