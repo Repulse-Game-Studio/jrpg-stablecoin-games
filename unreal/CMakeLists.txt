@@ -43,7 +43,8 @@ target_include_directories(scfg_core_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/c
 # One ctest test per group. Each task that adds a test group appends it here; RunnerTests.EveryGroupIsRegistered
 # fails if the binary has a group that is in neither list. SCFG_PENDING_GROUPS holds the vector groups that exist
 # before every topic is ported (ruling R1); task 13 moves them into SCFG_TEST_GROUPS and empties it.
-set(SCFG_TEST_GROUPS LintTests RunnerTests ErrTests BigIntTests BytesTests)
+set(SCFG_TEST_GROUPS LintTests RunnerTests ErrTests BigIntTests BytesTests JsonTests PyTests PyFloatTests IntsTests
+  LocaleTests)
 set(SCFG_PENDING_GROUPS Tier1 Tier2 Tier2Deferred)
 
 cmake_path(GET CMAKE_CURRENT_SOURCE_DIR PARENT_PATH SCFG_REPO_ROOT)
