@@ -22,6 +22,16 @@ namespace Scfg.Core.Tests
         public ReplayError(string message) : base(message) { }
     }
 
+    /// <summary>
+    /// A BCL or runner exception (NullReferenceException, InvalidCastException, NotImplementedException, ...) escaped
+    /// the core where only a Python-tree exception may. It is a port bug, never a step's recorded
+    /// <c>raises: other</c>.
+    /// </summary>
+    public sealed class UnexpectedExceptionError : Exception
+    {
+        public UnexpectedExceptionError(Exception inner) : base(Tier2.Describe(inner), inner) { }
+    }
+
     /// <summary>Hands out one step's recorded draws in order; any difference is a problem.</summary>
     public sealed class ScriptedEntropy : IEntropy
     {
@@ -320,6 +330,17 @@ namespace Scfg.Core.Tests
             Py.Get(a, key) as string ?? throw new TypeError(key + " must be a str");
 
         /// <summary>
+        /// True for the exception classes the core defines (Errors.cs, <c>TransportError</c>, <c>RpcError</c>,
+        /// <c>RpcUnavailable</c>, <c>DataTooLongError</c>): Python's exception tree. Anything else is a port bug, so
+        /// it must not satisfy a recorded <c>raises: other</c> or an internal-error count.
+        /// </summary>
+        public static bool IsCoreException(Exception e) =>
+            e is ValueError || e is TypeError || e is KeyError || e is IndexError || e is ArithmeticError
+            || e is ConfigError || e is RestoreError || e is TransportError || e is RpcError || e is RpcUnavailable;
+
+        public static string Describe(Exception e) => e.GetType().FullName + ": " + e.Message;
+
+        /// <summary>
         /// Run one action: (result, raises), raises null or the vector's <c>raises</c> value. <paramref name="steps"/>
         /// are the steps recorded before this one (restore_apply reads one). <paramref name="afterAwait"/> is called
         /// after the action's await returns.
@@ -402,9 +423,13 @@ namespace Scfg.Core.Tests
             {
                 return (null, new JsonObject { { "type", "RestoreError" }, { "code", e.Code } });
             }
-            catch (Exception)
+            catch (Exception e) when (IsCoreException(e))
             {
                 return (null, new JsonObject { { "type", "other" } });
+            }
+            catch (Exception e)
+            {
+                throw new UnexpectedExceptionError(e);
             }
             return (result, null);
         }
@@ -531,8 +556,15 @@ namespace Scfg.Core.Tests
             var setup = vector["setup"] as JsonObject ?? throw new ReplayError("setup is not an object");
             long now = setup["clock"] is long clock ? clock : throw new ReplayError("setup.clock is not an int");
             int errors = 0;
+            string? unexpected = null; // a BCL exception escaped the core: a port bug
+            string? runnerError = null; // a ReplayError escaped: reported after the transport's own problems
             var entropy = new StepEntropy();
-            var engine = BuildEngine(setup, transport, () => now, _ => errors++, entropy);
+            var engine = BuildEngine(setup, transport, () => now, e =>
+            {
+                errors++;
+                if (e is ReplayError) runnerError ??= Describe(e);
+                else if (!IsCoreException(e)) unexpected ??= Describe(e);
+            }, entropy);
             var steps = List(vector["steps"], "steps");
             for (int i = 0; i < steps.Count; i++)
             {
@@ -541,14 +573,28 @@ namespace Scfg.Core.Tests
                 var where = "step " + i.ToString(CultureInfo.InvariantCulture) + " (" + action + ")";
                 now = step["at"] is long at ? at : throw new ReplayError(where + ": at is not an int");
                 errors = 0;
+                unexpected = null;
+                runnerError = null;
                 transport.Load(List(step["calls"], "calls"));
                 entropy.Current = new ScriptedEntropy(List(step["entropy"], "entropy"));
-                var (result, raises) = await RunAction(engine, action, step["args"] as JsonObject ?? new JsonObject(),
+                object? result = null;
+                JsonObject? raises = null;
+                try
+                {
+                    (result, raises) = await RunAction(engine, action, step["args"] as JsonObject ?? new JsonObject(),
                                                        steps.GetRange(0, i), afterAwait == null ? (Action<string>?)null : w => afterAwait(where + " " + w));
+                }
+                catch (UnexpectedExceptionError e)
+                {
+                    if (e.InnerException is ReplayError) runnerError ??= e.Message;
+                    else unexpected ??= e.Message;
+                }
                 afterAwait?.Invoke(where);
+                if (unexpected != null) return where + ": unexpected non-Python exception: " + unexpected;
                 var problems = transport.Problems.Concat(transport.Leftover()).Concat(entropy.Current.Problems)
                     .Concat(entropy.Current.Leftover()).ToList();
                 if (problems.Count > 0) return where + ": " + string.Join("; ", problems);
+                if (runnerError != null) return where + ": " + runnerError;
                 var recordedRaises = step.Get("raises");
                 if (!JsonEq.Equal(recordedRaises, raises))
                     return where + ": raises: recorded " + Json.Dumps(recordedRaises) + ", got " + Json.Dumps(raises);

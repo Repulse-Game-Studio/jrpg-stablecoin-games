@@ -135,6 +135,39 @@ namespace Scfg.Core.Tests
                         Does.StartWith("step 2 (tick): snapshot: tip_total"));
         }
 
+        // A port bug that raises a BCL exception must not satisfy a recorded `raises: other` or a recorded
+        // internal-error count: only the core's Python-tree classes may.
+        [TestCase(typeof(NullReferenceException), 0)]
+        [TestCase(typeof(InvalidCastException), 0)]
+        [TestCase(typeof(IndexOutOfRangeException), 1)]
+        [TestCase(typeof(NotImplementedException), 1)]
+        public async Task ABclExceptionFailsTheStep(Type bcl, int step)
+        {
+            var current = 0;
+            var t = new ReplayTransport();
+            t.OnCall = (_, __) => { if (current == step) throw (Exception)Activator.CreateInstance(bcl, "boom")!; };
+            var diff = await Tier2.Replay(Load("smoke/evm_unlock_paid"), t,
+                                          w => current = int.Parse(w.Substring(5, 1), System.Globalization.CultureInfo.InvariantCulture) + 1);
+            TestContext.WriteLine(step + ": " + diff);
+            Assert.That(diff, Does.StartWith("step " + step + " ").And.Contain("unexpected non-Python exception: " + bcl.FullName + ": boom"));
+        }
+
+        [Test]
+        public void OnlyThePythonTreeIsACoreException()
+        {
+            foreach (var e in new Exception[]
+            {
+                new ValueError("x"), new TypeError("x"), new KeyError("x"), new IndexError("x"), new ArithmeticError("x"),
+                new OverflowError("x"), new ConfigError("x", "c"), new RestoreError("c"), new TransportError("x", null),
+                new RpcUnavailable("x"), new DataTooLongError("x"),
+            }) Assert.That(Tier2.IsCoreException(e), Is.True, e.GetType().Name);
+            foreach (var e in new Exception[]
+            {
+                new NullReferenceException(), new InvalidCastException(), new IndexOutOfRangeException(),
+                new NotImplementedException(), new InvalidOperationException(), new ReplayError("x"),
+            }) Assert.That(Tier2.IsCoreException(e), Is.False, e.GetType().Name);
+        }
+
         [Test]
         public async Task IdenticalCallsTakeTheirCopiesInRecordedOrder()
         {
