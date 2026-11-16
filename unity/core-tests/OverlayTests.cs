@@ -694,4 +694,18 @@ namespace Scfg.Core.Tests
             Assert.That(o.PendingBuilds, Is.EqualTo(0));
         }
     }
+
+    public class JsonEqualTests
+    {
+        [Test]
+        public void JsonEqualIsPythonsEqualityForJsonValues()
+        {
+            Assert.That(Json.Equal(Json.Loads("{\"a\": [1, 2.0, true]}"), Json.Loads("{\"a\": [1.0, 2, 1]}")), Is.True);
+            Assert.That(Json.Equal(Json.Loads("{\"a\": 1, \"b\": 2}"), Json.Loads("{\"b\": 2, \"a\": 1}")), Is.True);
+            Assert.That(Json.Equal(Json.Loads("[1, 2]"), Json.Loads("[2, 1]")), Is.False);
+            Assert.That(Json.Equal(Json.Loads("{\"a\": null}"), Json.Loads("{}")), Is.False);
+            Assert.That(Json.Equal(null, null), Is.True);
+            Assert.That(Json.Equal(double.NaN, double.NaN), Is.False);
+        }
+    }
 }

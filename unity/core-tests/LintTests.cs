@@ -172,6 +172,15 @@ namespace Scfg.Core.Tests
             (@"\.(?:SendTo|ReceiveFrom|ReceiveMessageFrom|SendFile)\(",
                 "no SendTo/ReceiveFrom/SendFile: datagram and file transfers are not the server's, and SendFile waits"));
 
+        // Runtime/Core only: the core also runs in WebGL builds (no sockets, no synchronous file system), so it does no
+        // I/O of its own; the transport is injected and the store lives in the glue.
+        private static readonly Rule[] CoreIoRules = R(
+            (@"\bSystem\.Net\b", "no networking in the core: the transport is injected (and WebGL has no sockets)"),
+            (@"\bSocket\b", "no sockets in the core: the localhost server is Scfg.Desktop's"),
+            (@"\b(?:File|Directory|FileInfo|DirectoryInfo|FileStream|StreamReader|StreamWriter|DriveInfo)\s*(?:\.|\()",
+                "no file I/O in the core: the store lives in the glue"),
+            (@"\bnew\s+(?:FileStream|StreamReader|StreamWriter|FileInfo|DirectoryInfo)\b", "no file I/O in the core: the store lives in the glue"));
+
         private static readonly Rule[] AllRules =
             UnityRules.Concat(ThreadRules).Concat(ReflectionRules).Concat(CultureRules).Concat(StaticRules).ToArray();
 
@@ -331,6 +340,25 @@ namespace Scfg.Core.Tests
         [Test] public void NoCultureSensitiveText() => Scan(CultureRules, honourMarkers: true);
         [Test] public void NoMutableStaticState() => Scan(StaticRules, honourMarkers: true);
         [Test] public void NoWaitingSockets() => Scan(SocketRules, files: Files("Desktop"));
+        [Test] public void NoIoInTheCore() => Scan(CoreIoRules, files: Files("Core"));
+
+        [TestCase("using System.Net.Sockets;", "networking")]
+        [TestCase("var r = System.Net.WebRequest.Create(u);", "networking")]
+        [TestCase("var s = new Socket(a, b, c);", "sockets")]
+        [TestCase("var t = File.ReadAllText(p);", "file I/O")]
+        [TestCase("Directory.CreateDirectory(d);", "file I/O")]
+        [TestCase("using (var r = new StreamReader(p)) { }", "file I/O")]
+        [TestCase("var m = new MemoryStream();", "")]
+        [TestCase("// File.ReadAllText(p) is the glue's", "")]
+        [TestCase("var why = \"File.Delete(p)\";", "")]
+        public void CoreIoMatcherBites(string line, string ruleWhy)
+        {
+            var hits = Violations(line, CoreIoRules, honourMarkers: false).Select(h => h.Rule.Why).ToList();
+            if (ruleWhy.Length == 0)
+                Assert.That(hits, Is.Empty);
+            else
+                Assert.That(hits, Has.Some.Contains(ruleWhy));
+        }
 
         // A socket is non-blocking from the start: each `new Socket(` and each `.Accept(` of a file is assigned to a
         // variable (`v = new Socket(...)`, `var v = l.Accept()`), and a later `v.Blocking = false;` statement of that file's

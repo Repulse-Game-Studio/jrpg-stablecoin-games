@@ -337,6 +337,13 @@ namespace Scfg.Core
         /// Python's repr (NaN, Infinity, -Infinity as Python writes them); keys sorted by code point. Lists may be
         /// any <c>IReadOnlyList&lt;object?&gt;</c>; ints may also be int. Anything else is a TypeError.
         /// </summary>
+        /// <summary>
+        /// Python's <c>a == b</c> for the values <see cref="Loads"/> and <see cref="JsonObject"/> hold (1 == 1.0 == True,
+        /// dicts whatever their key order, lists in order, a NaN never equal): what the glue compares snapshots with to
+        /// decide whether to save and raise its change events. See <see cref="Py.Eq"/>.
+        /// </summary>
+        public static bool Equal(object? a, object? b) => Py.Eq(a, b);
+
         public static string Dumps(object? v, bool sortKeys = false, int? indent = null, bool ensureAscii = true)
         {
             var w = new Writer(sortKeys, indent, ensureAscii);
