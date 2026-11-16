@@ -558,5 +558,90 @@ namespace Scfg.Core
             decpt -= lead;
             digits = all.ToString(lead, end - lead); // culture-ok: StringBuilder slice
         }
+
+        /// <summary>
+        /// <c>template.format(arg)</c> for ONE positional str argument, raising what CPython raises: IndexError for
+        /// <c>{1}</c>, KeyError for <c>{name}</c>, ValueError for malformed braces or a switch between automatic and
+        /// manual numbering. Supported fields: <c>{}</c>, <c>{0}</c>, <c>{!r}</c>, <c>{!s}</c>, <c>{!a}</c>.
+        /// Attribute access, indexing and format specs are rejected with a ValueError, which is stricter than
+        /// Python (as in pyFormat1 of the TS twin).
+        /// </summary>
+        public static string Format1(string template, string arg)
+        {
+            var o = new StringBuilder();
+            int numbering = 0; // 0: undecided, 1: automatic, 2: manual
+            int nextIndex = 0;
+            int i = 0;
+            while (i < template.Length)
+            {
+                char ch = template[i];
+                bool doubled = i + 1 < template.Length && template[i + 1] == ch;
+                if (ch == '}')
+                {
+                    if (!doubled) throw new ValueError("Single '}' encountered in format string");
+                    o.Append('}');
+                    i += 2;
+                    continue;
+                }
+                if (ch != '{')
+                {
+                    o.Append(ch);
+                    i++;
+                    continue;
+                }
+                if (doubled)
+                {
+                    o.Append('{');
+                    i += 2;
+                    continue;
+                }
+                int close = template.IndexOf("}", i + 1, StringComparison.Ordinal);
+                if (close < 0) throw new ValueError("expected '}' before end of string");
+                string field = template.Substring(i + 1, close - i - 1);
+                if (field.Contains("{")) throw new ValueError("unsupported nested replacement field");
+                int n = 0;
+                while (n < field.Length && field[n] != '.' && field[n] != '[' && field[n] != '!' && field[n] != ':') n++;
+                if (n < field.Length && (field[n] == '.' || field[n] == '[')) throw new ValueError("unsupported replacement field");
+                string name = field.Substring(0, n);
+                string? conversion = null;
+                if (n < field.Length && field[n] == '!')
+                {
+                    int colon = n + 1;
+                    while (colon < field.Length && field[colon] != ':') colon++;
+                    conversion = field.Substring(n + 1, colon - n - 1);
+                    n = colon;
+                }
+                if (n < field.Length && n + 1 < field.Length) throw new ValueError("unsupported replacement field"); // a format spec
+                if (name.Length == 0)
+                {
+                    if (numbering == 2) throw new ValueError("cannot switch from manual field specification to automatic field numbering");
+                    numbering = 1;
+                    if (nextIndex++ != 0) throw new IndexError("Replacement index out of range");
+                }
+                else if (IsAsciiDigits(name))
+                {
+                    if (numbering == 1) throw new ValueError("cannot switch from automatic field numbering to manual field specification");
+                    numbering = 2;
+                    foreach (char d in name)
+                        if (d != '0') throw new IndexError("Replacement index out of range");
+                }
+                else
+                {
+                    throw new KeyError(name);
+                }
+                if (conversion != null && conversion != "r" && conversion != "s" && conversion != "a")
+                    throw new ValueError("Unknown conversion specifier");
+                o.Append(conversion == "r" || conversion == "a" ? Repr(arg) : arg);
+                i = close + 1;
+            }
+            return o.ToString(); // culture-ok: StringBuilder
+        }
+
+        private static bool IsAsciiDigits(string s)
+        {
+            foreach (char c in s)
+                if (c < '0' || c > '9') return false;
+            return s.Length != 0;
+        }
     }
 }

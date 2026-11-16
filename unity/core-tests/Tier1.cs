@@ -23,6 +23,13 @@ namespace Scfg.Core.Tests
             "amounts",
             "keccak",
             "evm_address",
+            "base58",
+            "ed25519",
+            "chains",
+            "config",
+            "custom_chains",
+            "items",
+            "payments",
         };
 
         static Tier1()
@@ -36,6 +43,8 @@ namespace Scfg.Core.Tests
             RegisterAmounts();
             RegisterKeccak();
             RegisterEvm();
+            RegisterBase58();
+            RegisterConfig();
         }
 
         // ---- shared input helpers --------------------------------------------------------------------------
@@ -122,6 +131,147 @@ namespace Scfg.Core.Tests
                     { "tx_hash", t.TxHash }, { "log_index", t.LogIndex }, { "block_number", t.BlockNumber },
                     { "block_hash", t.BlockHash },
                 };
+            };
+        }
+
+        // ---- base58 and ed25519 (landed with the config port, which needs them; text is passed through untouched) --
+
+        private static void RegisterBase58()
+        {
+            Funcs["b58encode"] = i => Solana.Base58.B58Encode(Bytes.FromHex(Str(i, "data_hex")));
+            Funcs["b58decode"] = i => Bytes.ToHex(Solana.Base58.B58Decode(i.Get("text")));
+            Funcs["decode_fixed"] = i => Bytes.ToHex(Solana.Base58.DecodeFixed(i.Get("text"), i.Get("length")));
+            Funcs["normalize_pubkey"] = i => Solana.Base58.NormalizePubkey(i.Get("text"));
+            Funcs["normalize_signature"] = i => Solana.Base58.NormalizeSignature(i.Get("text"));
+            Funcs["is_on_curve"] = i => Solana.Ed25519.IsOnCurve(Bytes.FromHex(Str(i, "point_hex")));
+        }
+
+        // ---- chains, config, custom_chains, items, payments --------------------------------------------------
+        // Inputs follow conformance/python/scfg_conformance/tier1_config.py: a Config is the kwargs of build_config
+        // (a custom chain inside it the kwargs of build_chain, a non-object entry is passed through untouched), items
+        // are lists of add_item kwargs, and {"float": "<repr>"} is a float. Outputs are to_jsonable of the dataclasses.
+
+        private static JsonObject Obj(object? v, string what) =>
+            v as JsonObject ?? throw new ValueError("vector input " + what + " must be an object");
+
+        private static List<object?> Arr(object? v, string what) =>
+            v as List<object?> ?? throw new ValueError("vector input " + what + " must be a list");
+
+        private static List<object?> Strs(IEnumerable<string> xs) => xs.Cast<object?>().ToList();
+
+        private static JsonObject TokenJson(Token t) => new JsonObject
+        {
+            { "address", t.Address }, { "decimals", (long)t.Decimals },
+            { "log_address", t.LogAddress }, { "log_decimals", (long)t.LogDecimals },
+        };
+
+        private static JsonObject ChainJson(Chain c)
+        {
+            var tokens = new JsonObject();
+            foreach (var kv in c.Tokens) tokens[kv.Key] = TokenJson(kv.Value);
+            return new JsonObject
+            {
+                { "key", c.Key }, { "chain_id", c.ChainId }, { "name", c.Name }, { "rpc", Strs(c.Rpc) },
+                { "confirmations", c.Confirmations }, { "max_log_range", c.MaxLogRange },
+                { "explorer_tx", c.ExplorerTx }, { "native_symbol", c.NativeSymbol }, { "fee_hint", c.FeeHint },
+                { "tokens", tokens }, { "testnet", c.Testnet }, { "family", c.Family },
+                { "wallet_chain", c.WalletChain }, { "native_token", c.NativeToken }, { "min_fee_wei", c.MinFeeWei },
+            };
+        }
+
+        private static JsonObject ChainsJson(Dictionary<string, Chain> chains)
+        {
+            var o = new JsonObject();
+            foreach (var kv in chains) o[kv.Key] = ChainJson(kv.Value);
+            return o;
+        }
+
+        private static JsonObject ItemJson(Item it) => new JsonObject
+        {
+            { "item_id", it.ItemId }, { "code", (long)it.Code }, { "price", Str(it.Price) }, { "token", it.Token },
+            { "title", it.Title }, { "min_price", Str(it.MinPrice) },
+        };
+
+        private static JsonObject ConfigJson(ConfigData c)
+        {
+            var rpcUrls = new JsonObject();
+            foreach (var kv in c.RpcUrls) rpcUrls[kv.Key] = Strs(kv.Value);
+            var confirmations = new JsonObject();
+            foreach (var kv in c.Confirmations) confirmations[kv.Key] = kv.Value;
+            var items = new JsonObject();
+            foreach (var kv in c.Items) items[kv.Key] = ItemJson(kv.Value);
+            return new JsonObject
+            {
+                { "wallet", c.Wallet }, { "testnet", c.Testnet }, { "chains", Strs(c.Chains) },
+                { "tokens", Strs(c.Tokens) }, { "methods", c.Methods }, { "rpc_urls", rpcUrls },
+                { "confirmations", confirmations }, { "previous_wallets", Strs(c.PreviousWallets) },
+                { "solana_wallet", c.SolanaWallet }, { "previous_solana_wallets", Strs(c.PreviousSolanaWallets) },
+                { "logo", c.Logo }, { "accent", c.Accent }, { "custom_chains", ChainsJson(c.CustomChains) },
+                { "items", items },
+            };
+        }
+
+        private static JsonObject SpecJson(PaymentSpec s) => new JsonObject
+        {
+            { "kind", s.Kind }, { "item", s.Item }, { "price", Str(s.Price) }, { "token", s.Token },
+            { "code", (long)s.Code }, { "title", s.Title }, { "chains", Strs(s.Chains) },
+        };
+
+        private static JsonObject Copy(JsonObject o)
+        {
+            var c = new JsonObject();
+            foreach (var kv in o) c[kv.Key] = kv.Value;
+            return c;
+        }
+
+        private static ConfigData ConfigFrom(JsonObject kwargs)
+        {
+            var kw = Copy(kwargs);
+            if (kw.ContainsKey("custom_chains"))
+                kw["custom_chains"] = Arr(kw["custom_chains"], "custom_chains")
+                    .Select(e => e is JsonObject o ? Config.BuildChain(o) : e).ToList();
+            return Config.BuildConfig(kw);
+        }
+
+        /// <summary>An item (or payment) kwargs object with every value decoded: item_id apart from the rest.</summary>
+        private static (object? ItemId, JsonObject Kwargs) ItemKwargs(JsonObject d)
+        {
+            var rest = new JsonObject();
+            foreach (var kv in d) rest[kv.Key] = VectorValue(kv.Value);
+            var id = rest["item_id"];
+            rest.Remove("item_id");
+            return (id, rest);
+        }
+
+        private static ConfigData WithItems(JsonObject configKw, List<object?> items)
+        {
+            var config = ConfigFrom(configKw);
+            foreach (var item in items)
+            {
+                var (id, rest) = ItemKwargs(Obj(item, "item"));
+                Config.AddItem(config, id, rest);
+            }
+            return config;
+        }
+
+        private static void RegisterConfig()
+        {
+            Funcs["get_chains"] = i => ChainsJson(Chains.GetChains(Py.Truthy(i["testnet"])));
+            Funcs["build_chain"] = i => ChainJson(Config.BuildChain(i));
+            Funcs["build_config"] = i => ConfigJson(ConfigFrom(i));
+            Funcs["add_item"] = i =>
+            {
+                var config = WithItems(Obj(i["config"], "config"), i.TryGetValue("existing", out var e) ? Arr(e, "existing") : new List<object?>());
+                var (id, rest) = ItemKwargs(Obj(i["item"], "item"));
+                return ItemJson(Config.AddItem(config, id, rest));
+            };
+            Funcs["prepare_payment"] = i =>
+            {
+                var config = WithItems(Obj(i["config"], "config"), i.TryGetValue("items", out var e) ? Arr(e, "items") : new List<object?>());
+                var kw = new JsonObject();
+                foreach (var k in new[] { "item", "amount", "token", "title" })
+                    if (i.TryGetValue(k, out var v)) kw[k] = VectorValue(v);
+                return SpecJson(Payments.PreparePayment(config, i["kind"], kw));
             };
         }
 
