@@ -509,16 +509,16 @@ screen scfg_payment(cid):
                 use scfg_step_view(ctl.nav_dir):
                     use scfg_step_network(ctl, cid)
             elif ctl.step == "method":
-                use scfg_step_view(ctl.nav_dir):
+                use scfg_step_view(ctl.nav_dir, ctl=ctl, cid=cid):
                     use scfg_step_method(ctl, cid)
             elif ctl.step == "browser":
-                use scfg_step_view(ctl.nav_dir, (_("Open wallet") if scfg.WEB else _("Open checkout in browser")), Function(scfg._open_browser, cid)):
+                use scfg_step_view(ctl.nav_dir, (_("Open wallet") if scfg.WEB else _("Open checkout in browser")), Function(scfg._open_browser, cid), ctl=ctl, cid=cid):
                     use scfg_step_browser(ctl, cid)
             elif ctl.step == "qr":
-                use scfg_step_view(ctl.nav_dir, _("I've sent it"), Function(scfg._mark_sent, cid)):
+                use scfg_step_view(ctl.nav_dir, _("I've sent it"), Function(scfg._mark_sent, cid), ctl=ctl, cid=cid):
                     use scfg_step_qr(ctl, cid)
             elif ctl.step == "manual":
-                use scfg_step_view(ctl.nav_dir, _("I've sent it"), Function(scfg._mark_sent, cid)):
+                use scfg_step_view(ctl.nav_dir, _("I've sent it"), Function(scfg._mark_sent, cid), ctl=ctl, cid=cid):
                     use scfg_step_manual(ctl, cid)
             elif ctl.step == "waiting":
                 use scfg_step_view(ctl.nav_dir):
@@ -531,8 +531,9 @@ screen scfg_payment(cid):
 
 
 ## One step sliding in from the right (forward) or the left (back): its scrolling body,
-## and below it the button that moves on (when the step has one), always in view.
-screen scfg_step_view(direction, next_label=None, next_action=None):
+## and below it, always in view, the buy link (when `ctl` offers it on this step) and the
+## button that moves on (when the step has one).
+screen scfg_step_view(direction, next_label=None, next_action=None, ctl=None, cid=None):
     side "c b":
         style "scfg_step"
         xsize scfg._scroll_width()
@@ -548,14 +549,16 @@ screen scfg_step_view(direction, next_label=None, next_action=None):
                 xsize scfg._content_width()
                 transclude
 
-        if next_label:
-            textbutton next_label:
-                style "scfg_accent_button"
-                text_color scfg.on_accent()
-                xsize scfg._inner_width()
-                action next_action
-        else:
-            null
+        vbox:
+            style "scfg_body"
+            if ctl is not None and ctl.shows_onramp:
+                use scfg_onramp_link(ctl, cid)
+            if next_label:
+                textbutton next_label:
+                    style "scfg_accent_button"
+                    text_color scfg.on_accent()
+                    xsize scfg._inner_width()
+                    action next_action
 
 
 screen scfg_payment_header(ctl, cid):
@@ -653,15 +656,14 @@ screen scfg_step_method(ctl, cid):
     vbox:
         for m, label, hint in methods:
             use scfg_option(label, Function(scfg._choose_method, cid, m), selected=(ctl.method == m), sub=hint, width=scfg._content_width(), height=row_h)
-    use scfg_onramp_link(ctl, cid)
 
 
 ## "No USDC yet? Buy some with a card": opens the configure(onramp=...) page for the chosen
-## network in the player's browser. Shown on the method step, or on the payment page the
-## sheet opens on when there is a single method (CheckoutController.shows_onramp).
+## network in the player's browser. scfg_step_view shows it below the scrolling body, so it
+## stays in view, on the method step or on the payment page the sheet opens on when there is
+## a single method (CheckoutController.shows_onramp).
 screen scfg_onramp_link(ctl, cid):
-    if ctl.shows_onramp:
-        textbutton (_("No %s yet? Buy some with a card") % ctl.spec.token) style "scfg_small_button" action Function(scfg._open_onramp, cid)
+    textbutton (_("No %s yet? Buy some with a card") % ctl.spec.token) style "scfg_small_button" xsize scfg._inner_width() action Function(scfg._open_onramp, cid)
 
 
 screen scfg_step_browser(ctl, cid):
@@ -676,7 +678,6 @@ screen scfg_step_browser(ctl, cid):
     else:
         text _("Opens a checkout page in your browser for MetaMask, Rabby, Coinbase Wallet and other wallet extensions.")
     text (_("Approve %s on %s in your wallet.") % (scfg._amount_line(ctl), ctl.chain.name)) style "scfg_muted" substitute False
-    use scfg_onramp_link(ctl, cid)
 
 
 screen scfg_step_qr(ctl, cid):
@@ -700,7 +701,6 @@ screen scfg_step_qr(ctl, cid):
         text _("If your wallet changes the amount, the game still finds the payment.") style "scfg_muted"
     else:
         text _("If your wallet changes the amount, use Manual transfer and paste the transaction hash.") style "scfg_muted"
-    use scfg_onramp_link(ctl, cid)
 
 
 screen scfg_step_manual(ctl, cid):
@@ -730,7 +730,6 @@ screen scfg_step_manual(ctl, cid):
             if scfg.WEB:
                 textbutton _("Paste") style "scfg_small_button" xsize scfg._px(90) yfill True action Function(scfg._paste_hash, cid)
             textbutton _("Check") style "scfg_small_button" xsize scfg._px(90) yfill True action Function(scfg._submit_hash, cid)
-    use scfg_onramp_link(ctl, cid)
 
 
 screen scfg_step_waiting(ctl, cid):

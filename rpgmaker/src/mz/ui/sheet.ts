@@ -128,6 +128,7 @@ export class PaymentSheet extends Screen {
     this.body = body;
     this.sheet.append(body);
     const forward = this.step(body);
+    this.onrampLink();
     if (forward !== null) this.sheet.append(this.button("forward", forward[0], "accent forward", forward[1]));
     this.sheet.append(this.footer());
   }
@@ -245,17 +246,17 @@ export class PaymentSheet extends Screen {
     const list = this.div("stack");
     for (const m of c.methods()) list.append(this.option(`method_${m}`, this.methodLabel(m), this.methodHint(m), c.method === m, () => c.chooseMethod(m)));
     body.append(list);
-    this.onrampLink(body);
   }
 
   /**
    * "No USDC yet? Buy some with a card" (Ren'Py's scfg_onramp_link): the configure({onramp}) page
-   * for the chosen network. On the method step, or the payment page the sheet opens on when there
-   * is a single method (the controller's showsOnramp).
+   * for the chosen network, pinned below the scrolling body (above the forward button) so it stays
+   * in view. On the method step, or the payment page the sheet opens on when there is a single
+   * method (the controller's showsOnramp).
    */
-  private onrampLink(body: HTMLElement): void {
+  private onrampLink(): void {
     const c = this.ctl;
-    if (c.showsOnramp) body.append(this.div("row", this.button("onramp", this.text("onramp_link", c.spec.token), "small", () => this.scfg.openOnramp(c))));
+    if (c.showsOnramp) this.sheet.append(this.button("onramp", this.text("onramp_link", c.spec.token), "small", () => this.scfg.openOnramp(c)));
   }
 
   private stepBrowser(body: HTMLElement): void {
@@ -266,7 +267,6 @@ export class PaymentSheet extends Screen {
     if (this.web) note = solana ? this.text("solana_opens_here_note") : this.text("evm_opens_here_note");
     else note = solana ? this.text("solana_opens_browser_note") : this.text("evm_opens_browser_note");
     body.append(this.label(note), this.label(this.text("approve_in_wallet", this.amountLine(false), this.chainDisplay()), "muted"));
-    this.onrampLink(body);
   }
 
   private stepQr(body: HTMLElement): void {
@@ -299,7 +299,6 @@ export class PaymentSheet extends Screen {
       body.append(this.button("wallet_app", this.text("open_wallet_app"), "", () => this.scfg.openWalletApp(c)));
     }
     body.append(this.label(c.family === "solana" ? this.text("wallet_changes_amount") : this.text("wallet_changes_amount_manual"), "muted"));
-    this.onrampLink(body);
   }
 
   private stepManual(body: HTMLElement): void {
@@ -316,7 +315,6 @@ export class PaymentSheet extends Screen {
       body.append(this.div("stack tight", this.label(label, "label"), this.div("value-row", this.value(value, "mono grow", `value_${key}`), copy)));
     }
     if (c.config.methods["manual"]?.["allow_tx_paste"]) this.txPaste(body);
-    this.onrampLink(body);
   }
 
   /** The manual step's "Sent from an exchange? Paste the transaction hash:" field. */
