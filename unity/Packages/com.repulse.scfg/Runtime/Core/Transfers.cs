@@ -1,6 +1,7 @@
 // Twin of scfg_core/transfers.py (and of rpgmaker/src/core/transfers.ts).
 // A token transfer to the developer, in a form shared by every chain family. Receipts and restore candidates
 // are built from it. EVM fills it from an ERC-20 Transfer log; Solana from a transaction's token-balance changes.
+#nullable enable
 using System;
 using System.Numerics;
 

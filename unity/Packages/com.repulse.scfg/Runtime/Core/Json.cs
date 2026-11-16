@@ -1,5 +1,6 @@
 // No Python twin: Python's json module (json.loads as ints.json_loads calls it, and json.dumps), by hand:
 // no reflection-based serializer survives IL2CPP stripping.
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Globalization;

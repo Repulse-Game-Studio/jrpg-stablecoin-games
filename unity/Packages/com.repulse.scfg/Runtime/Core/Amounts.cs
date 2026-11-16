@@ -10,6 +10,7 @@
 // Values are loosely typed where Python's are: a Python int is an int, long or BigInteger (never a bool), a
 // float is a double, a Decimal is a Dec. Token units are a BigInteger, which, like a Python int, may be
 // negative or huge (format_units and units_to_decimal accept those; decode does the range check).
+#nullable enable
 using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;

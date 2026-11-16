@@ -1,5 +1,6 @@
 // No Python twin: copy.deepcopy for the Engine's JSON-like state (pending sessions, receipts), mirroring
 // rpgmaker/src/core/copy.ts. Python uses the standard library.
+#nullable enable
 using System.Collections.Generic;
 using System.Numerics;
 

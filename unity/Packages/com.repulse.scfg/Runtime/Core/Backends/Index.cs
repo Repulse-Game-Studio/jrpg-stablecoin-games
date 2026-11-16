@@ -4,6 +4,7 @@
 // The engine, sessions, receipts and screens are family-neutral. Anything that touches a chain's RPC,
 // transaction-id format or payment matching goes through BackendFor(chain). One stateless backend per family,
 // registered EVM first, then Solana: NormalizeAnyTx tries the families in that order, as Python does.
+#nullable enable
 using System.Collections.Generic;
 
 namespace Scfg.Core

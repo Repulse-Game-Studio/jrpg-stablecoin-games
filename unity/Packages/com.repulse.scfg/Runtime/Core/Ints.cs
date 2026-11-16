@@ -2,6 +2,7 @@
 // CPython's limit on the number of decimal digits enforced explicitly (converting a very long digit string
 // costs quadratic time); json_loads (an RPC answer's integer literals through int_from) and
 // digit_run_value (a number in a node's error message, at most 18 significant digits, Ruling 6).
+#nullable enable
 using System.Globalization;
 using System.Numerics;
 

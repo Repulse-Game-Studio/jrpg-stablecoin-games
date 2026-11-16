@@ -1,5 +1,6 @@
 // Twin of scfg_core/solana/pda.py (and of rpgmaker/src/core/solana/pda.ts).
 // Program-derived addresses and associated token accounts (classic SPL Token program).
+#nullable enable
 using System;
 using System.Security.Cryptography;
 using System.Text;

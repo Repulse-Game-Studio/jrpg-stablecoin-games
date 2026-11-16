@@ -106,6 +106,8 @@ jobs:
         run: dotnet test unity/Scfg.sln -c Release
       - name: The core builds without warnings
         run: dotnet build unity/core/Scfg.Core.csproj -warnaserror
+      - name: The core builds without warnings with nullable off, as Unity compiles it
+        run: dotnet build unity/core/Scfg.Core.csproj -c Release -p:Nullable=disable -warnaserror
 
   rpgmaker-ui:
     runs-on: ubuntu-latest

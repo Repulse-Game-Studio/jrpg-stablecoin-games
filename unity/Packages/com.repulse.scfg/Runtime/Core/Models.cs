@@ -1,5 +1,6 @@
 // Twin of scfg_core/models.py (and of rpgmaker/src/core/models.ts).
 // Value objects shared with the developer's script.
+#nullable enable
 using System.Collections.Generic;
 
 namespace Scfg.Core

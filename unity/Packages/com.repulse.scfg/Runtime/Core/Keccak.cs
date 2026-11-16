@@ -2,6 +2,7 @@
 // Keccak-256 as used by Ethereum: the original Keccak padding (suffix 0x01), not NIST SHA3-256 (0x06).
 // The permutation and sponge follow the Keccak team's public-domain reference implementation (XKCP's
 // CompactFIPS202), on 64-bit lanes instead of Python integers.
+#nullable enable
 using System;
 
 namespace Scfg.Core

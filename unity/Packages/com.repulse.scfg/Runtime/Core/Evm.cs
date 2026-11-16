@@ -1,5 +1,6 @@
 // Twin of scfg_core/evm.py (and of rpgmaker/src/core/evm.ts).
 // EVM helpers: addresses (EIP-55) and event topics.
+#nullable enable
 using System.Collections.Generic;
 using System.Numerics;
 using System.Text;

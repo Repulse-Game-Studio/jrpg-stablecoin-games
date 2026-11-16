@@ -8,6 +8,7 @@
 // Errors mirror Python: only RpcUnavailable and RpcError are swallowed by Lookup; anything else (a malformed log)
 // fails the whole lookup, except a transfer of 10**32 units or more, which Amounts.Decode cannot price: that one is
 // skipped and reported to on_error (ClassifyOrSkip).
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;

@@ -1,5 +1,6 @@
 // Twin of scfg_core/backends/evm.py (and of rpgmaker/src/core/backends/evm.ts).
 // EVM chains: the watcher, re-verification and restore code behind the IBackend interface.
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;

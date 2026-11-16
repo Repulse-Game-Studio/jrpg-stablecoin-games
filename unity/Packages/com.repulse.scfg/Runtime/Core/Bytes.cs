@@ -1,5 +1,6 @@
 // No Python twin: hex, base64 and byte helpers (Python uses bytes.fromhex / .hex() / base64), mirroring
 // rpgmaker/src/core/bytes.ts.
+#nullable enable
 using System;
 
 namespace Scfg.Core

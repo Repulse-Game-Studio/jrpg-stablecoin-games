@@ -25,6 +25,7 @@
 // alphanumeric and byte segments, chosen as Python's make_segments does), EncodeSegments, the QrCode
 // constructor and everything below it. Left out: encode_binary, make_eci, the kanji mode, the public
 // make_* segment builders, the version/mask/ecc accessors and the public low-level constructor.
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Globalization;

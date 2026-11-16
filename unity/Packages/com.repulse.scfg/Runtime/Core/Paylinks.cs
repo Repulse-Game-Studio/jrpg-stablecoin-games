@@ -1,6 +1,7 @@
 // Twin of scfg_core/paylinks.py (and of rpgmaker/src/core/paylinks.ts).
 // Payment links (EIP-681) and QR code geometry. The QR matrix comes from QrCodeGen.cs (Project Nayuki's
 // generator). Rendering is left to the engine: QrRects merges each row's dark modules into horizontal runs.
+#nullable enable
 using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;

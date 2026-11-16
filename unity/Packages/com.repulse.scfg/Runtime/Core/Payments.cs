@@ -1,6 +1,7 @@
 // Twin of scfg_core/payments.py (and of rpgmaker/src/core/payments.ts).
 // Validation of a pay() request, independent of chain and network. Used synchronously by scfg.pay() (so programmer
 // errors raise immediately in the developer's script) and again by Engine.StartSession.
+#nullable enable
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;

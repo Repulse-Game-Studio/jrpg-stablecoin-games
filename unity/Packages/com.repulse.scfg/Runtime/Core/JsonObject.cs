@@ -1,4 +1,5 @@
 // No Python twin: Python's dict as the core uses it (str keys, insertion order). The universal JSON object.
+#nullable enable
 using System;
 using System.Collections;
 using System.Collections.Generic;

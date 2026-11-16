@@ -3,6 +3,7 @@
 // (on the curve) from program-derived addresses such as token accounts (deliberately off the curve). It mirrors
 // curve25519-dalek's CompressedEdwardsY::decompress: y is read little-endian with the sign bit masked and reduced
 // mod p (non-canonical encodings accepted), and the point exists iff (y^2 - 1) / (d*y^2 + 1) is a square mod p.
+#nullable enable
 using System.Numerics;
 
 namespace Scfg.Core.Solana

@@ -12,6 +12,7 @@
 // and Chain.ParseTransfer reads only that stream, floored to 6-decimal units.
 //
 // Mainnet and Testnet are mutable dictionaries: the integration driver points entries at local nodes.
+#nullable enable
 using System.Collections.Generic;
 using System.Numerics;
 using Scfg.Core.Solana;

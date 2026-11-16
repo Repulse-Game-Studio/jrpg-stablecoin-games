@@ -259,6 +259,39 @@ namespace Scfg.Core.Tests
             Assert.That(bad, Is.Empty, string.Join("\n", bad));
         }
 
+        // Unity has no project-level nullable setting, so each file turns annotations on itself. The directive must
+        // come after the header comment and before any other line (a using, the namespace).
+        private static bool EnablesNullableFirst(string text)
+        {
+            foreach (var raw in text.Replace("\r", "").Split('\n'))
+            {
+                var line = raw.TrimStart('\uFEFF').Trim();
+                if (line.Length == 0 || line.StartsWith("//", StringComparison.Ordinal)) continue;
+                return line == "#nullable enable";
+            }
+            return false;
+        }
+
+        [Test]
+        public void EveryFileEnablesNullable()
+        {
+            var core = CoreDir();
+            var bad = new List<string>();
+            foreach (var file in CoreFiles())
+                if (!EnablesNullableFirst(File.ReadAllText(file)))
+                    bad.Add($"{Path.GetRelativePath(core, file).Replace('\\', '/')}: '#nullable enable' must be the first line after the header comment");
+            Assert.That(bad, Is.Empty, string.Join("\n", bad));
+        }
+
+        [TestCase("// header\n#nullable enable\nusing System;\n", true)]
+        [TestCase("\uFEFF// header\r\n#nullable enable\r\nnamespace A {}\r\n", true)]
+        [TestCase("// header\nusing System;\n#nullable enable\n", false)]
+        [TestCase("// header\nusing System;\n", false)]
+        [TestCase("// header\n#nullable disable\nusing System;\n", false)]
+        [TestCase("", false)]
+        public void NullableLintBites(string text, bool expected) =>
+            Assert.That(EnablesNullableFirst(text), Is.EqualTo(expected));
+
         [Test]
         public void VectorsFound()
         {

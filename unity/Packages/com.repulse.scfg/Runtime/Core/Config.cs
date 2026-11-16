@@ -10,6 +10,7 @@
 //
 // config.py has no case folding beyond ASCII (its patterns are case-sensitive, its colour digits and logo
 // extension are lowercased), so the folding here is ASCII-only and culture-free by construction.
+#nullable enable
 using System;
 using System.Collections;
 using System.Collections.Generic;

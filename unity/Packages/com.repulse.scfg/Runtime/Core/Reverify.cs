@@ -10,6 +10,7 @@
 //
 // Only a *definitive* mismatch removes a receipt; network trouble never does. Python's generators are async methods
 // that only await the RPC objects they are handed.
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;

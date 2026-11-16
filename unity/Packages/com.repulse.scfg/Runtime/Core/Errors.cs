@@ -4,6 +4,7 @@
 // (DecimalException, InvalidOperation, Overflow). The classes follow Python's tree: ConfigError is a
 // ValueError, OverflowError and the decimal signals are ArithmeticErrors and not ValueErrors.
 // RpcError and TransportError are added with rpc.py's and coio.py's twins. Also errors.py's print_error.
+#nullable enable
 using System;
 
 namespace Scfg.Core

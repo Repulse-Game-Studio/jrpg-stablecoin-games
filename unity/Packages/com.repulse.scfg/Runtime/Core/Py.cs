@@ -2,6 +2,7 @@
 // truthiness, type names, repr(), urllib.parse.quote), mirroring rpgmaker/src/core/pystr.ts, whose
 // tables (the whitespace sets and the Unicode 13.0.0 decimal digits) are copied here. Use these instead
 // of Trim(), char.IsWhiteSpace, char.IsDigit or \d / \s in a Regex: .NET's Unicode tables differ.
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Globalization;

@@ -9,6 +9,7 @@
 // value that is not a dict has no .get: Python's AttributeError, a TypeError here), Py.Truthy for `or`. A malformed
 // reply or record throws a non-RPC error, which the Engine contains. Stored fields that Python sends to the node as
 // they are (a hint, a reference, a cursor) are sent unchecked here too.
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Globalization;

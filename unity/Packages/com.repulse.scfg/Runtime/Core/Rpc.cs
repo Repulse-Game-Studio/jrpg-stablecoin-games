@@ -8,6 +8,7 @@
 // checked against request ids, as in Python.
 //
 // Not ported: UrllibTransport (a real transport is platform code; Coio.ParseRpcBody holds its rules).
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

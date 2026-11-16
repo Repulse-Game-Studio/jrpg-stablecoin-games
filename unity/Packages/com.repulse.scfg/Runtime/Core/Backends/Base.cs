@@ -5,6 +5,7 @@
 // here, awaiting the transport of the RPC object they are handed; NormalizeTx and MakeRpc are plain. The RPC object
 // is whatever MakeRpc built for the chain (an RpcClient for EVM, a SolanaRpc for Solana), typed object as Python's
 // duck-typed `rpc` is: each backend casts it to its own family's client.
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;

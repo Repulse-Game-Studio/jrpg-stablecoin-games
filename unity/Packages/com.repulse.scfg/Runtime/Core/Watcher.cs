@@ -10,6 +10,7 @@
 // Advance is logic over plain JsonObjects plus an RpcClient. State is only mutated after RPC calls succeed, so a
 // network outage never corrupts a session. Record fields are read the way Python indexes them (Py.Get): a
 // malformed record throws, and the Engine contains it per session.
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;

@@ -4,6 +4,7 @@
 // There is deliberately no "owned" flag anywhere. Ownership is always recomputed from receipts, and receipts are
 // re-checked against the chain at every launch. A store is a JsonObject (Python's dict), a receipt a JsonObject
 // shaped as the frozen receipt schema (conformance/schema/state.json).
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Globalization;

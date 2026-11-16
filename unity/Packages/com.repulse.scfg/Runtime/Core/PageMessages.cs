@@ -1,5 +1,6 @@
 // Twin of scfg_core/page_messages.py: what the checkout page may tell the game, checked the same way wherever the
 // page runs. A tx hash is only a hint: the watcher verifies it on-chain before anything is unlocked.
+#nullable enable
 using System;
 
 namespace Scfg.Core

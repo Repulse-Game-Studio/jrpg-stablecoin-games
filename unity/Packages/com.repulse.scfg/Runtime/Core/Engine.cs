@@ -4,6 +4,7 @@
 // It owns all plugin state (deep copies of what the game persists) and is NOT re-entrant: one caller drives it, one
 // command at a time, on one thread. Readers get Snapshots, which are detached copies. Methods that need the network
 // are async and only await the injected transport (Python's cooperative *_co jobs); the others are plain.
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;

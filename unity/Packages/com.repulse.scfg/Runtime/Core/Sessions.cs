@@ -8,6 +8,7 @@
 // Randomness goes through an IEntropy (Python's `secrets`), so the Tier 2 runner can script draws. The draw order
 // and sizes equal Python's: randbelow(100) for the nonce, then token_hex(8) for the id (Solana's backend adds
 // token_bytes(32) for its reference).
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Numerics;

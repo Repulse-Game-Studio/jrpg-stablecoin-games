@@ -5,6 +5,7 @@
 // compact-u16 #instructions | per instruction: program index, compact-u16 #accounts, account indexes,
 // compact-u16 #data, data. Account order: fee payer, then writable signers, readonly signers, writable
 // non-signers, readonly non-signers, each group sorted by raw key bytes. Program ids are readonly non-signers.
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Globalization;

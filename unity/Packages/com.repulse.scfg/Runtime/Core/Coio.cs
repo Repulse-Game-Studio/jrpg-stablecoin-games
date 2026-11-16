@@ -9,6 +9,7 @@
 //
 // Not ported: run_sync, Sync and synced (await replaces them) and UrllibTransport itself (a real transport is
 // platform code; it reads the answer's status and bytes and hands them to ParseRpcBody).
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Globalization;
