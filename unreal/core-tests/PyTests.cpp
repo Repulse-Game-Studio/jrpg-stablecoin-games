@@ -372,6 +372,59 @@ SCFG_TEST(PyTests, HexStrAndIterate) {
     }
 }
 
+// Python's comparisons, subtraction and operator.index on values read back from storage (checked with CPython 3.9).
+SCFG_TEST(PyTests, NumbersAndKeysAsPythonUsesThem) {
+    auto cmp = [](const Json& a, py::Cmp op, const Json& b) {
+        scfg::Result<bool> r = py::compare(a, op, b);
+        return r.ok() ? (r.value() ? 1 : 0) : -1;
+    };
+    const BigInt two53 = BigInt(int64_t{1} << 53);
+    SCFG_CHECK_EQ(t, cmp(Json(two53 + BigInt(1)), py::Cmp::Gt, Json(9007199254740992.0)), 1);  // exact, not as doubles
+    SCFG_CHECK_EQ(t, cmp(Json(9007199254740992.0), py::Cmp::Lt, Json(two53 + BigInt(1))), 1);
+    SCFG_CHECK_EQ(t, cmp(Json(two53 + BigInt(1)), py::Cmp::Le, Json(9007199254740992.0)), 0);
+    SCFG_CHECK_EQ(t, cmp(Json(BigInt(1) << 80), py::Cmp::Lt, Json(1e30)), 1);
+    SCFG_CHECK_EQ(t, cmp(Json(-(BigInt(1) << 80)), py::Cmp::Lt, Json(-1.5)), 1);
+    SCFG_CHECK_EQ(t, cmp(Json(BigInt(1) << 1100), py::Cmp::Lt, Json(std::numeric_limits<double>::infinity())), 1);
+    SCFG_CHECK_EQ(t, cmp(Json(true), py::Cmp::Ge, Json(1)), 1);
+    SCFG_CHECK_EQ(t, cmp(Json(995), py::Cmp::Ge, Json(995.0)), 1);
+    for (py::Cmp op : {py::Cmp::Lt, py::Cmp::Le, py::Cmp::Gt, py::Cmp::Ge}) {
+        SCFG_CHECK_EQ(t, cmp(Json(1), op, Json(std::nan(""))), 0);  // every comparison with a NaN is False
+    }
+    SCFG_CHECK_EQ(t, cmp(Json("a"), py::Cmp::Lt, Json("b")), 1);
+    scfg::Result<bool> mixed = py::compare(Json(1), py::Cmp::Ge, Json("1"));
+    t.check(!mixed.ok() && mixed.err().message == "'>=' not supported between instances of 'int' and 'str'",
+            mixed.ok() ? "compared" : mixed.err().message);
+    SCFG_CHECK_EQ(t, cmp(Json(), py::Cmp::Gt, Json(1)), -1);
+    SCFG_CHECK_EQ(t, cmp(Json::list(), py::Cmp::Lt, Json::list()), -1);  // port limit: lists are not ordered
+
+    scfg::Result<Json> d = py::sub(Json(1700001800), Json(1700000000));
+    t.check(d.ok() && d.value().is_int64() && d.value().as_int64() == 1800, "int - int");
+    d = py::sub(Json(10), Json(2.5));
+    t.check(d.ok() && d.value().is_float() && d.value().as_float() == 7.5, "int - float");
+    d = py::sub(Json(true), Json(1));
+    t.check(d.ok() && d.value().is_int64() && d.value().as_int64() == 0, "bool - int");
+    d = py::sub(Json(BigInt(1) << 1100), Json(1.0));
+    t.check(!d.ok() && d.err().kind == "OverflowError", "an int beyond the floats");
+    d = py::sub(Json(1), Json());
+    t.check(!d.ok() && d.err().message == "unsupported operand type(s) for -: 'int' and 'NoneType'", "None");
+
+    scfg::Result<BigInt> i = py::index(Json(true));
+    t.check(i.ok() && i.value() == 1, "index(True)");
+    i = py::index(Json(BigInt(1) << 70));
+    t.check(i.ok() && i.value() == (BigInt(1) << 70), "index of a big int");
+    i = py::index(Json(900.0));
+    t.check(!i.ok() && i.err().message == "'float' object cannot be interpreted as an integer", "index(900.0)");
+
+    scfg::Result<std::optional<std::string>> k = py::str_key(Json("USDC"));
+    t.check(k.ok() && k.value() == std::optional<std::string>("USDC"), "a str key");
+    k = py::str_key(Json(5));
+    t.check(k.ok() && !k.value().has_value(), "a hashable non-str");
+    k = py::str_key(Json::list({1}));
+    t.check(!k.ok() && k.err().message == "unhashable type: 'list'", "a list");
+    k = py::str_key(Json::dict());
+    t.check(!k.ok() && k.err().message == "unhashable type: 'dict'", "a dict");
+}
+
 SCFG_TEST(PyTests, Format1MatchesStrFormat) {
     auto f = [](std::string_view tmpl, std::string_view arg) {
         scfg::Result<std::string> r = py::format1(tmpl, arg);

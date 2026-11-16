@@ -12,6 +12,7 @@
 #include "Scfg/Json.h"
 #include "Scfg/Result.h"
 
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -150,5 +151,38 @@ Err key_error(std::string_view key);
 // d[key] on a JSON value: the value, a KeyError for a missing key, or the TypeError CPython 3.9 raises when d is not
 // a dict ("'NoneType' object is not subscriptable", "list indices must be integers or slices, not str", ...).
 Result<Json> get(const Json& d, std::string_view key);
+// The str key that d[k], `k in d` and d.get(k) look up in a dict with str keys, for a JSON value k: k itself for a
+// str, nullopt for any other hashable value (None, a bool, a number: no such dict holds one), and CPython's
+// TypeError "unhashable type: 'list'" for a list or a dict.
+Result<std::optional<std::string>> str_key(const Json& k);
+
+// ---- numbers (Python's arithmetic on values read back from storage) ----
+
+// A Python number: a bool or an int, exactly (is_int, i), or a float (f).
+struct Number {
+    bool is_int = false;
+    BigInt i;
+    double f = 0.0;
+};
+// The number v holds (a bool as 0 or 1), or nullopt when v is not a number.
+std::optional<Number> number(const Json& v);
+// float(n): an int correctly rounded (as PyLong_AsDouble), an OverflowError beyond the float range.
+Result<double> to_float(const Number& n);
+// The exact order of two numbers, as Python compares an int with a float (never through a lossy conversion);
+// unordered when either is a NaN.
+std::partial_ordering compare_numbers(const Number& a, const Number& b);
+
+enum class Cmp { Lt, Le, Gt, Ge };
+// a < b (<=, >, >=) as Python evaluates it for two JSON values: numbers by compare_numbers (False when a NaN is
+// involved), two strs by code point; anything else is CPython's TypeError "'<' not supported between instances of
+// 'int' and 'str'". Port limit: two lists (which Python orders item by item) are refused too; the core only ever
+// compares a stored value with a number.
+Result<bool> compare(const Json& a, Cmp op, const Json& b);
+// a - b of two numbers: exact for two ints, else in floats (an int beyond the float range is an OverflowError);
+// anything else is CPython's TypeError "unsupported operand type(s) for -: 'int' and 'str'".
+Result<Json> sub(const Json& a, const Json& b);
+// operator.index(v), what hex() and range() take: an int, or a bool as 0 or 1; anything else is CPython's
+// TypeError "'float' object cannot be interpreted as an integer".
+Result<BigInt> index(const Json& v);
 
 }  // namespace scfg::py

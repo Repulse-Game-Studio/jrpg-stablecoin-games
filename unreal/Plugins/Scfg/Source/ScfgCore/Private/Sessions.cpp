@@ -5,7 +5,6 @@
 #include "Scfg/BigInt.h"
 #include "Scfg/Err.h"
 #include "Scfg/Py.h"
-#include "Scfg/PyFloat.h"
 
 #include <algorithm>
 #include <cmath>
@@ -31,71 +30,23 @@ Status set_item(Json& rec, std::string key, Json value) {
     }
 }
 
-// A Python number: an int (bool included) exactly, or a float.
-struct Num {
-    bool is_int = false;
-    BigInt i;
-    double f = 0.0;
-};
-
-std::optional<Num> number(const Json& v) {
-    if (v.is_bool()) return Num{true, BigInt(v.as_bool() ? 1 : 0), 0.0};
-    if (v.is_int()) return Num{true, v.as_bigint(), 0.0};
-    if (v.is_float()) return Num{false, BigInt(), v.as_float()};
-    return std::nullopt;
-}
-
-// float(n) for an int, correctly rounded (as PyLong_AsDouble); OverflowError beyond the float range.
-Result<double> to_float(const Num& n) {
-    if (!n.is_int) return n.f;
-    if (n.i.fits_int64()) return static_cast<double>(n.i.to_int64().value());  // round-to-nearest-even, as Python
-    std::optional<double> f = pyfloat::parse(n.i.to_decimal());                // strtod rounds correctly too
-    if (!f || std::isinf(*f)) return Err::overflow_error("int too large to convert to float");
-    return *f;
-}
-
-// now - created >= limit, with Python's arithmetic: exact for two ints, else in floats.
+// now - created >= limit, with Python's arithmetic: exact for two ints, else in floats (a NaN is never past).
 Result<bool> elapsed_at_least(const Json& rec, const Json& now, int64_t limit) {
     SCFG_TRY(Json created, py::get(rec, "created_at"));
-    std::optional<Num> a = number(now);
-    std::optional<Num> b = number(created);
-    if (!a || !b) {
-        return Err::type_error("unsupported operand type(s) for -: '" + std::string(now.type_name()) + "' and '" +
-                               std::string(created.type_name()) + "'");
-    }
-    if (a->is_int && b->is_int) return a->i - b->i >= BigInt(limit);
-    SCFG_TRY(double x, to_float(*a));
-    SCFG_TRY(double y, to_float(*b));
-    return x - y >= static_cast<double>(limit);  // a NaN is never past
+    SCFG_TRY(Json elapsed, py::sub(now, created));
+    return py::compare(elapsed, py::Cmp::Ge, Json(limit));
 }
 
-// Exact order of two numbers. Python's int/float comparisons are exact; a NaN is put after every number (Python's
-// comparisons with it are all false).
-std::weak_ordering compare_numbers(const Num& a, const Num& b) {
-    if (a.is_int && b.is_int) return a.i <=> b.i;
-    if (!a.is_int && !b.is_int) {
-        if (std::isnan(a.f) || std::isnan(b.f)) return std::isnan(a.f) <=> std::isnan(b.f);
-        return a.f < b.f ? std::weak_ordering::less : b.f < a.f ? std::weak_ordering::greater : std::weak_ordering::equivalent;
-    }
-    const bool flip = !a.is_int;  // compare (int i, float f) and flip the answer when a is the float
-    const BigInt& i = a.is_int ? a.i : b.i;
-    const double f = a.is_int ? b.f : a.f;
-    std::weak_ordering r = std::weak_ordering::equivalent;
-    if (std::isnan(f)) {
-        r = std::weak_ordering::less;
-    } else if (std::isinf(f)) {
-        r = f > 0 ? std::weak_ordering::less : std::weak_ordering::greater;
-    } else if (i.fits_int64() && i.to_int64().value() >= -(int64_t{1} << 53) &&
-               i.to_int64().value() <= (int64_t{1} << 53)) {
-        const double d = static_cast<double>(i.to_int64().value());  // exact below 2**53
-        r = d < f ? std::weak_ordering::less : f < d ? std::weak_ordering::greater : std::weak_ordering::equivalent;
-    } else {
-        r = Dec::from_int(i) <=> *Dec::from_double(f);  // both exact
-    }
-    if (!flip) return r;
-    return r == std::weak_ordering::less ? std::weak_ordering::greater
-           : r == std::weak_ordering::greater ? std::weak_ordering::less
-                                              : std::weak_ordering::equivalent;
+// A total order for sorting numbers: Python's exact order, with a NaN put after every number (Python's comparisons
+// with it are all false).
+std::weak_ordering compare_numbers(const py::Number& a, const py::Number& b) {
+    const bool a_nan = !a.is_int && std::isnan(a.f);
+    const bool b_nan = !b.is_int && std::isnan(b.f);
+    if (a_nan || b_nan) return a_nan <=> b_nan;
+    std::partial_ordering r = py::compare_numbers(a, b);
+    return r == std::partial_ordering::less      ? std::weak_ordering::less
+           : r == std::partial_ordering::greater ? std::weak_ordering::greater
+                                                 : std::weak_ordering::equivalent;
 }
 
 }  // namespace scfg::sessions::detail
@@ -177,7 +128,7 @@ Result<std::vector<Json>> list_sessions(const Json::Dict& store) {
     }
     // Any sort of two or more records compares some pair across two kinds of key when there are two kinds, so a
     // mix is refused up front (Python raises from inside its sort); a lone record is never compared.
-    auto kind = [](const Json& k) { return detail::number(k) ? 1 : k.is_str() ? 2 : 0; };
+    auto kind = [](const Json& k) { return py::number(k) ? 1 : k.is_str() ? 2 : 0; };
     for (size_t i = 1; i < entries.size(); ++i) {
         const int x = kind(entries[i].key);
         const int y = kind(entries[i - 1].key);
@@ -189,7 +140,7 @@ Result<std::vector<Json>> list_sessions(const Json::Dict& store) {
     }
     std::stable_sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {
         if (a.key.is_str()) return py::compare_code_points(a.key.as_str(), b.key.as_str()) < 0;
-        return detail::compare_numbers(*detail::number(a.key), *detail::number(b.key)) < 0;
+        return detail::compare_numbers(*py::number(a.key), *py::number(b.key)) < 0;
     });
     std::vector<Json> out;
     out.reserve(entries.size());

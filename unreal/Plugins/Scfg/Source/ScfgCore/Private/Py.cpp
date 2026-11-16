@@ -8,6 +8,7 @@
 #include <array>
 #include <charconv>
 #include <cmath>
+#include <compare>
 #include <optional>
 #include <string>
 #include <vector>
@@ -821,6 +822,98 @@ Result<Json> get(const Json& d, std::string_view key) {
         default:
             return Err::type_error("'" + std::string(d.type_name()) + "' object is not subscriptable");
     }
+}
+
+Result<std::optional<std::string>> str_key(const Json& k) {
+    if (k.is_list() || k.is_dict()) return Err::type_error("unhashable type: '" + std::string(k.type_name()) + "'");
+    if (k.is_str()) return std::optional<std::string>(k.as_str());
+    return std::optional<std::string>();
+}
+
+// ---- numbers ----
+
+std::optional<Number> number(const Json& v) {
+    if (v.is_bool()) return Number{true, BigInt(v.as_bool() ? 1 : 0), 0.0};
+    if (v.is_int()) return Number{true, v.as_bigint(), 0.0};
+    if (v.is_float()) return Number{false, BigInt(), v.as_float()};
+    return std::nullopt;
+}
+
+Result<double> to_float(const Number& n) {
+    if (!n.is_int) return n.f;
+    if (n.i.fits_int64()) return static_cast<double>(n.i.to_int64().value());  // round-to-nearest-even, as Python
+    std::optional<double> f = pyfloat::parse(n.i.to_decimal());                // strtod rounds correctly too
+    if (!f || std::isinf(*f)) return Err::overflow_error("int too large to convert to float");
+    return *f;
+}
+
+std::partial_ordering compare_numbers(const Number& a, const Number& b) {
+    if (a.is_int && b.is_int) return a.i <=> b.i;
+    if (!a.is_int && !b.is_int) return a.f <=> b.f;
+    const BigInt& i = a.is_int ? a.i : b.i;
+    const double f = a.is_int ? b.f : a.f;
+    std::partial_ordering r = std::partial_ordering::unordered;  // (int i) <=> (float f)
+    constexpr double kExact = 9007199254740992.0;                 // 2**53: every int up to it is a double
+    if (std::isnan(f)) {
+        r = std::partial_ordering::unordered;
+    } else if (std::isinf(f)) {
+        r = f > 0 ? std::partial_ordering::less : std::partial_ordering::greater;
+    } else if (i >= BigInt(-(int64_t{1} << 53)) && i <= BigInt(int64_t{1} << 53)) {
+        r = static_cast<double>(i.to_int64().value()) <=> f;
+    } else if (std::fabs(f) < kExact) {
+        r = i.sign() < 0 ? std::partial_ordering::less : std::partial_ordering::greater;  // |i| > 2**53 > |f|
+    } else {
+        r = i <=> detail::from_integral_double(f);  // a double that large is an integer: compare exactly
+    }
+    if (a.is_int) return r;
+    return r == std::partial_ordering::less      ? std::partial_ordering::greater
+           : r == std::partial_ordering::greater ? std::partial_ordering::less
+                                                 : r;
+}
+
+Result<bool> compare(const Json& a, Cmp op, const Json& b) {
+    std::partial_ordering r = std::partial_ordering::unordered;
+    std::optional<Number> x = number(a);
+    std::optional<Number> y = number(b);
+    if (x && y) {
+        r = compare_numbers(*x, *y);
+    } else if (a.is_str() && b.is_str()) {
+        r = compare_code_points(a.as_str(), b.as_str()) <=> 0;
+    } else {
+        const char* name = op == Cmp::Lt ? "<" : op == Cmp::Le ? "<=" : op == Cmp::Gt ? ">" : ">=";
+        return Err::type_error(std::string("'") + name + "' not supported between instances of '" +
+                               std::string(a.type_name()) + "' and '" + std::string(b.type_name()) + "'");
+    }
+    switch (op) {
+        case Cmp::Lt:
+            return r == std::partial_ordering::less;
+        case Cmp::Le:
+            return r == std::partial_ordering::less || r == std::partial_ordering::equivalent;
+        case Cmp::Gt:
+            return r == std::partial_ordering::greater;
+        case Cmp::Ge:
+            return r == std::partial_ordering::greater || r == std::partial_ordering::equivalent;
+    }
+    return false;
+}
+
+Result<Json> sub(const Json& a, const Json& b) {
+    std::optional<Number> x = number(a);
+    std::optional<Number> y = number(b);
+    if (!x || !y) {
+        return Err::type_error("unsupported operand type(s) for -: '" + std::string(a.type_name()) + "' and '" +
+                               std::string(b.type_name()) + "'");
+    }
+    if (x->is_int && y->is_int) return Json(x->i - y->i);
+    SCFG_TRY(double p, to_float(*x));
+    SCFG_TRY(double q, to_float(*y));
+    return Json(p - q);
+}
+
+Result<BigInt> index(const Json& v) {
+    if (v.is_bool()) return BigInt(v.as_bool() ? 1 : 0);
+    if (v.is_int()) return v.as_bigint();
+    return Err::type_error("'" + std::string(v.type_name()) + "' object cannot be interpreted as an integer");
 }
 
 }  // namespace scfg::py

@@ -24,9 +24,10 @@ struct Item {
 
 // What pay(), callbacks and on_result receive (Python's PaymentResult dataclass).
 //
-// status: "paid" | "already_owned" | "cancelled" | "expired" | "underpaid" | "failed" | "pending". kind, item, token
-// and chain are Json because Python carries whatever value a session held (None for absent); the rest are text the
-// core itself writes, or None.
+// status: "paid" | "already_owned" | "cancelled" | "expired" | "underpaid" | "failed" | "pending". kind, item, token,
+// chain, tx_hash, payer and session_id are Json because Python carries whatever value a stored session or match
+// held (None for absent): a hand-edited store must not make building the result fail. error is text the core itself
+// writes, or None.
 struct PaymentResult {
     std::string status;
     Json kind;
@@ -34,9 +35,9 @@ struct PaymentResult {
     std::optional<Dec> amount;
     Json token;
     Json chain;
-    std::optional<std::string> tx_hash;
-    std::optional<std::string> payer;
-    std::optional<std::string> session_id;
+    Json tx_hash;
+    Json payer;
+    Json session_id;
     std::optional<std::string> error;
 };
 
