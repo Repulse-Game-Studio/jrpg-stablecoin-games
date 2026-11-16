@@ -45,7 +45,8 @@ target_include_directories(scfg_core_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/c
 # before every topic is ported (ruling R1); task 13 moves them into SCFG_TEST_GROUPS and empties it.
 set(SCFG_TEST_GROUPS LintTests RunnerTests ErrTests BigIntTests BytesTests JsonTests PyTests PyFloatTests IntsTests
   LocaleTests Tier1Tests DecTests AmountsTests Sha256Tests KeccakTests EvmTests
-  Base58Tests Ed25519Tests ChainsTests ConfigTests PaymentsTests ReceiptsTests SessionsTests EntropyTests)
+  Base58Tests Ed25519Tests ChainsTests ConfigTests PaymentsTests ReceiptsTests SessionsTests EntropyTests
+  PdaTests SolanaTxTests)
 set(SCFG_PENDING_GROUPS Tier1 Tier2 Tier2Deferred)
 
 cmake_path(GET CMAKE_CURRENT_SOURCE_DIR PARENT_PATH SCFG_REPO_ROOT)

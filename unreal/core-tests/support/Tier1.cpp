@@ -34,7 +34,8 @@ void Topic::operator()(std::string fn, Adapter adapter) {
 
 std::vector<std::string> ported_topics() {
     return {"amounts", "keccak", "evm_address", "base58", "ed25519",
-            "chains", "config", "custom_chains", "items", "payments", "receipts"};
+            "chains", "config", "custom_chains", "items", "payments", "receipts",
+            "pda", "solana_tx"};
 }
 
 namespace detail {
