@@ -91,11 +91,13 @@ Co<std::optional<std::vector<RestoreCandidate>>> lookup_evm(std::string tx_hash,
         if (std::find(wallets.begin(), wallets.end(), t->recipient) == wallets.end()) continue;
         SCFG_CO_TRY(std::optional<Classified> classified, classify_or_skip(config, t->value, on_error));
         if (!classified) continue;
+        // receipt_key(...) in receipts: a log index of more than 4300 digits is str()'s ValueError, which fails the
+        // whole lookup, as in Python
+        SCFG_CO_TRY(std::string key, receipts::receipt_key(chain.key, t->tx_hash, t->log_index));
         RestoreCandidate c;
         c.chain = chain.key;
         c.token = *name;
-        c.already_restored =
-            receipts.is_dict() && receipts.as_dict().contains(receipts::receipt_key(chain.key, t->tx_hash, t->log_index));
+        c.already_restored = receipts.is_dict() && receipts.as_dict().contains(key);
         c.transfer = std::move(*t);
         c.kind = std::move(classified->kind);
         c.item = std::move(classified->item);

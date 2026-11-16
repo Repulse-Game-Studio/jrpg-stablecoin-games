@@ -107,7 +107,7 @@ std::vector<std::string> run_topic(std::string_view topic, const Registry& r) {
     bool registered = false;
     for (const std::string& t : r.topics) registered = registered || t == topic;
     if (!registered) {
-        failures.push_back("no SCFG_TIER1_TOPIC(" + std::string(topic) + ") is registered: its task has not landed");
+        failures.push_back("no adapters are registered for this topic (no SCFG_TIER1_TOPIC(" + std::string(topic) + "))");
     }
     std::optional<std::string> text = vectors::read_text(file);
     if (!text) {

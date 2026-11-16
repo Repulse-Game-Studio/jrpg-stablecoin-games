@@ -1,8 +1,8 @@
 // No Python twin: checks of Reverify.cpp below what the Tier 2 vectors pin. Every expectation is the Python
 // reference's (scfg_core.engine.Engine.reverify through conformance's replay.build_engine and ReplayTransport) on the
-// same setup and node answers, from scratch scripts run from the repo root as `python3 -I <script> .`: a stored
-// log_index (or block) of any size is valid and judged against what the node sent, as Python's int is unbounded
-// (carried item from task 5), and an invalid entry's report names its reason as Python's repr of the exception.
+// same setup and node answers, printed by the script quoted in full above each test: a stored log_index (or block)
+// of any size is valid and judged against what the node sent, as Python's int is unbounded (carried item from task
+// 5), and an invalid entry's report names its reason as Python's repr of the exception.
 #include "support/JsonEq.h"
 #include "support/Test.h"
 #include "support/Tier2.h"
@@ -138,11 +138,99 @@ std::string shown(const Outcome& o) {
 
 using namespace scfg_test::reverify_tests;
 
-// big_index.py:
-//   evm = reverify/genuine_receipt_is_kept, its one receipt's log_index (or block) replaced and every eth_getLogs
-//   log's logIndex set; solana = solana/reverify_receipts with only its receipt ...:2, the developer row's
-//   accountIndex set in that transaction's answer. For each: engine.reverify(), the reports' classes, and
-//   len(transport.leftover()).
+// The cases below, their expectations printed by this script (one line per case: the removed keys, the reports'
+// classes, the number of recorded calls never made, the transport's problems):
+//
+// ---- big_index.py (run from the repo root: python3 -I big_index.py .) ----
+//   """Carried item 2: Python's reverify of stored receipts whose log_index is 2**63 or more (and other big values).
+//
+//   python3 -I big_index.py <repo root>
+//   """
+//   import copy
+//   import json
+//   import sys
+//
+//   ROOT = sys.argv[1]
+//   sys.path[:0] = [ROOT + "/plugin/game/python-packages", ROOT + "/conformance/python"]
+//
+//   from scfg_conformance import replay as rp  # noqa: E402
+//
+//
+//   def load(vid):
+//       return json.load(open(f"{ROOT}/conformance/vectors/tier2/{vid}.json"))
+//
+//
+//   def run(v, receipts, mutate_calls):
+//       setup = copy.deepcopy(v["setup"])
+//       setup["receipts"] = receipts
+//       step = copy.deepcopy(v["steps"][0])
+//       mutate_calls(step["calls"])
+//       transport = rp.ReplayTransport()
+//       errors = []
+//       engine = rp.build_engine(setup, transport=transport, clock=lambda: step["at"], on_error=errors.append)
+//       transport.load(step["calls"])
+//       removed = engine.reverify()
+//       return removed, [type(e).__name__ for e in errors], len(transport.leftover()), transport.problems
+//
+//
+//   def evm_log_index(text):
+//       def f(calls):
+//           for c in calls:
+//               if c["method"] == "eth_getLogs":
+//                   body = json.loads(c["response_text"])
+//                   for lg in body["result"]:
+//                       lg["logIndex"] = text
+//                   c["response_text"] = json.dumps(body)
+//       return f
+//
+//
+//   evm = load("reverify/genuine_receipt_is_kept")
+//   key, rec = next(iter(evm["setup"]["receipts"].items()))
+//   for name, stored, node in [
+//       ("2**63 vs 0x8000000000000000", 2**63, "0x8000000000000000"),
+//       ("2**63 vs 0x2", 2**63, "0x2"),
+//       ("'9223372036854775808' vs 0x8000000000000000", "9223372036854775808", "0x8000000000000000"),
+//       ("2**70 vs 0x400000000000000000", 2**70, "0x400000000000000000"),
+//       ("2**64 + 2 vs 0x2", 2**64 + 2, "0x2"),
+//       ("-2**63 vs 0x2", -2**63, "0x2"),
+//       ("2.5 vs 0x2", 2.5, "0x2"),
+//   ]:
+//       r = dict(rec, log_index=stored)
+//       print("evm", name, run(evm, {key: r}, evm_log_index(node)))
+//
+//   r = dict(rec, block=2**63)
+//   print("evm block 2**63", run(evm, {key: r}, lambda c: None))
+//   r = dict(rec, block=2**63, log_index=2**63)
+//   print("evm block and index 2**63", run(evm, {key: r}, lambda c: None))
+//
+//   sol = load("solana/reverify_receipts")
+//   k5 = "solana:5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn:2"
+//   rec5 = sol["setup"]["receipts"][k5]
+//   sig5 = k5.split(":")[1]
+//
+//
+//   def sol_index(value):
+//       def f(calls):
+//           for c in calls:
+//               if c["method"] == "getTransaction" and c["params"][0] == sig5:
+//                   body = json.loads(c["response_text"])
+//                   if body.get("result"):
+//                       for t in ("preTokenBalances", "postTokenBalances"):
+//                           for b in body["result"]["meta"][t]:
+//                               if b["accountIndex"] == 2:
+//                                   b["accountIndex"] = value
+//                   c["response_text"] = json.dumps(body)
+//       return f
+//
+//
+//   for name, stored, node in [
+//       ("2**63 vs 2", 2**63, 2),
+//       ("2**63 vs 2**63", 2**63, 2**63),
+//       ("2 vs 2**63", 2, 2**63),
+//   ]:
+//       r = dict(rec5, log_index=stored)
+//       print("solana", name, run(sol, {k5: r}, sol_index(node)))
+// ---- end of big_index.py ----
 SCFG_TEST(ReverifyTests, AStoredLogIndexOfAnySizeIsJudgedAsPythonDoes) {
     std::optional<Json> evm = load("reverify/genuine_receipt_is_kept");
     std::optional<Json> sol = load("solana/reverify_receipts");
@@ -214,9 +302,41 @@ SCFG_TEST(ReverifyTests, AStoredLogIndexOfAnySizeIsJudgedAsPythonDoes) {
     }
 }
 
-// messages.py: reverify/genuine_receipt_is_kept's setup with these entries (no request is made), the removed keys in
-// the store's order and each report's str(). (Python 3.12's int(None) wording differs from 3.9's, so entry "m"'s
-// message is not compared.)
+// reverify/genuine_receipt_is_kept's setup with these entries (no request is made): the removed keys in the store's
+// order and each report's str(), printed by this script. (Python 3.12's int(None) wording differs from 3.9's, so
+// entry "m"'s message is compared by prefix only.)
+//
+// ---- messages.py (run from the repo root: python3 -I messages.py .) ----
+//   """The messages Python's reverify reports for invalid stored entries. python3 -I messages.py <repo root>"""
+//   import copy, json, sys
+//   ROOT = sys.argv[1]
+//   sys.path[:0] = [ROOT + "/plugin/game/python-packages", ROOT + "/conformance/python"]
+//   from scfg_conformance import replay as rp
+//   v = json.load(open(f"{ROOT}/conformance/vectors/tier2/reverify/genuine_receipt_is_kept.json"))
+//   key, rec = next(iter(v["setup"]["receipts"].items()))
+//   entries = {
+//       "a": {},
+//       "b": dict(rec, chain=[1]),
+//       "c": dict(rec, item={"x": 1}),
+//       "d": dict(rec, tx_hash=5),
+//       "e": {k: x for k, x in dict(rec, log_index=-1).items() if k != "block"},
+//       "f": dict(rec, log_index="x"),
+//       "g": dict(rec, block=float("inf")),
+//       "h": dict(rec, amount="1e99"),
+//       "i": dict(rec, tx_hash=" " + rec["tx_hash"]),
+//       "j": dict(rec, tx_hash="0x12"),
+//       "k": [1, 2],
+//       "l": dict(rec, chain="gone", tx_hash="not a hash"),
+//       "m": dict(rec, log_index=None),
+//   }
+//   setup = copy.deepcopy(v["setup"]); setup["receipts"] = entries
+//   t = rp.ReplayTransport(); errors = []
+//   engine = rp.build_engine(setup, transport=t, clock=lambda: 0, on_error=errors.append)
+//   t.load([])
+//   print(json.dumps(engine.reverify()))
+//   for e in errors: print(json.dumps([type(e).__name__, str(e)]))
+//   print(t.problems)
+// ---- end of messages.py ----
 SCFG_TEST(ReverifyTests, AnInvalidEntryIsRemovedWithPythonsReason) {
     std::optional<Json> evm = load("reverify/genuine_receipt_is_kept");
     if (!t.check(evm.has_value(), "vector")) return;

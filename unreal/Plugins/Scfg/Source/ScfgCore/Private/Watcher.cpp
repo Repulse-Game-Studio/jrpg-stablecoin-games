@@ -62,7 +62,9 @@ Result<bool> qualifies(const std::optional<evm::TransferLog>& t, const Step& s) 
     SCFG_TRY(Json start, py::get(s.rec, "start_block"));
     SCFG_TRY(bool after, py::compare(Json(t->block_number), py::Cmp::Ge, start));
     if (!after) return false;
-    return !s.receipts.as_dict().contains(receipts::receipt_key(s.chain.key, t->tx_hash, t->log_index));
+    // a log index of more than 4300 digits is str()'s ValueError: the step fails, and the Engine contains it
+    SCFG_TRY(std::string key, receipts::receipt_key(s.chain.key, t->tx_hash, t->log_index));
+    return !s.receipts.as_dict().contains(key);
 }
 
 // The hint's verdict is final: remember which hint it is about, then forget the hint.

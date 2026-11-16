@@ -386,20 +386,62 @@ SCFG_TEST(SolanaBackendTests, LookupSkipsAnUnpriceableTransfer) {
 
 // Ruling R10: a restore candidate carries the transfer as Python's does, whatever the node sent, and the receipt it
 // stores holds those values as they are. solana/restore_lookup's step 0, its getTransaction answer mutated; every
-// expectation is the Python reference's on the same mutation (re-recorded with the scratch script below, run from
-// the repo root as `python3 -I r10_restore.py .`; nothing under conformance/ is changed):
+// expectation is the Python reference's on the same mutation (re-recorded with the script below, whose MUTATIONS are
+// r10_cases() below; nothing under conformance/ is changed):
 //
+// ---- r10_restore.py (run from the repo root: python3 -I r10_restore.py .) ----
 //   import copy, json, sys
 //   sys.path[:0] = [sys.argv[1] + "/plugin/game/python-packages", sys.argv[1] + "/conformance/python"]
 //   from scfg_conformance import replay as rp
 //   v = json.load(open(sys.argv[1] + "/conformance/vectors/tier2/solana/restore_lookup.json"))
-//   for name, mutate in MUTATIONS:                 # the table in r10_cases() below, applied to step 0's answer
-//       s = copy.deepcopy(v["steps"][0]); mutate(s)
-//       transport = rp.ReplayTransport(); errors = []
+//
+//   def rows(tx):
+//       return [b for t in ("preTokenBalances", "postTokenBalances") for b in tx["meta"][t]]
+//
+//   def indexes(a, b):  # the payer's row (accountIndex 1) and the developer's (2)
+//       def f(tx):
+//           for r in rows(tx):
+//               r["accountIndex"] = a if r["accountIndex"] == 1 else b
+//       return f
+//
+//   def owner5(tx):
+//       for r in rows(tx):
+//           if r["accountIndex"] == 1:
+//               r["owner"] = 5
+//
+//   def fee_payer(first):  # only the developer's row is left; accountKeys[0] is `first`, or there is no key
+//       def f(tx):
+//           for t in ("preTokenBalances", "postTokenBalances"):
+//               tx["meta"][t] = [b for b in tx["meta"][t] if b["accountIndex"] != 1]
+//           keys = tx["transaction"]["message"]["accountKeys"]
+//           if first is None:
+//               keys.clear()
+//           else:
+//               keys[0] = first
+//       return f
+//
+//   def slot(tx):
+//       tx["slot"] = 2**63
+//
+//   MUTATIONS = [("str accountIndex", indexes("1", "2")), ("float accountIndex", indexes(1.5, 2.5)),
+//                ("bool accountIndex", indexes(False, True)), ("int owner on the payer's row", owner5),
+//                ("fee payer {pubkey: 5}", fee_payer({"pubkey": 5})), ("no fee payer", fee_payer(None)),
+//                ("slot 2**63", slot), ("accountIndex 2**63", indexes(1, 2**63))]
+//   for name, mutate in MUTATIONS:
+//       s = copy.deepcopy(v["steps"][0])
+//       call = s["calls"][0]
+//       body = json.loads(call["response_text"])
+//       mutate(body["result"])
+//       call["response_text"] = json.dumps(body)
+//       transport = rp.ReplayTransport()
+//       errors = []
 //       engine = rp.build_engine(v["setup"], transport=transport, clock=lambda: s["at"], on_error=errors.append)
-//       transport.load(s["calls"]); cands = engine.restore_lookup(s["args"]["tx"])
+//       transport.load(s["calls"])
+//       cands = engine.restore_lookup(s["args"]["tx"])
 //       print(name, cands, engine.restore_apply(cands), list(engine.receipts))
-//       transport.load(s["calls"]); print([c.already_restored for c in engine.restore_lookup(s["args"]["tx"])], errors)
+//       transport.load(s["calls"])
+//       print([c.already_restored for c in engine.restore_lookup(s["args"]["tx"])], errors)
+// ---- end of r10_restore.py ----
 //
 // Python printed, for each: one candidate (unlock chapter2, value 4993742) whose transfer holds the sender, log_index
 // and block_number below; restore_apply stored one receipt with exactly those as payer, log_index and block, under

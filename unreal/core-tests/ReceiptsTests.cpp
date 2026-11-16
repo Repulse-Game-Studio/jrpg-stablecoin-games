@@ -131,6 +131,18 @@ SCFG_TEST(ReceiptsTests, AddReceiptKeepsTheFirstOfAKey) {
     Json huge = receipt("ethereum", kHashLower, Json(BigInt(1) << 64), "1");
     SCFG_CHECK(t, receipts::add_receipt(store, huge).value());
     SCFG_CHECK(t, store.contains(std::string("ethereum:") + kHashLower + ":18446744073709551616"));
+    // ...up to str()'s limit: more than 4300 digits is CPython 3.9's ValueError, decided before any conversion
+    const std::string limit = "ValueError: Exceeds the limit (4300) for integer string conversion; use "
+                              "sys.set_int_max_str_digits() to increase the limit";
+    const BigInt digits4300 = BigInt::from_decimal(std::string(4300, '9')).take();
+    Result<std::string> at = receipts::receipt_key("c", "0x1", digits4300);
+    SCFG_CHECK(t, at.ok() && at.value() == "c:0x1:" + std::string(4300, '9'));
+    Result<std::string> beyond = receipts::receipt_key("c", "0x1", digits4300 + BigInt(1));
+    SCFG_CHECK_EQ(t, outcome(beyond), limit);
+    SCFG_CHECK_EQ(t, outcome(receipts::receipt_key("c", "0x1", BigInt(1) << 16000)), limit);
+    SCFG_CHECK_EQ(t, outcome(receipts::receipt_key(Json("c"), Json("0x1"), Json(BigInt(1) << 16000))), limit);
+    SCFG_CHECK_EQ(t, outcome(receipts::add_receipt(store, receipt("ethereum", kHashLower, Json(digits4300 + BigInt(1)), "1"))),
+                  limit);
 }
 
 SCFG_TEST(ReceiptsTests, AddReceiptOfAMalformedReceipt) {

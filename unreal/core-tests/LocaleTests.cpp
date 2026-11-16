@@ -60,24 +60,28 @@ SCFG_TEST(LocaleTests, FloatsUnderEveryLocale) {
     SCFG_CHECK_EQ(t, std::locale().name(), "C");
 }
 
-// Every Tier 1 topic again under each locale.
+// Every Tier 1 topic again under each locale: each locale replays exactly tier1_topics().size() topics.
 SCFG_TEST(LocaleTests, Tier1UnderEveryLocale) {
     std::vector<std::string> topics = scfg_test::vectors::tier1_topics();
     t.check(!topics.empty(), "no Tier 1 topic to rerun");
+    size_t replayed = 0;
     locales::Report r = locales::rerun([&](std::string_view name) {
         t.check(std::strcmp(std::localeconv()->decimal_point, ".") != 0, "decimal point is \".\" under " + std::string(name));
         for (const std::string& topic : topics) {
             std::vector<std::string> failures = scfg_test::tier1::run_topic(topic);
             t.check(failures.empty(), scfg_test::tier1::report("tier1/" + topic + " under " + std::string(name), failures));
+            ++replayed;
         }
     });
     print_ran("LocaleTests.Tier1UnderEveryLocale", r);
     t.check(r.error.empty(), r.error);
     t.check(!r.ran.empty(), "ran under no locale");
+    SCFG_CHECK_EQ(t, replayed, r.ran.size() * scfg_test::vectors::tier1_topics().size());
     SCFG_CHECK_EQ(t, std::string(std::setlocale(LC_ALL, nullptr)), "C");
 }
 
-// Every Tier 2 vector again under each locale, immediate mode.
+// Every Tier 2 vector again under each locale, immediate mode: each locale replays exactly tier2_ids().size()
+// vectors.
 SCFG_TEST(LocaleTests, Tier2UnderEveryLocale) {
     std::vector<std::pair<std::string, std::string>> texts;
     for (const std::string& id : scfg_test::vectors::tier2_ids()) {
@@ -85,6 +89,7 @@ SCFG_TEST(LocaleTests, Tier2UnderEveryLocale) {
         if (t.check(text.has_value(), "tier2/" + id + " cannot be read")) texts.emplace_back(id, std::move(*text));
     }
     t.check(!texts.empty(), "no Tier 2 vector to rerun");
+    size_t replayed = 0;
     locales::Report r = locales::rerun([&](std::string_view name) {
         t.check(std::strcmp(std::localeconv()->decimal_point, ".") != 0, "decimal point is \".\" under " + std::string(name));
         for (const auto& [id, text] : texts) {
@@ -92,11 +97,13 @@ SCFG_TEST(LocaleTests, Tier2UnderEveryLocale) {
             if (!t.check(v.ok(), "tier2/" + id + " cannot be parsed under " + std::string(name))) continue;
             std::optional<std::string> diff = scfg_test::tier2::replay(v.value());
             t.check(!diff.has_value(), "tier2/" + id + " under " + std::string(name) + ": " + diff.value_or(""));
+            ++replayed;
         }
     });
     print_ran("LocaleTests.Tier2UnderEveryLocale", r);
     t.check(r.error.empty(), r.error);
     t.check(!r.ran.empty(), "ran under no locale");
+    SCFG_CHECK_EQ(t, replayed, r.ran.size() * scfg_test::vectors::tier2_ids().size());
     SCFG_CHECK_EQ(t, std::string(std::setlocale(LC_ALL, nullptr)), "C");
 }
 

@@ -13,7 +13,11 @@ namespace scfg::receipts::detail {
 
 // str(v): a str itself, anything else its repr (Python's str and repr agree on None, bools, ints, floats, lists and
 // dicts).
-std::string str_of(const Json& v) { return v.is_str() ? v.as_str() : py::repr(v); }
+// An int is py::int_str (CPython's 4300-digit limit for str()).
+Result<std::string> str_of(const Json& v) {
+    if (v.is_int()) return py::int_str(v.as_bigint());
+    return v.is_str() ? v.as_str() : py::repr(v);
+}
 
 // The tx part of a key. lower_for_ascii is str.lower() for every hash a chain gives (ASCII).
 std::string tx_part(std::string_view tx_hash) {
@@ -48,8 +52,13 @@ bool skipped(const Err& e) {
 
 namespace scfg::receipts {
 
-std::string receipt_key(std::string_view chain, std::string_view tx_hash, const BigInt& log_index) {
-    return std::string(chain) + ":" + detail::tx_part(tx_hash) + ":" + log_index.to_decimal();
+Result<std::string> receipt_key(std::string_view chain, std::string_view tx_hash, const BigInt& log_index) {
+    SCFG_TRY(std::string index, py::int_str(log_index));
+    return std::string(chain) + ":" + detail::tx_part(tx_hash) + ":" + index;
+}
+
+std::string receipt_key(std::string_view chain, std::string_view tx_hash, int64_t log_index) {
+    return std::string(chain) + ":" + detail::tx_part(tx_hash) + ":" + BigInt(log_index).to_decimal();
 }
 
 Result<std::string> receipt_key(const Json& chain, const Json& tx_hash, const Json& log_index) {
@@ -57,7 +66,10 @@ Result<std::string> receipt_key(const Json& chain, const Json& tx_hash, const Js
         return Err::make("AttributeError",
                          "'" + std::string(tx_hash.type_name()) + "' object has no attribute 'startswith'");
     }
-    return detail::str_of(chain) + ":" + detail::tx_part(tx_hash.as_str()) + ":" + detail::str_of(log_index);
+    const std::string tx = detail::tx_part(tx_hash.as_str());
+    SCFG_TRY(std::string head, detail::str_of(chain));  // the f-string's fields in order
+    SCFG_TRY(std::string index, detail::str_of(log_index));
+    return head + ":" + tx + ":" + index;
 }
 
 Result<Json> make_receipt(const Json& chain, const transfers::Transfer& transfer, const Json& kind, const Json& item,

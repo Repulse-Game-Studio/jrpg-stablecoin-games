@@ -6,10 +6,11 @@
 // Json dict shaped as the frozen receipt schema (conformance/schema/state.json).
 //
 // Stored receipts are loosely typed, as in Python: a field read back from storage can hold any JSON value.
-// A stored log_index is formatted exactly, whatever its type and size (Python's f-string), and a chain's transfer
-// carries its log index unbounded (a BigInt, or the Json a Solana node sent), so a receipt is never narrowed. Port
-// limit: an int of more than 4300 digits is formatted too, where CPython 3.9.14+ refuses str() of it (ValueError);
-// no node or store holds one (int_from refuses to read one from text).
+// A stored log_index is formatted as Python's f-string formats it, whatever its type, and a chain's transfer carries
+// its log index unbounded (a BigInt, or the Json a Solana node sent), so a receipt is never narrowed. An int of more
+// than 4300 decimal digits is CPython's ValueError (py::int_str, refused from its bit length before any conversion):
+// an EVM node's logIndex is int(x, 16) of any length, so a hostile one reaches a key, and Python's restore_lookup
+// raises there while its watcher contains the error.
 #pragma once
 
 #include "Scfg/BigInt.h"
@@ -30,12 +31,12 @@ namespace scfg::receipts {
 
 // f"{chain}:{tx}:{log_index}", where tx is tx_hash lowercased when it starts with "0x" (EVM hashes are hex and
 // case-insensitive) and kept as it is otherwise (Solana signatures are base58: case matters; "0X..." is kept too).
-std::string receipt_key(std::string_view chain, std::string_view tx_hash, const BigInt& log_index);
-inline std::string receipt_key(std::string_view chain, std::string_view tx_hash, int64_t log_index) {
-    return receipt_key(chain, tx_hash, BigInt(log_index));
-}
-// The same for values read back from storage: chain and log_index are formatted with str() whatever their type
-// (an int of any size exactly), and a tx_hash that is not a str is the AttributeError of its startswith.
+// A log index of more than 4300 digits is str()'s ValueError ("Exceeds the limit (4300) for integer string
+// conversion; ..."); an int64_t one always formats.
+Result<std::string> receipt_key(std::string_view chain, std::string_view tx_hash, const BigInt& log_index);
+std::string receipt_key(std::string_view chain, std::string_view tx_hash, int64_t log_index);
+// The same for values read back from storage: chain and log_index are formatted with str() whatever their type (an
+// int with str()'s 4300-digit limit), and a tx_hash that is not a str is the AttributeError of its startswith.
 Result<std::string> receipt_key(const Json& chain, const Json& tx_hash, const Json& log_index);
 
 // make_receipt(chain=, transfer=, kind=, item=, token=, source=): the receipt dict, in the schema's key order (chain,

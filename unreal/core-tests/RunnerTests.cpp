@@ -248,6 +248,13 @@ SCFG_TEST(RunnerTests, NothingLeftOut) {
     for (const char* p : {"DISABLED", "WILL_FAIL", "SKIP_RETURN_CODE", "SKIP_REGULAR_EXPRESSION", "set_tests_properties"}) {
         t.check(cmake.find(p) == std::string::npos, std::string("unreal/CMakeLists.txt uses ") + p);
     }
+    // ...nor in a test preset's filter (ctest --preset runs every group)
+    std::ifstream presets_in(std::string(SCFG_REPO_ROOT) + "/unreal/CMakePresets.json", std::ios::binary);
+    std::string presets((std::istreambuf_iterator<char>(presets_in)), std::istreambuf_iterator<char>());
+    t.check(!presets.empty(), "cannot read unreal/CMakePresets.json");
+    for (const char* p : {"\"filter\"", "\"exclude\"", "\"include\"", "\"execution\""}) {
+        t.check(presets.find(p) == std::string::npos, std::string("unreal/CMakePresets.json's presets use ") + p);
+    }
     // ...and the runner reports passed and failed only
     Registry r;
     r.add("G", "Pass", [](Ctx&) {});

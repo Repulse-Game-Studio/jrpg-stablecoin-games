@@ -1,5 +1,5 @@
 // No Python twin: Tier1.<topic> replays each conformance/vectors/tier1 topic through support/Tier1 (one runtime test
-// per vector file, so a topic whose task has not landed fails), and Tier1Tests checks the runner itself.
+// per vector file, so a topic with no adapters registered for it fails), and Tier1Tests checks the runner itself.
 #include "support/Test.h"
 #include "support/Tier1.h"
 #include "support/Vectors.h"

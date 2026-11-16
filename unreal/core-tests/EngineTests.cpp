@@ -5,6 +5,7 @@
 #include "support/JsonEq.h"
 #include "support/Test.h"
 #include "support/Tier2.h"
+#include "support/Vectors.h"
 
 #include "Scfg/Backends.h"
 #include "Scfg/BackendsBase.h"
@@ -15,6 +16,7 @@
 #include "Scfg/Engine.h"
 #include "Scfg/Err.h"
 #include "Scfg/Json.h"
+#include "Scfg/Restore.h"
 #include "Scfg/Result.h"
 #include "Scfg/Rpc.h"
 #include "Scfg/Watcher.h"
@@ -297,4 +299,131 @@ SCFG_TEST(EngineTests, TheBackendsRegistry) {
     chain.rpc.clear();
     Result<scfg::backends::base::Rpc> no_urls = evm.value()->make_rpc(chain, transport);
     t.check(!no_urls.ok() && no_urls.err().kind == "ValueError", "no urls");
+}
+
+// ---- a node's log index beyond str()'s 4300-digit limit (review finding T13-1) ----
+
+namespace scfg_test::engine_tests {
+
+std::optional<Json> load_vector(const std::string& id) {
+    std::optional<std::string> text = vectors::read_text("tier2/" + id + ".json");
+    if (!text) return std::nullopt;
+    Result<Json> v = scfg_test::tier2::parse(*text);
+    if (!v.ok()) return std::nullopt;
+    return v.take();
+}
+
+// Every log of every `method` answer in calls gets the logIndex "0x" + "f" * 4000 (16000 bits, about 4817 decimal
+// digits): parse_transfer_log reads it (int(x, 16) is unbounded), and receipt_key's str() of it is the ValueError.
+void huge_log_index(Json& calls, std::string_view method) {
+    const std::string huge = "0x" + std::string(4000, 'f');
+    for (Json& c : calls.as_list()) {
+        Json::Dict& call = c.as_dict();
+        if (call.get("method").as_str() != method) continue;
+        Json body = scfg::json::loads(call.get("response_text").as_str()).take();
+        Json& result = *body.as_dict().find("result");
+        if (result.is_null()) continue;
+        Json& logs = result.is_dict() ? *result.as_dict().find("logs") : result;
+        for (Json& lg : logs.as_list()) lg.as_dict().set("logIndex", Json(huge));
+        call.set("response_text", Json(scfg::json::dumps(body)));
+    }
+}
+
+}  // namespace scfg_test::engine_tests
+
+// Expectations from the Python reference:
+//
+// ---- huge_index.py (run from the repo root: python3 -I huge_index.py .) ----
+//   import copy, json, sys
+//   sys.path[:0] = [sys.argv[1] + "/plugin/game/python-packages", sys.argv[1] + "/conformance/python"]
+//   from scfg_conformance import replay as rp
+//   HUGE = "0x" + "f" * 4000
+//
+//   def huge(calls, method):
+//       for c in calls:
+//           if c["method"] == method:
+//               body = json.loads(c["response_text"])
+//               r = body["result"]
+//               for lg in (r["logs"] if method == "eth_getTransactionReceipt" and r else (r or [])):
+//                   lg["logIndex"] = HUGE
+//               c["response_text"] = json.dumps(body)
+//
+//   for vid, upto, method in [("restore/unlock_found", 1, "eth_getTransactionReceipt"),
+//                             ("smoke/evm_unlock_paid", 2, "eth_getLogs")]:
+//       v = json.load(open(f"{sys.argv[1]}/conformance/vectors/tier2/{vid}.json"))
+//       steps = copy.deepcopy(v["steps"][:upto])
+//       huge(steps[-1]["calls"], method)
+//       t = rp.ReplayTransport()
+//       errors = []
+//       now = [0]
+//       engine = rp.build_engine(v["setup"], transport=t, clock=lambda: now[0], on_error=errors.append)
+//       for i, s in enumerate(steps):
+//           now[0] = s["at"]
+//           t.load(s["calls"])
+//           with rp.patched_entropy(rp.ScriptedEntropy(s["entropy"])):
+//               result, raises = rp.run_action(engine, s["action"], s["args"], steps[:i])
+//       print(vid, raises, None if raises else rp.encode_returns(s["action"], result), errors,
+//             [c["method"] for c, u in zip(t._calls, t._used) if not u],
+//             rp.snapshot_json(engine) == v["steps"][upto - 1]["snapshot"],
+//             upto > 1 and rp.snapshot_json(engine) == v["steps"][upto - 2]["snapshot"])
+// ---- end of huge_index.py ----
+//
+// Python printed: restore/unlock_found raises {"type": "other"} (the ValueError "Exceeds the limit (4300 digits)
+// for integer string conversion", Python 3.12's wording), every call made, the snapshot as recorded; the
+// smoke/evm_unlock_paid tick returns the session "waiting" with error "internal_error" (one ValueError contained),
+// eth_getBlockByNumber never asked, and the snapshot is the previous step's (the cursor is not moved).
+SCFG_TEST(EngineTests, AHugeLogIndexFailsTheRestoreLookup) {
+    std::optional<Json> v = load_vector("restore/unlock_found");
+    if (!t.check(v.has_value(), "restore/unlock_found")) return;
+    Json copy = scfg::deep_copy(*v);
+    Json::List& steps = copy.as_dict().find("steps")->as_list();
+    steps.resize(1);
+    Json::Dict& step = steps[0].as_dict();
+    huge_log_index(*step.find("calls"), "eth_getTransactionReceipt");
+    step.set("raises", Json::dict({{"type", "other"}}));
+    step.set("returns", Json());
+    std::optional<std::string> diff = scfg_test::tier2::replay(copy);
+    t.check(!diff.has_value(), diff.value_or(""));
+    // and the raise is str()'s ValueError, not a port's own
+    scfg_test::tier2::ReplayTransport transport;
+    std::unique_ptr<engine::Engine> eng =
+        scfg_test::tier2::build_engine(copy.as_dict().get("setup"), transport, [] { return int64_t{1700000000}; }, {},
+                                       nullptr)
+            .take();
+    transport.load(step.get("calls"));
+    scfg::Co<std::vector<scfg::restore::RestoreCandidate>> co = eng->restore_lookup(step.get("args").as_dict().get("tx"));
+    if (!t.check(co.done(), "suspended")) return;
+    Result<std::vector<scfg::restore::RestoreCandidate>> got = co.take();
+    t.check(!got.ok() && got.err().kind == "ValueError" &&
+                got.err().message.starts_with("Exceeds the limit (4300) for integer string conversion"),
+            got.ok() ? "candidates" : got.err().str());
+}
+
+SCFG_TEST(EngineTests, AHugeLogIndexIsAContainedWatcherError) {
+    std::optional<Json> v = load_vector("smoke/evm_unlock_paid");
+    if (!t.check(v.has_value(), "smoke/evm_unlock_paid")) return;
+    Json copy = scfg::deep_copy(*v);
+    Json::List& steps = copy.as_dict().find("steps")->as_list();
+    steps.resize(2);
+    const Json before = steps[0].as_dict().get("snapshot");
+    Json::Dict& step = steps[1].as_dict();
+    Json::List& calls = step.find("calls")->as_list();
+    Json::List kept;
+    for (const Json& c : calls) {
+        if (c.as_dict().get("method").as_str() != "eth_getBlockByNumber") kept.push_back(c);
+    }
+    calls = kept;
+    huge_log_index(*step.find("calls"), "eth_getLogs");
+    const std::string sid = step.get("returns").as_list()[0].as_dict().get("session_id").as_str();
+    step.set("returns", Json::list({Json::dict({{"session_id", Json(sid)},
+                                                {"status", "waiting"},
+                                                {"confirmations", 0},
+                                                {"required", 0},
+                                                {"result", Json()},
+                                                {"error", "internal_error"},
+                                                {"hint_tx", Json()}})}));
+    step.set("internal_errors", 1);
+    step.set("snapshot", scfg::deep_copy(before));
+    std::optional<std::string> diff = scfg_test::tier2::replay(copy);
+    t.check(!diff.has_value(), diff.value_or(""));
 }
