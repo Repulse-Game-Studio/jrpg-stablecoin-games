@@ -9,7 +9,7 @@ The C# port of the payment core (`Scfg.Core`), the start of the Unity port. It i
 | `Packages/com.repulse.scfg/Runtime/Core/` | The core, one C# file per Python module (`Config.cs` is `config.py`, `Solana/Tx.cs` is `solana/tx.py`). Each file's header comment names its Python twin. netstandard2.1 BCL only, `LangVersion` 9.0, no `UnityEngine`, no NuGet package. The package ID `com.repulse.scfg` is a placeholder |
 | `Packages/com.repulse.scfg/Runtime/link.xml` | What the IL2CPP linker must keep: `Scfg.Core` and `Scfg.Desktop` whole, and `RNGCryptoServiceProvider`. Unity ignores a `link.xml` inside a package, so the package's Editor code must hand it to the linker (not written yet) |
 | `core/` | `Scfg.Core.csproj`, which compiles the package's `Runtime/Core/` for the .NET build |
-| `core-tests/` | NUnit tests: Tier 1 and Tier 2 conformance runners, per-module tests, the lints, the culture reruns and the single-thread run |
+| `core-tests/` | NUnit tests: Tier 1 and Tier 2 conformance runners, per-module tests (`WorkerTests` with its fakes in `WorkerFakes.cs`: a manual `FakeScheduler` and a counting engine stand-in), the lints, the culture reruns and the single-thread runs |
 | `core-driver/` | A net8.0 console app, the JSON-lines driver that `tests/integration/test_cs_core.py` runs against Anvil and solana-test-validator (protocol: `rpgmaker/test/integration/engine_driver.ts`) |
 | `Scfg.sln` | The solution holding the three projects above |
 
@@ -36,7 +36,7 @@ uv run pytest -m integration tests/integration/test_cs_core.py
 
 ## Error model
 
-Exceptions follow Python's class tree (`Errors.cs`): `ValueError`, `TypeError`, `KeyError`, `IndexError`, `ConfigError(Code)`, `RestoreError(Code)`, `ArithmeticError`, `OverflowError` and the decimal errors. Tier 1's `"invalid"` expectation passes only for a `ValueError` or `TypeError` that is not a `ConfigError`; any other exception fails the case.
+Exceptions follow Python's class tree (`Errors.cs`): `ValueError`, `TypeError`, `KeyError`, `IndexError`, `RuntimeError`, `ConfigError(Code)`, `RestoreError(Code)`, `ArithmeticError`, `OverflowError`, the decimal errors and `concurrent.futures`' `CancelledError` and `InvalidStateError` (a `Job`'s). Tier 1's `"invalid"` expectation passes only for a `ValueError` or `TypeError` that is not a `ConfigError`; any other exception fails the case.
 
 Inputs stay loosely typed as in Python: `Config.BuildConfig`, `Config.BuildChain`, `Config.AddItem` and `Engine.StartSession` take a `JsonObject` of Python's keyword arguments, and an unknown key is a `TypeError`. JSON integers are `long` (`BigInteger` beyond it) and floats are `double`.
 
@@ -47,6 +47,9 @@ The core runs on Unity's main thread, so it never creates a thread or waits.
 - No threads and no timers: no `Task.Run`, `Task.Delay`, `Task.Yield`, `ConfigureAwait`, `Thread`, `ThreadPool`, `Timer`, `Parallel` and no `async void`.
 - `Task<T>` is only a promise (a `TaskCompletionSource` the caller completes). The transport returns one; the core awaits it and never blocks on it (`.Result`, `.Wait()`).
 - Clocks: `RpcClient.Clock` defaults to `Rpc.MonotonicSeconds` (a `Stopwatch`, as Python uses `time.monotonic`), and the backends' `MakeRpc` pass no clock, so RPC cooldowns run on that default. The Engine's and Watcher's clocks are injected, and so is the Tier 2 runner's. Entropy is injected too (`IEntropy`).
+- The single writer is `Worker` (`Worker.cs`, twin of `worker.py`): the game submits commands, `Func<Engine, Task<object?>>` (`Commands.Sync` / `Commands.Of` build them from plain or async methods; `SubmitFn` is the delegate the controllers take), and polls the `Job` it gets back, Python's `Future` (`Done`, `Result`, `Exception`, `Cancel`, `AddDoneCallback`). A `Job` is not a `Task`: whoever wants to await one builds it from `AddDoneCallback`, so a failed job nobody looks at is never an unobserved `Task` exception. A done callback that throws goes to the job's sink (the Engine's `OnError` for a worker's jobs) and the other callbacks still run.
+- One pass at a time: `RunOnce` runs the queued commands, reverifies on the first pass, ticks and replaces the `Snapshot`. Its in-flight state is set before any command runs, so a command, `Wake`, `Submit` or `RunOnce` from inside a pass adds exactly one follow-up pass (a command must not await `RunOnce`: deadlock). A command never runs inside a tick.
+- Delayed work goes through an injected `IScheduler` (`Schedule(fn, seconds)` / `Cancel(handle)`, Unity's glue implements it on its frame loop); the core never creates a timer. The loop re-arms after each timer-driven run with `Interval()` (default 15 s), or 0 while commands are queued, and hands a failed run to `OnError`.
 - IL2CPP and WebGL: nothing resolves a type by name. SHA-256 is the core's own (`Sha256`, as `SHA256.Create()` looks its implementation up through `CryptoConfig`), and `SystemEntropy` draws from one `RNGCryptoServiceProvider` it constructs directly (`SystemEntropy.Fill` hands out its bytes). `System.Security.Cryptography` appears only in `Sessions.cs`.
 
 ## Lints
@@ -70,7 +73,7 @@ The chain registries `Chains.Mainnet` / `Chains.Testnet` are read-only. The inte
 ## Culture reruns and the single-thread test
 
 - `CultureTests` replays Tier 1 and Tier 2 again under `tr-TR` (dotted and dotless i) and `de-DE` (the decimal comma). A culture that does not take effect, such as in globalization-invariant mode, is itself a failure.
-- `Tier2SingleThreadTest` runs the Engine under a single-threaded `SynchronizationContext` with transports that answer with incomplete tasks, which only a pump loop on the test thread completes. Every transport call and continuation must be on that thread, and the core must never block.
+- `Tier2SingleThreadTest` runs the Engine under a single-threaded `SynchronizationContext` with transports that answer with incomplete tasks, which only a pump loop on the test thread completes. Every transport call and continuation must be on that thread, and the core must never block. `WorkerTests.TheWorkerRunsOnOneThreadAndNeverBlocks` does the same for the worker's timer-driven loop (commands, done callbacks and the re-arm).
 
 ## Known divergences from Python
 

@@ -15,7 +15,7 @@ namespace Scfg.Core.Tests
     public class Tier2SingleThreadTest
     {
         /// <summary>Queues posts for the pump; Send is refused (nothing in the core may wait on the context).</summary>
-        private sealed class QueueContext : SynchronizationContext
+        internal sealed class QueueContext : SynchronizationContext
         {
             public readonly Queue<(SendOrPostCallback Callback, object? State)> Posted = new Queue<(SendOrPostCallback, object?)>();
             private readonly Action<string> _check;
