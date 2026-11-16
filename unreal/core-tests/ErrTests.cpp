@@ -6,6 +6,8 @@
 #include "Scfg/Result.h"
 
 #include <memory>
+#include <type_traits>
+#include <vector>
 
 using scfg::Err;
 using scfg::Result;
@@ -157,6 +159,12 @@ SCFG_TEST(ErrTests, TryPropagatesAndAssigns) {
     SCFG_CHECK_EQ(t, reached, 0);
     if (!s) SCFG_CHECK_EQ(t, s.err().kind, "ValueError");
 }
+
+// Result converts implicitly only where T does (as std::expected): `return n;` is no Result<std::vector<uint8_t>>.
+static_assert(std::is_convertible_v<const char*, Result<std::string>>);
+static_assert(std::is_convertible_v<int, Result<int64_t>>);
+static_assert(!std::is_convertible_v<size_t, Result<std::vector<uint8_t>>>);
+static_assert(std::is_constructible_v<Result<std::vector<uint8_t>>, size_t>);
 
 static Result<std::unique_ptr<int>> boxed(int v) { return std::make_unique<int>(v); }
 

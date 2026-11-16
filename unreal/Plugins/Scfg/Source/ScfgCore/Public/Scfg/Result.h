@@ -25,11 +25,12 @@ class [[nodiscard]] Result {
     static_assert(!std::is_reference_v<T>, "Result holds values");
 
 public:
-    // From anything a T is made of (so `return "text";` works for a Result<std::string>), and from an Err.
+    // From anything a T is made of (so `return "text";` works for a Result<std::string>), and from an Err. As
+    // std::expected's, it is explicit when T's own constructor is (`return n;` is no Result<std::vector<T>>).
     template <class U = T>
         requires(std::is_constructible_v<T, U &&> && !std::is_same_v<std::remove_cvref_t<U>, Err> &&
                  !std::is_same_v<std::remove_cvref_t<U>, Result>)
-    Result(U&& v) : v_(std::in_place_index<0>, std::forward<U>(v)) {}
+    explicit(!std::is_convertible_v<U&&, T>) Result(U&& v) : v_(std::in_place_index<0>, std::forward<U>(v)) {}
     Result(Err e) : v_(std::in_place_index<1>, std::move(e)) {}
 
     bool ok() const { return v_.index() == 0; }

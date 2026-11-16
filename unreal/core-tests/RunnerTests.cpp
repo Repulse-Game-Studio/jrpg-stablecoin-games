@@ -1,6 +1,7 @@
 // No Python twin: tests of the test runner itself, and that ctest runs every group.
 #include "support/Test.h"
 
+#include "Scfg/Err.h"
 #include "Scfg/Version.h"
 
 #include <algorithm>
@@ -126,6 +127,30 @@ SCFG_TEST(RunnerTests, DuplicateNamesFail) {
     std::string out = run(r, {}, code);
     SCFG_CHECK(t, code != 0);
     SCFG_CHECK(t, contains(out, "G.Same"));
+}
+
+// Ruling R5: an unknown error kind is recorded, not asserted; the runner turns a leftover entry into a failure of the
+// test that made it, and clears it so the next test starts clean.
+SCFG_TEST(RunnerTests, AnUnknownErrorKindFailsTheTest) {
+    Registry r;
+    r.add("G", "Leaves", [](Ctx&) { (void)scfg::Err::make("ValueEror", "typo"); });
+    r.add("G", "Asks", [](Ctx&) { (void)scfg::Err::value_error("v").is_a("RpcErorr"); });
+    r.add("G", "Clears", [](Ctx&) {
+        (void)scfg::Err::make("ValueEror", "typo");
+        scfg::errors::clear_misuse();
+    });
+    r.add("G", "Next", [](Ctx&) {});
+    int code = 0;
+    std::string out = run(r, {}, code);
+    SCFG_CHECK(t, code != 0);
+    SCFG_CHECK(t, contains(out, "2 passed, 2 failed"));
+    SCFG_CHECK(t, contains(out, "FAIL G.Leaves"));
+    SCFG_CHECK(t, contains(out, "FAIL G.Asks"));
+    SCFG_CHECK(t, contains(out, "ok   G.Clears"));
+    SCFG_CHECK(t, contains(out, "ok   G.Next"));
+    SCFG_CHECK(t, contains(out, "unknown kind ValueEror"));
+    SCFG_CHECK(t, contains(out, "unknown kind RpcErorr"));
+    SCFG_CHECK(t, scfg::errors::misuse().empty());
 }
 
 SCFG_TEST(RunnerTests, ChecksReportBothValues) {

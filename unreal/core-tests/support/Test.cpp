@@ -1,6 +1,8 @@
 // No Python twin: the test runner's registry, selection and main().
 #include "support/Test.h"
 
+#include "Scfg/Err.h"
+
 #include <algorithm>
 #include <cstdio>
 
@@ -76,6 +78,11 @@ int Registry::run(const std::vector<std::string>& args, const Sink& out) {
     for (const Test& t : selected) {
         Ctx ctx;
         t.body(ctx);
+        // An unknown error kind (Err::make or Err::is_a, ruling R5) is a programming error: it fails the test that
+        // made it. A test that expects entries reads them and calls clear_misuse() itself.
+        std::vector<std::string>& misuse = scfg::errors::misuse();
+        for (const std::string& m : misuse) ctx.fail("unknown error kind (scfg::errors::misuse): " + m);
+        misuse.clear();
         if (ctx.failed()) {
             ++failed;
             out("FAIL " + t.group + "." + t.name + "\n");
