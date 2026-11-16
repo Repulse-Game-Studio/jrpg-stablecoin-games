@@ -1,6 +1,6 @@
 # unity
 
-The C# port of the payment core (`Scfg.Core`), the start of the Unity port. It is in development: there is no Unity glue, UI or release yet, only the engine-independent core, its tests and the driver for the integration tests. The Python core (`plugin/game/python-packages/scfg_core/`) is the reference, and the TypeScript port (`rpgmaker/src/core/`) is the closest template. The core replays every conformance vector in `conformance/vectors/`.
+The C# side of the Unity port, in development. It has the engine-independent payment core (`Scfg.Core`: the port of `scfg_core` including the worker and the checkout, restore and web overlay controllers), the localhost checkout server (`Scfg.Desktop`), their tests and the drivers for the integration tests and the server security suite. There is no Unity glue, UI or release yet: that needs the Unity editor (see the spec's phase 2). The Python core (`plugin/game/python-packages/scfg_core/`) is the reference, and the TypeScript port (`rpgmaker/src/core/`) is the closest template. The core replays every conformance vector in `conformance/vectors/`, and the server passes the shared `tests/server_security` suite.
 
 ## Layout
 
