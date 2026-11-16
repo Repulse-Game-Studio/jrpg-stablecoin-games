@@ -201,6 +201,11 @@ namespace Scfg.Tests
         [UnityTest]
         public IEnumerator TheSheetWorksAtTimeScaleZero()
         {
+            // the facade's own clocks (unscaled real time), not the rig's manual one
+            var s = SCFG.Current;
+            s.Clock = () => Time.realtimeSinceStartupAsDouble;
+            s.OwnScheduler = new UnityScheduler(null, e => SCFG.ReportError("worker error:", e));
+            s.Scheduler = s.OwnScheduler;
             Time.timeScale = 0;
             _rig.Configure(new ScfgMethods { Browser = false, Qr = false });
             SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });

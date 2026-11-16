@@ -80,7 +80,8 @@ namespace Scfg
         /// <summary>How the payment sheet and restore screen are shown (default: the package's UI Toolkit screens).</summary>
         public static IScfgSheetHost? SheetHost
         {
-            get => S.SheetHost ??= new ScfgDefaultSheetHost();
+            // null once set to null: Pay and Restore then fail with sheet.unavailable, as Godot's null sheet_host
+            get => S.SheetHostSet ? S.SheetHost : S.SheetHost ??= new ScfgDefaultSheetHost();
             set
             {
                 S.SheetHost = value;
@@ -347,6 +348,7 @@ namespace Scfg
         /// <summary>The running Worker, started on first use; null when not configured or when it cannot start (reported once).</summary>
         internal static Worker? EnsureStarted()
         {
+            if (S.Config != null) EnsureRunner(); // also brings back a runner a game destroyed (say, wiping DontDestroyOnLoad objects)
             if (S.Worker != null || S.StartError != null || S.Config == null) return S.Worker;
             Stored();
             if (S.StoreError != null)
@@ -398,11 +400,13 @@ namespace Scfg
             {
                 s.Worker.Stop();
                 if (s.Engine != null) s.Engine.OnError = _ => { };
-                if (s.Wipe == null) Sync(s.Worker.Snapshot);
             }
-            if (s.Dirty) Save();
+            // Close the transport before the last sync (as Godot's _exit_tree): a pass waiting on a request ends now,
+            // on this thread, and its newer snapshot is the one written below.
             s.OwnTransport?.Close();
             s.OwnScheduler?.Clear();
+            if (s.Worker != null && s.Wipe == null) Sync(s.Worker.Snapshot);
+            if (s.Dirty) Save();
         }
 
         private static void SafeClose(CheckoutController c)
@@ -433,9 +437,24 @@ namespace Scfg
             S = new State();
         }
 
+        /// <summary>The app is going to the background (phones may then kill it without quitting): write what waits.</summary>
+        internal static void Flush()
+        {
+            if (S.Worker != null && S.Wipe == null && !ReferenceEquals(S.Worker.Snapshot, S.LastSnapshot))
+            {
+                S.LastSnapshot = S.Worker.Snapshot;
+                Sync(S.Worker.Snapshot);
+            }
+            if (S.Dirty)
+            {
+                S.LastSave = S.Clock();
+                Save();
+            }
+        }
+
         private static void EnsureRunner()
         {
-            if (Application.isPlaying) ScfgRunner.Ensure();
+            if (Application.isPlaying && !S.ShuttingDown) ScfgRunner.Ensure();
         }
 
         // --- the pump ------------------------------------------------------------------------------------
@@ -603,7 +622,12 @@ namespace Scfg
         {
             var typed = ScfgRestoreResult.FromCore(r.Core.Result());
             if (typed.Restored.Count > 0 && S.Notify) NotifyPlayer(ScfgUiTexts.Get("purchases_restored"));
-            if (r.Callback != null && S.Restores.ContainsKey(r.Rid)) Call(r.Callback, typed);
+            // once, as Godot's _deliver_restore drops the callback: a host that checks again after done gets no second call
+            if (r.Callback != null && !r.Delivered && S.Restores.ContainsKey(r.Rid))
+            {
+                r.Delivered = true;
+                Call(r.Callback, typed);
+            }
         }
 
         private static void NotifyPlayer(string text)

@@ -5,7 +5,9 @@
 // Coio.ParseRpcBody(status, body) (an HTTP error answer included: its status and body decide), or fails with a
 // TransportError without a status when no HTTP answer came (refused, unresolvable, TLS, timeout). The body is read
 // through a DownloadHandlerScript that stops the download as soon as it passes Coio.MaxResponseBytes ("response too
-// large"), so a hostile endpoint cannot fill the game's memory. UnityWebRequest.timeout is whole seconds: the timeout
+// large"), so a hostile endpoint cannot fill the game's memory on desktop. (On WebGL the browser's fetch may hand
+// the body over only once it has it all: the cap then refuses an oversized body but does not bound the download;
+// phase 3 checks it.) UnityWebRequest.timeout is whole seconds: the timeout
 // is rounded up. Off the web the User-Agent is urllib's "scfg/0.1"; a browser keeps its own.
 //
 // Close() (the game quitting, or the facade reset with domain reload off) aborts every request in flight; their

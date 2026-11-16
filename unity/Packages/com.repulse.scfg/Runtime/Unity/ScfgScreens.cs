@@ -91,6 +91,7 @@ namespace Scfg
         public RestoreController Core { get; }
         internal string Rid { get; }
         internal Action<ScfgRestoreResult>? Callback { get; }
+        internal bool Delivered { get; set; }
 
         internal ScfgRestoreController(RestoreController core, string rid, Action<ScfgRestoreResult>? callback)
         {

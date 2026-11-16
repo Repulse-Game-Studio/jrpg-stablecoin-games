@@ -35,6 +35,11 @@ namespace Scfg
 
         internal static void ResetStatics()
         {
+            if (_panel != null)
+            {
+                if (Application.isPlaying) Object.Destroy(_panel);
+                else Object.DestroyImmediate(_panel);
+            }
             _panel = null;
             _styles = null;
             _stylesTried = false;
@@ -81,8 +86,18 @@ namespace Scfg
             var doc = NewDocument(name, out var go);
             var ticker = go.AddComponent<ScfgScreenTicker>();
             ticker.View = view;
-            doc.rootVisualElement.Add(view.Root);
-            view.Tick();
+            try
+            {
+                doc.rootVisualElement.Add(view.Root);
+                view.Tick();
+            }
+            catch
+            {
+                // a screen that cannot build is not left dimming the game: the flow then fails with sheet.unavailable
+                ScfgScreenTicker.Forget(view);
+                Destroy(go);
+                throw;
+            }
             return view;
         }
 

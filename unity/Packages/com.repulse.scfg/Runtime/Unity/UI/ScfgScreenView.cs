@@ -197,7 +197,23 @@ namespace Scfg
             VisualElement? c = keep.Length > 0 ? Control(keep) : null;
             if (c == null || !_order.Contains(c)) c = Control(Primary());
             if ((c == null || !_order.Contains(c)) && _order.Count > 0) c = _order[0];
-            c?.Focus();
+            if (c == null) return;
+            c.Focus();
+            Reveal(c);
+        }
+
+        /// <summary>
+        /// Scrolls the body so that <paramref name="c"/> is in view (Godot's _reveal_focused), once the layout has run:
+        /// a new build is not laid out yet when it takes the focus.
+        /// </summary>
+        private static void Reveal(VisualElement c)
+        {
+            var scroll = c.GetFirstAncestorOfType<ScrollView>();
+            if (scroll == null) return;
+            c.schedule.Execute(() =>
+            {
+                if (c.panel != null && scroll.panel != null) scroll.ScrollTo(c);
+            });
         }
 
         // --- navigation ------------------------------------------------------------------------------
@@ -220,12 +236,16 @@ namespace Scfg
             switch (dir)
             {
                 case NavigationMoveEvent.Direction.Up:
-                case NavigationMoveEvent.Direction.Previous:
                     target = i > 0 ? _order[i - 1] : current;
                     break;
                 case NavigationMoveEvent.Direction.Down:
-                case NavigationMoveEvent.Direction.Next:
                     target = i < _order.Count - 1 ? _order[i + 1] : current;
+                    break;
+                case NavigationMoveEvent.Direction.Previous: // Tab wraps around, as Godot's focus_previous
+                    target = _order[(i - 1 + _order.Count) % _order.Count];
+                    break;
+                case NavigationMoveEvent.Direction.Next:
+                    target = _order[(i + 1) % _order.Count];
                     break;
                 case NavigationMoveEvent.Direction.Left:
                     if (inField) return; // the caret moves
@@ -236,7 +256,11 @@ namespace Scfg
                     target = SameRow(i, i + 1) ? _order[i + 1] : current;
                     break;
             }
-            if (target != current) target.Focus();
+            if (target != current)
+            {
+                target.Focus();
+                Reveal(target);
+            }
             Swallow(evt);
         }
 

@@ -129,15 +129,20 @@ namespace Scfg.Tests
             Assert.That(SCFG.Owns("chapter2"), Is.True);
             Assert.That(SCFG.Receipts().Count, Is.EqualTo(1));
             Assert.That(SCFG.Receipts().Values.First().Item, Is.EqualTo("chapter2"));
-            // the worker's reverify asks the node: the stored receipt's log is on chain
+            OnChain();
+            _rig.Settle();
+            Assert.That(SCFG.Owns("chapter2"), Is.True, string.Join("; ", _rig.Reported));
+        }
+
+        /// <summary>The stored receipt's payment on chain, so the worker's reverify keeps it.</summary>
+        private void OnChain()
+        {
             _rig.Node.Logs.Add(FakeEvmNode.TransferLog(ScfgRig.UsdcArb, ScfgRig.Payer, ScfgRig.Dev, 4990000, 999, ScfgRig.Tx));
             _rig.Node.Receipts[ScfgRig.Tx] = new JsonObject
             {
                 { "status", "0x1" }, { "blockNumber", "0x3e7" }, { "transactionHash", ScfgRig.Tx },
                 { "logs", new List<object?> { _rig.Node.Logs[0] } },
             };
-            _rig.Settle();
-            Assert.That(SCFG.Owns("chapter2"), Is.True, string.Join("; ", _rig.Reported));
         }
 
         [Test]
@@ -228,6 +233,35 @@ namespace Scfg.Tests
             Assert.That(changed, Is.EqualTo(1));
             Assert.That(SCFG.Owns("chapter2"), Is.False);
             Assert.That(ScfgStore.Load(_rig.StorePath).Receipts.Count, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void ClearLocalDataWhileTheWorkerRunsSkipsTheSnapshotsMadeBeforeTheWipe()
+        {
+            StoreReceipt(Receipt());
+            OnChain();
+            _rig.Configure(ManualOnly());
+            _rig.Settle();
+            Assert.That(SCFG.Current.Worker!.Snapshot.Receipts.Count, Is.EqualTo(1));
+            int changed = 0;
+            SCFG.ReceiptsChanged += () => changed++;
+            SCFG.ClearLocalData();
+            Assert.That(SCFG.Owns("chapter2"), Is.False, "readers see the wipe at once");
+            Assert.That(SCFG.Current.Wipe, Is.Not.Null);
+            _rig.Settle();
+            Assert.That(SCFG.Current.Wipe, Is.Null);
+            Assert.That(SCFG.Current.Worker!.Snapshot.Receipts.Count, Is.EqualTo(0));
+            Assert.That(ScfgStore.Load(_rig.StorePath).Receipts.Count, Is.EqualTo(0), "no old snapshot was saved back");
+            Assert.That(changed, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void ANullSheetHostFailsWithSheetUnavailable()
+        {
+            _rig.Configure();
+            SCFG.SheetHost = null;
+            Assert.That(SCFG.SheetHost, Is.Null);
+            Assert.That(Result(SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" })).Error, Is.EqualTo("sheet.unavailable"));
         }
 
         [Test]
@@ -572,6 +606,12 @@ namespace Scfg.Tests
             Assert.That(_rig.Host.Notes.Single(), Is.EqualTo("Purchases restored."));
             Assert.That(changed, Is.EqualTo(1));
             Assert.That(SCFG.Owns("chapter2"), Is.True);
+            // a host that checks again after done: the callback is not called twice
+            ctl.Core.TxInput = ScfgRig.Tx;
+            ctl.Core.Check();
+            _rig.Settle();
+            _rig.Settle();
+            Assert.That(callbacks.Count, Is.EqualTo(1));
             screen.Close("close");
             _rig.Pump();
             var r = Result(call);

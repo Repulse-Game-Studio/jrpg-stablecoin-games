@@ -177,18 +177,40 @@ namespace Scfg.Tests
         }
 
         [UnityTest]
-        public IEnumerator QuittingFlushesTheStateAndClosesTheTransport()
+        public IEnumerator QuittingEndsRequestsInFlightThenFlushesTheState()
         {
             _rig.Configure(new ScfgMethods { Browser = false, Qr = false });
-            var own = new UnityWebRequestTransport();
-            SCFG.Current.Transport = null;
-            SCFG.Current.OwnTransport = own;
-            // the facade has not started yet: it starts with the real transport, which nobody answers here
             SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
-            yield return Frames(2);
+            yield return Frames(4);
+            var sid = _rig.Host.Last.Checkout.Core.SessionId!;
+            long Stored() => (long)((JsonObject)ScfgStore.Load(_rig.StorePath).Pending[sid]!)["cursor"]!;
+            var saved = Stored();
+            _rig.Node.Head += 40;
+            _rig.Pump(2, 4); // scan progress inside the 10 s window: in memory, not on disk
+            Assert.That(Stored(), Is.EqualTo(saved));
+            // a transport of the facade's own with a request in flight (the engine's is the rig's node)
+            using var silent = new CannedServer { Silent = true };
+            var own = new UnityWebRequestTransport();
+            SCFG.Current.OwnTransport = own;
+            var inFlight = own.PostJson(silent.Url, new JsonObject(), 30);
+            yield return null;
             SCFG.Shutdown();
-            Assert.That(own.PostJson("http://127.0.0.1:9/", new JsonObject(), 1).Exception?.InnerException, Is.TypeOf<HostGone>());
+            Assert.That(inFlight.Exception?.InnerException, Is.TypeOf<HostGone>());
             Assert.That(SCFG.Current.Worker!.Running, Is.False);
+            Assert.That(Stored(), Is.GreaterThan(saved), "quitting writes what was not on disk");
+        }
+
+        [UnityTest]
+        public IEnumerator ARunnerTheGameDestroysComesBack()
+        {
+            _rig.Configure(new ScfgMethods { Browser = false, Qr = false });
+            yield return Frames();
+            Object.DestroyImmediate(Runner());
+            Assert.That(Runner(), Is.Null);
+            SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
+            Assert.That(Runner(), Is.Not.Null);
+            yield return Frames(4);
+            Assert.That(_rig.Host.Last.Checkout.Core.State, Is.EqualTo("waiting"), "the new runner pumps");
         }
     }
 }
