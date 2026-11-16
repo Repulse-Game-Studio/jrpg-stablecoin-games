@@ -1,4 +1,5 @@
-# Builds the C++ core (ScfgCore), its test binary and the compile-only checks (poisoned, unity).
+# Builds the C++ core (ScfgCore), its test binary, the integration driver and the compile-only checks (poisoned,
+# unity).
 cmake_minimum_required(VERSION 3.25)
 project(scfg_unreal LANGUAGES CXX)
 
@@ -39,6 +40,17 @@ file(GLOB_RECURSE SCFG_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR
 add_executable(scfg_core_tests ${SCFG_TEST_SOURCES})
 target_link_libraries(scfg_core_tests PRIVATE scfg_core)
 target_include_directories(scfg_core_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core-tests)
+
+# The JSON-lines driver tests/integration/cpp_driver.py runs against local chains: the core, the Tier 2 encoders it
+# reuses (support/Tier2, which does not need the test runner, ruling R6) and a blocking POSIX HTTP transport. Test-only
+# code, built by default so every build covers it.
+add_executable(scfg_core_driver
+  ${CMAKE_CURRENT_SOURCE_DIR}/core-driver/Main.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/core-driver/PosixHttpTransport.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/core-tests/support/Tier2.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/core-tests/support/JsonEq.cpp)
+target_link_libraries(scfg_core_driver PRIVATE scfg_core)
+target_include_directories(scfg_core_driver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core-tests)
 
 # One ctest test per group. Each task that adds a test group appends it here; RunnerTests.EveryGroupIsRegistered
 # fails if the binary has a group that is not in SCFG_TEST_GROUPS. SCFG_PENDING_GROUPS held the vector groups that
