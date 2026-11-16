@@ -551,7 +551,7 @@ screen scfg_step_view(direction, next_label=None, next_action=None, ctl=None, ci
 
         vbox:
             style "scfg_body"
-            if ctl is not None and ctl.shows_onramp:
+            if ctl is not None and (ctl.shows_onramp or ctl.shows_onramp_hint):
                 use scfg_onramp_link(ctl, cid)
             if next_label:
                 textbutton next_label:
@@ -661,9 +661,14 @@ screen scfg_step_method(ctl, cid):
 ## "No USDC yet? Buy some with a card": opens the configure(onramp=...) page for the chosen
 ## network in the player's browser. scfg_step_view shows it below the scrolling body, so it
 ## stays in view, on the method step or on the payment page the sheet opens on when there is
-## a single method (CheckoutController.shows_onramp).
+## a single method (CheckoutController.shows_onramp). On a network without a buy page
+## (Solana), when another one has it, it points there instead and goes back to the network
+## step (shows_onramp_hint).
 screen scfg_onramp_link(ctl, cid):
-    textbutton (_("No %s yet? Buy some with a card") % ctl.spec.token) style "scfg_small_button" xsize scfg._inner_width() action Function(scfg._open_onramp, cid)
+    if ctl.shows_onramp:
+        textbutton (_("No %s yet? Buy some with a card") % ctl.spec.token) style "scfg_small_button" xsize scfg._inner_width() action Function(scfg._open_onramp, cid)
+    else:
+        textbutton (_("No %s yet? Pick another network to buy some with a card") % ctl.spec.token) style "scfg_small_button" xsize scfg._inner_width() action Function(scfg._back, cid)
 
 
 screen scfg_step_browser(ctl, cid):

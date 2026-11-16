@@ -19,6 +19,9 @@ countries and cards it accepts is up to them. The USDC lands in your own wallet.
 Except on Arc, you also need a little of the network's own coin for the fee (ETH on Base,
 for example). Arc needs nothing else: buying USDC there is enough to pay.
 
+Solana has no such page yet. If you picked it, **No USDC yet? Pick another network to buy
+some with a card** takes you back to the network choice.
+
 ## The steps
 
 The sheet shows one step at a time. Steps with only one choice are skipped. The ← arrow,

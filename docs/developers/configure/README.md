@@ -73,7 +73,10 @@ scfg.configure(wallet="0x...", onramp={"url": "https://buy.example/?net={chain_i
 
 A mistake raises a `ConfigError` at startup with a code such as `onramp.unknown_option`,
 `onramp.bad_url`, `onramp.unknown_placeholder`, `onramp.disabled_chain` or `onramp.not_evm`.
-Solana isn't offered yet: thirdweb's page buys on EVM networks only.
+Solana isn't offered yet: thirdweb's page buys on EVM networks only. A player who picked
+Solana (or another network without the link) sees **No USDC yet? Pick another network to buy
+some with a card** in its place instead, which goes back to the network step, as long as
+another network they can pick has the link.
 
 ## Your own RPC endpoints and chains
 
