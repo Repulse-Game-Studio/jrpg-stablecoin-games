@@ -29,7 +29,7 @@ void Topic::operator()(std::string fn, Adapter adapter) {
     r_.fns.emplace(std::move(fn), std::move(adapter));
 }
 
-std::vector<std::string> ported_topics() { return {"amounts"}; }
+std::vector<std::string> ported_topics() { return {"amounts", "keccak", "evm_address"}; }
 
 namespace detail {
 

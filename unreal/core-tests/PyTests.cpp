@@ -201,6 +201,50 @@ SCFG_TEST(PyTests, IntDigitLimit) {
     }
 }
 
+SCFG_TEST(PyTests, IntBase16MatchesPython) {
+    // int(x, 16), as I() shows it but without the angle brackets
+    auto H = [](const scfg::Result<BigInt>& r) { return r.ok() ? r.value().to_decimal() : r.err().str(); };
+    struct Row {
+        const char* in;
+        const char* out;
+    };
+    const Row rows[] = {
+        {"0x7", "7"}, {"0X7", "7"}, {"7", "7"}, {" 0x7 ", "7"}, {"-0x7", "-7"}, {"+0x7", "7"}, {"0x_7", "7"},
+        {"0_7", "7"}, {"0x7_f", "127"}, {"ff", "255"}, {"FF", "255"}, {"0b1", "177"}, {"1_2_3", "291"},
+        {"\xD9\xA3", "3"}, {"0x\xD9\xA3", "3"}, {"\xD9\xA0x7", "7"}, {"\xD9\xA3_\xD9\xA3", "51"},
+        {"\xC2\xA0" "7\xE3\x80\x80", "7"}, {"\xF0\x9D\x9F\x98", "0"}, {"\xEF\xBC\x91", "1"},
+        {"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+         "115792089237316195423570985008687907853269984665640564039457584007913129639935"},
+    };
+    for (const Row& r : rows) t.check(H(py::py_int_hex(r.in)) == r.out, std::string("int(") + r.in + ", 16) gave " + H(py::py_int_hex(r.in)));
+    for (const char* bad : {"0x__7", "_7", "7_", "0x", "0x_", "0x7__f", "- 0x7", "0x-7", "\x1c" "7", "7\x1c", "0xg",
+                            "0o7", "", " ", "+", "-", "0x7\x7f", "--7", "0x0x7", "7\xC3\xA9"}) {
+        t.check(H(py::py_int_hex(bad)).rfind("ValueError: invalid literal for int() with base 16: ", 0) == 0,
+                std::string("int(") + bad + ", 16) gave " + H(py::py_int_hex(bad)));
+    }
+    std::string nul("0x7\0", 4);
+    SCFG_CHECK_EQ(t, H(py::py_int_hex(nul)), "ValueError: invalid literal for int() with base 16: '0x7\\x00'");
+    SCFG_CHECK_EQ(t, H(py::py_int_hex("a" + std::string(300, 'z'))),
+                  "ValueError: invalid literal for int() with base 16: 'a" + std::string(198, 'z'));
+    SCFG_CHECK_EQ(t, H(py::py_int_hex(Json(5))), "TypeError: int() can't convert non-string with explicit base");
+    SCFG_CHECK_EQ(t, H(py::py_int_hex(Json(true))), "TypeError: int() can't convert non-string with explicit base");
+    SCFG_CHECK_EQ(t, H(py::py_int_hex(Json("0x10"))), "16");
+    // no digit limit for base 16 (CPython exempts the power-of-two bases)
+    SCFG_CHECK(t, py::py_int_hex(std::string(5000, 'f')).ok());
+    auto I64 = [](const scfg::Result<std::optional<int64_t>>& r) {
+        return !r.ok() ? r.err().kind : r.value() ? std::to_string(*r.value()) : std::string("out of range");
+    };
+    SCFG_CHECK_EQ(t, I64(py::py_int_hex_int64("0x7fffffffffffffff")), "9223372036854775807");
+    SCFG_CHECK_EQ(t, I64(py::py_int_hex_int64("0x8000000000000000")), "out of range");
+    SCFG_CHECK_EQ(t, I64(py::py_int_hex_int64("-0x8000000000000000")), "-9223372036854775808");
+    SCFG_CHECK_EQ(t, I64(py::py_int_hex_int64("-0x8000000000000001")), "out of range");
+    SCFG_CHECK_EQ(t, I64(py::py_int_hex_int64("0x00000000000000000000ffffffffffffff")), "72057594037927935");
+    SCFG_CHECK_EQ(t, I64(py::py_int_hex_int64("0x1" + std::string(16, '0'))), "out of range");
+    SCFG_CHECK_EQ(t, I64(py::py_int_hex_int64("-0")), "0");
+    SCFG_CHECK_EQ(t, I64(py::py_int_hex_int64("0x1_")), "ValueError");
+    SCFG_CHECK_EQ(t, I64(py::py_int_hex_int64(Json())), "TypeError");
+}
+
 SCFG_TEST(PyTests, TypeNameAndTruthy) {
     for (const Json& f : {Json(), Json(false), Json(0), Json(0.0), Json(-0.0), Json(""), Json::list(), Json::dict()})
         t.check(!py::truthy(f), "truthy(" + py::repr(f) + ")");

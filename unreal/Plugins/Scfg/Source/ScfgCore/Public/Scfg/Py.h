@@ -14,6 +14,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -105,6 +106,20 @@ inline Result<BigInt> py_int(const std::string& s) { return py_int(std::string_v
 // int(x) of a JSON value: a bool is 0 or 1, an int itself, a finite float truncated towards zero (int(-1.9) == -1),
 // a str as above. NaN is a ValueError and an infinity an OverflowError (as Python); anything else a TypeError.
 Result<BigInt> py_int(const Json& x);
+
+// int(s, 16): the same surrounding whitespace and script-independent decimal digits as py_int, an optional sign, an
+// optional 0x/0X prefix (with one optional underscore after it), then hex digits with single underscores between
+// them. Malformed text is CPython's "invalid literal for int() with base 16: %.200R" ValueError. No digit limit
+// (CPython exempts the power-of-two bases) and linear in the length of s.
+Result<BigInt> py_int_hex(std::string_view s);
+inline Result<BigInt> py_int_hex(const char* s) { return py_int_hex(std::string_view(s)); }
+inline Result<BigInt> py_int_hex(const std::string& s) { return py_int_hex(std::string_view(s)); }
+// int(x, 16) of a JSON value: a str as above; anything else (an int or a bool too) is CPython's TypeError "int()
+// can't convert non-string with explicit base".
+Result<BigInt> py_int_hex(const Json& x);
+// int(x, 16) for a caller that keeps the value as an int64_t: the same errors, and nullopt for a well-formed literal
+// outside int64 (decided from its count of significant digits, before anything is converted).
+Result<std::optional<int64_t>> py_int_hex_int64(const Json& x);
 
 // ---- values ----
 

@@ -7,6 +7,7 @@
 #include <array>
 #include <charconv>
 #include <cmath>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -146,10 +147,11 @@ std::string_view first_code_points(std::string_view s, size_t n) {
     return s.substr(0, i);
 }
 
-// CPython: "invalid literal for int() with base 10: %.200R".
-Err invalid_literal(std::string_view s) {
+// CPython: "invalid literal for int() with base %d: %.200R".
+Err invalid_literal(std::string_view s, int base = 10) {
     std::string r = repr_str(s);
-    return Err::value_error("invalid literal for int() with base 10: " + std::string(first_code_points(r, 200)));
+    return Err::value_error("invalid literal for int() with base " + dec(static_cast<uint64_t>(base)) + ": " +
+                            std::string(first_code_points(r, 200)));
 }
 
 bool ascii_space(char c) { return c == ' ' || (c >= '\t' && c <= '\r'); }
@@ -282,6 +284,75 @@ Status check_utf8(std::string_view s, bool surrogates) {
     }
     return ok();
 }
+
+// CPython 3.9's _PyUnicode_TransformDecimalAndSpaceToASCII, what int() parses: ASCII kept, non-ASCII whitespace
+// becomes ' ', a decimal digit of any script its ASCII digit, and the first other non-ASCII character '?', where
+// the text ends.
+std::string int_ascii(std::string_view s) {
+    std::string a;
+    a.reserve(s.size());
+    for (size_t i = 0; i < s.size();) {
+        uint32_t cp = utf8_decode(s, i);
+        if (cp < 127) {
+            a += static_cast<char>(cp);
+        } else if (is_space(cp)) {
+            a += ' ';
+        } else if (int d = decimal_value(cp); d >= 0) {
+            a += static_cast<char>('0' + d);
+        } else {
+            a += '?';
+            break;
+        }
+    }
+    return a;
+}
+
+// The value of an ASCII hex digit, or -1.
+int hex_value(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+// A well-formed int(s, 16) literal: its sign and its significant hex digits (ASCII, leading zeros dropped, so ""
+// is zero).
+struct HexLiteral {
+    bool negative = false;
+    std::string digits;
+};
+
+// CPython 3.9's PyLong_FromString for base 16 on int_ascii(s): ASCII whitespace, an optional sign, an optional
+// 0x/0X prefix with one optional underscore after it, then hex digits with single underscores between them (no
+// leading or trailing one), ASCII whitespace, the end. Anything else is the ValueError int() raises. One pass.
+Result<HexLiteral> hex_literal(std::string_view s) {
+    std::string a = int_ascii(s);
+    size_t i = 0;
+    while (i < a.size() && ascii_space(a[i])) ++i;
+    HexLiteral lit;
+    if (i < a.size() && (a[i] == '+' || a[i] == '-')) lit.negative = a[i++] == '-';
+    if (i + 1 < a.size() && a[i] == '0' && (a[i + 1] == 'x' || a[i + 1] == 'X')) {
+        i += 2;
+        if (i < a.size() && a[i] == '_') ++i;  // "One underscore allowed here."
+    }
+    if (i < a.size() && a[i] == '_') return invalid_literal(s, 16);
+    size_t first = i;
+    char prev = 0;
+    for (; i < a.size() && (hex_value(a[i]) >= 0 || a[i] == '_'); ++i) {
+        if (a[i] == '_') {
+            if (prev == '_') return invalid_literal(s, 16);
+        } else if (!lit.digits.empty() || a[i] != '0') {
+            lit.digits += a[i];
+        }
+        prev = a[i];
+    }
+    if (prev == '_' || i == first) return invalid_literal(s, 16);
+    while (i < a.size() && ascii_space(a[i])) ++i;
+    if (i != a.size()) return invalid_literal(s, 16);
+    return lit;
+}
+
+Err int_base16_type_error() { return Err::type_error("int() can't convert non-string with explicit base"); }
 
 }  // namespace scfg::py::detail
 
@@ -555,25 +626,10 @@ Result<std::string> quote(std::string_view s, std::string_view safe) {
 // ---- int() ----
 
 Result<BigInt> py_int(std::string_view s) {
-    // CPython 3.9: _PyUnicode_TransformDecimalAndSpaceToASCII (non-ASCII whitespace becomes ' ', a digit of any
-    // script its ASCII digit, and the first other non-ASCII character '?', where the text ends), then
-    // PyLong_FromString: ASCII whitespace, a sign, the digit run (single underscores between digits; more than 4300
-    // digits is refused right there), ASCII whitespace, the end.
-    std::string a;
-    a.reserve(s.size());
-    for (size_t i = 0; i < s.size();) {
-        uint32_t cp = utf8_decode(s, i);
-        if (cp < 127) {
-            a += static_cast<char>(cp);
-        } else if (is_space(cp)) {
-            a += ' ';
-        } else if (int d = decimal_value(cp); d >= 0) {
-            a += static_cast<char>('0' + d);
-        } else {
-            a += '?';
-            break;
-        }
-    }
+    // CPython 3.9: _PyUnicode_TransformDecimalAndSpaceToASCII, then PyLong_FromString: ASCII whitespace, a sign,
+    // the digit run (single underscores between digits; more than 4300 digits is refused right there), ASCII
+    // whitespace, the end.
+    std::string a = detail::int_ascii(s);
     size_t i = 0;
     while (i < a.size() && detail::ascii_space(a[i])) ++i;
     bool neg = false;
@@ -624,6 +680,34 @@ Result<BigInt> py_int(const Json& x) {
             return Err::type_error("int() argument must be a string, a bytes-like object or a number, not '" +
                                    std::string(x.type_name()) + "'");
     }
+}
+
+Result<BigInt> py_int_hex(std::string_view s) {
+    SCFG_TRY(detail::HexLiteral lit, detail::hex_literal(s));
+    if (lit.digits.empty()) return BigInt();
+    SCFG_TRY(BigInt v, BigInt::from_hex(lit.digits));  // linear: hex digits are packed, not multiplied in
+    return lit.negative ? -v : v;
+}
+
+Result<BigInt> py_int_hex(const Json& x) {
+    if (!x.is_str()) return detail::int_base16_type_error();
+    return py_int_hex(std::string_view(x.as_str()));
+}
+
+Result<std::optional<int64_t>> py_int_hex_int64(const Json& x) {
+    if (!x.is_str()) return detail::int_base16_type_error();
+    SCFG_TRY(detail::HexLiteral lit, detail::hex_literal(x.as_str()));
+    if (lit.digits.size() > 16) return std::optional<int64_t>();  // at least 2**64: decided before converting
+    uint64_t mag = 0;
+    for (char c : lit.digits) mag = (mag << 4) | static_cast<uint64_t>(detail::hex_value(c));
+    constexpr uint64_t kInt64Max = 0x7fffffffffffffff;
+    if (!lit.negative) {
+        if (mag > kInt64Max) return std::optional<int64_t>();
+        return std::optional<int64_t>(static_cast<int64_t>(mag));
+    }
+    if (mag > kInt64Max + 1) return std::optional<int64_t>();
+    // -mag in int64_t without overflow: -(mag - 1) - 1
+    return std::optional<int64_t>(mag == 0 ? 0 : -static_cast<int64_t>(mag - 1) - 1);
 }
 
 // ---- values ----
