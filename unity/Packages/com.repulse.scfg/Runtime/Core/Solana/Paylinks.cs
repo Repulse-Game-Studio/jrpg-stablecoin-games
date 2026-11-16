@@ -1,11 +1,12 @@
 // Twin of scfg_core/solana/paylinks.py (and of rpgmaker/src/core/solana/paylinks.ts).
 // Solana Pay transfer-request links (https://docs.solanapay.com/spec).
+#nullable enable
 using System.Numerics;
 using System.Text;
 
 namespace Scfg.Core.Solana
 {
-    public static class Paylinks
+    public static class SolanaPaylinks
     {
         /// <summary>The amount always carries 6 decimals, so the item code in it survives. Empty values are omitted.</summary>
         public static string SolanaPayUri(string recipient, BigInteger units, string mint, string reference,

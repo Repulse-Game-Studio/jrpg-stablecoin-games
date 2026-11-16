@@ -5,6 +5,7 @@
 // very different amounts of history: publicnode about two days, api.mainnet-beta everything. A missing
 // transaction only counts as "doesn't exist" when an endpoint whose history reaches back to the slot in
 // question says so.
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -12,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace Scfg.Core.Solana
 {
-    public static class Rpc
+    public static class SolanaRpcErrors
     {
         /// <summary>The highest transaction version this build can read (only meta is used).</summary>
         public const long TxVersion = 1;
@@ -81,7 +82,7 @@ namespace Scfg.Core.Solana
         public SolanaRpc(RpcClient client)
         {
             Client = client;
-            TxVersion = Rpc.TxVersion;
+            TxVersion = SolanaRpcErrors.TxVersion;
         }
 
         public Task<object?> Call(string method, List<object?> prms) => Client.Call(method, prms);
@@ -114,7 +115,7 @@ namespace Scfg.Core.Solana
                 },
             };
 
-        private long? NamedVersion(RpcError error) => Rpc.NamedVersion(error, TxVersion);
+        private long? NamedVersion(RpcError error) => SolanaRpcErrors.NamedVersion(error, TxVersion);
 
         /// <summary>Older nodes reject a maxSupportedTransactionVersion they don't know (-32602).</summary>
         private bool LowerVersion(RpcError error)
@@ -154,7 +155,7 @@ namespace Scfg.Core.Solana
                 }
                 catch (Exception e) when (e is RpcUnavailable || e is RpcError || e is TypeError || e is ValueError)
                 {
-                    return Rpc.UnknownHistory; // unknown: treat as pruned, ask again next time
+                    return SolanaRpcErrors.UnknownHistory; // unknown: treat as pruned, ask again next time
                 }
                 _firstSlot[url] = first;
             }

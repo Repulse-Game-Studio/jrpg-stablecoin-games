@@ -755,7 +755,7 @@ namespace Scfg.Core.Tests
             Assert.That(t.Calls[0].Method, Is.EqualTo("getTransaction"));
             Assert.That(JsonEq.FirstDiff(t.Calls[0].Params, Fakes.L("SIG", new JsonObject
             {
-                { "encoding", "json" }, { "commitment", "confirmed" }, { "maxSupportedTransactionVersion", Scfg.Core.Solana.Rpc.TxVersion },
+                { "encoding", "json" }, { "commitment", "confirmed" }, { "maxSupportedTransactionVersion", Scfg.Core.Solana.SolanaRpcErrors.TxVersion },
             })), Is.Null);
         }
 
@@ -922,8 +922,8 @@ namespace Scfg.Core.Tests
         {
             var (rpc, t) = Client(new Dictionary<string, Handler> { { A, Versioned(2) } });
             Assert.That(JsonEq.FirstDiff(await rpc.GetTransaction("SIG"), new JsonObject { { "slot", 5L } }), Is.Null);
-            Assert.That(t.Calls.Select(c => MaxVersion(c.Params)), Is.EqualTo(new[] { Scfg.Core.Solana.Rpc.TxVersion, 2L }));
-            Assert.That(rpc.TxVersion, Is.EqualTo(Scfg.Core.Solana.Rpc.TxVersion));
+            Assert.That(t.Calls.Select(c => MaxVersion(c.Params)), Is.EqualTo(new[] { Scfg.Core.Solana.SolanaRpcErrors.TxVersion, 2L }));
+            Assert.That(rpc.TxVersion, Is.EqualTo(Scfg.Core.Solana.SolanaRpcErrors.TxVersion));
         }
 
         [Test]
@@ -959,9 +959,9 @@ namespace Scfg.Core.Tests
                 ("VERSION (\uff17)", 7),
             };
             foreach (var (message, expected) in rows)
-                Assert.That(Scfg.Core.Solana.Rpc.NamedVersion(new RpcError(-32015, message), 1), Is.EqualTo(expected), message.Substring(0, Math.Min(40, message.Length)));
-            Assert.That(Scfg.Core.Solana.Rpc.NamedVersion(new RpcError(-32000, "version (5)"), 1), Is.Null, "only for -32015");
-            Assert.That(Scfg.Core.Solana.Rpc.NamedVersion(new RpcError(-32015, "version (5)"), 5), Is.Null, "not newer");
+                Assert.That(Scfg.Core.Solana.SolanaRpcErrors.NamedVersion(new RpcError(-32015, message), 1), Is.EqualTo(expected), message.Substring(0, Math.Min(40, message.Length)));
+            Assert.That(Scfg.Core.Solana.SolanaRpcErrors.NamedVersion(new RpcError(-32000, "version (5)"), 1), Is.Null, "only for -32015");
+            Assert.That(Scfg.Core.Solana.SolanaRpcErrors.NamedVersion(new RpcError(-32015, "version (5)"), 5), Is.Null, "not newer");
         }
 
         [Test]

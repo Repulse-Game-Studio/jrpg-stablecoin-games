@@ -334,7 +334,7 @@ namespace Scfg.Core.Tests
         {
             Funcs["eip681_transfer_uri"] = i => Paylinks.Eip681TransferUri(Str(i, "token_address"), IntField(i, "chain_id"),
                 Str(i, "recipient"), Units(i["units"]));
-            Funcs["solana_pay_uri"] = i => Solana.Paylinks.SolanaPayUri(Str(i, "recipient"), Units(i["units"]), Str(i, "mint"),
+            Funcs["solana_pay_uri"] = i => Solana.SolanaPaylinks.SolanaPayUri(Str(i, "recipient"), Units(i["units"]), Str(i, "mint"),
                 Str(i, "reference"), Str(i, "label"), Str(i, "message"));
             Funcs["qr_matrix"] = i =>
             {
@@ -383,7 +383,7 @@ namespace Scfg.Core.Tests
             Funcs["suggested_range"] = i => Rpc.SuggestedRange(new RpcError(-32005, Str(i, "message")), IntField(i, "tried"));
             // Python's _named_version reads only the client's tx_version
             Funcs["named_version"] = i =>
-                Solana.Rpc.NamedVersion(new RpcError(IntField(i, "code"), Str(i, "message")), IntField(i, "tx_version"));
+                Solana.SolanaRpcErrors.NamedVersion(new RpcError(IntField(i, "code"), Str(i, "message")), IntField(i, "tx_version"));
         }
 
         private static void RegisterReceipts()
