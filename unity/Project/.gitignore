@@ -12,3 +12,6 @@
 *.slnx
 .vs/
 .idea/
+# made by the editor when a PanelSettings asset is created; the package ships its own theme
+/Assets/UI Toolkit/
+/Assets/UI Toolkit.meta
