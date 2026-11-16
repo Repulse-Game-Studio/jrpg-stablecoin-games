@@ -29,6 +29,10 @@ uv run pytest -m integration tests/integration/test_cs_core.py
 
 `SCFG_VECTORS` overrides the vectors directory the tests read. `tests/integration/cs_driver.py` looks for `dotnet` on `PATH`, then in `$DOTNET_ROOT`, then in `~/.dotnet`. Without one the twins skip; `SCFG_REQUIRE_CS=1` (set in CI) makes that a failure. The EVM and Arc twins need `anvil`, which CI installs.
 
+## State file
+
+`StateFile` reads and writes the player's payment state, `{"version": 1, "pending": {...}, "receipts": {...}}` (the Engine's two stores, in the frozen format of `conformance/schema/state.json`). `StateSchema` is that schema as a C# table, and a test compares it with the file. `StateFile.Parse(text)` gives the stores, or a `Why` (Godot's `store.gd` texts: not JSON, not an object, an unknown version, no pending/receipts objects, or the first record that `StateFile.Check` refuses, with `state_schema.py`'s problem text). A file with a `Why` is refused whole. `StateFile.Serialize` writes the stores in insertion order.
+
 ## Error model
 
 Exceptions follow Python's class tree (`Errors.cs`): `ValueError`, `TypeError`, `KeyError`, `IndexError`, `ConfigError(Code)`, `RestoreError(Code)`, `ArithmeticError`, `OverflowError` and the decimal errors. Tier 1's `"invalid"` expectation passes only for a `ValueError` or `TypeError` that is not a `ConfigError`; any other exception fails the case.
@@ -76,7 +80,7 @@ Deliberate or accepted differences. None is reachable with valid, schema-conform
 | Large integers | Some fields are `long`-bounded: `LogIndex`, `BlockNumber`, a Solana slot, a receipt `log_index` and `block`, a chain's `chain_id`, `confirmations` and `max_log_range`. Beyond a long is an `OverflowError` (`Ints.ToLong`), not the Python result | Unbounded |
 | Non-finite numbers | `Json.Loads` accepts `NaN`, `Infinity` and `-Infinity` as doubles (the TypeScript port rejects them) | Accepts them |
 | Malformed node data (Solana) | A string `accountIndex`, a non-string `owner` or a non-integer `accountIndex` keeps a receipt that Python drops | Drops it |
-| Non-string stored values | A non-string `kind`, `item`, `token` or `chain` in a stored session makes `Expire` throw out of `Tick`, or loops `internal_error` | Carries the value |
+| Non-string stored values | A non-string `kind`, `item`, `token` or `chain` in a stored session makes `Expire` throw out of `Tick`, or loops `internal_error`. Unreachable from a state file: `StateFile.Parse` refuses a file whose records do not match `conformance/schema/state.json` | Carries the value |
 | Tips | `PreparePayment` with a non-string `title` or `item` on a tip is a `TypeError` | Accepted |
 | Config | `confirmations` of 2**70 is an `OverflowError`, raised before `config.no_usable_token` | `ConfigError` |
 | Config | A non-dict `methods`, `rpc_urls` or `confirmations` is a `TypeError` | `AttributeError` |
