@@ -25,6 +25,8 @@ namespace Scfg.Core.Tests
             "evm_address",
             "base58",
             "ed25519",
+            "pda",
+            "solana_tx",
             "chains",
             "config",
             "custom_chains",
@@ -45,6 +47,7 @@ namespace Scfg.Core.Tests
             RegisterKeccak();
             RegisterEvm();
             RegisterBase58();
+            RegisterSolanaTx();
             RegisterConfig();
             RegisterReceipts();
         }
@@ -146,6 +149,60 @@ namespace Scfg.Core.Tests
             Funcs["normalize_pubkey"] = i => Solana.Base58.NormalizePubkey(i.Get("text"));
             Funcs["normalize_signature"] = i => Solana.Base58.NormalizeSignature(i.Get("text"));
             Funcs["is_on_curve"] = i => Solana.Ed25519.IsOnCurve(Bytes.FromHex(Str(i, "point_hex")));
+        }
+
+        // ---- pda and solana_tx -----------------------------------------------------------------------------------
+
+        private static byte[][] Seeds(JsonObject i)
+        {
+            var list = Arr(i.Get("seeds_hex"), "seeds_hex");
+            var seeds = new byte[list.Count][];
+            for (int k = 0; k < seeds.Length; k++)
+                seeds[k] = Bytes.FromHex(list[k] as string ?? throw new ValueError("vector seed must be a string"));
+            return seeds;
+        }
+
+        private static bool BoolField(JsonObject i, string key) =>
+            i.Get(key) is bool b ? b : throw new ValueError("vector input " + key + " must be a boolean");
+
+        private static void RegisterSolanaTx()
+        {
+            Funcs["create_program_address"] = i =>
+            {
+                var o = Solana.Pda.CreateProgramAddress(Seeds(i), Solana.Base58.DecodeFixed(Str(i, "program_id"), 32));
+                return o == null ? null : Solana.Base58.B58Encode(o);
+            };
+            Funcs["find_program_address"] = i =>
+            {
+                var (address, bump) = Solana.Pda.FindProgramAddress(Seeds(i), Solana.Base58.DecodeFixed(Str(i, "program_id"), 32));
+                return new JsonObject { { "address", Solana.Base58.B58Encode(address) }, { "bump", (long)bump } };
+            };
+            Funcs["associated_token_address"] = i => Solana.Pda.AssociatedTokenAddress(Str(i, "owner"), Str(i, "mint"));
+            Funcs["compact_u16"] = i =>
+            {
+                var n = i.Get("n");
+                if (n is BigInteger) throw new ValueError("compact-u16 out of range");
+                if (!(n is long l)) throw new TypeError("compact-u16 needs a number");
+                return Bytes.ToHex(Solana.Tx.CompactU16(l));
+            };
+            Funcs["compile_message"] = i =>
+            {
+                var ixs = new List<Solana.Instruction>();
+                foreach (var xo in Arr(i.Get("instructions"), "instructions"))
+                {
+                    var x = Obj(xo, "instruction");
+                    var metas = new List<Solana.AccountMeta>();
+                    foreach (var mo in Arr(x.Get("accounts"), "accounts"))
+                    {
+                        var m = Obj(mo, "account");
+                        metas.Add(new Solana.AccountMeta(Str(m, "pubkey"), BoolField(m, "is_signer"), BoolField(m, "is_writable")));
+                    }
+                    ixs.Add(new Solana.Instruction(Str(x, "program_id"), metas.ToArray(), Bytes.FromHex(Str(x, "data_hex"))));
+                }
+                return Bytes.ToHex(Solana.Tx.CompileMessage(Str(i, "payer"), ixs, Str(i, "recent_blockhash")));
+            };
+            Funcs["unsigned_transaction"] = i =>
+                Bytes.ToHex(Solana.Tx.UnsignedTransaction(Bytes.FromHex(Str(i, "message_hex"))));
         }
 
         // ---- chains, config, custom_chains, items, payments --------------------------------------------------
