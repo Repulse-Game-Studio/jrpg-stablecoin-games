@@ -6,7 +6,10 @@
 
 #include "Scfg/Err.h"
 #include "Scfg/Py.h"
+#include "Scfg/PyFloat.h"
 
+#include <cmath>
+#include <optional>
 #include <utility>
 
 using scfg::Err;
@@ -29,7 +32,10 @@ void Topic::operator()(std::string fn, Adapter adapter) {
     r_.fns.emplace(std::move(fn), std::move(adapter));
 }
 
-std::vector<std::string> ported_topics() { return {"amounts", "keccak", "evm_address"}; }
+std::vector<std::string> ported_topics() {
+    return {"amounts", "keccak", "evm_address", "base58", "ed25519",
+            "chains", "config", "custom_chains", "items", "payments"};
+}
 
 namespace detail {
 
@@ -138,6 +144,25 @@ std::vector<std::string> run_topic(std::string_view topic, const Registry& r) {
         if (std::optional<std::string> diff = run_case(list[n], r)) failures.push_back("#" + detail::number(n) + " " + *diff);
     }
     return failures;
+}
+
+scfg::Result<Json> decode_value(const Json& v) {
+    if (!v.is_dict() || v.as_dict().size() != 1 || !v.as_dict().contains("float")) return v;
+    const Json& x = *v.as_dict().find("float");
+    if (x.is_float()) return x;
+    if (x.is_bool()) return Json(x.as_bool() ? 1.0 : 0.0);
+    if (x.is_int()) {  // float(int): correctly rounded, an OverflowError beyond the doubles
+        std::optional<double> f = scfg::pyfloat::parse(x.as_bigint().to_decimal());
+        if (!f || std::isinf(*f)) return Err::overflow_error("int too large to convert to float");
+        return Json(*f);
+    }
+    if (!x.is_str()) {
+        return Err::type_error("float() argument must be a string or a number, not '" + std::string(x.type_name()) +
+                               "'");
+    }
+    std::optional<double> f = scfg::pyfloat::parse(x.as_str());
+    if (!f) return Err::value_error("could not convert string to float: " + scfg::py::repr_str(x.as_str()));
+    return Json(*f);
 }
 
 std::string report(std::string_view what, const std::vector<std::string>& failures, size_t shown) {

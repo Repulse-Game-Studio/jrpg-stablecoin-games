@@ -69,6 +69,11 @@ inline std::optional<std::string> run_case(const scfg::Json& c) { return run_cas
 std::vector<std::string> run_topic(std::string_view topic, const Registry& r);
 inline std::vector<std::string> run_topic(std::string_view topic) { return run_topic(topic, registry()); }
 
+// replay.py's decode_value: {"float": x} (exactly that one key) is float(x), anything else is the value itself.
+// x is the float's repr, as the vectors write it (an int, a float or a bool is converted too, as float() converts
+// them); malformed text is float()'s ValueError, a list, a dict or None its TypeError.
+scfg::Result<scfg::Json> decode_value(const scfg::Json& v);
+
 // "<what>: <n> failing case(s)" and the first `shown` messages, then how many more there were.
 std::string report(std::string_view what, const std::vector<std::string>& failures, size_t shown = 20);
 

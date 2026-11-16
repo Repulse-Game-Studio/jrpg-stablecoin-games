@@ -8,7 +8,6 @@
 #include "Scfg/Err.h"
 #include "Scfg/Json.h"
 #include "Scfg/Py.h"
-#include "Scfg/PyFloat.h"
 
 #include <optional>
 
@@ -26,18 +25,6 @@ namespace scfg_test::tier1::amounts_adapters {
 Result<BigInt> units(const Json& in) {
     SCFG_TRY(Json v, py::get(in, "units"));
     return py::py_int(v);
-}
-
-// replay.py's decode_value: {"float": "<repr>"} is that float, anything else is the value itself.
-Result<Json> vector_value(const Json& v) {
-    if (v.is_dict() && v.as_dict().size() == 1 && v.as_dict().contains("float")) {
-        const Json& repr = *v.as_dict().find("float");
-        if (!repr.is_str()) return Err::type_error("float() argument must be a string or a number");
-        std::optional<double> f = scfg::pyfloat::parse(repr.as_str());
-        if (!f) return Err::value_error("could not convert string to float: " + py::repr_str(repr.as_str()));
-        return Json(*f);
-    }
-    return v;
 }
 
 }  // namespace scfg_test::tier1::amounts_adapters
@@ -84,7 +71,7 @@ SCFG_TIER1_TOPIC(amounts) {
     });
     fn("stored_amount", [](const Json& in) -> Result<Json> {
         SCFG_TRY(Json raw, py::get(in, "value"));
-        SCFG_TRY(Json value, a::vector_value(raw));
+        SCFG_TRY(Json value, scfg_test::tier1::decode_value(raw));
         SCFG_TRY(Dec d, amounts::stored_amount(value));
         return Json(d.str());
     });
