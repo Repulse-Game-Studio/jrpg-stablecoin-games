@@ -41,7 +41,7 @@ The core runs on Unity's main thread, so it never creates a thread or waits.
 
 - No threads and no timers: no `Task.Run`, `Task.Delay`, `Task.Yield`, `ConfigureAwait`, `Thread`, `ThreadPool`, `Timer`, `Parallel` and no `async void`.
 - `Task<T>` is only a promise (a `TaskCompletionSource` the caller completes). The transport returns one; the core awaits it and never blocks on it (`.Result`, `.Wait()`).
-- The clock is injected (`RpcClient.Clock`, the Engine's and Watcher's clocks); the core does not read the system time itself. Entropy is injected too (`IEntropy`).
+- Clocks: `RpcClient.Clock` defaults to `Rpc.MonotonicSeconds` (a `Stopwatch`, as Python uses `time.monotonic`), and the backends' `MakeRpc` pass no clock, so RPC cooldowns run on that default. The Engine's and Watcher's clocks are injected, and so is the Tier 2 runner's. Entropy is injected too (`IEntropy`).
 
 ## Lints
 

@@ -4,8 +4,10 @@
 //
 // Differences from CPython, all outside any realistic amount: the exponent is an int, so Parse clamps an
 // exponent beyond +-2^30 (that libmpdec accepts) to +-2^30. Such a value is far outside [Etiny, Emax], so
-// comparisons and + still give Python's results, but ToString, Quantize and IntegralValue do not: such values
+// comparisons with an in-range value and + still give Python's results (two values that both clamp compare
+// equal here, where Python orders them), but ToString, Quantize and IntegralValue do not: such values
 // are only ever compared, summed or range-checked.
+#nullable enable
 using System;
 using System.Globalization;
 using System.Numerics;
