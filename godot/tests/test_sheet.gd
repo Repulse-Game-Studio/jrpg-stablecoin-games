@@ -9,6 +9,7 @@
 extends RefCounted
 
 const T := preload("res://tests/t.gd")
+const F := preload("res://tests/fakes.gd")
 const UI := preload("res://tests/ui_env.gd")
 const POT := "res://addons/scfg/translations/scfg.pot"
 
@@ -101,6 +102,40 @@ func test_the_buy_link_sits_on_the_method_step_and_opens_the_buy_page() -> bool:
 	if link != null:
 		link.pressed.emit()
 	T.eq(env["platform"].opened, [ctl.onramp_url()], "opens the buy page")
+	await UI.drop(env)
+	return T.done()
+
+
+func test_on_solana_the_buy_link_points_to_another_network() -> bool:
+	const SOL_WALLET := "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+	var mint: String = ScfgChains.MAINNET["solana"]["tokens"]["USDC"]["address"]
+	var sol := F.FakeSolanaChain.new()
+	sol.accounts[ScfgSolanaPda.associated_token_address(SOL_WALLET, mint)] = true  # it can receive USDC
+	var evm := F.FakeChain.new(1000)
+	var factory := func(c: Dictionary) -> Variant: return sol if c["family"] == "solana" else evm
+	var env := await UI.make("onramp_hint", {"solana_wallet": SOL_WALLET},
+		{"engine_opts": {"rpc_factory": factory, "clock": F.FakeClock.new(1000.0).fn}})
+	var s: Node = env["node"]
+	var opened := await _open_unlock(s)
+	var sheet: Node = opened[1]
+	var ctl: ScfgCheckoutController = opened[2]
+	var pick: Button = sheet.control("network_solana")
+	T.ok(pick != null, "Solana is offered")
+	if pick == null:
+		await UI.drop(env)
+		return T.done()
+	pick.pressed.emit()
+	await UI.pass_(s)
+	await UI.frames(2)
+	T.eq(sheet.shown_step, "method", "the method step once the session started")
+	T.eq(sheet.control("onramp"), null, "no buy link on Solana")
+	var hint: Button = sheet.control("onramp_hint")
+	T.eq(hint.text if hint != null else null, "No USDC yet? Pick another network to buy some with a card", "the hint")
+	if hint != null:
+		hint.pressed.emit()
+	await UI.frames(2)
+	T.eq([ctl.step, sheet.shown_step], ["network", "network"], "goes back to the network step")
+	T.eq(env["platform"].opened, [], "opens nothing")
 	await UI.drop(env)
 	return T.done()
 

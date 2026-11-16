@@ -96,6 +96,7 @@ export class HeadlessHost implements SheetHost {
     const add = (name: string, text: string, press: () => void) => out.push({ name, text, press });
     const onramp = () => {
       if (c.showsOnramp) add("onramp", this.t("onramp_link", c.spec.token), () => s.openOnramp(c));
+      else if (c.showsOnrampHint) add("onramp_hint", this.t("onramp_hint", c.spec.token), () => c.back());
     };
     if (c.canGoBack) add("back", this.t("back"), () => c.back());
     if (c.state !== "closed") {

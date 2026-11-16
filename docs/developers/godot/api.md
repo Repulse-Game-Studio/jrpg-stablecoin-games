@@ -42,7 +42,9 @@ The sheet shows a **No USDC yet? Buy some with a card** link (with the payment's
 on the only payment page when there is one method. It opens a buy page for the network the player picked, in
 the browser (a new tab on a web export), where they buy the token with a card into their own wallet and then
 pay as usual. The default page is thirdweb's hosted Buy widget, locked to the network and token, with the
-payment rounded up to cents (plus a cent for the fee on Arc) as the suggested amount.
+payment rounded up to cents (plus a cent for the fee on Arc) as the suggested amount. On a network it isn't
+offered on, like Solana, the sheet says **No USDC yet? Pick another network to buy some with a card** there
+instead, which goes back to the network step, when another network the player can pick has the link.
 
 ```gdscript
 Scfg.configure({"wallet": "0x...", "onramp": {"enabled": false}})            # hide it
@@ -58,7 +60,8 @@ Scfg.configure({"wallet": "0x...", "onramp": {"url": "https://buy.example/?net={
 
 A mistake is a `ConfigError` from `configure()` with a code such as `onramp.unknown_option`, `onramp.bad_url`,
 `onramp.unknown_placeholder` or `onramp.disabled_chain`. A replacement sheet shows the link while the
-controller's `shows_onramp` is true and opens it with `Scfg.open_onramp(controller)`.
+controller's `shows_onramp` is true and opens it with `Scfg.open_onramp(controller)`; while `shows_onramp_hint`
+is true it shows the "Pick another network" button there instead, which calls the controller's `back()`.
 
 ## ScfgPaymentResult
 
@@ -136,7 +139,8 @@ From least to most work:
    root enters the tree, with the `ScfgCheckoutController` and the `Scfg` autoload. Show the controller's
    fields, call its methods (`choose_network`, `choose_method`, `next_step`, `set_tip_amount`, `mark_sent`,
    `submit_hash`, `back`) and the autoload's actions (`open_browser`, `open_wallet_app`, `open_explorer`,
-   `open_onramp` (while `shows_onramp`), `copy`, `paste_into`). Emit `closed("cancel")`, `closed("keep_playing")` (only once a session exists) or
+   `open_onramp` (while `shows_onramp`; while `shows_onramp_hint`, a "Pick another network" button there
+   instead, handled with `back()`), `copy`, `paste_into`). Emit `closed("cancel")`, `closed("keep_playing")` (only once a session exists) or
    `closed("finish")` (after a final state), once. Never call the controller's `poll()`: the autoload does. A
    root without `bind` and `closed` is not shown, and `pay()` resolves `failed` with `sheet.unavailable`.
 4. Replace `Scfg.sheet_host` with your own `ScfgSheetHost` (`addons/scfg/sheet_host.gd`) to show the payment

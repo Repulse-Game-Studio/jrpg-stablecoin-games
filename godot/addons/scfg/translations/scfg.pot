@@ -165,6 +165,10 @@ msgstr ""
 msgid "No %s yet? Buy some with a card"
 msgstr ""
 
+#: addons/scfg/ui/sheet.gd
+msgid "No %s yet? Pick another network to buy some with a card"
+msgstr ""
+
 #: addons/scfg/ui/restore.gd
 msgid "Nothing new to restore. These purchases are already on this device."
 msgstr ""

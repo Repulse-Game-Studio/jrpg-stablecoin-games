@@ -7,7 +7,7 @@ import { FakeClock } from "../../test/rpc_fakes.ts";
 import { FakeSolanaChain, sig } from "../../test/solana_fakes.ts";
 import { MAINNET, type Chain } from "./chains.ts";
 import { CheckoutController, MESSAGES } from "./checkout.ts";
-import { addItem, buildConfig } from "./config.ts";
+import { addItem, buildConfig, type BuildConfigOptions } from "./config.ts";
 import { Engine } from "./engine.ts";
 import { preparePayment } from "./payments.ts";
 import { associatedTokenAddress } from "./solana/pda.ts";
@@ -21,8 +21,8 @@ const SIG2 = sig(8);
 const EVM_TX = "0x" + "ab".repeat(32);
 const UNREADY_SOL_USDC = "solana\u0000USDC";
 
-function setup(unready: ReadonlySet<string> = new Set()) {
-  const cfg = buildConfig({ wallet: DEV_EVM, solana_wallet: DEV });
+function setup(unready: ReadonlySet<string> = new Set(), config: BuildConfigOptions = {}) {
+  const cfg = buildConfig({ wallet: DEV_EVM, solana_wallet: DEV, ...config });
   addItem(cfg, "chapter2", { code: 37, price: "4.99", token: "USDC", title: "Chapter 2" });
   const sol = new FakeSolanaChain(1000);
   const evm = new FakeChain(1000);
@@ -131,6 +131,52 @@ for (const error of ["tx_not_landed", "tx_reverted", "tx_not_a_payment"]) {
     assert.deepEqual([info["error"], info["tx_hash"], info["dropped_tx"]], [null, SIG2, null]);
   });
 }
+
+// --- the buy link's hint: Solana has no buy page, another network does ---------------------
+
+async function onMethod(chain: string, config: BuildConfigOptions = {}) {
+  const s = setup(new Set(), config);
+  s.ctl.chooseNetwork(chain);
+  await s.submit.idle();
+  s.ctl.poll();
+  return s;
+}
+
+test("test_solana_points_to_a_network_with_the_buy_link", async () => {
+  const { ctl, submit } = await onMethod("solana");
+  assert.equal(ctl.step, "method");
+  assert.ok(ctl.onrampUrl() === null && ctl.showsOnramp === false);
+  assert.equal(ctl.showsOnrampHint, true);
+  ctl.back();
+  assert.equal(ctl.step, "network");
+  ctl.chooseNetwork("base");
+  await submit.idle();
+  ctl.poll();
+  assert.deepEqual([ctl.showsOnramp, ctl.showsOnrampHint], [true, false]);
+});
+
+test("test_the_hint_needs_a_network_with_the_link_that_the_player_can_pick", async () => {
+  let { ctl } = await onMethod("solana", { onramp: { enabled: false } });
+  assert.equal(ctl.showsOnrampHint, false);
+  ({ ctl } = await onMethod("solana", { testnet: true })); // testnet: no network has the link
+  assert.equal(ctl.showsOnrampHint, false);
+  ({ ctl } = await onMethod("solana", { onramp: { chains: ["base"] }, chains: ["solana", "base"] }));
+  assert.equal(ctl.showsOnrampHint, true);
+  ({ ctl } = await onMethod("solana", { testnet: true, onramp: { chains: ["base"] } }));
+  assert.equal(ctl.showsOnrampHint, true);
+});
+
+test("test_the_hint_shows_where_the_link_would_and_not_once_a_payment_is_seen", async () => {
+  const onlyManual = { browser: { enabled: false }, qr: { enabled: false } };
+  let { ctl } = await onMethod("solana", { methods: onlyManual });
+  assert.ok(ctl.step === "manual" && ctl.showsOnrampHint === true); // the only payment page
+  ({ ctl } = await onMethod("solana"));
+  ctl.chooseMethod("qr");
+  assert.equal(ctl.showsOnrampHint, false); // the method step had it
+  ({ ctl } = await onMethod("solana", { methods: onlyManual }));
+  ctl.submitHash(SIG);
+  assert.ok(ctl.step === "waiting" && ctl.showsOnrampHint === false);
+});
 
 // --- additions with no Python twin ---
 

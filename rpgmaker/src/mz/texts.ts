@@ -57,6 +57,7 @@ const SHEET: Record<string, string> = {
   evm_opens_here_note: "Opens your wallet right here, over the game: MetaMask, Rabby, Coinbase Wallet and other wallet extensions.",
   solana_opens_here_note: "Opens your wallet right here, over the game: Phantom, Solflare, Backpack and other wallet extensions.",
   onramp_link: "No %s yet? Buy some with a card",
+  onramp_hint: "No %s yet? Pick another network to buy some with a card",
   // paying
   preparing_payment: "Preparing the payment...",
   qr_step_open: "1. Open your wallet app",

@@ -246,14 +246,27 @@ export class CheckoutController {
   }
 
   /**
-   * Whether this step offers the buy link: the method step, or the payment page the sheet opens on
-   * when the method step is skipped (a single method).
+   * The step where the buy link (or its hint) goes: the method step, or the payment page the sheet
+   * opens on when the method step is skipped (a single method).
    */
+  _onrampStep(): boolean {
+    return this.step === "method" || (["browser", "qr", "manual"].includes(this.step) && !this.stepPath().includes("method"));
+  }
+
+  /** Whether this step offers the buy link. */
   get showsOnramp(): boolean {
-    if (this.step !== "method" && !(["browser", "qr", "manual"].includes(this.step) && !this.stepPath().includes("method"))) {
-      return false;
-    }
-    return this.onrampUrl() !== null;
+    return this._onrampStep() && this.onrampUrl() !== null;
+  }
+
+  /**
+   * Whether this step points to the buy link instead ("Pick another network"), because the chosen
+   * network has none (Solana) but another one the player can pick has it. Its button goes back to
+   * the network step (back()).
+   */
+  get showsOnrampHint(): boolean {
+    const opts = this.config.onramp;
+    if (!opts.enabled || !this._onrampStep() || this.onrampUrl() !== null || !this.canGoBack) return false;
+    return this.chainOptions().some(([key]) => opts.chains.includes(key));
   }
 
   explorerUrl(): string | null {

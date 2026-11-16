@@ -288,6 +288,25 @@ def test_buy_link_moves_to_the_only_payment_page_and_follows_the_option(make_gam
     assert game2.key("onramp").count() == 0
 
 
+def test_solana_points_to_a_network_with_the_buy_link(make_game):
+    game = make_game()
+    game.setup(config={"solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"})
+    game.pay()
+    game.key("network_solana").click()
+    game.pass_()
+    game.wait_step("method")
+    assert game.view()["onramp"] is None
+    assert game.key("onramp").count() == 0, "Solana has no buy page"
+    assert game.key("onramp_hint").inner_text() == "No USDC yet? Pick another network to buy some with a card"
+    game.key("onramp_hint").click()
+    game.wait_step("network")
+    assert game.key("onramp_hint").count() == 0
+    game.key("network_arbitrum").click()
+    game.pass_()
+    game.wait_step("method")
+    assert game.key("onramp").is_visible() and game.key("onramp_hint").count() == 0
+
+
 def test_typing_a_hash_keeps_backspace_and_blocks_the_game(make_game):
     game = make_game()
     # a WASD plugin: the letters are the game's direction keys

@@ -266,9 +266,13 @@ func _step_method(body: VBoxContainer) -> void:
 ## "No USDC yet? Buy some with a card": opens configure's onramp page for the chosen network,
 ## pinned below the scrolling body (above the forward button) so it stays in view. On the method
 ## step, or on the payment page the sheet opens on when there is a single method
-## (ScfgCheckoutController.shows_onramp).
+## (ScfgCheckoutController.shows_onramp). On a network without a buy page (Solana), when another
+## one has it, it points there instead and goes back to the network step (shows_onramp_hint).
 func _onramp_link(step: VBoxContainer) -> void:
-	if controller.shows_onramp:
+	if controller.shows_onramp_hint:
+		step.add_child(button("onramp_hint", tr("No %s yet? Pick another network to buy some with a card")
+			% controller.spec["token"], "ScfgSmall", _back))
+	elif controller.shows_onramp:
 		step.add_child(button("onramp", tr("No %s yet? Buy some with a card") % controller.spec["token"], "ScfgSmall",
 			_open_onramp))
 

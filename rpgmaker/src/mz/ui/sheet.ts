@@ -64,7 +64,7 @@ export class PaymentSheet extends Screen {
   protected signature(): unknown[] {
     const c = this.ctl;
     return [c.step, c.state, c.error, c.canGoBack, c.hint_tx, c.confirmations, c.required, c.method, c.chain_key,
-      c.priceText, c.sessionId, c.browser_failed, c.chainOptions(), c.methods(), c.result?.tx_hash ?? null, c.message(), c.showsOnramp,
+      c.priceText, c.sessionId, c.browser_failed, c.chainOptions(), c.methods(), c.result?.tx_hash ?? null, c.message(), c.showsOnramp, c.showsOnrampHint,
       [...c.unready()].sort(), this.env.logo()];
   }
 
@@ -252,11 +252,14 @@ export class PaymentSheet extends Screen {
    * "No USDC yet? Buy some with a card" (Ren'Py's scfg_onramp_link): the configure({onramp}) page
    * for the chosen network, pinned below the scrolling body (above the forward button) so it stays
    * in view. On the method step, or the payment page the sheet opens on when there is a single
-   * method (the controller's showsOnramp).
+   * method (the controller's showsOnramp). On a network without a buy page (Solana), when another
+   * one has it, "No USDC yet? Pick another network to buy some with a card" goes back to the
+   * network step instead (showsOnrampHint).
    */
   private onrampLink(): void {
     const c = this.ctl;
     if (c.showsOnramp) this.sheet.append(this.button("onramp", this.text("onramp_link", c.spec.token), "small", () => this.scfg.openOnramp(c)));
+    else if (c.showsOnrampHint) this.sheet.append(this.button("onramp_hint", this.text("onramp_hint", c.spec.token), "small", () => c.back()));
   }
 
   private stepBrowser(body: HTMLElement): void {

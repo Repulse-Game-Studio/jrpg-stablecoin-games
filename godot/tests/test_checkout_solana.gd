@@ -16,9 +16,11 @@ static var SIG2: String = F.sig(8)
 
 
 ## {ctl, e} (test_checkout_solana.py `setup`). `unready` is the worker snapshot's unready routes:
-## an Array of [chain, token] pairs.
-func _setup(unready: Array = []) -> Dictionary:
-	var cfg: Variant = ScfgConfig.build_config({"wallet": DEV_EVM, "solana_wallet": DEV})
+## an Array of [chain, token] pairs; `config` adds build_config options.
+func _setup(unready: Array = [], config: Dictionary = {}) -> Dictionary:
+	var opts := {"wallet": DEV_EVM, "solana_wallet": DEV}
+	opts.merge(config, true)
+	var cfg: Variant = ScfgConfig.build_config(opts)
 	ScfgConfig.add_item(cfg, "chapter2", {"code": 37, "price": "4.99", "token": "USDC", "title": "Chapter 2"})
 	var sol := F.FakeSolanaChain.new()
 	var evm := F.FakeChain.new()
@@ -169,4 +171,52 @@ func test_solana_session_info_key_order() -> bool:
 	T.eq(s.session_info["mint"], MINT)
 	T.eq(s.session_info["reference"], ctl.session["reference"])
 	T.eq(typeof(s.session_info["amount_units"]), TYPE_STRING)
+	return T.done()
+
+
+# --- the buy link's hint: Solana has no buy page, another network does ---------------------
+
+func _on_method(chain: String, config: Dictionary = {}) -> Dictionary:
+	var m := _setup([], config)
+	var ctl: ScfgCheckoutController = m["ctl"]
+	ctl.choose_network(chain)
+	ctl.poll()
+	return m
+
+
+func test_solana_points_to_a_network_with_the_buy_link() -> bool:
+	var ctl: ScfgCheckoutController = _on_method("solana")["ctl"]
+	T.eq(ctl.step, "method")
+	T.eq([ctl.onramp_url(), ctl.shows_onramp], [null, false])
+	T.eq(ctl.shows_onramp_hint, true)
+	ctl.back()
+	T.eq(ctl.step, "network")
+	ctl.choose_network("base")
+	ctl.poll()
+	T.eq([ctl.shows_onramp, ctl.shows_onramp_hint], [true, false])
+	return T.done()
+
+
+func test_the_hint_needs_a_network_with_the_link_that_the_player_can_pick() -> bool:
+	var ctl: ScfgCheckoutController = _on_method("solana", {"onramp": {"enabled": false}})["ctl"]
+	T.eq(ctl.shows_onramp_hint, false, "disabled")
+	ctl = _on_method("solana", {"testnet": true})["ctl"]
+	T.eq(ctl.shows_onramp_hint, false, "testnet: no network has the link")
+	ctl = _on_method("solana", {"onramp": {"chains": ["base"]}, "chains": ["solana", "base"]})["ctl"]
+	T.eq(ctl.shows_onramp_hint, true, "base has it")
+	ctl = _on_method("solana", {"testnet": true, "onramp": {"chains": ["base"]}})["ctl"]
+	T.eq(ctl.shows_onramp_hint, true, "base has it on testnet")
+	return T.done()
+
+
+func test_the_hint_shows_where_the_link_would_and_not_once_a_payment_is_seen() -> bool:
+	var only_manual := {"browser": {"enabled": false}, "qr": {"enabled": false}}
+	var ctl: ScfgCheckoutController = _on_method("solana", {"methods": only_manual})["ctl"]
+	T.eq([ctl.step, ctl.shows_onramp_hint], ["manual", true], "the only payment page")
+	ctl = _on_method("solana")["ctl"]
+	ctl.choose_method("qr")
+	T.eq(ctl.shows_onramp_hint, false, "the method step had it")
+	ctl = _on_method("solana", {"methods": only_manual})["ctl"]
+	ctl.submit_hash(SIG)
+	T.eq([ctl.step, ctl.shows_onramp_hint], ["waiting", false], "a payment is seen")
 	return T.done()
