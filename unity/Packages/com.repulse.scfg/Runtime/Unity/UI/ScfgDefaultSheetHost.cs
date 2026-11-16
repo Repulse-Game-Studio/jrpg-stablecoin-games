@@ -16,6 +16,11 @@ namespace Scfg
         public const int SortingOrder = 1000;
         public const string StyleResource = "ScfgUI/ScfgSheet";
         public const string ThemeResource = "ScfgUI/ScfgTheme";
+        /// <summary>
+        /// The package's PanelSettings asset: an asset (not one made at runtime) carries the text settings and ICU data
+        /// the editor assigns, so wrapped text and line breaking work in a build.
+        /// </summary>
+        public const string PanelResource = "ScfgUI/ScfgPanel";
 
         private static PanelSettings? _panel;
         private static StyleSheet? _styles;
@@ -53,10 +58,11 @@ namespace Scfg
         {
             if (PanelSettings != null) return PanelSettings;
             if (_panel != null) return _panel;
-            var p = ScriptableObject.CreateInstance<PanelSettings>();
+            var asset = Resources.Load<PanelSettings>(PanelResource);
+            var p = asset != null ? Object.Instantiate(asset) : ScriptableObject.CreateInstance<PanelSettings>();
             p.name = "SCFG Panel";
             p.hideFlags = HideFlags.HideAndDontSave;
-            p.themeStyleSheet = Resources.Load<ThemeStyleSheet>(ThemeResource);
+            if (p.themeStyleSheet == null) p.themeStyleSheet = Resources.Load<ThemeStyleSheet>(ThemeResource);
             p.sortingOrder = SortingOrder;
             p.scaleMode = PanelScaleMode.ScaleWithScreenSize;
             p.referenceResolution = new Vector2Int(960, 720);
