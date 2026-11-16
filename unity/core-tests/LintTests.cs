@@ -78,7 +78,9 @@ namespace Scfg.Core.Tests
             (@"\.ToString\(\s*\)", "pass CultureInfo.InvariantCulture, or end the line with // culture-ok: <reason>"),
             (@"\.ToString\(\s*""(?![^)]*InvariantCulture)", "a format string needs CultureInfo.InvariantCulture"),
             (@"\b[Ss]tring\.Format\((?!\s*CultureInfo\.InvariantCulture)", "pass CultureInfo.InvariantCulture first"),
-            (@"\.(?:Try)?Parse\((?!.*InvariantCulture)", "Parse/TryParse must pass CultureInfo.InvariantCulture"),
+            // BCL numeric types only (R6): the core's own Parse APIs (Dec.Parse) are culture-free.
+            (@"\b(s?byte|u?short|u?int|u?long|float|double|decimal|BigInteger)\.(Try)?Parse\((?!.*InvariantCulture)",
+                "Parse/TryParse must pass CultureInfo.InvariantCulture"),
             (@"\.(?:StartsWith|EndsWith)\((?!.*StringComparison\.Ordinal\b)", "culture-sensitive by default; pass StringComparison.Ordinal"),
             (@"\.(?:Last)?IndexOf\((?!.*StringComparison\.Ordinal\b)", "culture-sensitive by default; pass StringComparison.Ordinal"),
             (@"\b[Ss]tring\.Compare\((?!.*StringComparison\.Ordinal\b)", "use string.CompareOrdinal or StringComparison.Ordinal"),
@@ -285,6 +287,9 @@ namespace Scfg.Core.Tests
         [TestCase("var d = ulong.Parse(t);", "Parse")]
         [TestCase("var ok = int.TryParse(t, out var v);", "Parse")]
         [TestCase("var ok = BigInteger.TryParse(t, NumberStyles.None, CultureInfo.InvariantCulture, out var v);", "")]
+        [TestCase("var b = BigInteger.Parse(t);", "Parse")]
+        [TestCase("var d = Dec.Parse(t);", "")] // the core's own Parse APIs are culture-free (R6)
+        [TestCase("var d = Dec.TryParse(t, out var v);", "")]
         [TestCase("var b = s.StartsWith(\"x\");", "StartsWith")]
         [TestCase("var b = s.StartsWith(\"x\", StringComparison.Ordinal);", "")]
         [TestCase("var b = s.StartsWith(\"x\", StringComparison.OrdinalIgnoreCase);", "StartsWith")]

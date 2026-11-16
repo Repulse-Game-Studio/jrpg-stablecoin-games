@@ -1,8 +1,9 @@
 // Twin of scfg_core/errors.py (ConfigError) and of RestoreError in scfg_core/restore.py, plus the
 // Python built-in exceptions the core raises where Python would (ValueError, TypeError, KeyError,
-// IndexError, ArithmeticError, OverflowError). The classes follow Python's tree: ConfigError is a
-// ValueError, OverflowError is an ArithmeticError and not a ValueError. RpcError and TransportError
-// are added with rpc.py's and coio.py's twins.
+// IndexError, ArithmeticError, OverflowError) and the decimal module's signals the core can raise
+// (DecimalException, InvalidOperation, Overflow). The classes follow Python's tree: ConfigError is a
+// ValueError, OverflowError and the decimal signals are ArithmeticErrors and not ValueErrors.
+// RpcError and TransportError are added with rpc.py's and coio.py's twins.
 using System;
 
 namespace Scfg.Core
@@ -51,6 +52,32 @@ namespace Scfg.Core
     public class OverflowError : ArithmeticError
     {
         public OverflowError(string message) : base(message) { }
+    }
+
+    /// <summary>Python <c>decimal.DecimalException</c>, the base of the decimal module's signals.</summary>
+    public class DecimalException : ArithmeticError
+    {
+        public DecimalException() { }
+        public DecimalException(string message) : base(message) { }
+    }
+
+    /// <summary>
+    /// Python <c>decimal.InvalidOperation</c>, as a quantize whose result needs more than the context's 28
+    /// digits raises it. A DecimalException, so not a ValueError, as in Python.
+    /// </summary>
+    public class InvalidOperation : DecimalException
+    {
+        public InvalidOperation(string message) : base(message) { }
+    }
+
+    /// <summary>
+    /// Python <c>decimal.Overflow</c>: a context operation whose result is above Emax, which the default
+    /// context traps. (Python's Overflow also subclasses Inexact and Rounded, which the port does not model.)
+    /// Not the built-in <see cref="OverflowError"/>.
+    /// </summary>
+    public class Overflow : DecimalException
+    {
+        public Overflow(string message) : base(message) { }
     }
 
     /// <summary>
