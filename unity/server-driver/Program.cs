@@ -19,7 +19,8 @@
 //                 made (on_tx, build_tx) and the state of each build job
 //   stop          stop the server; ok = {running}
 // End of stdin quits (the server is stopped first). Nothing but replies goes to stdout; stderr carries only real
-// faults (an exception escaping Pump()), and the suite counts every stderr line as an error.
+// faults (an exception escaping Pump(), a job's done callback that throws, a failure reading stdin), and the suite
+// counts every stderr line as an error.
 //
 // The main loop must keep turning between commands (the server is pumped, and delayed builds complete, by this loop),
 // so stdin is read on a thread, which only queues the lines; the server and its jobs live on the main thread alone.
@@ -178,7 +179,15 @@ namespace Scfg.Server.Driver
             string? line;
             do
             {
-                line = stdin.ReadLine();
+                try
+                {
+                    line = stdin.ReadLine();
+                }
+                catch (IOException e)
+                {
+                    Console.Error.WriteLine("scfg server driver: cannot read stdin: " + e.Message);
+                    line = null; // as end of input: the main loop stops the server and quits
+                }
                 lock (InboxLock) Inbox.Enqueue(line);
             } while (line != null);
         }

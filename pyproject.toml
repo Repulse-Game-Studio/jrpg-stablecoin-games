@@ -78,7 +78,8 @@ pythonpath = ["plugin/game/python-packages", "installer", "conformance/python"]
 # a failure). Its Node quarter (marker node_server) and tests/rpgmaker_ui (marker rpgmaker_ui) need
 # Node 22.18+ and rpgmaker/node_modules: the default run deselects them. Naming their directory on
 # the command line, or SCFG_REQUIRE_JS=1, selects them again (unless -m is given on the command
-# line). CI: unit runs the default (the Python quarter, and the C# one with the runner's dotnet);
+# line). CI: unit and release.yml's test gate run the default (the Python quarter, and the C# one
+# with the runner image's preinstalled dotnet; the drivers roll forward to a newer runtime than 8.0);
 # godot-core runs `-m godot_server` per Godot version; rpgmaker-ui runs tests/rpgmaker_ui and
 # `-m node_server` once; cs-core runs `-m cs_server` with SCFG_REQUIRE_CS=1.
 testpaths = ["tests", "conformance/tests"]

@@ -35,7 +35,7 @@ uv run pytest -m integration tests/integration/test_cs_core.py
 uv run pytest tests/server_security -m cs_server
 ```
 
-`SCFG_VECTORS` overrides the vectors directory the tests read. `tests/integration/cs_driver.py` and `tests/server_security/server_handles.py` look for `dotnet` on `PATH`, then in `$DOTNET_ROOT`, then in `~/.dotnet`. Without one the twins and the `cs_server` tests skip; `SCFG_REQUIRE_CS=1` (set in CI) makes that a failure, and a driver build that fails is always a failure. The EVM and Arc twins need `anvil`, which CI installs. The `cs_server` tests are part of the default `uv run pytest` run, next to the Python server's; CI's cs-core job runs them alone with `SCFG_REQUIRE_CS=1`.
+`SCFG_VECTORS` overrides the vectors directory the tests read. `tests/integration/cs_driver.py` and `tests/server_security/server_handles.py` look for `dotnet` on `PATH`, then in `$DOTNET_ROOT`, then in `~/.dotnet`. Without one the twins and the `cs_server` tests skip; `SCFG_REQUIRE_CS=1` (set in CI) makes that a failure, and a driver build that fails is always a failure. The EVM and Arc twins need `anvil`, which CI installs. The `cs_server` tests are part of the default `uv run pytest` run, next to the Python server's; CI's cs-core job runs them alone with `SCFG_REQUIRE_CS=1`. Both drivers target net8.0 with `RollForward` `Major`, so they also run where only a newer .NET runtime is installed (CI's unit job and release gate use the runner image's preinstalled dotnet). The pytest runs build `core/` and `desktop/` in Release, so a manual `dotnet test -c Release` at the same time can collide on their `obj/` folders: run one at a time.
 
 ## State file
 

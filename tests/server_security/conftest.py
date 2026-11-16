@@ -50,8 +50,9 @@ def _node_errors(text):
 
 
 def _cs_errors(text):
-    """Every line the C# driver wrote to stderr: it writes there only when Pump() lets an
-    exception escape (the server promises it never does) or the runtime itself fails."""
+    """Every line the C# driver wrote to stderr: it writes there only for a real fault (Pump()
+    letting an exception escape, which the server promises it never does; a job's done callback
+    that throws; a failure reading stdin) or when the runtime itself fails."""
     return [line for line in text.splitlines() if line.strip()]
 
 
