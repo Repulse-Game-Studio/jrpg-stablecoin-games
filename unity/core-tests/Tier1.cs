@@ -33,6 +33,8 @@ namespace Scfg.Core.Tests
             "items",
             "payments",
             "receipts",
+            "qr",
+            "paylinks",
         };
 
         static Tier1()
@@ -50,6 +52,7 @@ namespace Scfg.Core.Tests
             RegisterSolanaTx();
             RegisterConfig();
             RegisterReceipts();
+            RegisterPaylinks();
         }
 
         // ---- shared input helpers --------------------------------------------------------------------------
@@ -340,6 +343,35 @@ namespace Scfg.Core.Tests
 
         private static Dec FiniteDec(object? v) =>
             (v is string s ? Dec.Parse(s) : null) ?? throw new ValueError("vector decimal must be a finite decimal string");
+
+        private static long IntField(JsonObject i, string key) =>
+            i.Get(key) is long n ? n : throw new ValueError("vector input " + key + " must be a number");
+
+        private static void RegisterPaylinks()
+        {
+            Funcs["eip681_transfer_uri"] = i => Paylinks.Eip681TransferUri(Str(i, "token_address"), IntField(i, "chain_id"),
+                Str(i, "recipient"), Units(i["units"]));
+            Funcs["solana_pay_uri"] = i => Solana.Paylinks.SolanaPayUri(Str(i, "recipient"), Units(i["units"]), Str(i, "mint"),
+                Str(i, "reference"), Str(i, "label"), Str(i, "message"));
+            Funcs["qr_matrix"] = i =>
+            {
+                var rows = new List<object?>();
+                foreach (var row in Paylinks.QrMatrix(Str(i, "text")))
+                {
+                    var sb = new System.Text.StringBuilder(row.Length);
+                    foreach (bool m in row) sb.Append(m ? '1' : '0');
+                    rows.Add(sb.ToString()); // culture-ok: StringBuilder
+                }
+                return rows;
+            };
+            Funcs["qr_rects"] = i =>
+            {
+                var (size, runs) = Paylinks.QrRects(Str(i, "text"), (int)IntField(i, "border"));
+                var rects = new List<object?>();
+                foreach (var r in runs) rects.Add(new List<object?> { (long)r.X, (long)r.Y, (long)r.Width });
+                return new JsonObject { { "size", (long)size }, { "rects", rects } };
+            };
+        }
 
         private static void RegisterReceipts()
         {
