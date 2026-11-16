@@ -656,7 +656,12 @@ namespace Scfg.Desktop
                         job = null; // the worker is busy, the RPC is down...: the page offers a retry
                     }
                 }
-                if (c.State == ConnState.Closed) return; // (BuildTx stopped the server)
+                if (c.State == ConnState.Closed)
+                {
+                    // BuildTx stopped the server: nobody waits for this build
+                    if (job != null && !job.Done()) job.Cancel();
+                    return;
+                }
                 if (job == null)
                 {
                     Unavailable(c);

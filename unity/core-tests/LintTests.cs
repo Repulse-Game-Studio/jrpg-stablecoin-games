@@ -160,12 +160,17 @@ namespace Scfg.Core.Tests
             (@"\bThread\.Sleep\b", "never wait"),
             (@"\.Poll\(\s*(?!0\s*,)", "Poll only with a zero timeout: any other waits"),
             (@"\bSocket\.Select\(", "Socket.Select waits"),
-            (@"\.Blocking\s*=(?!=|\s*false\b)", "sockets stay non-blocking"),
+            // any assignment, an object initializer's `{ Blocking = true }` too
+            (@"(?<![A-Za-z0-9_])Blocking\s*=(?!=|\s*false\b)", "sockets stay non-blocking"),
             (@"\.(?:Receive|Send)\((?![^;]*\bout\s+(?:SocketError|var)\b)",
                 "Receive/Send with the out SocketError overload (WouldBlock is a value, not an exception)"),
             (@"\.Close\(\s*[^)\s]", "Close() without a timeout: a timeout makes Close wait (and Close(0) resets the connection)"),
-            (@"\bLingerState\b", "a linger makes Close wait"),
-            (@"\.(?:Connect|Disconnect)\(", "Connect and Disconnect wait"));
+            (@"\bLingerState\b|\bSocketOptionName\.Linger\b", "a linger makes Close wait"),
+            (@"\.(?:Connect|Disconnect)\(", "Connect and Disconnect wait"),
+            (@"\bDns\.|\bGetHostEntry\b|\bGetHostAddresses\b|\bGetHostByName\b|\bDnsEndPoint\b",
+                "no DNS: a lookup blocks (the host is an IP address)"),
+            (@"\.(?:SendTo|ReceiveFrom|ReceiveMessageFrom|SendFile)\(",
+                "no SendTo/ReceiveFrom/SendFile: datagram and file transfers are not the server's, and SendFile waits"));
 
         private static readonly Rule[] AllRules =
             UnityRules.Concat(ThreadRules).Concat(ReflectionRules).Concat(CultureRules).Concat(StaticRules).ToArray();
@@ -327,16 +332,30 @@ namespace Scfg.Core.Tests
         [Test] public void NoMutableStaticState() => Scan(StaticRules, honourMarkers: true);
         [Test] public void NoWaitingSockets() => Scan(SocketRules, files: Files("Desktop"));
 
-        // A socket is non-blocking from the line it is made on: each `new Socket(` and each `.Accept(` of a file is
-        // matched by a `.Blocking = false` in that file's code (not a comment or a string).
+        // A socket is non-blocking from the start: each `new Socket(` and each `.Accept(` of a file is assigned to a
+        // variable (`v = new Socket(...)`, `var v = l.Accept()`), and a later `v.Blocking = false;` statement of that file's
+        // code (not a comment or a string) sets that variable. A socket that is not held in a plain variable (passed on,
+        // or configured with an object initializer) is refused. Limits: the check is textual, so it does not follow
+        // control flow (a `v.Blocking = false` in a branch that may not run counts), aliases or a variable reassigned
+        // between the two lines.
         private static readonly Regex MakesSocket = new Regex(@"\bnew\s+Socket\s*\(|\.Accept\s*\(", RegexOptions.CultureInvariant);
-        private static readonly Regex SetsNonBlocking = new Regex(@"\.Blocking\s*=\s*false\b", RegexOptions.CultureInvariant);
+        private static readonly Regex AssignsSocket = new Regex(
+            @"(?<![A-Za-z0-9_.])(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:new\s+Socket\s*\(|[A-Za-z_][A-Za-z0-9_.]*\.Accept\s*\()",
+            RegexOptions.CultureInvariant);
 
         internal static bool SocketsAreNonBlocking(string text)
         {
             var code = string.Join("\n", Code(text));
             int made = MakesSocket.Matches(code).Count;
-            return SetsNonBlocking.Matches(code).Count >= Math.Max(made, 1);
+            var assigned = AssignsSocket.Matches(code);
+            if (made == 0 || assigned.Count != made) return false;
+            foreach (Match m in assigned)
+            {
+                var name = m.Groups["name"].Value;
+                var sets = new Regex(@"(?<![A-Za-z0-9_.])" + name + @"\.Blocking\s*=\s*false\s*;", RegexOptions.CultureInvariant);
+                if (!sets.IsMatch(code, m.Index + m.Length)) return false;
+            }
+            return true;
         }
 
         [Test]
@@ -356,6 +375,14 @@ namespace Scfg.Core.Tests
         [TestCase("var s = new Socket(f, t, p);\ns.Blocking = false;\nvar p = s.Accept();", false)]
         [TestCase("var s = new Socket(f, t, p);\ns.Blocking = true;", false)]
         [TestCase("var x = 1;", false)]
+        // each socket's own variable: another variable's `.Blocking = false` does not count
+        [TestCase("var s = new Socket(f, t, p);\nvar q = new Socket(f, t, p);\ns.Blocking = false;\ns.Blocking = false;", false)]
+        [TestCase("var s = new Socket(f, t, p);\nother.Blocking = false;", false)]
+        [TestCase("s.Blocking = false;\nvar s = new Socket(f, t, p);", false)] // set before it is made
+        [TestCase("socket = new Socket(f, t, p);\nsocket.Blocking = false;\npeer = _listener.Accept();\npeer.Blocking = false;", true)]
+        [TestCase("Socket? s = null;\ns = new Socket(f, t, p);\ns.Blocking = false;", true)]
+        [TestCase("Use(new Socket(f, t, p));\nx.Blocking = false;", false)] // not held in a variable: not checked, refused
+        [TestCase("var s = new Socket(f, t, p) { Blocking = false };", false)] // spell it as its own statement
         public void NonBlockingLintBites(string text, bool expected) =>
             Assert.That(SocketsAreNonBlocking(text), Is.EqualTo(expected));
 
@@ -378,6 +405,18 @@ namespace Scfg.Core.Tests
         [TestCase("s.Blocking = false;", "")]
         [TestCase("s.Blocking=false;", "")]
         [TestCase("var b = s.Blocking == false || !s.Blocking;", "")]
+        [TestCase("var s = new Socket(f, t, p) { Blocking = true };", "non-blocking")]
+        [TestCase("var s = new Socket(f, t, p) { NoDelay = true, Blocking=flag };", "non-blocking")]
+        [TestCase("var e = Dns.GetHostEntry(\"localhost\");", "DNS")]
+        [TestCase("var a = System.Net.Dns.GetHostAddresses(host);", "DNS")]
+        [TestCase("var a = GetHostAddresses(host);", "DNS")]
+        [TestCase("var a = GetHostEntry(host);", "DNS")]
+        [TestCase("var ep = new DnsEndPoint(host, 0);", "DNS")]
+        [TestCase("var ok = IPAddress.TryParse(host, out var a);", "")]
+        [TestCase("s.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Linger, new LingerOption(true, 1));", "linger")]
+        [TestCase("s.SendTo(buf, ep);", "SendTo")]
+        [TestCase("var n = s.ReceiveFrom(buf, ref ep);", "SendTo")]
+        [TestCase("s.SendFile(path);", "SendTo")]
         [TestCase("var n = s.Receive(buf);", "out SocketError")]
         [TestCase("var n = s.Receive(buf, 0, n, SocketFlags.None);", "out SocketError")]
         [TestCase("var n = s.Receive(buf, 0, n, SocketFlags.None, out SocketError e);", "")]

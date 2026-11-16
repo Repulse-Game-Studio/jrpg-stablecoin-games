@@ -340,13 +340,18 @@ namespace Scfg.Core.Tests
         [Test]
         public void AClientThatNeverReadsDoesNotBlockAndIsDroppedAfterTheDeadline()
         {
-            var big = new byte[32 << 20]; // far more than the socket buffers hold
+            // One pump offers the socket at most WriteChunk * WriteChunks bytes, so after the answering pump and 40 more
+            // at most 41 such slices are out, whatever the kernel's (tuned) buffers hold: a 64-slice answer is still
+            // being written.
+            const int pumps = 40;
+            var big = new byte[64 * CheckoutServer.WriteChunk * CheckoutServer.WriteChunks];
+            Assert.That(big.Length, Is.GreaterThan((pumps + 1) * CheckoutServer.WriteChunk * CheckoutServer.WriteChunks));
             var clock = new FakeClock();
             var srv = Server(clock, o => o.LoadAsset = _ => big);
             var c = Connect(srv);
             Send(c, Head(srv, "GET", "app.js"));
             Until(srv, () => srv.ConnectionStates().SequenceEqual(new[] { CheckoutServer.ConnState.Writing }), "answering");
-            PumpFor(srv, 40);
+            PumpFor(srv, pumps);
             Assert.That(srv.ConnectionStates(), Is.EqualTo(new[] { CheckoutServer.ConnState.Writing }), "still writing: the rest waits for the next pumps");
             clock.Now += CheckoutServer.DeadlineS + 0.1;
             srv.Pump();
@@ -642,6 +647,7 @@ namespace Scfg.Core.Tests
             Assert.That(Closed(srv, c), Is.True, "the connection is closed without an answer");
             Assert.That(Closed(srv, other), Is.True, "and so is the other one");
             srv.Pump(); // harmless
+            if (which == "BuildTx") Assert.That(built.Cancelled(), Is.True, "the job BuildTx returned after stopping is cancelled");
         }
 
         [Test]
@@ -776,7 +782,7 @@ namespace Scfg.Core.Tests
             PumpFor(srv, 20);
             Assert.That(srv.ConnectionCount, Is.EqualTo(CheckoutServer.MaxConnections), "at most MaxConnections are taken");
             clock.Now += CheckoutServer.DeadlineS + 0.1;
-            srv.Pump(); // the idle ones are dropped (and the waiting ones taken in the same pump)...
+            srv.Pump(); // the idle ones are dropped (Pump accepts before it steps: the waiting ones are taken in the next pump)...
             Until(srv, () => srv.ConnectionCount > 0, "the waiting connections are taken");
             Assert.That(srv.ConnectionCount, Is.EqualTo(4), "...and the 4 waiting ones taken next");
             var last = clients[clients.Count - 1];
@@ -981,6 +987,7 @@ namespace Scfg.Core.Tests
                          (" " + body.Length.ToString(CultureInfo.InvariantCulture) + " ", 202),
                          ("0" + body.Length.ToString(CultureInfo.InvariantCulture), 202),
                          (n.Substring(0, 1) + "_" + n.Substring(1), 202), // 1_23: Python's int() reads 123
+                         ("+" + n, 202), // int("+81") is 81
                          ("-5", 400), ("0", 400), ("4097", 413), ("99999999999999999999999999", 413),
                          ("1.5", 400), ("0x10", 400), ("", 400), (new string('9', 5000), 400),
                      })
@@ -991,7 +998,16 @@ namespace Scfg.Core.Tests
                 Send(c, head + (status == 202 ? body : ""));
                 Assert.That(Answer(srv, c, length).Status, Is.EqualTo(status), "Content-Length: " + (length.Length > 40 ? "5000 digits" : length));
             }
-            Assert.That(calls, Is.EqualTo(new[] { Tx, Tx, Tx }));
+            // a repeated Content-Length: the first counts (email.parser's get)
+            foreach (var (first, second, status) in new[] { (n, "5", 202), ("5", n, 400), (n, "99999", 202), ("99999", n, 413) })
+            {
+                var c = Connect(srv);
+                var head = "POST /c/" + srv.Secret + "/tx HTTP/1.1\r\nHost: 127.0.0.1:" + srv.Port.ToString(CultureInfo.InvariantCulture)
+                           + "\r\nContent-Length: " + first + "\r\nContent-Length: " + second + "\r\n\r\n";
+                Send(c, head + body);
+                Assert.That(Answer(srv, c, first + "," + second).Status, Is.EqualTo(status), "Content-Length: " + first + ", then " + second);
+            }
+            Assert.That(calls, Is.EqualTo(new[] { Tx, Tx, Tx, Tx, Tx, Tx }));
         }
     }
 }
