@@ -41,6 +41,13 @@
 //   so an `except Exception` in the core does not swallow it), resuming a waiter inside the destructor. A
 //   transport cancels its outstanding requests on shutdown by dropping their promises: move them out of its own
 //   containers first, since the resumed coroutines may call the transport again.
+//
+// Teardown order: destroy every Job (and every Co outside a Job) before the objects its coroutines use: the Engine,
+// the RPC clients, the transport. Destroying a suspended Co only runs its frames' destructors and resumes nothing,
+// so it is always safe while those objects still exist. The other way round is not: a transport destroyed first
+// drops its promises, and each dropped Promise resumes its waiter with CancelledError inside the destructor, so the
+// resumed coroutine runs on objects that are being torn down. An owner (the glue, the test runner) therefore holds
+// the transport and the Engine, and destroys its Jobs first.
 #pragma once
 
 #include "Scfg/Err.h"

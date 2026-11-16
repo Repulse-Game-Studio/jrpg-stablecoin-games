@@ -41,7 +41,9 @@ struct Request {
 //
 // Any other Err kind is not an endpoint failure, as run_sync throws whatever the transport raised into the
 // generator: the RPC client passes it on to its caller, where Python's handlers would see it. A transport that
-// drops a request on shutdown (destroys its Promise) completes it with CancelledError.
+// drops a request on shutdown (destroys its Promise) completes it with CancelledError, which resumes the waiting
+// coroutine inside that destructor: destroy the Jobs that use a transport before the transport (Co.h, "Teardown
+// order").
 class Transport {
 public:
     virtual ~Transport() = default;
