@@ -1,8 +1,11 @@
 // No Python twin: what the vectors do not pin for chains.py, config.py, payments.py and the base58 they use:
-// the keyword-argument contract (an unknown or missing key is a TypeError), the mutable registries and
-// Chain.With, the Arc log source, and the ASCII-only case folding under a Turkish culture.
+// the keyword-argument contract (an unknown or missing key is a TypeError), the read-only tables and registries,
+// the internal registry override and Chain.With, the Arc log source, and the ASCII-only case folding under a
+// Turkish culture.
+using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Numerics;
 using NUnit.Framework;
 using Scfg.Core.Solana;
@@ -56,27 +59,101 @@ namespace Scfg.Core.Tests
             Assert.That(CodeOf(() => Config.BuildConfig(Kw(("wallet", 5L)))), Is.EqualTo("address.invalid"));
             Assert.Throws<TypeError>(() => Config.BuildConfig(Kw(("wallet", Evm1), ("chains", 5L))));
             Assert.Throws<TypeError>(() => Config.BuildConfig(Kw(("wallet", Evm1), ("chains", new List<object?> { new List<object?>() }))));
-            // A huge int is a valid Python int; it does not fit the 64-bit field.
-            Assert.Throws<ValueError>(() => Config.BuildChain(ChainKw(("confirmations", BigInteger.Pow(10, 30)))));
+            // A huge int is a valid Python int; it does not fit the 64-bit field (Python's class for that).
+            var big = Assert.Throws<OverflowError>(() => Config.BuildChain(ChainKw(("confirmations", BigInteger.Pow(10, 30)))))!;
+            Assert.That(big.Message, Is.EqualTo("confirmations out of range: 1" + new string('0', 30)));
+            Assert.Throws<OverflowError>(() => Config.BuildChain(ChainKw(("chain_id", BigInteger.Pow(2, 64)))));
+            Assert.Throws<OverflowError>(() => Config.BuildChain(ChainKw(("max_log_range", BigInteger.Pow(2, 63)))));
+            Assert.Throws<OverflowError>(() => Config.BuildConfig(Kw(("wallet", Evm1), ("confirmations", Kw(("base", BigInteger.Pow(2, 70)))))));
+        }
+
+        // Domain reload off keeps statics alive between play sessions: no table or registry may be writable.
+        private static void AssertReadOnlyList<T>(IReadOnlyList<T> list)
+        {
+            Assert.That(list, Is.Not.InstanceOf<Array>());
+            Assert.That(list, Is.Not.InstanceOf<List<T>>());
+            Assert.Throws<NotSupportedException>(() => ((IList<T>)list)[0] = list[0]);
+            Assert.Throws<NotSupportedException>(() => ((ICollection<T>)list).Clear());
+        }
+
+        private static void AssertReadOnlyDict<TK, TV>(IReadOnlyDictionary<TK, TV> dict) where TK : notnull
+        {
+            Assert.That(dict, Is.Not.InstanceOf<Dictionary<TK, TV>>());
+            var first = dict.Keys.First();
+            Assert.Throws<NotSupportedException>(() => ((IDictionary<TK, TV>)dict)[first] = dict[first]);
+            Assert.Throws<NotSupportedException>(() => ((IDictionary<TK, TV>)dict).Remove(first));
         }
 
         [Test]
-        public void ChainsAreMutableAndWithStandsInForReplace()
+        public void PublicTablesAreReadOnly()
+        {
+            AssertReadOnlyList(Config.Tokens);
+            AssertReadOnlyList(Config.FeeHints);
+            AssertReadOnlyList(Chains.DisplayOrder);
+            AssertReadOnlyList(Sessions.UiStatuses);
+            AssertReadOnlyList(Payments.TipPresets);
+            AssertReadOnlyDict(Config.LogoTypes);
+            Assert.That(Config.Tokens, Is.EqualTo(new[] { "USDC", "USDT" }));
+            Assert.That(Config.FeeHints, Is.EqualTo(new[] { "lowest", "low", "high" }));
+            Assert.That(Chains.DisplayOrder, Is.EqualTo(new[] { "arbitrum", "base", "arc", "polygon", "ethereum" }));
+        }
+
+        [Test]
+        public void RegistriesAndChainsAreReadOnly()
+        {
+            foreach (var registry in new[] { Chains.Mainnet, Chains.Testnet })
+            {
+                AssertReadOnlyDict(registry);
+                foreach (var chain in registry.Values)
+                {
+                    AssertReadOnlyDict(chain.Tokens);
+                    AssertReadOnlyList(chain.Rpc);
+                }
+            }
+            Assert.That(Chains.Mainnet.Keys, Is.EqualTo(new[] { "ethereum", "arbitrum", "polygon", "base", "arc", "solana" }));
+        }
+
+        [Test]
+        public void AChainCopiesItsRpcAndTokens()
+        {
+            var rpc = new[] { "https://a.example" };
+            var tokens = new Dictionary<string, Token> { ["USDC"] = Chains.MakeToken("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48") };
+            var chain = new Chain("x", 1, "X", rpc, 1, 10, "https://x/tx/{}", "ETH", "low", tokens);
+            rpc[0] = "https://evil.example";
+            tokens.Clear();
+            Assert.That(chain.Rpc, Is.EqualTo(new[] { "https://a.example" }));
+            Assert.That(chain.Tokens.Keys, Is.EqualTo(new[] { "USDC" }));
+            var copy = chain.With(confirmations: 3);
+            Assert.That(copy.Rpc, Is.EqualTo(chain.Rpc));
+            Assert.That(copy.Tokens.Keys, Is.EqualTo(new[] { "USDC" }));
+            Assert.That(copy.Confirmations, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void OverridePointsARegistryEntryAtALocalNodeAndResetRestoresIt()
         {
             var original = Chains.Mainnet["base"];
+            var originalRpc = original.Rpc.ToList();
             try
             {
-                Chains.Mainnet["base"] = original.With(rpc: new[] { "http://127.0.0.1:8545" }, confirmations: 1);
+                Chains.Override(false, original.With(rpc: new[] { "http://127.0.0.1:8545" }, confirmations: 1));
                 var cfg = Config.BuildConfig(Kw(("wallet", Evm1), ("chains", new List<object?> { "base" })));
                 var enabled = Config.EnabledChains(cfg)["base"];
                 Assert.That(enabled.Rpc, Is.EqualTo(new[] { "http://127.0.0.1:8545" }));
                 Assert.That(enabled.Confirmations, Is.EqualTo(1));
                 Assert.That(enabled.ChainId, Is.EqualTo(original.ChainId));
+                Assert.That(Chains.Testnet["base"].Rpc, Is.Not.EqualTo(new[] { "http://127.0.0.1:8545" }), "only the network named");
+                Assert.That(Chains.Mainnet.Keys, Is.EqualTo(new[] { "ethereum", "arbitrum", "polygon", "base", "arc", "solana" }),
+                            "an override keeps the registry's order");
+                Assert.Throws<KeyError>(() => Chains.Override(false, Config.BuildChain(ChainKw())), "only an existing entry");
+                Assert.Throws<ValueError>(() => Chains.Override(true, original), "a mainnet chain is not a testnet entry");
             }
             finally
             {
-                Chains.Mainnet["base"] = original;
+                Chains.ResetRegistries();
             }
+            Assert.That(Chains.Mainnet["base"].Rpc, Is.EqualTo(originalRpc));
+            Assert.That(Chains.Mainnet["base"].Confirmations, Is.EqualTo(original.Confirmations));
             Assert.That(Chains.GetChains(false), Is.SameAs(Chains.Mainnet));
             Assert.That(Chains.GetChains(true), Is.SameAs(Chains.Testnet));
             Assert.That(Chains.MakeToken("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").Address,

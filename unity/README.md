@@ -52,11 +52,14 @@ The core runs on Unity's main thread, so it never creates a thread or waits.
 | Unity | `using UnityEngine` |
 | Threads | The threads and timers listed under "Async rules" |
 | Reflection | `System.Reflection`, `dynamic`, `Activator`, `GetType().Get...`, `System.Text.Json`, `Newtonsoft`, `record` types (IL2CPP stripping, and `IsExternalInit` on netstandard2.1) |
+| Static state | A `static` field that is not `readonly` or `const`, a `static readonly` field of a mutable collection type (`List<`, `Dictionary<`, `HashSet<`, `IList<`, an array, `JsonObject`, ...), a static property with a setter. With Unity's domain reload off statics survive between play sessions, so the public tables are `IReadOnlyList` / `IReadOnlyDictionary` over a `ReadOnlyCollection` / `ReadOnlyDictionary` |
 | Culture | `Trim*`, `char.IsDigit` / `IsWhiteSpace` / `IsLetter` and relatives, `ToLower` / `ToUpper`, `CompareTo`, `String.Compare` and `StartsWith` / `EndsWith` / `IndexOf` without `StringComparison.Ordinal`, `ToString()` and `String.Format` without `CultureInfo.InvariantCulture`, `Parse` / `TryParse` of numeric types without it, `\d` and `\s` in a `Regex`. Python's string rules come from `Py` instead |
 
 The lints cannot see `$"{n}"` formatting a non-string with the current culture: interpolate only strings, and put `ToString(CultureInfo.InvariantCulture)` inside the hole.
 
-To waive a `ToString()` or `Format` line that is culture-free (an integer, say), end it with `// culture-ok: <reason>`. A marker without a reason does not count.
+To waive a `ToString()` or `Format` line that is culture-free (an integer, say), end it with `// culture-ok: <reason>`; to waive a static-state line (a private lookup table that is only read), end it with `// static-ok: <reason>`. A marker without a reason does not count, and each marker waives only its own group.
+
+The chain registries `Chains.Mainnet` / `Chains.Testnet` are read-only. The integration driver and the tests point an entry at a local node through the `internal` `Chains.Override(testnet, chain)` and restore the built-in tables with `Chains.ResetRegistries()` (`Runtime/Core/AssemblyInfo.cs` makes them visible to `Scfg.Core.Tests` and `Scfg.Core.Driver` only).
 
 ## Culture reruns and the single-thread test
 
@@ -70,12 +73,12 @@ Deliberate or accepted differences. None is reachable with valid, schema-conform
 | Area | C# | Python |
 |---|---|---|
 | Decimal exponent | `Dec` clamps an integer exponent at ±2^30, so `stored_amount("0E-1000000000000000000")` prints `0E-1073741824` | Keeps the exponent |
-| Large integers | Some fields are `long`-bounded: `LogIndex`, `BlockNumber`, a Solana slot (2^63 gives `OverflowException` or `OverflowError`, not the Python result), a receipt `log_index` | Unbounded |
+| Large integers | Some fields are `long`-bounded: `LogIndex`, `BlockNumber`, a Solana slot, a receipt `log_index` and `block`, a chain's `chain_id`, `confirmations` and `max_log_range`. Beyond a long is an `OverflowError` (`Ints.ToLong`), not the Python result | Unbounded |
 | Non-finite numbers | `Json.Loads` accepts `NaN`, `Infinity` and `-Infinity` as doubles (the TypeScript port rejects them) | Accepts them |
 | Malformed node data (Solana) | A string `accountIndex`, a non-string `owner` or a non-integer `accountIndex` keeps a receipt that Python drops | Drops it |
 | Non-string stored values | A non-string `kind`, `item`, `token` or `chain` in a stored session makes `Expire` throw out of `Tick`, or loops `internal_error` | Carries the value |
 | Tips | `PreparePayment` with a non-string `title` or `item` on a tip is a `TypeError` | Accepted |
-| Config | `confirmations` of 2**70 is a `ValueError`, raised before `config.no_usable_token` | `ConfigError` |
+| Config | `confirmations` of 2**70 is an `OverflowError`, raised before `config.no_usable_token` | `ConfigError` |
 | Config | A non-dict `methods`, `rpc_urls` or `confirmations` is a `TypeError` | `AttributeError` |
 | Digit limit | `Py.Int` of a 5000-digit string with a bad character gives the invalid-literal message | The digit-limit message |
 | Stored sessions | A non-dict session value is a `KeyError` | `TypeError` |

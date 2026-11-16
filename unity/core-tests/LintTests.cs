@@ -5,7 +5,7 @@
 // (so "record not found" in a message is fine), but code inside the holes of an interpolated string
 // ($"{a.Trim()}") IS scanned. Rules marked raw are matched against the line with literals kept (used for
 // \d / \s inside a Regex). To opt a single line out of a ToString()/Format rule, end it with
-// `// culture-ok: <reason>`.
+// `// culture-ok: <reason>`, and out of a static-state rule with `// static-ok: <reason>`.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -24,12 +24,24 @@ namespace Scfg.Core.Tests
             public readonly string Why;
             public readonly bool Raw;
             public readonly Regex Re;
-            public Rule(string pattern, string why, bool raw = false)
+            /// <summary>When set, the rule fires only if its <c>type</c> group also matches this.</summary>
+            public readonly Regex? Type;
+            /// <summary>A static-state rule, waived by <c>// static-ok: reason</c>.</summary>
+            public readonly bool Static;
+            public Rule(string pattern, string why, bool raw = false, string? type = null, bool isStatic = false)
             {
                 Pattern = pattern;
                 Why = why;
                 Raw = raw;
                 Re = new Regex(pattern, RegexOptions.CultureInvariant);
+                Type = type == null ? null : new Regex(type, RegexOptions.CultureInvariant);
+                Static = isStatic;
+            }
+
+            public bool IsMatch(string line)
+            {
+                var m = Re.Match(line);
+                return m.Success && (Type == null || Type.IsMatch(m.Groups["type"].Value));
             }
         }
 
@@ -94,11 +106,35 @@ namespace Scfg.Core.Tests
             })
             .ToArray();
 
+        // Domain reload off (Unity's Enter Play Mode Options) keeps statics alive between play sessions, so no static
+        // may be writable: a static field must be readonly or const, a static readonly field must not have a mutable
+        // collection type (IReadOnlyList / IReadOnlyDictionary backed by a ReadOnlyCollection / ReadOnlyDictionary
+        // instead), and a static property has no setter. A field declaration is a line of modifiers, `static`, a
+        // type and a name followed by `=` or `;` (so a method, `=>` property, class, local function or `using
+        // static` never matches). A tuple-typed field (a parenthesised type) is not recognised.
+        private const string FieldModifiers = @"^\s*(?:(?:public|private|internal|protected|new|unsafe|volatile|readonly)\s+)*static\s+";
+        private const string FieldTail = @"(?<type>[^=;(){}]+?)\s+@?[A-Za-z_][A-Za-z0-9_]*\s*(?:=(?![=>])|;)";
+        private const string MutableCollection =
+            @"(?<![A-Za-z0-9_])(?:I?List|I?Dictionary|HashSet|ISet|I?Collection|SortedDictionary|SortedList|SortedSet|Queue|Stack|ConcurrentDictionary|ConcurrentBag|ConcurrentQueue|LinkedList|StringBuilder)\s*<|\[[\s,]*\]|(?<![A-Za-z0-9_])(?:JsonObject|StringBuilder|ArrayList|Hashtable)(?![A-Za-z0-9_])";
+
+        private static readonly Rule[] StaticRules =
+        {
+            new Rule(@"^(?!.*\breadonly\b)" + FieldModifiers.Substring(1) + @"(?:(?:volatile|new|unsafe)\s+)*" + FieldTail,
+                     "a static field must be readonly or const (domain reload off keeps it between play sessions)", isStatic: true),
+            new Rule(@"^(?=.*\breadonly\b)" + FieldModifiers.Substring(1) + @"(?:(?:readonly|new|volatile)\s+)*" + FieldTail,
+                     "a static readonly collection is still writable; expose IReadOnlyList / IReadOnlyDictionary over a ReadOnly wrapper",
+                     type: MutableCollection, isStatic: true),
+            new Rule(@"\bstatic\b[^=;(]*\{[^}]*\bset\s*;",
+                     "a static property must not have a setter", isStatic: true),
+        };
+
         private static readonly Rule[] AllRules =
-            UnityRules.Concat(ThreadRules).Concat(ReflectionRules).Concat(CultureRules).ToArray();
+            UnityRules.Concat(ThreadRules).Concat(ReflectionRules).Concat(CultureRules).Concat(StaticRules).ToArray();
 
         // A line is exempt from the ToString()/Format rules only through this marker in its raw text.
         private static readonly Regex CultureOk = new Regex(@"//\s*culture-ok:\s*\S", RegexOptions.CultureInvariant);
+        // ... and from a static-state rule only through this one.
+        private static readonly Regex StaticOk = new Regex(@"//\s*static-ok:\s*\S", RegexOptions.CultureInvariant);
 
         private static string CoreDir()
         {
@@ -208,7 +244,7 @@ namespace Scfg.Core.Tests
             return o.ToString().Split('\n');
         }
 
-        private static List<(int Line, Rule Rule)> Violations(string text, Rule[] rules, bool honourCultureOk)
+        private static List<(int Line, Rule Rule)> Violations(string text, Rule[] rules, bool honourMarkers)
         {
             var raw = text.Replace("\r\n", "\n").Split('\n');
             var code = Code(text);
@@ -218,23 +254,24 @@ namespace Scfg.Core.Tests
             {
                 foreach (var rule in rules)
                 {
-                    if (!rule.Re.IsMatch(rule.Raw ? kept[n] : code[n])) continue;
-                    bool formatRule = rule.Pattern.Contains("ToString") || rule.Pattern.Contains("tring");
-                    if (honourCultureOk && formatRule && CultureOk.IsMatch(raw[n])) continue;
+                    if (!rule.IsMatch(rule.Raw ? kept[n] : code[n])) continue;
+                    bool formatRule = !rule.Static && (rule.Pattern.Contains("ToString") || rule.Pattern.Contains("tring"));
+                    if (honourMarkers && formatRule && CultureOk.IsMatch(raw[n])) continue;
+                    if (honourMarkers && rule.Static && StaticOk.IsMatch(raw[n])) continue;
                     hits.Add((n + 1, rule));
                 }
             }
             return hits;
         }
 
-        private static void Scan(Rule[] rules, bool honourCultureOk = false)
+        private static void Scan(Rule[] rules, bool honourMarkers = false)
         {
             var core = CoreDir();
             var hits = new List<string>();
             foreach (var file in CoreFiles())
             {
                 var rel = Path.GetRelativePath(core, file).Replace('\\', '/');
-                foreach (var (line, rule) in Violations(File.ReadAllText(file), rules, honourCultureOk))
+                foreach (var (line, rule) in Violations(File.ReadAllText(file), rules, honourMarkers))
                     hits.Add($"{rel}:{line}: {rule.Pattern} ({rule.Why})");
             }
             Assert.That(hits, Is.Empty, "lint violations:\n" + string.Join("\n", hits));
@@ -243,7 +280,8 @@ namespace Scfg.Core.Tests
         [Test] public void NoUnityEngine() => Scan(UnityRules);
         [Test] public void NoThreadsOrTimers() => Scan(ThreadRules);
         [Test] public void NoReflection() => Scan(ReflectionRules);
-        [Test] public void NoCultureSensitiveText() => Scan(CultureRules, honourCultureOk: true);
+        [Test] public void NoCultureSensitiveText() => Scan(CultureRules, honourMarkers: true);
+        [Test] public void NoMutableStaticState() => Scan(StaticRules, honourMarkers: true);
 
         [Test]
         public void EveryFileNamesItsTwin()
@@ -359,9 +397,40 @@ namespace Scfg.Core.Tests
         [TestCase("Task.Factory.StartNew(f);", "Factory")]
         [TestCase("var t = new Task(f);", @"new\s+Task")]
         [TestCase("var t = new TaskCompletionSource<int>();", "")]
+        // static state (the readonly rule's pattern starts with ^(?!, the collection rule's with ^(?=)
+        [TestCase("private static int _n;", @"^(?!")]
+        [TestCase("public static string Name = \"x\";", @"^(?!")]
+        [TestCase("static Engine? _engine;", @"^(?!")]
+        [TestCase("internal static volatile bool Flag = false;", @"^(?!")]
+        [TestCase("public static readonly string[] A = { \"a\" };", @"^(?=")]
+        [TestCase("private static readonly int[][] T =", @"^(?=")]
+        [TestCase("static readonly Dictionary<string, int> D = new Dictionary<string, int>();", @"^(?=")]
+        [TestCase("public static readonly List<int> L = new List<int>();", @"^(?=")]
+        [TestCase("private static readonly HashSet<string> H = new HashSet<string>();", @"^(?=")]
+        [TestCase("public static readonly JsonObject J = new JsonObject();", @"^(?=")]
+        [TestCase("public readonly static IList<string> I = new List<string>();", @"^(?=")]
+        [TestCase("public static readonly IDictionary<string, int> I = new Dictionary<string, int>();", @"^(?=")]
+        [TestCase("public static readonly IReadOnlyList<string> R = Array.AsReadOnly(new[] { \"a\" });", "")]
+        [TestCase("public static readonly IReadOnlyDictionary<string, int> R = new ReadOnlyDictionary<string, int>(d);", "")]
+        [TestCase("public static readonly IReadOnlyCollection<string> R = Array.AsReadOnly(new[] { \"a\" });", "")]
+        [TestCase("public static readonly ReadOnlyCollection<string> R = Array.AsReadOnly(new[] { \"a\" });", "")]
+        [TestCase("private static readonly Regex Re = new Regex(\"a\");", "")]
+        [TestCase("public static readonly Dec MinTip = Dec.Parse(\"0.50\")!;", "")]
+        [TestCase("public const int N = 5;", "")]
+        [TestCase("public static int F(int x = 1) => x;", "")]
+        [TestCase("public static string[] Names() => new string[0];", "")]
+        [TestCase("public static int P => 5;", "")]
+        [TestCase("public static IReadOnlyList<string> P { get; } = Array.AsReadOnly(new[] { \"a\" });", "")]
+        [TestCase("public static int P { get; set; }", @"set\s*;")]
+        [TestCase("public static int P { get; private set; }", @"set\s*;")]
+        [TestCase("using static System.Math;", "")]
+        [TestCase("public static class Foo", "")]
+        [TestCase("static int Local(int a) { return a; }", "")]
+        [TestCase("Func<int, int> f = static x => x;", "")]
+        [TestCase("var s = \"static int x;\";", "")]
         public void MatcherBites(string line, string rulePattern)
         {
-            var hits = Violations(line, AllRules, honourCultureOk: false).Select(h => h.Rule.Pattern).ToList();
+            var hits = Violations(line, AllRules, honourMarkers: false).Select(h => h.Rule.Pattern).ToList();
             if (rulePattern.Length == 0)
             {
                 Assert.That(hits, Is.Empty);
@@ -376,6 +445,16 @@ namespace Scfg.Core.Tests
         {
             Assert.That(Violations("var s = n.ToString(); // culture-ok: ints only", CultureRules, true), Is.Empty);
             Assert.That(Violations("var s = n.ToString(); // culture-ok:", CultureRules, true), Is.Not.Empty);
+        }
+
+        [Test]
+        public void StaticOkNeedsAReasonAndWaivesOnlyTheStaticRules()
+        {
+            Assert.That(Violations("private static readonly string[] A = { }; // static-ok: private, never written", StaticRules, true), Is.Empty);
+            Assert.That(Violations("private static int _n; // static-ok: test hook", StaticRules, true), Is.Empty);
+            Assert.That(Violations("private static readonly string[] A = { }; // static-ok:", StaticRules, true), Is.Not.Empty);
+            Assert.That(Violations("private static readonly string[] A = { }; // culture-ok: x", StaticRules, true), Is.Not.Empty);
+            Assert.That(Violations("var s = n.ToString(); // static-ok: x", CultureRules, true), Is.Not.Empty);
         }
     }
 }

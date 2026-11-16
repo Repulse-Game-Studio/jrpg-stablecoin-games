@@ -174,12 +174,13 @@ namespace Scfg.Core
                     // probably a lagging endpoint: keep, unless the block is impossibly far ahead
                     return block > (BigInteger)head + FutureToleranceBlocks ? "drop" : "keep";
                 }
-                found = await rpc.GetLogs(token.LogSource, topics, (long)block, (long)block);
+                long at = Ints.ToLong(block, "block"); // block <= head: only a block below a long overflows
+                found = await rpc.GetLogs(token.LogSource, topics, at, at);
                 if (Matches(found, chain.ParseTransfer)) return "keep";
                 if (token.LogAddress.Length == 0) return "drop";
                 // A receipt stored by a game that added this chain itself before it was built in (add_chain("arc", ...))
                 // points at the token contract's own log. That log is still a genuine transfer, so it keeps the purchase.
-                found = await rpc.GetLogs(token.Address, topics, (long)block, (long)block);
+                found = await rpc.GetLogs(token.Address, topics, at, at);
             }
             catch (Exception e) when (e is RpcUnavailable || e is RpcError)
             {

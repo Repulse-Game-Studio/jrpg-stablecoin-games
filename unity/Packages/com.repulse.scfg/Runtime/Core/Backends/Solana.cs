@@ -166,7 +166,7 @@ namespace Scfg.Core
             var r = Received(tx, mint, owner);
             if (r == null) return null;
             var (payer, gained, index, slot) = r.Value;
-            long block = Scfg.Core.Rpc.ToLong(slot, "slot");
+            long block = Ints.ToLong(slot, "slot");
             // Python carries any payer value; a node sends a base58 str (or nothing).
             return new Transfer(mint, Watcher.StrOrNone(payer, "payer"), owner, gained, sig, index, block);
         }
@@ -343,7 +343,7 @@ namespace Scfg.Core
                 }
                 if (!(DictGet(status, "confirmationStatus") is string cs && cs == "finalized"))
                 {
-                    output.Confirmations = Scfg.Core.Rpc.ToLong(Ints.IntFrom(Or(DictGet(status, "confirmations"), 0L)), "confirmations");
+                    output.Confirmations = Ints.ToLong(Ints.IntFrom(Or(DictGet(status, "confirmations"), 0L)), "confirmations");
                     return output;
                 }
                 output.Confirmations = FinalConfirmations;
@@ -531,7 +531,7 @@ namespace Scfg.Core
             {
                 long current = await client.GetSlot("finalized");
                 if (slot > current) return slot > current + Scfg.Core.Reverify.FutureToleranceBlocks ? "drop" : "keep";
-                (tx, authoritative) = await client.GetTransactionAny(Py.Get(receipt, "tx_hash"), minSlot: (long)slot);
+                (tx, authoritative) = await client.GetTransactionAny(Py.Get(receipt, "tx_hash"), minSlot: Ints.ToLong(slot, "slot")); // slot <= current
             }
             catch (Exception e) when (e is RpcUnavailable || e is RpcError)
             {

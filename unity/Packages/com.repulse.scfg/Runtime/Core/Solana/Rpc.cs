@@ -39,7 +39,7 @@ namespace Scfg.Core.Solana
 
         // Python's IGNORECASE: each letter of "version" matches these code points and no others (checked over every
         // code point with CPython 3.9): s also matches U+017F (long s), i also U+0130 and U+0131.
-        private static readonly string[] VersionLetters = { "Vv", "Ee", "Rr", "Ss\u017f", "Ii\u0130\u0131", "Oo", "Nn" };
+        private static readonly string[] VersionLetters = { "Vv", "Ee", "Rr", "Ss\u017f", "Ii\u0130\u0131", "Oo", "Nn" }; // static-ok: private letter table, only read
 
         /// <summary>
         /// The digits group of the leftmost <c>version \((\d+)\)</c> match, IGNORECASE, or null. <c>\d+</c> is a run
@@ -88,7 +88,7 @@ namespace Scfg.Core.Solana
         public Task<object?> Call(string method, List<object?> prms) => Client.Call(method, prms);
 
         public async Task<long> GetSlot(string commitment = "confirmed") =>
-            Scfg.Core.Rpc.ToLong(Ints.IntFrom(await Call("getSlot", new List<object?> { new JsonObject { { "commitment", commitment } } })), "slot");
+            Ints.ToLong(Ints.IntFrom(await Call("getSlot", new List<object?> { new JsonObject { { "commitment", commitment } } })), "slot");
 
         /// <summary>
         /// Python <c>get_signatures_for_address</c>: the result, or an empty list for a falsy one (<c>... or []</c>).

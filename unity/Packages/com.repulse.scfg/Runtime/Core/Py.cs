@@ -45,7 +45,7 @@ namespace Scfg.Core
         // The zero of every run of ten Unicode decimal digits (Nd) in CPython 3.9's unicodedata (Unicode
         // 13.0.0, the project's interpreter), copied from pystr.ts ND_ZEROS. Not .NET's tables: a newer
         // runtime has more digit sets (Tangsa U+16AC0, Kawi, Nag Mundari, ...) that Python 3.9 refuses.
-        private static readonly int[] NdZeros =
+        private static readonly int[] NdZeros = // static-ok: private lookup table, only read
         {
             0x30, 0x660, 0x6f0, 0x7c0, 0x966, 0x9e6, 0xa66, 0xae6, 0xb66, 0xbe6, 0xc66, 0xce6, 0xd66,
             0xde6, 0xe50, 0xed0, 0xf20, 0x1040, 0x1090, 0x17e0, 0x1810, 0x1946, 0x19d0, 0x1a80, 0x1a90,

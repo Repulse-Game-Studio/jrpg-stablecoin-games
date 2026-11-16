@@ -13,7 +13,7 @@ namespace Scfg.Core.Solana
     {
         public const string Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
-        private static readonly int[] Index = BuildIndex();
+        private static readonly int[] Index = BuildIndex(); // static-ok: private lookup table, only read
 
         private static int[] BuildIndex()
         {

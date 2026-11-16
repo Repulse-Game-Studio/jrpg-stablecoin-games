@@ -11,6 +11,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Security.Cryptography;
 
@@ -71,7 +72,7 @@ namespace Scfg.Core
         public const int HintTimeoutS = 30 * 60;
         /// <summary>Twin of SOLANA_HINT_TIMEOUT_S in scfg_core/backends/solana.py.</summary>
         public const int SolanaHintTimeoutS = 180;
-        public static readonly string[] UiStatuses = { "open", "pending", "cancelled", "expired" };
+        public static readonly IReadOnlyList<string> UiStatuses = Array.AsReadOnly(new[] { "open", "pending", "cancelled", "expired" });
 
         public static string NewSessionId(IEntropy entropy) => "ps_" + entropy.TokenHex(8);
 
@@ -207,7 +208,7 @@ namespace Scfg.Core
 
         public static void SetUiStatus(JsonObject store, string sid, object? status)
         {
-            if (!(status is string s) || !Array.Exists(UiStatuses, u => u == s))
+            if (!(status is string s) || !UiStatuses.Contains(s))
                 throw new ValueError("invalid ui status " + Py.Repr(status));
             if (!(store.Get(sid) is JsonObject rec)) throw new KeyError(sid);
             rec["ui_status"] = s;

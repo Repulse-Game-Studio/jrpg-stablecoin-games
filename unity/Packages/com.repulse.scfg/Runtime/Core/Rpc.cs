@@ -89,11 +89,11 @@ namespace Scfg.Core
         /// <summary>The smallest eth_getLogs block range a chain may be configured with.</summary>
         public const long MinLogRange = 10;
 
-        private static readonly string[] RateHints = { "rate limit", "too many requests", "rate-limit" };
+        private static readonly string[] RateHints = { "rate limit", "too many requests", "rate-limit" }; // static-ok: private phrase table, only read
 
         // Phrases providers use for "your eth_getLogs block range is too wide". Some say "archive" (publicnode
         // answers wide ranges with "Archive requests require a personal token").
-        private static readonly string[] RangeHints =
+        private static readonly string[] RangeHints = // static-ok: private phrase table, only read
             { "range", "too many", "limit", "exceed", "max results", "response size", "too large", "archive" };
 
         public static bool IsRangeError(RpcError err) => ContainsAny(PyLowerForAscii(err.Message), RangeHints);
@@ -273,13 +273,6 @@ namespace Scfg.Core
             return "-0x" + magnitude.ToString("x", CultureInfo.InvariantCulture);
         }
 
-        /// <summary>A Python int the port holds as a long (a block number, a slot); beyond a long is an OverflowError.</summary>
-        internal static long ToLong(BigInteger n, string what)
-        {
-            if (n < long.MinValue || n > long.MaxValue) throw new OverflowError(what + " out of range: " + n.ToString(CultureInfo.InvariantCulture));
-            return (long)n;
-        }
-
         /// <summary>A monotonic clock in whole seconds (Python's <c>time.monotonic</c> default); tests and Tier 2 inject their own.</summary>
         internal static long MonotonicSeconds() => Stopwatch.GetTimestamp() / Stopwatch.Frequency;
     }
@@ -439,7 +432,7 @@ namespace Scfg.Core
 
         /// <summary>Python <c>block_number</c>: <c>int(result, 16)</c> (held as a long).</summary>
         public async Task<long> BlockNumber() =>
-            Rpc.ToLong(Rpc.HexInt(await Call("eth_blockNumber", new List<object?>())), "block number");
+            Ints.ToLong(Rpc.HexInt(await Call("eth_blockNumber", new List<object?>())), "block number");
 
         /// <summary>Python <c>get_transaction_receipt</c>: the hash goes out as given (a stored hint is sent unchecked).</summary>
         public Task<object?> GetTransactionReceipt(object? txHash) =>

@@ -13,7 +13,7 @@ namespace Scfg.Core.Solana
         public const string AssociatedTokenProgramId = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
         public const int MaxSeedLen = 32;
         public const int MaxSeeds = 16;
-        private static readonly byte[] Marker = Encoding.ASCII.GetBytes("ProgramDerivedAddress");
+        private static readonly byte[] Marker = Encoding.ASCII.GetBytes("ProgramDerivedAddress"); // static-ok: private constant bytes, only copied from
 
         /// <summary>The address, or null when the hash lands on the curve.</summary>
         public static byte[]? CreateProgramAddress(byte[][] seeds, byte[] programId)

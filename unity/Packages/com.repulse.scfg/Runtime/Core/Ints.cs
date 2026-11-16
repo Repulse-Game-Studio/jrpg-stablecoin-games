@@ -67,7 +67,19 @@ namespace Scfg.Core
                 run = start < 0 ? "" : run.Substring(start);
                 if (Py.Len(run) > DigitRunLimit) return null;
             }
-            return run.Length == 0 ? 0L : (long)Py.Int(run);
+            return run.Length == 0 ? 0L : ToLong(Py.Int(run), "digit run"); // at most 18 digits: never beyond long
+        }
+
+        /// <summary>
+        /// A Python int the port holds as a long (a block number, a slot, a log index, a confirmation count): beyond a
+        /// long it is an OverflowError, Python's class for an int a C long cannot hold. Every narrowing of a Python int
+        /// in the core goes through here, so no <see cref="System.OverflowException"/> escapes it.
+        /// </summary>
+        public static long ToLong(BigInteger value, string what)
+        {
+            if (value < long.MinValue || value > long.MaxValue)
+                throw new OverflowError(what + " out of range: " + value.ToString(CultureInfo.InvariantCulture));
+            return (long)value;
         }
 
         /// <summary>
