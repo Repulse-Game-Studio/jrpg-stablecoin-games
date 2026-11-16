@@ -114,20 +114,29 @@ std::string core_dir() {
     return (fs::path(SCFG_REPO_ROOT) / "unreal" / "Plugins" / "Scfg" / "Source" / "ScfgCore").generic_string();
 }
 
-std::vector<File> core_files() {
+std::vector<File> core_files(std::string* error) {
+    auto report = [error](const std::string& what) {
+        if (error != nullptr) *error += (error->empty() ? "" : "; ") + what;
+    };
     std::vector<File> out;
     std::error_code ec;
     fs::path root(core_dir());
     for (fs::recursive_directory_iterator it(root, ec), end; !ec && it != end; it.increment(ec)) {
-        if (!it->is_regular_file(ec)) continue;
+        std::error_code kind;
+        if (!it->is_regular_file(kind)) {
+            if (kind) report(it->path().generic_string() + ": " + kind.message());
+            continue;
+        }
         std::string ext = it->path().extension().string();
         if (ext != ".h" && ext != ".cpp") continue;
         std::ifstream in(it->path(), std::ios::binary);
         File f;
         f.rel = it->path().lexically_relative(root).generic_string();
         f.text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+        if (!in && !in.eof()) report(f.rel + ": cannot read");
         out.push_back(std::move(f));
     }
+    if (ec) report(root.generic_string() + ": " + ec.message());
     std::sort(out.begin(), out.end(), [](const File& a, const File& b) { return a.rel < b.rel; });
     return out;
 }
@@ -291,8 +300,10 @@ std::vector<std::string> only_std_includes(const File& f) {
         if (std::regex_match(what, x, angle)) {
             if (!std_headers().count(x[1].str())) hits.push_back(at(f, n + 1, "#include <" + x[1].str() + ">", why_std));
         } else if (std::regex_match(what, x, quote)) {
-            if (!std::filesystem::exists(core_dir() + "/Public/" + x[1].str()))
-                hits.push_back(at(f, n + 1, "#include \"" + x[1].str() + "\"", why_own));
+            std::error_code ec;
+            if (!fs::exists(core_dir() + "/Public/" + x[1].str(), ec))
+                hits.push_back(at(f, n + 1, "#include \"" + x[1].str() + "\"" + (ec ? " (" + ec.message() + ")" : ""),
+                                  why_own));
         } else {
             hits.push_back(at(f, n + 1, "#include " + what, why_own));
         }
@@ -314,8 +325,9 @@ std::vector<std::string> names_its_twin(const File& f) {
         if (line.find("Twin of scfg_core/") == std::string::npos) break;
         std::vector<std::string> hits;
         for (std::sregex_iterator it(line.begin(), line.end(), twin), end; it != end; ++it) {
-            if (!std::filesystem::exists(py_root + it->str()))
-                hits.push_back(at(f, n + 1, it->str() + " does not exist", why));
+            std::error_code ec;
+            if (!fs::exists(py_root + it->str(), ec))
+                hits.push_back(at(f, n + 1, it->str() + (ec ? " cannot be checked: " + ec.message() : " does not exist"), why));
         }
         if (std::sregex_iterator(line.begin(), line.end(), twin) == std::sregex_iterator())
             hits.push_back(at(f, n + 1, "names no scfg_core/<module>.py", why));

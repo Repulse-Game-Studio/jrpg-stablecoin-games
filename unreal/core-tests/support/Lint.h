@@ -22,8 +22,8 @@ struct File {
 };
 // Absolute path of unreal/Plugins/Scfg/Source/ScfgCore.
 std::string core_dir();
-// Every .h and .cpp under core_dir(), sorted by rel.
-std::vector<File> core_files();
+// Every .h and .cpp under core_dir(), sorted by rel. A directory or read error is appended to *error.
+std::vector<File> core_files(std::string* error = nullptr);
 // "Private/Version.cpp" -> "Version.cpp".
 std::string basename(std::string_view rel);
 bool ends_with(std::string_view s, std::string_view suffix);

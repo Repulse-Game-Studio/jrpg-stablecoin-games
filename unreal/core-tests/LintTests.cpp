@@ -39,6 +39,10 @@ static Rule header(std::initializer_list<std::string_view> names, std::string wh
     return R(label, "^\\s*#\\s*include\\s*<(?:" + alt + ")>", std::move(why), {"include"});
 }
 
+// Before an unqualified C name: not a member (.x, ->x) and not another namespace's x (py::x), but ::x and
+// std::x (spaces around :: allowed) are the C library's.
+#define CALLER "(?:^|[^\\w.>:]|(?:^|\\W)::)(?:std\\s*::\\s*)?"
+
 static const std::string kNoExc = "Unreal builds the core without exceptions; errors are scfg::Err values";
 static const std::string kNoRtti = "Unreal builds the core without RTTI; use std::variant or a tag";
 
@@ -47,7 +51,7 @@ static const std::vector<Rule>& exception_rules() {
         R("throw", "\\bthrow\\b", kNoExc, {"throw"}),
         R("try", "\\btry\\b", kNoExc, {"try"}),
         R("catch", "\\bcatch\\b", kNoExc, {"catch"}),
-        R("std::exception", "\\bstd::exception\\b", kNoExc, {"exception"}),
+        R("std::exception", "\\bstd\\s*::\\s*exception\\b", kNoExc, {"exception"}),
         R("dynamic_cast", "\\bdynamic_cast\\b", kNoRtti, {"dynamic_cast"}),
         R("typeid", "\\btypeid\\b", kNoRtti, {"typeid"}),
     };
@@ -68,15 +72,15 @@ static const std::vector<Rule>& thread_rules() {
         header({"latch"}, kNoThreads),
         header({"barrier"}, kNoThreads),
         header({"stop_token"}, kNoThreads),
-        R("std::thread", "\\bstd::j?thread\\b", kNoThreads, {"thread"}),
-        R("std::async", "\\bstd::async\\b", kNoThreads, {"async"}),
+        R("std::thread", "\\bstd\\s*::\\s*j?thread\\b", kNoThreads, {"thread"}),
+        R("std::async", "\\bstd\\s*::\\s*async\\b", kNoThreads, {"async"}),
         R("sleep", "\\b(?:sleep|usleep|nanosleep|sleep_for|sleep_until|Sleep)\\s*\\(", "the core never blocks", {"sleep", "Sleep"}),
         header({"chrono"}, kNoClock + " (Rpc.cpp's monotonic default excepted)"),
         header({"ctime", "time.h"}, kNoClock),
         R("steady_clock", "\\bsteady_clock\\b", kNoClock + " (only rpc's default monotonic clock may use it)", {"steady_clock"}),
         R("system_clock", "\\b(?:system_clock|high_resolution_clock|utc_clock|file_clock)\\b", kNoClock, {"_clock"}),
-        R("time()", "(?:^|[^\\w.>:])(?:std::)?time\\s*\\(", kNoClock, {"time"}),
-        R("rand()", "(?:^|[^\\w.>:])(?:std::)?s?rand\\s*\\(", "entropy is injected, so tests are deterministic", {"rand"}),
+        R("time()", CALLER "time\\s*\\(", kNoClock, {"time"}),
+        R("rand()", CALLER "s?rand\\s*\\(", "entropy is injected, so tests are deterministic", {"rand"}),
         header({"random"}, "entropy is injected (Entropy.cpp's default source excepted)"),
         R("random_device", "\\brandom_device\\b", "entropy is injected (Entropy.cpp's default source excepted)", {"random_device"}),
     };
@@ -101,7 +105,12 @@ static const std::vector<Rule>& locale_rules() {
         R("scanf", "\\b\\w*scanf\\b", kLocale, {"scanf"}),
         R("puts", "\\bf?puts\\b", "the core does not print (Err.cpp's print_error excepted)", {"puts"}),
         R("localeconv", "\\b(?:localeconv|setlocale|nl_langinfo)\\b", kLocale, {"localeconv", "setlocale", "nl_langinfo"}),
-        R("ctype", "(?:^|[^\\w.>:])(?:std::)?(?:isw?(?:alnum|alpha|blank|cntrl|digit|graph|lower|print|punct|space|upper|xdigit)|tow?(?:lower|upper))\\s*\\(",
+        // Called or passed by name (std::transform(b, e, b, ::tolower)). Unlike CALLER, a name right after another
+        // identifier is a declaration (scfg::py's own `bool isdigit(std::string_view s)`), not a use.
+        R("ctype",
+          "(?:^|[^\\w\\s.>:]|\\b(?:return|co_return|co_await|case)|(?:^|\\W)::)\\s*(?:std\\s*::\\s*)?"
+          "(?:isw?(?:alnum|alpha|blank|cntrl|digit|graph|lower|print|punct|space|upper|xdigit)|tow?(?:lower|upper))"
+          "\\s*[(,);]",
           kLocale, {"is", "to"}),
     };
     return rules;
@@ -110,7 +119,7 @@ static const std::vector<Rule>& locale_rules() {
 static const std::vector<Rule>& portable_rules() {
     static const std::vector<Rule> rules = {
         R("long", "\\blong\\b", "long is 32 bits on Windows; use int64_t, uint64_t or size_t", {"long"}),
-        R("__int128", "__int128", "not on MSVC; use BigInt", {"__int128"}),
+        R("__int128", "__u?int128", "not on MSVC; use BigInt", {"int128"}),
         R("wchar_t", "\\bwchar_t\\b|\\bw(?:string|string_view)\\b", "text is UTF-8 in std::string", {"wchar_t", "wstring"}),
     };
     return rules;
@@ -139,8 +148,9 @@ static const std::vector<lint::Waiver> kWaivers = {
     {"Rpc.cpp", "steady_clock"},    {"Rpc.cpp", "<chrono>"},
 };
 
+static std::string g_files_error;
 static const std::vector<File>& files() {
-    static const std::vector<File> all = lint::core_files();
+    static const std::vector<File> all = lint::core_files(&g_files_error);
     return all;
 }
 
@@ -152,6 +162,7 @@ static void run_check(scfg_test::Ctx& t, F check) {
         for (std::string& h : check(f)) hits.push_back(std::move(h));
     }
     SCFG_CHECK(t, !files().empty());
+    t.check(g_files_error.empty(), "listing the core failed: " + g_files_error);
     t.check(hits.empty(), "lint violations under " + lint::core_dir() + ":\n" + lint::join(hits));
 }
 
@@ -174,13 +185,17 @@ SCFG_TEST(LintTests, OnlyStdIncludes) { run_check(t, lint::only_std_includes); }
 SCFG_TEST(LintTests, EveryFileNamesItsTwin) { run_check(t, lint::names_its_twin); }
 SCFG_TEST(LintTests, UniqueBasenames) {
     SCFG_CHECK(t, !files().empty());
+    t.check(g_files_error.empty(), "listing the core failed: " + g_files_error);
     std::vector<std::string> hits = lint::duplicate_basenames(files());
     t.check(hits.empty(), "lint violations:\n" + lint::join(hits));
 }
 
 SCFG_TEST(LintTests, VectorsFound) {
-    SCFG_CHECK_EQ(t, scfg_test::vectors::tier1_topics().size(), 18);
-    std::vector<std::string> ids = scfg_test::vectors::tier2_ids();
+    std::string error;
+    SCFG_CHECK_EQ(t, scfg_test::vectors::tier1_topics(&error).size(), 18);
+    t.check(error.empty(), "listing tier1 failed: " + error);
+    std::vector<std::string> ids = scfg_test::vectors::tier2_ids(&error);
+    t.check(error.empty(), "listing tier2 failed: " + error);
     t.check(ids.size() > 100, "tier2_ids() found " + std::to_string(ids.size()) + " under " + scfg_test::vectors::root());
 }
 
@@ -196,7 +211,7 @@ static const std::vector<Bite>& line_bites() {
         {"throw", "    throw Err();", "    return Err::value_error(\"throw it\");  // throw"},
         {"try", "try {", "SCFG_TRY(x, parse(s));"},
         {"catch", "} catch (...) {", "auto catches = 1;"},
-        {"std::exception", "struct E : std::exception {};", "struct E : std::exceptional {};"},
+        {"std::exception", "struct E : std :: exception {};", "struct E : std::exceptional {};"},
         {"dynamic_cast", "auto* p = dynamic_cast<B*>(a);", "auto* p = static_cast<B*>(a);"},
         {"typeid", "auto& i = typeid(x);", "auto typeidx = 1;"},
         {"<thread>", "#include <thread>", "#include <threads_are_not_here> // <thread>"},
@@ -209,6 +224,7 @@ static const std::vector<Bite>& line_bites() {
         {"<barrier>", "#include <barrier>", "#include <string>"},
         {"<stop_token>", "#include <stop_token>", "#include <string>"},
         {"std::thread", "std::jthread w(f);", "auto thread = 1;"},
+        {"std::thread", "std :: thread w(f);", "my::thread w(f);"},
         {"std::async", "auto f = std::async(g);", "Co<Json> async_call(Json x);"},
         {"sleep", "std::this_thread::sleep_for(d);", "int sleepy = 0;"},
         {"<chrono>", "#include <chrono>", "#include <string>"},
@@ -216,7 +232,10 @@ static const std::vector<Bite>& line_bites() {
         {"steady_clock", "auto n = std::chrono::steady_clock::now();", "auto n = clock_();"},
         {"system_clock", "auto n = std::chrono::system_clock::now();", "auto n = clock_();"},
         {"time()", "auto n = time(nullptr);", "auto n = self.time(); auto m = Clock::time();"},
+        {"time()", "auto n = ::time(nullptr);", "auto n = clock->time();"},
         {"rand()", "int r = std::rand();", "int r = entropy.randbelow(6);"},
+        {"rand()", "int r = ::rand();", "int r = py::rand();"},
+        {"rand()", "int r = std :: rand();", "int r = a.rand();"},
         {"<random>", "#include <random>", "#include <string>"},
         {"random_device", "std::random_device rd;", "Entropy rd;"},
         {"<locale>, <clocale>, <locale.h>", "#include <clocale>", "#include <string>"},
@@ -234,8 +253,15 @@ static const std::vector<Bite>& line_bites() {
         {"puts", "std::fputs(\"x\", stderr);", "auto input = 1;"},
         {"localeconv", "auto* lc = localeconv();", "auto lc = 1;"},
         {"ctype", "if (isdigit(c)) {", "if (py::isdigit(c)) {"},
+        {"ctype", "if (::isdigit(c)) {", "if (s.isdigit()) {"},
+        {"ctype", "std::transform(b, e, b, ::tolower);", "std::transform(b, e, b, py::tolower);"},
+        {"ctype", "auto f = std::toupper;", "auto f = py::toupper;"},
+        {"ctype", "apply(std::tolower, s);", "apply(py::tolower, s);"},
+        {"ctype", "    return isdigit(c);", "bool isdigit(std::string_view s);"},
+        {"ctype", "ok = ok && std :: isspace(c);", "[[nodiscard]] Result<bool> isspace(std::string_view s) {"},
         {"long", "unsigned long n = 0;", "uint64_t n = 0; auto s = \"long\";"},
         {"__int128", "unsigned __int128 n = 0;", "BigInt n;"},
+        {"__int128", "__uint128_t n = 0;", "uint64_t n = 0;  // __uint128_t"},
         {"wchar_t", "std::wstring w;", "std::string w;  // wchar_t"},
         {"namespace {", "namespace {", "namespace scfg::config::detail {"},
         {"static at namespace scope", "static int helper(int x) {", "    static int counter = 0;"},
