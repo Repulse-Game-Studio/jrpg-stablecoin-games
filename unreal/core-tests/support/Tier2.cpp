@@ -81,10 +81,10 @@ Result<std::optional<std::string>> str_or_none_field(const Json& d, std::string_
     return std::optional<std::string>(v.as_str());
 }
 
-Result<int64_t> int64_field(const Json& d, std::string_view key) {
+Result<BigInt> int_field(const Json& d, std::string_view key) {
     SCFG_TRY(Json v, py::get(d, key));
-    if (!v.is_int64()) return Err::type_error(std::string(key) + " must be an int that fits 64 bits, not " + py::repr(v));
-    return v.as_int64();
+    if (!v.is_int()) return Err::type_error(std::string(key) + " must be an int, not " + py::repr(v));
+    return v.as_bigint();
 }
 
 Json optional_text(const std::optional<std::string>& s) { return s ? Json(*s) : Json(); }
@@ -128,11 +128,11 @@ Json candidate_raw(const restore::RestoreCandidate& c) {
     } else {
         const auto& t = std::get<scfg::transfers::Transfer>(c.transfer);
         transfer = Json::dict({{"token", Json(t.token)},
-                               {"sender", optional_text(t.sender)},
+                               {"sender", t.sender},
                                {"recipient", Json(t.recipient)},
                                {"value", Json(t.value)},
-                               {"tx_hash", Json(t.tx_hash)},
-                               {"log_index", Json(t.log_index)},
+                               {"tx_hash", t.tx_hash},
+                               {"log_index", t.log_index},
                                {"block_number", Json(t.block_number)},
                                {"class", "Transfer"}});
     }
@@ -636,19 +636,20 @@ Result<restore::RestoreCandidate> candidate_from_json(const Json& d) {
         SCFG_TRY(t.recipient, detail::str_field(fields, "recipient"));
         t.value = value.as_bigint();
         SCFG_TRY(t.tx_hash, detail::str_field(fields, "tx_hash"));
-        SCFG_TRY(t.log_index, detail::int64_field(fields, "log_index"));
-        SCFG_TRY(t.block_number, detail::int64_field(fields, "block_number"));
+        SCFG_TRY(t.log_index, detail::int_field(fields, "log_index"));
+        SCFG_TRY(t.block_number, detail::int_field(fields, "block_number"));
         SCFG_TRY(t.block_hash, detail::str_field(fields, "block_hash"));
         c.transfer = std::move(t);
     } else {
+        // Python's Transfer carries the node's values as they are: the sender, tx_hash and log_index as recorded.
         scfg::transfers::Transfer t;
         SCFG_TRY(t.token, detail::str_field(fields, "token"));
-        SCFG_TRY(t.sender, detail::str_or_none_field(fields, "sender"));
+        SCFG_TRY(t.sender, py::get(fields, "sender"));
         SCFG_TRY(t.recipient, detail::str_field(fields, "recipient"));
         t.value = value.as_bigint();
-        SCFG_TRY(t.tx_hash, detail::str_field(fields, "tx_hash"));
-        SCFG_TRY(t.log_index, detail::int64_field(fields, "log_index"));
-        SCFG_TRY(t.block_number, detail::int64_field(fields, "block_number"));
+        SCFG_TRY(t.tx_hash, py::get(fields, "tx_hash"));
+        SCFG_TRY(t.log_index, py::get(fields, "log_index"));
+        SCFG_TRY(t.block_number, detail::int_field(fields, "block_number"));
         c.transfer = std::move(t);
     }
     SCFG_TRY(c.chain, detail::str_field(d, "chain"));

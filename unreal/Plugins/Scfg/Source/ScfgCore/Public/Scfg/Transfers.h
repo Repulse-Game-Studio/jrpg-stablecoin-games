@@ -5,24 +5,29 @@
 #pragma once
 
 #include "Scfg/BigInt.h"
+#include "Scfg/Json.h"
 
-#include <cstdint>
-#include <optional>
 #include <string>
 
 namespace scfg::transfers {
 
-// Python's frozen Transfer dataclass: a value, equal field by field.
+// Python's frozen Transfer dataclass, which holds whatever it is given. Solana's transfer_to fills it from a node's
+// reply, and the values Python only carries along are carried as the Json they are: a sender that is a str, None or
+// any other hashable owner the node named; a tx_hash that is the signature transfer_to was asked about (a stored
+// hint as it was stored); a log_index that is the accountIndex as the node sent it (an int of any size, or a str, a
+// float or a bool). value and block_number are always ints (a balance difference, int() of the slot), of any size.
+// make_receipt stores the carried values as they are, as Python's does.
 struct Transfer {
-    std::string token;                  // token contract (EVM) or mint (Solana)
-    std::optional<std::string> sender;  // payer; Solana: None when no account lost the token and there is no fee payer
-    std::string recipient;              // developer wallet (the owner, never a token account)
-    BigInt value;                       // base units
-    std::string tx_hash;                // EVM: lowercase 0x hash; Solana: base58 signature, case preserved
-    int64_t log_index = 0;              // EVM: log index; Solana: the developer token account's accountIndex
-    int64_t block_number = 0;           // EVM: block number; Solana: slot
+    std::string token;      // token contract (EVM) or mint (Solana)
+    Json sender;            // payer; Solana: None when no account lost the token and there is no fee payer
+    std::string recipient;  // developer wallet (the owner, never a token account)
+    BigInt value;           // base units
+    Json tx_hash;           // EVM: lowercase 0x hash; Solana: base58 signature, case preserved
+    Json log_index;         // EVM: log index; Solana: the developer token account's accountIndex
+    BigInt block_number;    // EVM: block number; Solana: slot
 
-    friend bool operator==(const Transfer&, const Transfer&) = default;
+    // The dataclass's ==: field by field, the carried values with Python's == (py::eq: 1 == 1.0 == True).
+    friend bool operator==(const Transfer& a, const Transfer& b);
 };
 
 }  // namespace scfg::transfers

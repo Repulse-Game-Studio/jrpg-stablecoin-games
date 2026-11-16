@@ -99,7 +99,7 @@ Result<std::string> address_topic(const Json& address) {
 }
 
 transfers::Transfer TransferLog::to_transfer() const {
-    return transfers::Transfer{token, sender, recipient, value, tx_hash, log_index, block_number};
+    return transfers::Transfer{token, Json(sender), recipient, value, Json(tx_hash), Json(log_index), block_number};
 }
 
 Result<std::optional<TransferLog>> parse_transfer_log(const Json& log) {
@@ -132,15 +132,11 @@ Result<std::optional<TransferLog>> parse_transfer_log(const Json& log) {
     SCFG_TRY(Json tx_hash, py::get(log, "transactionHash"));
     SCFG_TRY(t.tx_hash, detail::lower_attr(tx_hash));
     SCFG_TRY(Json log_index_text, py::get(log, "logIndex"));
-    SCFG_TRY(std::optional<int64_t> log_index, py::py_int_hex_int64(log_index_text));
+    SCFG_TRY(t.log_index, py::py_int_hex(log_index_text));
     SCFG_TRY(Json block_number_text, py::get(log, "blockNumber"));
-    SCFG_TRY(std::optional<int64_t> block_number, py::py_int_hex_int64(block_number_text));
+    SCFG_TRY(t.block_number, py::py_int_hex(block_number_text));
     SCFG_TRY(Json block_hash, py::get(log, "blockHash"));
     SCFG_TRY(t.block_hash, detail::lower_attr(block_hash));
-    // Port limit: Python keeps an unbounded int here; a log index or block number outside int64 is not a transfer.
-    if (!log_index || !block_number) return std::nullopt;
-    t.log_index = *log_index;
-    t.block_number = *block_number;
     return std::optional<TransferLog>(std::move(t));
 }
 

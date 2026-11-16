@@ -210,7 +210,7 @@ struct Step {
     watcher::StepOutcome out;
 };
 
-Json match_dict(const SolanaTransfer& t) {
+Json match_dict(const transfers::Transfer& t) {
     return Json::dict({{"tx_hash", t.tx_hash},
                        {"log_index", t.log_index},
                        {"block", Json(t.block_number)},
@@ -231,7 +231,7 @@ Result<std::string> mint_of(const chains::Chain& chain, const Json& rec) {
 
 // Python _qualifies: a transfer at or after the session's start slot that no receipt holds yet, read only as far as
 // Python's `and` gets.
-Result<bool> qualifies(const std::optional<SolanaTransfer>& t, const Step& s) {
+Result<bool> qualifies(const std::optional<transfers::Transfer>& t, const Step& s) {
     if (!t) return false;
     SCFG_TRY(Json start, py::get(s.rec, "start_block"));
     SCFG_TRY(bool after, py::compare(Json(t->block_number), py::Cmp::Ge, start));
@@ -241,7 +241,7 @@ Result<bool> qualifies(const std::optional<SolanaTransfer>& t, const Step& s) {
 }
 
 // Python _verdict: remember the match; "underpaid" below the least the session must pay, else "matched".
-Result<std::string> verdict(const SolanaTransfer& t, Step& s) {
+Result<std::string> verdict(const transfers::Transfer& t, Step& s) {
     s.rec.as_dict().set("match", match_dict(t));
     SCFG_TRY(Dec least, watcher::min_amount(s.rec, s.items));
     return std::string(amounts::units_to_decimal(t.value) < least ? "underpaid" : "matched");
@@ -281,7 +281,7 @@ Co<std::optional<std::string>> verify_hint(std::shared_ptr<Step> s) {
         co_return Verdict();
     }
     SCFG_CO_TRY(Json sig, py::get(s->rec, "hint_tx"));
-    SCFG_CO_TRY(std::optional<SolanaTransfer> t, transfer_to(tx, sig, s->mint, s->wallet));
+    SCFG_CO_TRY(std::optional<transfers::Transfer> t, transfer_to(tx, sig, s->mint, s->wallet));
     SCFG_CO_TRY(bool ok_transfer, qualifies(t, *s));
     if (!ok_transfer) {
         drop_hint(*s, "tx_not_a_payment");
@@ -304,7 +304,7 @@ Co<std::optional<std::string>> by_reference(std::shared_ptr<Step> s) {
         if (!failed.is_null()) continue;
         SCFG_CO_TRY(Json sig, py::get(info, "signature"));
         SCFG_CO_TRY(Json tx, co_await s->rpc->get_transaction(sig));
-        std::optional<SolanaTransfer> t;
+        std::optional<transfers::Transfer> t;
         if (py::truthy(tx)) {
             SCFG_CO_TRY(t, transfer_to(tx, sig, s->mint, s->wallet));
         }
@@ -398,7 +398,7 @@ Co<bool> scan(std::shared_ptr<Step> s) {
         SCFG_CO_TRY(Json tx, co_await s->rpc->get_transaction(sig));
         if (tx.is_null()) co_return false;  // listed but not served yet: retry from here next step
         s->rec.as_dict().set("scan_cursor", sig);
-        SCFG_CO_TRY(std::optional<SolanaTransfer> t, transfer_to(tx, sig, s->mint, s->wallet));
+        SCFG_CO_TRY(std::optional<transfers::Transfer> t, transfer_to(tx, sig, s->mint, s->wallet));
         SCFG_CO_TRY(bool ok_transfer, qualifies(t, *s));
         if (!ok_transfer) continue;
         SCFG_CO_TRY(Json units, py::get(s->rec, "units"));  // read only for a transfer that qualifies
@@ -528,30 +528,9 @@ Status check_key(const Json& key) {
 
 namespace scfg::backends::solana {
 
-Result<transfers::Transfer> SolanaTransfer::to_transfer() const {
-    if (!sender.is_null() && !sender.is_str()) {
-        return Err::type_error("a restore candidate's payer must be a str, not " + py::repr(sender));
-    }
-    if (!tx_hash.is_str()) return Err::type_error("a restore candidate's signature must be a str, not " + py::repr(tx_hash));
-    if (!log_index.is_int()) {
-        return Err::type_error("a restore candidate's accountIndex must be an int, not " + py::repr(log_index));
-    }
-    SCFG_TRY(int64_t index, log_index.as_bigint().to_int64());
-    SCFG_TRY(int64_t slot, block_number.to_int64());
-    transfers::Transfer t;
-    t.token = token;
-    if (sender.is_str()) t.sender = sender.as_str();
-    t.recipient = recipient;
-    t.value = value;
-    t.tx_hash = tx_hash.as_str();
-    t.log_index = index;
-    t.block_number = slot;
-    return t;
-}
-
-Result<std::optional<SolanaTransfer>> transfer_to(const Json& tx, const Json& sig, std::string_view mint,
-                                                  std::string_view owner) {
-    using Maybe = std::optional<SolanaTransfer>;
+Result<std::optional<transfers::Transfer>> transfer_to(const Json& tx, const Json& sig, std::string_view mint,
+                                                       std::string_view owner) {
+    using Maybe = std::optional<transfers::Transfer>;
     SCFG_TRY(Json meta_value, detail::dict_get(tx, "meta"));
     const Json meta = detail::or_else(meta_value, Json::dict());
     SCFG_TRY(Json failed, detail::dict_get(meta, "err"));
@@ -598,8 +577,8 @@ Result<std::optional<SolanaTransfer>> transfer_to(const Json& tx, const Json& si
     }
     SCFG_TRY(Json slot_value, py::get(tx, "slot"));
     SCFG_TRY(BigInt slot, ints::int_from(slot_value));
-    return Maybe(SolanaTransfer{std::string(mint), std::move(payer), std::string(owner), std::move(gained), sig,
-                                std::move(index), std::move(slot)});
+    return Maybe(transfers::Transfer{std::string(mint), std::move(payer), std::string(owner), std::move(gained), sig,
+                                     std::move(index), std::move(slot)});
 }
 
 Result<base::Rpc> SolanaBackend::make_rpc(const chains::Chain& chain, coio::Transport& transport) const {
@@ -692,7 +671,7 @@ Co<std::string> SolanaBackend::reverify(Json receipt, base::Rpc rpc, chains::Cha
     // try: transfer_to(...) except (KeyError, TypeError, ValueError, AttributeError): a payload this build can't
     // read, so the receipt can't be judged. Anything else (an OverflowError from an infinite amount) leaves, as in
     // Python, for reverify_receipts to contain.
-    Result<std::optional<SolanaTransfer>> read = [&]() -> Result<std::optional<SolanaTransfer>> {
+    Result<std::optional<transfers::Transfer>> read = [&]() -> Result<std::optional<transfers::Transfer>> {
         SCFG_TRY(Json sig, py::get(receipt, "tx_hash"));
         SCFG_TRY(std::string mint, detail::mint_of(chain, receipt));
         return transfer_to(found.tx, sig, mint, owner.as_str());
@@ -704,7 +683,7 @@ Co<std::string> SolanaBackend::reverify(Json receipt, base::Rpc rpc, chains::Cha
         }
         co_return std::move(read).err();
     }
-    const std::optional<SolanaTransfer> t = read.take();
+    const std::optional<transfers::Transfer> t = read.take();
     bool genuine = t.has_value() && t->block_number == slot;
     if (genuine) {
         SCFG_CO_TRY(Json stored_index, py::get(receipt, "log_index"));
@@ -736,17 +715,16 @@ Co<std::optional<std::vector<restore::RestoreCandidate>>> SolanaBackend::lookup(
     const std::vector<std::string> owners = config.accepted_wallets_for("solana");
     for (const auto& [name, token] : chain.tokens) {
         for (const std::string& owner : owners) {
-            SCFG_CO_TRY(std::optional<SolanaTransfer> t, transfer_to(found, Json(tx), token.address, owner));
+            SCFG_CO_TRY(std::optional<transfers::Transfer> t, transfer_to(found, Json(tx), token.address, owner));
             if (!t) continue;
             SCFG_CO_TRY(std::optional<restore::Classified> classified,
                         restore::classify_or_skip(config, t->value, on_error));
             if (!classified) continue;
             SCFG_CO_TRY(std::string key, receipts::receipt_key(Json(chain.key), t->tx_hash, t->log_index));
-            SCFG_CO_TRY(transfers::Transfer transfer, t->to_transfer());
             restore::RestoreCandidate c;
             c.chain = chain.key;
             c.token = name;
-            c.transfer = std::move(transfer);
+            c.transfer = std::move(*t);  // carried as transfer_to read it (a str index, an int payer, a huge slot)
             c.kind = std::move(classified->kind);
             c.item = std::move(classified->item);
             c.choices = std::move(classified->choices);

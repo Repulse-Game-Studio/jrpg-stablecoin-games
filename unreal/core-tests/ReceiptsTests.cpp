@@ -84,7 +84,7 @@ SCFG_TEST(ReceiptsTests, StoredFieldsAreFormattedWithStr) {
 }
 
 SCFG_TEST(ReceiptsTests, MakeReceiptFields) {
-    scfg::transfers::Transfer tr{"EPj", std::nullopt, "7xK", BigInt(4990000), "5Sig", 3, 99};
+    scfg::transfers::Transfer tr{"EPj", Json(), "7xK", BigInt(4990000), Json("5Sig"), Json(3), BigInt(99)};
     Result<Json> r = receipts::make_receipt("solana", tr, "unlock", "chapter2", "USDC", "payment");
     SCFG_CHECK_EQ(t, outcome(r), "ok");
     if (!r.ok()) return;
@@ -93,7 +93,7 @@ SCFG_TEST(ReceiptsTests, MakeReceiptFields) {
                   "\"item\": \"chapter2\", \"amount\": \"4.990000\", \"token\": \"USDC\", \"payer\": null, "
                   "\"recipient\": \"7xK\", \"source\": \"payment\"}");
     // A TransferLog gives the same receipt as its Transfer.
-    scfg::evm::TransferLog log{"T", "S", "R", BigInt(1230017), kHashLower, 7, 1234567, kHashLower};
+    scfg::evm::TransferLog log{"T", "S", "R", BigInt(1230017), kHashLower, BigInt(7), BigInt(1234567), kHashLower};
     Result<Json> a = receipts::make_receipt("ethereum", log, "tip", Json(), "USDC", "restore");
     Result<Json> b = receipts::make_receipt("ethereum", log.to_transfer(), "tip", Json(), "USDC", "restore");
     SCFG_CHECK(t, a.ok() && b.ok() && scfg::json::dumps(a.value()) == scfg::json::dumps(b.value()));

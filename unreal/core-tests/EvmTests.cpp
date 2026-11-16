@@ -1,7 +1,7 @@
 // No Python twin: tests of scfg::evm and scfg::transfers beyond tier1/evm_address.json: Python's error classes and
 // messages for malformed logs (what scfg_core.evm raises, python3 -c ...; 3.9's wording where 3.12's differs), the
-// int(x, 16) the log index and block number go through, the int64 bound this port puts on them, and the accepted
-// str.lower() divergence on non-ASCII text.
+// int(x, 16) the log index and block number go through (unbounded, as Python's int), and the accepted str.lower()
+// divergence on non-ASCII text.
 #include "support/Test.h"
 
 #include "Scfg/BigInt.h"
@@ -56,7 +56,9 @@ static std::string parsed(const Json& log) {
     if (!r.ok()) return r.err().kind + ": " + r.err().message;
     if (!r.value()) return "None";
     const evm::TransferLog& t = *r.value();
-    return std::to_string(t.log_index) + " " + std::to_string(t.block_number) + " " + t.tx_hash + " " + t.block_hash;
+    // a hostile index of a million digits is not converted to decimal here (that is quadratic)
+    auto text = [](const BigInt& n) { return n.fits_int64() || n.abs() < (BigInt(1) << 256) ? n.to_decimal() : "<huge>"; };
+    return text(t.log_index) + " " + text(t.block_number) + " " + t.tx_hash + " " + t.block_hash;
 }
 
 static Json topics_with(size_t at, Json v) {
@@ -102,11 +104,16 @@ SCFG_TEST(EvmTests, ParsesAValidLog) {
     SCFG_CHECK_EQ(t, log.recipient, kB);
     SCFG_CHECK(t, log.value == BigInt(4990000));
     scfg::transfers::Transfer tr = log.to_transfer();
-    SCFG_CHECK(t, tr == (scfg::transfers::Transfer{log.token, log.sender, log.recipient, BigInt(4990000), log.tx_hash, 7,
-                                                    1234567}));
-    SCFG_CHECK(t, tr.sender.has_value() && *tr.sender == kA);
-    SCFG_CHECK(t, !(tr == scfg::transfers::Transfer{log.token, std::nullopt, log.recipient, BigInt(4990000), log.tx_hash,
-                                                      7, 1234567}));
+    SCFG_CHECK(t, tr == (scfg::transfers::Transfer{log.token, Json(log.sender), log.recipient, BigInt(4990000),
+                                                    Json(log.tx_hash), Json(7), BigInt(1234567)}));
+    SCFG_CHECK(t, tr.sender.is_str() && tr.sender.as_str() == kA);
+    SCFG_CHECK(t, !(tr == scfg::transfers::Transfer{log.token, Json(), log.recipient, BigInt(4990000),
+                                                      Json(log.tx_hash), Json(7), BigInt(1234567)}));
+    // the dataclass's ==: Python's == on the carried values (7 == 7.0 == ..., "7" is not 7)
+    SCFG_CHECK(t, tr == (scfg::transfers::Transfer{log.token, Json(log.sender), log.recipient, BigInt(4990000),
+                                                    Json(log.tx_hash), Json(7.0), BigInt(1234567)}));
+    SCFG_CHECK(t, !(tr == scfg::transfers::Transfer{log.token, Json(log.sender), log.recipient, BigInt(4990000),
+                                                      Json(log.tx_hash), Json("7"), BigInt(1234567)}));
     SCFG_CHECK(t, *r.value() == *evm::parse_transfer_log(tlog()).value());
     // topic0 is compared after str.lower(): an all-uppercase one (0X prefix included) is still the Transfer topic
     std::string upper = "0XDDF252AD1BE2C89B69C2B068FC378DAA952BA7F163C4A11628F55A4DF523B3EF";
@@ -127,23 +134,24 @@ SCFG_TEST(EvmTests, LogIndexAndBlockNumberAreIntBase16) {
     SCFG_CHECK_EQ(t, parsed(tlog({{"logIndex", std::nullopt}})), "KeyError: 'logIndex'");
 }
 
-SCFG_TEST(EvmTests, AnIndexOrBlockBeyondInt64IsNotATransfer) {
-    // Port limit: Python returns a TransferLog with an unbounded int; this port keeps them as int64_t and so reports
-    // such a log as not a transfer (no node numbers a log or a block past 2**63). Errors stay Python's: the fields
-    // are all read first, so a later missing or malformed field still raises.
-    SCFG_CHECK_EQ(t, parsed(tlog({{"logIndex", "0x8000000000000000"}})), "None");
-    SCFG_CHECK_EQ(t, parsed(tlog({{"blockNumber", "-0x8000000000000001"}})), "None");
+SCFG_TEST(EvmTests, AnIndexOrBlockBeyondInt64IsKeptExactly) {
+    // Python's int(x, 16) is unbounded, and so is the TransferLog here: a stored receipt with such an index is
+    // compared with it exactly (reverify), and keyed exactly (receipt_key).
+    SCFG_CHECK_EQ(t, parsed(tlog({{"logIndex", "0x8000000000000000"}})).substr(0, 28), "9223372036854775808 1234567 ");
+    SCFG_CHECK_EQ(t, parsed(tlog({{"blockNumber", "-0x8000000000000001"}})).substr(0, 23), "7 -9223372036854775809 ");
+    SCFG_CHECK_EQ(t, parsed(tlog({{"logIndex", "0x10000000000000000"}})).substr(0, 21), "18446744073709551616 ");
     SCFG_CHECK_EQ(t, parsed(tlog({{"logIndex", "0x8000000000000000"}, {"blockNumber", "zz"}})),
                   "ValueError: invalid literal for int() with base 16: 'zz'");
     SCFG_CHECK_EQ(t, parsed(tlog({{"logIndex", "0x" + std::string(100, 'f')}, {"blockHash", std::nullopt}})),
                   "KeyError: 'blockHash'");
-    // hostile lengths cost one linear scan: no integer of a million digits is built
+    // hostile lengths stay linear (base 16 needs no decimal conversion)
     for (const std::string& huge : {"0x" + std::string(400000, 'f'), std::string(400000, '1') + "_",
                                     "0x" + std::string(400000, '0') + "1"}) {
         auto start = std::chrono::steady_clock::now();
         std::string got = parsed(tlog({{"logIndex", huge}}));
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
-        t.check(got == "None" || got.rfind("ValueError: invalid literal", 0) == 0 || got.rfind("1 ", 0) == 0, got.substr(0, 80));
+        t.check(got.rfind("<huge> ", 0) == 0 || got.rfind("ValueError: invalid literal", 0) == 0 || got.rfind("1 ", 0) == 0,
+                got.substr(0, 80));
         t.check(ms < 1000, "parse_transfer_log took " + std::to_string(ms) + " ms");
     }
 }

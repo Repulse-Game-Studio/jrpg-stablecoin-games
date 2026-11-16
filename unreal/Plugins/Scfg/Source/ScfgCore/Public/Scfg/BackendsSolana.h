@@ -40,35 +40,17 @@ inline constexpr int64_t MAX_PRIORITY_FEE = 1'000'000;  // x 30,000 CU = at most
 // never lands. A hint unseen for this long was dropped. (Python defines it here; Sessions.h holds the port's one.)
 using sessions::SOLANA_HINT_TIMEOUT_S;
 
-// Python's Transfer as transfer_to fills it: the values the node sent, carried as they are (Python's dataclass holds
-// whatever it is given). sender is None, a str or any other hashable owner; tx_hash is the signature transfer_to was
-// asked about (a stored hint, a listed signature); log_index is the developer token account's accountIndex (an int
-// from any node, but a str or a float stays one); block_number is the slot as an unbounded int.
-struct SolanaTransfer {
-    std::string token;  // the mint
-    Json sender;
-    std::string recipient;  // the owner
-    BigInt value;
-    Json tx_hash;
-    Json log_index;
-    BigInt block_number;
-
-    // The transfers::Transfer a restore candidate holds. Port limit: a sender that is neither None nor a str, a
-    // log_index that is not an int (a bool included) or a tx_hash that is not a str is a TypeError, and a log_index
-    // or slot outside int64 an OverflowError, where Python's candidate would carry the value.
-    Result<transfers::Transfer> to_transfer() const;
-};
-
 // Python transfer_to(tx, sig=, mint=, owner=): what owner received of mint in tx, from its token-balance changes, or
-// nullopt (a failed transaction, nothing gained, or no account of owner's that gained). The payer is the owner that
-// lost the most of the mint (the first of them, in accountIndex order), else the fee payer (accountKeys[0], a str or
-// a {pubkey} entry), else None. Raises what Python raises, in its order: AttributeError for a value with no .get,
+// nullopt (a failed transaction, nothing gained, or no account of owner's that gained). The node's values are
+// carried as they are (transfers::Transfer): sig as given, the accountIndex as sent, any owner as the payer, the slot
+// unbounded. The payer is the owner that lost the most of the mint (the first of them, in accountIndex order), else
+// the fee payer (accountKeys[0], a str or a {pubkey} entry, whatever its pubkey holds), else None. Raises what Python raises, in its order: AttributeError for a value with no .get,
 // KeyError for a missing accountIndex, uiTokenAmount or amount (or slot), TypeError for an unhashable accountIndex
 // or owner and for accountIndexes Python cannot sort (a str and an int, or None beside anything), int_from's errors
 // for an amount or slot. Port limit: a NaN accountIndex is ordered last, where CPython's place for it depends on
 // its set's hash order.
-Result<std::optional<SolanaTransfer>> transfer_to(const Json& tx, const Json& sig, std::string_view mint,
-                                                  std::string_view owner);
+Result<std::optional<transfers::Transfer>> transfer_to(const Json& tx, const Json& sig, std::string_view mint,
+                                                       std::string_view owner);
 
 class SolanaBackend final : public base::Backend {
 public:

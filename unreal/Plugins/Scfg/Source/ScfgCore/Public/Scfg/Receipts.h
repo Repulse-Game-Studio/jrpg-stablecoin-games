@@ -6,12 +6,13 @@
 // Json dict shaped as the frozen receipt schema (conformance/schema/state.json).
 //
 // Stored receipts are loosely typed, as in Python: a field read back from storage can hold any JSON value.
-// A stored log_index is formatted exactly, whatever its size (Python's f-string). Comparing it with a chain's
-// transfer, whose log index is an int64_t here, cannot represent 2**63 or more: reverify (task 13) refuses such a
-// receipt when it validates the stored fields (reverify.py's _invalid_fields), so it is removed as invalid and never
-// compared.
+// A stored log_index is formatted exactly, whatever its type and size (Python's f-string), and a chain's transfer
+// carries its log index unbounded (a BigInt, or the Json a Solana node sent), so a receipt is never narrowed. Port
+// limit: an int of more than 4300 digits is formatted too, where CPython 3.9.14+ refuses str() of it (ValueError);
+// no node or store holds one (int_from refuses to read one from text).
 #pragma once
 
+#include "Scfg/BigInt.h"
 #include "Scfg/Dec.h"
 #include "Scfg/Evm.h"
 #include "Scfg/Json.h"
@@ -29,7 +30,10 @@ namespace scfg::receipts {
 
 // f"{chain}:{tx}:{log_index}", where tx is tx_hash lowercased when it starts with "0x" (EVM hashes are hex and
 // case-insensitive) and kept as it is otherwise (Solana signatures are base58: case matters; "0X..." is kept too).
-std::string receipt_key(std::string_view chain, std::string_view tx_hash, int64_t log_index);
+std::string receipt_key(std::string_view chain, std::string_view tx_hash, const BigInt& log_index);
+inline std::string receipt_key(std::string_view chain, std::string_view tx_hash, int64_t log_index) {
+    return receipt_key(chain, tx_hash, BigInt(log_index));
+}
 // The same for values read back from storage: chain and log_index are formatted with str() whatever their type
 // (an int of any size exactly), and a tx_hash that is not a str is the AttributeError of its startswith.
 Result<std::string> receipt_key(const Json& chain, const Json& tx_hash, const Json& log_index);
@@ -37,7 +41,8 @@ Result<std::string> receipt_key(const Json& chain, const Json& tx_hash, const Js
 // make_receipt(chain=, transfer=, kind=, item=, token=, source=): the receipt dict, in the schema's key order (chain,
 // tx_hash, log_index, block, kind, item, amount, token, payer, recipient, source). kind must be "unlock" or "tip" and
 // source "payment" or "restore", else ValueError("invalid kind <repr>") / ("invalid source <repr>"). The amount is
-// str(units_to_decimal(value)); payer is the sender, None when a Transfer has none.
+// str(units_to_decimal(value)); payer is the sender. A Transfer's carried values (its sender, tx_hash and log_index)
+// are stored as they are, whatever their type, as Python's dict holds them.
 Result<Json> make_receipt(const Json& chain, const transfers::Transfer& transfer, const Json& kind, const Json& item,
                           const Json& token, const Json& source);
 Result<Json> make_receipt(const Json& chain, const evm::TransferLog& transfer, const Json& kind, const Json& item,

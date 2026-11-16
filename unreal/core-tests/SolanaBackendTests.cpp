@@ -21,6 +21,7 @@
 #include "Scfg/Receipts.h"
 #include "Scfg/Restore.h"
 #include "Scfg/Result.h"
+#include "Scfg/Transfers.h"
 
 #include <functional>
 #include <limits>
@@ -75,16 +76,16 @@ Json tx(Json pre, Json post, Json keys = Json(), Json slot = Json(7), Json err =
     return t;
 }
 
-Result<std::optional<sol::SolanaTransfer>> read(const Json& t) { return sol::transfer_to(t, Json("S"), kMint, kOwner); }
+Result<std::optional<scfg::transfers::Transfer>> read(const Json& t) { return sol::transfer_to(t, Json("S"), kMint, kOwner); }
 
 // The transfer Python's transfer_to gives: Transfer(token='MINT', sender=payer, recipient='OWNER', value=value,
 // tx_hash='S', log_index=index, block_number=slot).
 void expect_transfer(Ctx& t, const Json& in, const Json& payer, int64_t value, const Json& index, std::string_view what,
                      const BigInt& slot = BigInt(7)) {
-    Result<std::optional<sol::SolanaTransfer>> got = read(in);
+    Result<std::optional<scfg::transfers::Transfer>> got = read(in);
     if (!t.check(got.ok(), std::string(what) + ": " + (got.ok() ? "" : got.err().str()))) return;
     if (!t.check(got.value().has_value(), std::string(what) + ": no transfer")) return;
-    const sol::SolanaTransfer& x = *got.value();
+    const scfg::transfers::Transfer& x = *got.value();
     t.check(json_eq(x.sender, payer) && x.sender.type() == payer.type(), std::string(what) + ": payer " + scfg::py::repr(x.sender));
     t.check(x.value == BigInt(value), std::string(what) + ": value " + x.value.to_decimal());
     t.check(json_eq(x.log_index, index) && x.log_index.type() == index.type(),
@@ -94,12 +95,12 @@ void expect_transfer(Ctx& t, const Json& in, const Json& payer, int64_t value, c
 }
 
 void expect_none(Ctx& t, const Json& in, std::string_view what) {
-    Result<std::optional<sol::SolanaTransfer>> got = read(in);
+    Result<std::optional<scfg::transfers::Transfer>> got = read(in);
     t.check(got.ok() && !got.value().has_value(), std::string(what) + ": " + (got.ok() ? "a transfer" : got.err().str()));
 }
 
 void expect_err(Ctx& t, const Json& in, std::string_view kind, std::string_view message, std::string_view what) {
-    Result<std::optional<sol::SolanaTransfer>> got = read(in);
+    Result<std::optional<scfg::transfers::Transfer>> got = read(in);
     t.check(!got.ok() && got.err().kind == kind && got.err().message == message,
             std::string(what) + ": " + (got.ok() ? "no error" : got.err().str()));
 }
@@ -227,7 +228,7 @@ SCFG_TEST(SolanaBackendTests, MalformedNodeDataIsReadAsPythonReadsIt) {
     expect_err(t,
                tx(Json::list({bal(Json(), kOwner, 0), bal(3, kOwner, 0)}), Json::list({bal(Json(), kOwner, 5), bal(3, kOwner, 1)})),
                "TypeError", "'<' not supported between instances of 'int' and 'NoneType'", "None beside an int");
-    Result<std::optional<sol::SolanaTransfer>> mixed =
+    Result<std::optional<scfg::transfers::Transfer>> mixed =
         read(tx(Json::list({bal("1", "A", 5), bal(2, kOwner, 0)}), Json::list({bal("1", "A", 0), bal(2, kOwner, 5)})));
     t.check(!mixed.ok() && mixed.err().kind == "TypeError", "a str and an int cannot be sorted");
     expect_err(t, tx(Json::list({bal(0, Json::dict({{"a", 1}}), 5)}), Json::list({bal(0, Json::dict({{"a", 1}}), 1), bal(2, kOwner, 4)})),
@@ -244,7 +245,7 @@ SCFG_TEST(SolanaBackendTests, MalformedNodeDataIsReadAsPythonReadsIt) {
                "KeyError", "'accountIndex'", "no accountIndex");
     Json infinite = bal(2, kOwner, 0);
     infinite.as_dict().set("uiTokenAmount", Json::dict({{"amount", Json(std::numeric_limits<double>::infinity())}}));
-    Result<std::optional<sol::SolanaTransfer>> inf = read(tx(Json::list(), Json::list({infinite})));
+    Result<std::optional<scfg::transfers::Transfer>> inf = read(tx(Json::list(), Json::list({infinite})));
     t.check(!inf.ok() && inf.err().kind == "OverflowError", "an infinite amount: " + (inf.ok() ? std::string("read") : inf.err().str()));
 }
 
@@ -363,8 +364,7 @@ SCFG_TEST(SolanaBackendTests, LookupGivesTheRecordedCandidates) {
     }
 }
 
-// A transfer classify cannot price (10**32 units or more) is skipped and reported; a restore candidate needs a
-// Transfer this port can hold.
+// A transfer classify cannot price (10**32 units or more) is skipped and reported.
 SCFG_TEST(SolanaBackendTests, LookupSkipsAnUnpriceableTransfer) {
     std::optional<Json> v = load("solana/restore_lookup");
     if (!t.check(v.has_value(), "solana/restore_lookup")) return;
@@ -382,22 +382,174 @@ SCFG_TEST(SolanaBackendTests, LookupSkipsAnUnpriceableTransfer) {
     t.check(got && !got->ok() && got->err().kind == "RestoreError" && got->err().code == "tx_not_a_payment",
             "the only transfer skipped: tx_not_a_payment");
     t.check(reported == std::vector<std::string>{"InvalidOperation"}, "reported once");
+}
 
-    sol::SolanaTransfer odd{kMint, Json(5), kOwner, BigInt(1), Json("S"), Json("2"), BigInt(7)};
-    Result<scfg::transfers::Transfer> held = odd.to_transfer();
-    t.check(!held.ok() && held.err().kind == "TypeError", "a candidate's payer must be a str or None");
-    odd.sender = Json("P");
-    held = odd.to_transfer();
-    t.check(!held.ok() && held.err().kind == "TypeError", "a candidate's index must be an int");
-    odd.log_index = Json(2);
-    odd.block_number = BigInt(1) << 64;
-    held = odd.to_transfer();
-    t.check(!held.ok() && held.err().kind == "OverflowError", "a candidate's slot must fit int64");
-    odd.block_number = BigInt(7);
-    held = odd.to_transfer();
-    t.check(held.ok() && held.value().sender == std::optional<std::string>("P") && held.value().log_index == 2 &&
-                held.value().block_number == 7 && held.value().tx_hash == "S",
-            "a transfer");
+// Ruling R10: a restore candidate carries the transfer as Python's does, whatever the node sent, and the receipt it
+// stores holds those values as they are. solana/restore_lookup's step 0, its getTransaction answer mutated; every
+// expectation is the Python reference's on the same mutation (re-recorded with the scratch script below, run from
+// the repo root as `python3 -I r10_restore.py .`; nothing under conformance/ is changed):
+//
+//   import copy, json, sys
+//   sys.path[:0] = [sys.argv[1] + "/plugin/game/python-packages", sys.argv[1] + "/conformance/python"]
+//   from scfg_conformance import replay as rp
+//   v = json.load(open(sys.argv[1] + "/conformance/vectors/tier2/solana/restore_lookup.json"))
+//   for name, mutate in MUTATIONS:                 # the table in r10_cases() below, applied to step 0's answer
+//       s = copy.deepcopy(v["steps"][0]); mutate(s)
+//       transport = rp.ReplayTransport(); errors = []
+//       engine = rp.build_engine(v["setup"], transport=transport, clock=lambda: s["at"], on_error=errors.append)
+//       transport.load(s["calls"]); cands = engine.restore_lookup(s["args"]["tx"])
+//       print(name, cands, engine.restore_apply(cands), list(engine.receipts))
+//       transport.load(s["calls"]); print([c.already_restored for c in engine.restore_lookup(s["args"]["tx"])], errors)
+//
+// Python printed, for each: one candidate (unlock chapter2, value 4993742) whose transfer holds the sender, log_index
+// and block_number below; restore_apply stored one receipt with exactly those as payer, log_index and block, under
+// the key below; the second lookup found it already restored; nothing was reported.
+namespace scfg_test::solana_backend_tests {
+
+struct R10Case {
+    std::string name;
+    std::function<void(Json& result)> mutate;  // the getTransaction result
+    Json sender, log_index;
+    BigInt block;
+    std::string key_suffix;  // str(log_index) in the receipt key
+};
+
+const char* const kR10Sig = "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn";
+const char* const kR10Payer = "AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe";
+
+void each_balance(Json& result, const std::function<void(Json::Dict& row)>& fn) {
+    Json::Dict& meta = result.as_dict().find("meta")->as_dict();
+    for (const char* table : {"preTokenBalances", "postTokenBalances"}) {
+        for (Json& row : meta.find(table)->as_list()) fn(row.as_dict());
+    }
+}
+
+// The accountIndex 1 (payer) and 2 (developer) rows' indexes become a and b.
+std::function<void(Json&)> indexes(Json a, Json b) {
+    return [a, b](Json& result) {
+        each_balance(result, [&](Json::Dict& row) {
+            const bool payer = json_eq(row.get("accountIndex"), Json(1));
+            row.set("accountIndex", payer ? a : b);
+        });
+    };
+}
+
+// Only the developer's row is left, and accountKeys[0] (the fee payer) is `first` (or no key at all).
+std::function<void(Json&)> fee_payer(std::optional<Json> first) {
+    return [first](Json& result) {
+        Json::Dict& meta = result.as_dict().find("meta")->as_dict();
+        for (const char* table : {"preTokenBalances", "postTokenBalances"}) {
+            Json::List& rows = meta.find(table)->as_list();
+            Json::List kept;
+            for (const Json& row : rows) {
+                if (!json_eq(row.as_dict().get("accountIndex"), Json(1))) kept.push_back(row);
+            }
+            rows = kept;
+        }
+        Json& keys = *result.as_dict().find("transaction")->as_dict().find("message")->as_dict().find("accountKeys");
+        if (first) {
+            keys.as_list()[0] = *first;
+        } else {
+            keys = Json::list();
+        }
+    };
+}
+
+std::vector<R10Case> r10_cases() {
+    const BigInt two63 = BigInt(1) << 63;
+    return {
+        {"str accountIndex", indexes(Json("1"), Json("2")), Json(kR10Payer), Json("2"), BigInt(950), "2"},
+        {"float accountIndex", indexes(Json(1.5), Json(2.5)), Json(kR10Payer), Json(2.5), BigInt(950), "2.5"},
+        {"bool accountIndex", indexes(Json(false), Json(true)), Json(kR10Payer), Json(true), BigInt(950), "True"},
+        {"int owner on the payer's row",
+         [](Json& result) {
+             each_balance(result, [](Json::Dict& row) {
+                 if (json_eq(row.get("accountIndex"), Json(1))) row.set("owner", 5);
+             });
+         },
+         Json(5), Json(2), BigInt(950), "2"},
+        {"fee payer {pubkey: 5}", fee_payer(Json::dict({{"pubkey", 5}})), Json(5), Json(2), BigInt(950), "2"},
+        {"no fee payer", fee_payer(std::nullopt), Json(), Json(2), BigInt(950), "2"},
+        {"slot 2**63", [two63](Json& result) { result.as_dict().set("slot", Json(two63)); }, Json(kR10Payer), Json(2),
+         two63, "2"},
+        {"accountIndex 2**63", indexes(Json(1), Json(two63)), Json(kR10Payer), Json(two63), BigInt(950),
+         "9223372036854775808"},
+    };
+}
+
+// solana/restore_lookup step 0's calls, the getTransaction result mutated.
+Json r10_calls(Ctx& t, const Json& vector_step, const R10Case& c) {
+    Json calls = scfg::deep_copy(vector_step.as_dict().get("calls"));
+    Json::Dict& call = calls.as_list()[0].as_dict();
+    Result<Json> body = scfg::json::loads(call.get("response_text").as_str());
+    if (!t.check(body.ok(), c.name + ": the recorded answer")) return calls;
+    Json answer = body.take();
+    c.mutate(*answer.as_dict().find("result"));
+    call.set("response_text", Json(scfg::json::dumps(answer)));
+    return calls;
+}
+
+bool same(const Json& a, const Json& b) { return json_eq(a, b) && a.type() == b.type(); }
+
+// The receipt Python's restore_apply stored for case c.
+Json r10_receipt(const R10Case& c) {
+    return Json::dict({{"chain", "solana"}, {"tx_hash", kR10Sig}, {"log_index", c.log_index}, {"block", Json(c.block)},
+                       {"kind", "unlock"}, {"item", "chapter2"}, {"amount", "4.993742"}, {"token", "USDC"},
+                       {"payer", c.sender}, {"recipient", "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"},
+                       {"source", "restore"}});
+}
+
+// Each receipt field compared with its type (json_eq alone has "2" != 2 but 2 == 2.0 == True).
+void expect_receipt(Ctx& t, const Json& got, const Json& want, const std::string& what) {
+    if (!t.check(got.is_dict() && got.as_dict().size() == want.as_dict().size(), what + ": " + scfg::py::repr(got))) return;
+    for (const auto& [k, v] : want.as_dict()) {
+        t.check(same(got.as_dict().get(k), v), what + ": " + k + " " + scfg::py::repr(got.as_dict().get(k)));
+    }
+}
+
+}  // namespace scfg_test::solana_backend_tests
+
+SCFG_TEST(SolanaBackendTests, ACandidateCarriesTheTransferAsPythonDoes) {
+    std::optional<Json> v = load("solana/restore_lookup");
+    if (!t.check(v.has_value(), "solana/restore_lookup")) return;
+    const sol::SolanaBackend backend;
+    for (const R10Case& c : r10_cases()) {
+        Rig rig;
+        if (!rig.build(t, v->as_dict().get("setup"))) return;
+        const Json calls = r10_calls(t, step_of(*v, 0), c);
+        Json store = Json::dict();
+        for (bool second : {false, true}) {
+            rig.transport.load(calls);
+            std::optional<Result<std::optional<std::vector<scfg::restore::RestoreCandidate>>>> got = run_now(
+                backend.lookup(kR10Sig, rig.engine->config(), rig.chain(), rig.rpc(), store, rig.engine->on_error));
+            t.check(rig.transport.problems.empty() && rig.transport.leftover().empty(), c.name + ": the recorded calls");
+            if (!t.check(got && got->ok() && got->value() && got->value()->size() == 1,
+                         c.name + ": " + (got && !got->ok() ? got->err().str() : std::string("not one candidate")))) {
+                break;
+            }
+            const scfg::restore::RestoreCandidate& cand = (*got->value())[0];
+            t.check(cand.kind == std::optional<std::string>("unlock") && cand.item == std::optional<std::string>("chapter2"),
+                    c.name + ": what it bought");
+            t.check(cand.already_restored == second, c.name + ": already_restored");
+            const auto* tr = std::get_if<scfg::transfers::Transfer>(&cand.transfer);
+            if (!t.check(tr != nullptr, c.name + ": a Transfer")) break;
+            t.check(same(tr->sender, c.sender), c.name + ": sender " + scfg::py::repr(tr->sender));
+            t.check(same(tr->log_index, c.log_index), c.name + ": log_index " + scfg::py::repr(tr->log_index));
+            t.check(tr->block_number == c.block, c.name + ": block_number " + tr->block_number.to_decimal());
+            t.check(same(tr->tx_hash, Json(kR10Sig)) && tr->value == BigInt(4993742), c.name + ": the rest");
+            if (second) break;
+            // what restore_apply stores for it (task 13 drives this through the Engine)
+            Result<Json> r = scfg::receipts::make_receipt(Json(cand.chain), *tr, Json("unlock"), Json("chapter2"),
+                                                          Json(cand.token), Json("restore"));
+            if (!t.check(r.ok(), c.name + ": make_receipt")) break;
+            expect_receipt(t, r.value(), r10_receipt(c), c.name);
+            Result<bool> added = scfg::receipts::add_receipt(store.as_dict(), r.value());
+            t.check(added.ok() && added.value(), c.name + ": added");
+            t.check(store.as_dict().contains(std::string("solana:") + kR10Sig + ":" + c.key_suffix),
+                    c.name + ": the key, in " + scfg::py::repr(store));
+        }
+        t.check(rig.reported.empty(), c.name + ": nothing reported");
+    }
 }
 
 // ---- readiness ----

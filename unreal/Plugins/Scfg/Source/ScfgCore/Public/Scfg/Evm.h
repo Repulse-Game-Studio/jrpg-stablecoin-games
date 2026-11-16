@@ -38,8 +38,8 @@ struct TransferLog {
     std::string recipient;  // checksummed
     BigInt value;           // base units
     std::string tx_hash;    // lowercase
-    int64_t log_index = 0;
-    int64_t block_number = 0;
+    BigInt log_index;       // int(logIndex, 16): any size, as Python's
+    BigInt block_number;    // int(blockNumber, 16)
     std::string block_hash;  // lowercase
 
     transfers::Transfer to_transfer() const;
@@ -52,11 +52,9 @@ struct TransferLog {
 // ERC-20 Transfer either.
 //
 // A malformed log fails as Python's does, with the same class: a non-dict log or a non-str hash or topic0 an
-// AttributeError, a missing field a KeyError, a bad address a ValueError, logIndex/blockNumber through int(x, 16).
-// Port limits: a log index or block number outside int64 (Python's int is unbounded) makes the log not a transfer,
-// once every field has been read (so a later bad field still fails as in Python); and str.lower() of the hashes is
-// py::lower_for_ascii (exact for ASCII text and for any comparison with ASCII text; other non-ASCII letters keep
-// their case).
+// AttributeError, a missing field a KeyError, a bad address a ValueError, logIndex/blockNumber through int(x, 16)
+// (unbounded, as Python's int). Port limit: str.lower() of the hashes is py::lower_for_ascii (exact for ASCII text and
+// for any comparison with ASCII text; other non-ASCII letters keep their case).
 Result<std::optional<TransferLog>> parse_transfer_log(const Json& log);
 
 }  // namespace scfg::evm

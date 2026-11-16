@@ -5,7 +5,6 @@
 #include "Scfg/Err.h"
 #include "Scfg/Py.h"
 
-#include <charconv>
 #include <set>
 #include <string>
 #include <utility>
@@ -21,13 +20,6 @@ std::string tx_part(std::string_view tx_hash) {
     return tx_hash.starts_with("0x") ? py::lower_for_ascii(tx_hash) : std::string(tx_hash);
 }
 
-std::string int_text(int64_t v) {
-    char buf[24];
-    auto [end, ec] = std::to_chars(buf, buf + sizeof buf, v);
-    (void)ec;
-    return std::string(buf, end);
-}
-
 Result<Json> make(const Json& chain, const transfers::Transfer& t, const Json& kind, const Json& item,
                   const Json& token, const Json& source) {
     const bool kind_ok = kind.is_str() && (kind.as_str() == "unlock" || kind.as_str() == "tip");
@@ -35,14 +27,14 @@ Result<Json> make(const Json& chain, const transfers::Transfer& t, const Json& k
     const bool source_ok = source.is_str() && (source.as_str() == "payment" || source.as_str() == "restore");
     if (!source_ok) return Err::value_error("invalid source " + py::repr(source));
     return Json::dict({{"chain", chain},
-                       {"tx_hash", Json(t.tx_hash)},
-                       {"log_index", Json(t.log_index)},
+                       {"tx_hash", t.tx_hash},
+                       {"log_index", t.log_index},
                        {"block", Json(t.block_number)},
                        {"kind", kind},
                        {"item", item},
                        {"amount", Json(amounts::units_to_decimal(t.value).str())},
                        {"token", token},
-                       {"payer", t.sender ? Json(*t.sender) : Json()},
+                       {"payer", t.sender},
                        {"recipient", Json(t.recipient)},
                        {"source", source}});
 }
@@ -56,8 +48,8 @@ bool skipped(const Err& e) {
 
 namespace scfg::receipts {
 
-std::string receipt_key(std::string_view chain, std::string_view tx_hash, int64_t log_index) {
-    return std::string(chain) + ":" + detail::tx_part(tx_hash) + ":" + detail::int_text(log_index);
+std::string receipt_key(std::string_view chain, std::string_view tx_hash, const BigInt& log_index) {
+    return std::string(chain) + ":" + detail::tx_part(tx_hash) + ":" + log_index.to_decimal();
 }
 
 Result<std::string> receipt_key(const Json& chain, const Json& tx_hash, const Json& log_index) {

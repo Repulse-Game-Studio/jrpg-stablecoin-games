@@ -31,10 +31,10 @@ Result<std::string> str_field(const Json& d, std::string_view key) {
     return v.as_str();
 }
 
-Result<int64_t> int_field(const Json& d, std::string_view key) {
+Result<scfg::BigInt> int_field(const Json& d, std::string_view key) {
     SCFG_TRY(Json v, py::get(d, key));
-    if (!v.is_int64()) return Err::value_error("vector input " + std::string(key) + " must be an int64");
-    return v.as_int64();
+    if (!v.is_int()) return Err::value_error("vector input " + std::string(key) + " must be an int");
+    return v.as_bigint();
 }
 
 // dict(i[key]).
@@ -66,8 +66,8 @@ Result<Json> make_receipt(const Json& in) {
     SCFG_TRY(std::string ttoken, str_field(t, "token"));
     SCFG_TRY(std::string recipient, str_field(t, "recipient"));
     SCFG_TRY(std::string tx_hash, str_field(t, "tx_hash"));
-    SCFG_TRY(int64_t log_index, int_field(t, "log_index"));
-    SCFG_TRY(int64_t block_number, int_field(t, "block_number"));
+    SCFG_TRY(scfg::BigInt log_index, int_field(t, "log_index"));
+    SCFG_TRY(scfg::BigInt block_number, int_field(t, "block_number"));
     SCFG_TRY(Json sender, py::get(t, "sender"));
     if (cls == "TransferLog") {
         if (!sender.is_str()) return Err::value_error("vector input sender must be a str");
@@ -77,9 +77,7 @@ Result<Json> make_receipt(const Json& in) {
         return receipts::make_receipt(chain, log, kind, item, token, source);
     }
     if (cls == "Transfer") {
-        if (!sender.is_null() && !sender.is_str()) return Err::value_error("vector input sender must be a str or None");
-        scfg::transfers::Transfer transfer{ttoken, std::nullopt, recipient, units, tx_hash, log_index, block_number};
-        if (sender.is_str()) transfer.sender = sender.as_str();
+        scfg::transfers::Transfer transfer{ttoken, sender, recipient, units, Json(tx_hash), Json(log_index), block_number};
         return receipts::make_receipt(chain, transfer, kind, item, token, source);
     }
     return Err::value_error("unknown transfer class " + py::repr_str(cls));
@@ -93,7 +91,9 @@ Result<Json> compute_ownership(const Json& in) {
     for (const Json& x : list.as_list()) {
         scfg::models::Item item;
         SCFG_TRY(item.item_id, str_field(x, "item_id"));
-        SCFG_TRY(item.code, int_field(x, "code"));
+        SCFG_TRY(scfg::BigInt code, int_field(x, "code"));
+        if (!code.fits_int64()) return Err::value_error("vector input code must be an int64");
+        item.code = code.to_int64().value();
         SCFG_TRY(item.price, dec_field(x, "price"));
         SCFG_TRY(item.token, str_field(x, "token"));
         SCFG_TRY(item.title, str_field(x, "title"));
