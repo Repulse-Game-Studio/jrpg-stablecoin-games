@@ -3,11 +3,20 @@
 // IndexError, ArithmeticError, OverflowError) and the decimal module's signals the core can raise
 // (DecimalException, InvalidOperation, Overflow). The classes follow Python's tree: ConfigError is a
 // ValueError, OverflowError and the decimal signals are ArithmeticErrors and not ValueErrors.
-// RpcError and TransportError are added with rpc.py's and coio.py's twins.
+// RpcError and TransportError are added with rpc.py's and coio.py's twins. Also errors.py's print_error.
 using System;
 
 namespace Scfg.Core
 {
+    public static class Errors
+    {
+        /// <summary>
+        /// Python <c>print_error</c>, the default <c>on_error</c>: a crash the core contained (one session's step, one
+        /// stored receipt, one restore candidate) is written to standard error and the work goes on.
+        /// </summary>
+        public static void PrintError(Exception e) => Console.Error.WriteLine(e.ToString()); // culture-ok: an exception's text
+    }
+
     /// <summary>Python <c>ValueError</c>.</summary>
     public class ValueError : Exception
     {

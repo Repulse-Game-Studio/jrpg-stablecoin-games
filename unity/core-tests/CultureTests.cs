@@ -53,7 +53,7 @@ namespace Scfg.Core.Tests
             }
         }
 
-        // One runner per tier; task 10 adds Tier2Failures and a Tier2UnderTurkishAndGerman test beside this one.
+        // One runner per tier.
         private static IEnumerable<string> Tier1Failures()
         {
             var topics = Tier1.Implemented.OrderBy(t => t, StringComparer.Ordinal).ToList();
@@ -70,6 +70,34 @@ namespace Scfg.Core.Tests
             var failures = UnderEachCulture(Tier1Failures);
             Assert.That(CultureInfo.CurrentCulture.Name, Is.EqualTo(before), "the culture was not restored");
             Assert.That(failures, Is.Empty, Tier1Tests.Report("Tier 1 under " + string.Join(", ", Cultures), failures));
+        }
+
+        // The replay transport answers with completed tasks, so a replay completes before Replay returns: reading the
+        // result of a completed task does not wait, and the culture set on this thread is the one the core runs under.
+        private static IEnumerable<string> Tier2Failures()
+        {
+            var ids = Vectors.Tier2Ids().Where(Tier2.Runs).ToList();
+            if (ids.Count == 0) yield return "no Tier 2 vector is enabled";
+            foreach (var id in ids)
+            {
+                var run = Tier2.Replay(Tier2Tests.Load(id));
+                if (!run.IsCompleted)
+                {
+                    yield return id + ": the replay did not complete synchronously";
+                    continue;
+                }
+                var diff = run.GetAwaiter().GetResult();
+                if (diff != null) yield return id + ": " + diff;
+            }
+        }
+
+        [Test]
+        public void Tier2UnderTurkishAndGerman()
+        {
+            var before = CultureInfo.CurrentCulture.Name;
+            var failures = UnderEachCulture(Tier2Failures);
+            Assert.That(CultureInfo.CurrentCulture.Name, Is.EqualTo(before), "the culture was not restored");
+            Assert.That(failures, Is.Empty, Tier1Tests.Report("Tier 2 under " + string.Join(", ", Cultures), failures));
         }
 
         [Test]

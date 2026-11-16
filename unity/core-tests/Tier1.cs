@@ -37,6 +37,7 @@ namespace Scfg.Core.Tests
             "paylinks",
             "page_messages",
             "rpc_errors",
+            "tx_ids",
         };
 
         static Tier1()
@@ -57,6 +58,7 @@ namespace Scfg.Core.Tests
             RegisterPaylinks();
             RegisterPageMessages();
             RegisterRpcErrors();
+            RegisterTxIds();
         }
 
         // ---- shared input helpers --------------------------------------------------------------------------
@@ -341,7 +343,7 @@ namespace Scfg.Core.Tests
             };
         }
 
-        // ---- receipts (normalize_tx_hash is in tx_ids, enabled with normalize_any_tx in task 10) -------------------
+        // ---- receipts ---------------------------------------------------------------------------------------
 
         private static JsonObject Store(JsonObject i) => Copy(Obj(i["store"], "store"));
 
@@ -387,6 +389,14 @@ namespace Scfg.Core.Tests
                 return new List<object?> { txHash, sender };
             };
             Funcs["parse_build_message"] = i => PageMessages.ParseBuildMessage(i.Get("data"));
+        }
+
+        // ---- tx_ids (normalize_signature is registered with base58) ------------------------------------------
+
+        private static void RegisterTxIds()
+        {
+            Funcs["normalize_tx_hash"] = i => Sessions.NormalizeTxHash(i.Get("text"));
+            Funcs["normalize_any_tx"] = i => Backends.NormalizeAnyTx(i.Get("text"));
         }
 
         // ---- rpc_errors: numbers read out of a node's error message ----------------------------------------

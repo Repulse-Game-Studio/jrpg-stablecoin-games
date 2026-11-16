@@ -440,7 +440,8 @@ namespace Scfg.Core
         public async Task<long> BlockNumber() =>
             Rpc.ToLong(Rpc.HexInt(await Call("eth_blockNumber", new List<object?>())), "block number");
 
-        public Task<object?> GetTransactionReceipt(string txHash) =>
+        /// <summary>Python <c>get_transaction_receipt</c>: the hash goes out as given (a stored hint is sent unchecked).</summary>
+        public Task<object?> GetTransactionReceipt(object? txHash) =>
             Call("eth_getTransactionReceipt", new List<object?> { txHash });
 
         /// <summary>
