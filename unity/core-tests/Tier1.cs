@@ -30,6 +30,7 @@ namespace Scfg.Core.Tests
             "custom_chains",
             "items",
             "payments",
+            "receipts",
         };
 
         static Tier1()
@@ -45,6 +46,7 @@ namespace Scfg.Core.Tests
             RegisterEvm();
             RegisterBase58();
             RegisterConfig();
+            RegisterReceipts();
         }
 
         // ---- shared input helpers --------------------------------------------------------------------------
@@ -272,6 +274,57 @@ namespace Scfg.Core.Tests
                 foreach (var k in new[] { "item", "amount", "token", "title" })
                     if (i.TryGetValue(k, out var v)) kw[k] = VectorValue(v);
                 return SpecJson(Payments.PreparePayment(config, i["kind"], kw));
+            };
+        }
+
+        // ---- receipts (normalize_tx_hash is in tx_ids, enabled with normalize_any_tx in task 10) -------------------
+
+        private static JsonObject Store(JsonObject i) => Copy(Obj(i["store"], "store"));
+
+        private static Dec FiniteDec(object? v) =>
+            (v is string s ? Dec.Parse(s) : null) ?? throw new ValueError("vector decimal must be a finite decimal string");
+
+        private static void RegisterReceipts()
+        {
+            Funcs["receipt_key"] = i => Receipts.ReceiptKey(Str(i, "chain"), Str(i, "tx_hash"),
+                i["log_index"] is long n ? n : throw new ValueError("vector input log_index must be an int"));
+            Funcs["make_receipt"] = i =>
+            {
+                var t = Obj(i["transfer"], "transfer");
+                var cls = t.Get("class") as string;
+                if (cls != "Transfer" && cls != "TransferLog") throw new ValueError("unknown transfer class " + Py.Repr((object?)cls));
+                string chain = Str(i, "chain"), kind = Str(i, "kind"), token = Str(i, "token"), source = Str(i, "source");
+                var item = i["item"] as string;
+                string txHash = Str(t, "tx_hash"), sender = Str(t, "sender"), recipient = Str(t, "recipient"), ttoken = Str(t, "token");
+                long logIndex = (long)t["log_index"]!, block = (long)t["block_number"]!;
+                var value = Units(t["value"]);
+                return cls == "Transfer"
+                    ? Receipts.MakeReceipt(chain, new Transfer(ttoken, sender, recipient, value, txHash, logIndex, block), kind, item, token, source)
+                    : Receipts.MakeReceipt(chain, new TransferLog(ttoken, sender, recipient, value, txHash, logIndex, block, Str(t, "block_hash")), kind, item, token, source);
+            };
+            Funcs["add_receipt"] = i =>
+            {
+                var store = Store(i);
+                var added = Receipts.AddReceipt(store, Obj(i["receipt"], "receipt"));
+                return new JsonObject { { "added", added }, { "store", store } };
+            };
+            Funcs["remove_receipt"] = i =>
+            {
+                var store = Store(i);
+                Receipts.RemoveReceipt(store, Str(i, "key"));
+                return store;
+            };
+            Funcs["compute_ownership"] = i =>
+            {
+                var items = new Dictionary<string, Item>(StringComparer.Ordinal);
+                foreach (var e in Arr(i["items"], "items"))
+                {
+                    var x = Obj(e, "item");
+                    var id = Str(x, "item_id");
+                    items[id] = new Item(id, (int)(long)x["code"]!, FiniteDec(x["price"]), Str(x, "token"), Str(x, "title"), FiniteDec(x["min_price"]));
+                }
+                var o = Receipts.ComputeOwnership(Store(i), items);
+                return new JsonObject { { "owned", Strs(o.Owned) }, { "tip_total", Str(o.TipTotal) } };
             };
         }
 
