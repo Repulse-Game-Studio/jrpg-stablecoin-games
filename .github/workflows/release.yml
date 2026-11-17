@@ -57,7 +57,7 @@ jobs:
           fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
-      - name: Build the release zips
+      - name: Build the release archives
         run: |
           uv run python tools/package.py
           uv run python tools/package.py --engine godot
@@ -73,7 +73,7 @@ jobs:
           case "$VERSION" in *[a-z]*) prerelease="--prerelease" ;; esac
           # gh puts these lines above the generated notes (what changed since the last tag).
           cat > /tmp/notes.md <<NOTES
-          Pick the zip for your engine and unzip it into your project folder:
+          Pick the archive for your engine: unzip a zip into your project folder; add the Unity \`.tgz\` in the Package Manager as it is, without unpacking it.
 
           - \`scfg-renpy-$VERSION.zip\`: Ren'Py 8.2+ (or run \`uvx stablecoin-games-renpy install .\` in the project)
           - \`scfg-godot-$VERSION.zip\`: Godot 4.3+ (preview). Install it from the editor's AssetLib tab with Import..., or copy the \`addons\` folder inside it into your project
