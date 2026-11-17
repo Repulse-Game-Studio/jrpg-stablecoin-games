@@ -167,6 +167,11 @@ bool AScfgShowcasePlayerController::InputKey(const FInputKeyEventArgs& Params)
 	{
 		++WorldClicks;
 	}
+	else if (Params.Key.IsValid() && !Params.Key.IsMouseButton() && !Params.Key.IsGamepadKey() && !Params.Key.IsAxis1D()
+		&& Params.Event == IE_Pressed)
+	{
+		++WorldKeys;
+	}
 	return Super::InputKey(Params);
 }
 

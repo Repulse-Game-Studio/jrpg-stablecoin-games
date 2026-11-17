@@ -28,10 +28,12 @@
 #include "Widgets/Text/STextBlock.h"
 
 #include "ScfgDefaultSheetHost.h"
+#include "ScfgDefaultSheetHostAccess.h"
 #include "ScfgDevLog.h"
 #include "ScfgFacade.h"
 #include "ScfgShowcase.h"
 #include "ScfgSubsystem.h"
+#include "ScfgSubsystemAccess.h"
 #include "UI/SScfgPaymentSheet.h"
 #include "UI/SScfgScreen.h"
 
@@ -701,10 +703,10 @@ TSharedRef<FJsonObject> FScfgE2EDriver::Snapshot()
 	}
 	Out->SetObjectField(TEXT("game"), GameView);
 	TArray<FString> Toasts;
-	if (UScfgSubsystem* S = G ? G->Scfg() : nullptr; S && S->GetFacade())
+	if (UScfgSubsystem* S = G ? G->Scfg() : nullptr; S && FScfgSubsystemAccess::Facade(*S))
 	{
-		const TSharedPtr<IScfgSheetHost> Host = S->GetFacade()->DefaultSheetHost;
-		if (Host.IsValid() && S->GetFacade()->ActiveSheetHost() == Host)
+		const TSharedPtr<IScfgSheetHost> Host = FScfgSubsystemAccess::Facade(*S)->DefaultSheetHost;
+		if (Host.IsValid() && FScfgSubsystemAccess::Facade(*S)->ActiveSheetHost() == Host)
 		{
 			Toasts = StaticCastSharedPtr<FScfgDefaultSheetHost>(Host)->ToastTexts();
 		}
@@ -717,6 +719,7 @@ TSharedRef<FJsonObject> FScfgE2EDriver::Snapshot()
 	Out->SetBoolField(TEXT("paused"), G && G->GetWorld() && G->GetWorld()->IsPaused());
 	const AScfgShowcasePlayerController* PC = G ? G->PlayerController() : nullptr;
 	Out->SetNumberField(TEXT("world_clicks"), PC ? PC->WorldClicks : -1);
+	Out->SetNumberField(TEXT("world_keys"), PC ? PC->WorldKeys : -1);
 	const TSharedPtr<SWindow> Window = GameWindow();
 	const FVector2f Size = Window.IsValid() ? FVector2f(Window->GetClientSizeInScreen()) : FVector2f::ZeroVector;
 	Out->SetArrayField(TEXT("window"), {MakeShared<FJsonValueNumber>(Size.X), MakeShared<FJsonValueNumber>(Size.Y)});
@@ -1163,6 +1166,25 @@ void FScfgE2EDriver::Run(int64 Id, const TSharedRef<FJsonObject>& Command)
 			return;
 		}
 		Reply(Id, nullptr);
+	}
+	else if (Op == TEXT("sheet_visibility"))
+	{
+		// The game hides (or shows again) the newest open screen without closing its flow, as a game that collapses
+		// it does: a supported state, which must leave the game's input alone (ruling R2-18).
+		bool bShown = true;
+		Command->TryGetBoolField(TEXT("shown"), bShown);
+		const TArray<TSharedRef<SScfgScreen>> Open = SScfgScreen::OpenScreens();
+		if (Open.IsEmpty())
+		{
+			ReplyError(Id, TEXT("no screen is open"));
+			return;
+		}
+		Open.Last()->SetVisibility(bShown ? EVisibility::Visible : EVisibility::Collapsed);
+		Steps.Add([this, Id]()
+		{
+			Reply(Id, MakeShared<FJsonValueObject>(InputState()));
+			return true;
+		});
 	}
 	else if (Op == TEXT("activation_cycle"))
 	{

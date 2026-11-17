@@ -66,10 +66,11 @@
 //   detaches its handlers): nothing calls back afterwards.
 // - No web build: no IndexedDB warning, no receipts mirror in localStorage, no page clipboard bridge.
 //
-// Game thread only: a public call from another thread is an ensure (logged once with its callstack) and a Failed
-// result or a neutral value, never a crash; this facade calls a Pay or Restore callback and Done back on the calling
-// thread then, so UScfgSubsystem checks the thread first and delivers on the game thread (ScfgSubsystem.h). Shutdown
-// and the destructor stay checked: the engine runs them.
+// Game thread only: a public call from another thread is refused by ScfgGuard::OffGameThread (ScfgGuard.h: logged,
+// counted, one ensure) with a Failed result or a neutral value, never a crash; this facade calls a Pay or Restore
+// callback and Done back on the calling thread then. That guard is the tests' only: UScfgSubsystem checks the thread
+// with the same guard before it calls the facade, and delivers on the game thread (ScfgSubsystem.h). Shutdown and the
+// destructor stay checked: the engine runs them.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -248,6 +249,9 @@ public:
 	// Godot's _report_error("screen:", err): an Err a screen's action got back (unreachable with the Engine's own
 	// results), reported once like every other ("scfg: screen: ...").
 	void ReportScreenError(const scfg::Err& Error) { ReportError(TEXT("screen:"), Error); }
+	// A failing payment_uri, from the wallet-app button or a screen reading the link (the QR step reads it on every
+	// rebuild): "scfg: cannot build the payment link: ..." once per controller, whoever asks first.
+	void ReportPaymentLinkError(FScfgCheckout& Checkout, const scfg::Err& Error);
 	// The declared title, else the id itself.
 	FString ItemTitle(const FString& ItemId) const;
 	// The chain's display name, else its key.

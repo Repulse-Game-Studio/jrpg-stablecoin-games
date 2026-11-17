@@ -76,6 +76,8 @@ public:
 	virtual bool InputKey(const FInputKeyEventArgs& Params) override;
 
 	int32 WorldClicks = 0;
+	// Keyboard keys the world got (pressed), for the e2e driver: the hidden-sheet step's key.
+	int32 WorldKeys = 0;
 };
 
 UCLASS()

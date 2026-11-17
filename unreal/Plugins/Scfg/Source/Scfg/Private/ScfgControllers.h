@@ -70,6 +70,8 @@ private:
 	// The session id the callback was registered for (Godot's callback_sid).
 	std::optional<std::string> CallbackSid;
 	TWeakPtr<FScfgFacade> Facade;
+	// A failing payment_uri was reported (once per controller: FScfgFacade::ReportPaymentLinkError).
+	bool bPaymentLinkReported = false;
 };
 
 // The controller behind a restore screen.

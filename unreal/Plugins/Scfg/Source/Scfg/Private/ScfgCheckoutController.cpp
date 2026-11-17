@@ -18,14 +18,9 @@
 namespace ScfgCheckoutControllerDetail
 {
 
-static FString Utf8(const std::string& S)
-{
-	return ScfgString::FromUtf8(S);
-}
-
 static FString Opt(const std::optional<std::string>& S)
 {
-	return S ? Utf8(*S) : FString();
+	return S ? ScfgString::FromUtf8(*S) : FString();
 }
 
 // An int as an int64, clamped (the confirmation counts are small; BigInt only for Python's int).
@@ -84,8 +79,8 @@ static bool MethodOption(const scfg::checkout::CheckoutController& Ctl, const ch
 FScfgCheckoutController::FScfgCheckoutController(const TSharedRef<FScfgCheckout>& InCheckout) : Checkout(InCheckout) {}
 
 FString FScfgCheckoutController::GetId() const { return Checkout->GetId(); }
-FString FScfgCheckoutController::State() const { return ScfgCheckoutControllerDetail::Utf8(Checkout->Core().state()); }
-FString FScfgCheckoutController::Step() const { return ScfgCheckoutControllerDetail::Utf8(Checkout->Core().step()); }
+FString FScfgCheckoutController::State() const { return ScfgString::FromUtf8(Checkout->Core().state()); }
+FString FScfgCheckoutController::Step() const { return ScfgString::FromUtf8(Checkout->Core().step()); }
 FString FScfgCheckoutController::Method() const { return ScfgCheckoutControllerDetail::Opt(Checkout->Core().method()); }
 FString FScfgCheckoutController::ChainKey() const { return ScfgCheckoutControllerDetail::Opt(Checkout->Core().chain_key()); }
 FString FScfgCheckoutController::Family() const { return ScfgCheckoutControllerDetail::Opt(Checkout->Core().family()); }
@@ -93,22 +88,22 @@ FString FScfgCheckoutController::Family() const { return ScfgCheckoutControllerD
 FString FScfgCheckoutController::ChainDisplay() const
 {
 	const scfg::chains::Chain* C = Checkout->Core().chain();
-	return C ? ScfgCheckoutControllerDetail::Utf8(C->name) : FString();
+	return C ? ScfgString::FromUtf8(C->name) : FString();
 }
 
-FString FScfgCheckoutController::Kind() const { return ScfgCheckoutControllerDetail::Utf8(Checkout->Core().spec().kind); }
+FString FScfgCheckoutController::Kind() const { return ScfgString::FromUtf8(Checkout->Core().spec().kind); }
 FString FScfgCheckoutController::Title() const { return ScfgConvert::Str(Checkout->Core().spec().title); }
-FString FScfgCheckoutController::Token() const { return ScfgCheckoutControllerDetail::Utf8(Checkout->Core().spec().token); }
-FString FScfgCheckoutController::PriceText() const { return ScfgCheckoutControllerDetail::Utf8(Checkout->Core().price_text()); }
-FString FScfgCheckoutController::PayAmountText() const { return ScfgCheckoutControllerDetail::Utf8(Checkout->Core().pay_amount_text()); }
-FString FScfgCheckoutController::Amount() const { return ScfgCheckoutControllerDetail::Utf8(Checkout->Core().amount().str()); }
+FString FScfgCheckoutController::Token() const { return ScfgString::FromUtf8(Checkout->Core().spec().token); }
+FString FScfgCheckoutController::PriceText() const { return ScfgString::FromUtf8(Checkout->Core().price_text()); }
+FString FScfgCheckoutController::PayAmountText() const { return ScfgString::FromUtf8(Checkout->Core().pay_amount_text()); }
+FString FScfgCheckoutController::Amount() const { return ScfgString::FromUtf8(Checkout->Core().amount().str()); }
 
 TArray<FString> FScfgCheckoutController::TipPresets() const
 {
 	TArray<FString> Out;
 	for (const scfg::Dec& Preset : Checkout->Core().tip_presets())
 	{
-		Out.Add(ScfgCheckoutControllerDetail::Utf8(Preset.str()));
+		Out.Add(ScfgString::FromUtf8(Preset.str()));
 	}
 	return Out;
 }
@@ -124,7 +119,7 @@ TArray<FScfgChainOptionView> FScfgCheckoutController::ChainOptions() const
 	TArray<FScfgChainOptionView> Out;
 	for (const scfg::checkout::ChainOption& O : Checkout->Core().chain_options())
 	{
-		Out.Add({ScfgCheckoutControllerDetail::Utf8(O.key), ScfgCheckoutControllerDetail::Utf8(O.name), ScfgCheckoutControllerDetail::Utf8(O.fee_hint)});
+		Out.Add({ScfgString::FromUtf8(O.key), ScfgString::FromUtf8(O.name), ScfgString::FromUtf8(O.fee_hint)});
 	}
 	return Out;
 }
@@ -134,7 +129,7 @@ TArray<FString> FScfgCheckoutController::Methods() const
 	TArray<FString> Out;
 	for (const std::string& M : Checkout->Core().methods())
 	{
-		Out.Add(ScfgCheckoutControllerDetail::Utf8(M));
+		Out.Add(ScfgString::FromUtf8(M));
 	}
 	return Out;
 }
@@ -149,7 +144,11 @@ FString FScfgCheckoutController::PaymentUri() const
 	const scfg::Result<std::optional<std::string>> Uri = Checkout->Core().payment_uri();
 	if (!Uri.ok())
 	{
-		ScfgCheckoutControllerDetail::Report(Checkout->GetFacade(), Uri.err());
+		// (once per controller: the QR step reads it on every rebuild, the wallet-app button on every press)
+		if (const TSharedPtr<FScfgFacade> F = Checkout->GetFacade())
+		{
+			F->ReportPaymentLinkError(*Checkout, Uri.err());
+		}
 		return FString();
 	}
 	return ScfgCheckoutControllerDetail::Opt(Uri.value());
@@ -196,14 +195,14 @@ FString FScfgCheckoutController::MessageId() const
 	}
 	if (Ctl.error && !Ctl.error->empty())
 	{
-		return ScfgCheckoutControllerDetail::Utf8(*Ctl.error);
+		return ScfgString::FromUtf8(*Ctl.error);
 	}
 	// message() without an error: the text of one of MESSAGES (solana_unavailable), found by its text.
 	for (const auto& [Id, English] : scfg::checkout::MESSAGES())
 	{
 		if (English == *Text)
 		{
-			return ScfgCheckoutControllerDetail::Utf8(Id);
+			return ScfgString::FromUtf8(Id);
 		}
 	}
 	return FString();
@@ -216,7 +215,7 @@ TArray<FString> FScfgCheckoutController::DevWarnings() const
 	TArray<FString> Out;
 	for (const std::string& W : Checkout->Core().dev_warnings())
 	{
-		Out.Add(ScfgCheckoutControllerDetail::Utf8(W));
+		Out.Add(ScfgString::FromUtf8(W));
 	}
 	return Out;
 }
@@ -224,8 +223,8 @@ TArray<FString> FScfgCheckoutController::DevWarnings() const
 bool FScfgCheckoutController::IsTestnet() const { return Checkout->Core().config().testnet; }
 bool FScfgCheckoutController::QrWalletButton() const { return ScfgCheckoutControllerDetail::MethodOption(Checkout->Core(), "qr", "wallet_button"); }
 bool FScfgCheckoutController::AllowTxPaste() const { return ScfgCheckoutControllerDetail::MethodOption(Checkout->Core(), "manual", "allow_tx_paste"); }
-FString FScfgCheckoutController::CustomAmount() const { return ScfgCheckoutControllerDetail::Utf8(Checkout->Core().custom_amount); }
-FString FScfgCheckoutController::TxInput() const { return ScfgCheckoutControllerDetail::Utf8(Checkout->Core().tx_input); }
+FString FScfgCheckoutController::CustomAmount() const { return ScfgString::FromUtf8(Checkout->Core().custom_amount); }
+FString FScfgCheckoutController::TxInput() const { return ScfgString::FromUtf8(Checkout->Core().tx_input); }
 
 bool FScfgCheckoutController::IsMobile() const
 {
@@ -233,7 +232,7 @@ bool FScfgCheckoutController::IsMobile() const
 	return F.IsValid() && F->IsMobile();
 }
 
-FString FScfgCheckoutController::Accent() const { return ScfgCheckoutControllerDetail::Utf8(Checkout->Core().config().accent); }
+FString FScfgCheckoutController::Accent() const { return ScfgString::FromUtf8(Checkout->Core().config().accent); }
 
 FString FScfgCheckoutController::LogoPath() const
 {
@@ -305,10 +304,10 @@ void FScfgCheckoutController::Paste() { Checkout->Paste(); }
 FScfgRestoreController::FScfgRestoreController(const TSharedRef<FScfgRestore>& InRestore) : Restore(InRestore) {}
 
 FString FScfgRestoreController::GetId() const { return Restore->GetId(); }
-FString FScfgRestoreController::State() const { return ScfgCheckoutControllerDetail::Utf8(Restore->Core().state()); }
+FString FScfgRestoreController::State() const { return ScfgString::FromUtf8(Restore->Core().state()); }
 FString FScfgRestoreController::MessageId() const { return Restore->Core().message() ? ScfgCheckoutControllerDetail::Opt(Restore->Core().error) : FString(); }
 FString FScfgRestoreController::Message() const { return ScfgTexts::RestoreMessage(MessageId()); }
-FString FScfgRestoreController::TxInput() const { return ScfgCheckoutControllerDetail::Utf8(Restore->Core().tx_input); }
+FString FScfgRestoreController::TxInput() const { return ScfgString::FromUtf8(Restore->Core().tx_input); }
 int32 FScfgRestoreController::NumCandidates() const { return int32(Restore->Core().candidates().size()); }
 
 TArray<int32> FScfgRestoreController::PendingChoices() const
@@ -330,13 +329,13 @@ FScfgRestoreCandidateView FScfgRestoreController::Candidate(int32 Index) const
 		return Out;
 	}
 	const scfg::restore::RestoreCandidate& C = All[size_t(Index)];
-	Out.Chain = ScfgCheckoutControllerDetail::Utf8(C.chain);
-	Out.Token = ScfgCheckoutControllerDetail::Utf8(C.token);
+	Out.Chain = ScfgString::FromUtf8(C.chain);
+	Out.Token = ScfgString::FromUtf8(C.token);
 	const scfg::BigInt Value = std::visit([](const auto& T) { return T.value; }, C.transfer);
-	Out.Amount = ScfgCheckoutControllerDetail::Utf8(scfg::amounts::format_units(Value));
+	Out.Amount = ScfgString::FromUtf8(scfg::amounts::format_units(Value));
 	for (const std::string& Choice : C.choices)
 	{
-		Out.Choices.Add(ScfgCheckoutControllerDetail::Utf8(Choice));
+		Out.Choices.Add(ScfgString::FromUtf8(Choice));
 	}
 	return Out;
 }
@@ -345,7 +344,7 @@ FString FScfgRestoreController::Choice(int32 Index) const
 {
 	const std::map<int64_t, std::string>& Choices = Restore->Core().choices();
 	const auto Found = Choices.find(Index);
-	return Found != Choices.end() ? ScfgCheckoutControllerDetail::Utf8(Found->second) : FString();
+	return Found != Choices.end() ? ScfgString::FromUtf8(Found->second) : FString();
 }
 
 FString FScfgRestoreController::ChoicesSignature() const
@@ -353,7 +352,7 @@ FString FScfgRestoreController::ChoicesSignature() const
 	FString Out;
 	for (const auto& [Index, Choice] : Restore->Core().choices())
 	{
-		Out += FString::Printf(TEXT("%lld=%s;"), static_cast<long long>(Index), *ScfgCheckoutControllerDetail::Utf8(Choice));
+		Out += FString::Printf(TEXT("%lld=%s;"), static_cast<long long>(Index), *ScfgString::FromUtf8(Choice));
 	}
 	return Out;
 }

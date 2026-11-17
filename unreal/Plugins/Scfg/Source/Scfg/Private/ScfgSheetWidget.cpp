@@ -11,6 +11,7 @@
 #include "ScfgCheckoutController.h"
 #include "ScfgControllers.h"
 #include "ScfgDefaultSheetHost.h"
+#include "ScfgDefaultSheetHostAccess.h"
 #include "UI/SScfgPaymentSheet.h"
 #include "UI/SScfgRestoreScreen.h"
 #include "UI/ScfgStyle.h"

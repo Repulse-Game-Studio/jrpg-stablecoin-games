@@ -2,6 +2,72 @@
 // (their non-thread, non-frame-pump parts), with the real Engine over a fake transport that answers each JSON-RPC
 // request on a later frame, and a private FTSTicker that each test ticks by hand (one "frame": the fake's answers due
 // now, then the worker's ticker).
+//
+// THE MAPPING, every test of the two twins (Godot's test_worker.gd, then Python's test_worker.py), to the test here
+// that has its behaviour (the tests also name their twins above them), or why there is none:
+//   test_initial_snapshot_taken_at_construction                    TheFirstSnapshotIsTakenAtCreation
+//   test_run_once_reverifies_only_first_time_and_publishes_snapshot TheFirstTickReverifiesOnlyOnce
+//   test_waiting_outcomes_without_error_are_not_published          OnlyNewsIsPublishedAsAnOutcome
+//   test_waiting_outcome_with_error_is_published                   OnlyNewsIsPublishedAsAnOutcome
+//   test_submitted_commands_run_before_tick_and_resolve_jobs       CommandsRunBeforeTheTickInOrder
+//   test_a_command_submitted_by_a_command_runs_before_the_same_tick ACommandSubmittedByACallbackRunsBeforeTheTick
+//   test_cancelled_job_is_skipped                                  StopCancelsEverything
+//   test_timer_loop_wake_and_stop                                  TicksComeEveryInterval
+//   test_loop_survives_errors                                      AFailingTickIsReportedAndTheNextComesLater
+//   test_async_commands_are_awaited                                TheReceiptAndSolanaCommandsRunThroughTheWorker (each
+//                                                                  network command finishes when the node answers, frames later)
+//   test_pump_a_command_submitted_mid_tick_waits_for_the_tick      CommandsNeverInterleaveWithATick
+//   test_pump_commands_run_before_a_due_tick_and_plain_results_resolve CommandsRunBeforeTheTickInOrder
+//   test_pump_a_submit_landing_mid_run_gets_its_follow_up_at_once  CommandsNeverInterleaveWithATick
+//   test_pump_a_run_without_a_mid_run_wake_waits_the_interval      TicksComeEveryInterval
+//   test_pump_a_failing_tick_reports_and_schedules_the_next        AFailingTickIsReportedAndTheNextComesLater
+//   test_pump_stop_cancels_queued_commands_and_runs_nothing_more   StopCancelsEverything
+//   test_commands_never_interleave_with_a_tick                     CommandsNeverInterleaveWithATick
+//   test_wake_during_a_run_schedules_exactly_one_follow_up         WakesDuringATickGiveExactlyOneFollowUp
+//   test_first_run_reverifies_once                                 TheFirstTickReverifiesOnlyOnce
+//   test_a_failing_reverify_ends_the_pass_and_is_not_retried       AFailingTickIsReportedAndTheNextComesLater
+//   test_job_reports_exception                                     CommandsRunBeforeTheTickInOrder (a failing command gets
+//                                                                  its Err), EveryErrIsReportedOnce
+//   test_job_finished_signal_fires_once_per_job                    none: Godot's ScfgJob.finished signal; here a command's
+//                                                                  callback is called once (every test counts it), and the core's
+//                                                                  Job is the CMake CoTests'
+//   test_stop_cancels_the_timer                                    StopCancelsEverything ("no tick comes" after Stop()),
+//                                                                  TicksComeEveryInterval ("no tick after Stop()")
+//   test_no_run_after_stop_even_if_a_run_is_in_flight              StopCancelsEverything
+//   test_job_pending_result_is_an_error                            none: ScfgJob.result() of a pending job; the glue has no
+//                                                                  such reader (a callback gets the Result once, when done)
+//   test_reentrant_run_once_from_a_command_never_overlaps_ticks    none: there is no run_once here (ticks come only from the
+//                                                                  worker's own ticker); no overlap: CommandsNeverInterleaveWithATick
+//   test_wake_and_submit_from_a_command_give_one_follow_up         WakesDuringATickGiveExactlyOneFollowUp
+//   test_cancelled_job_exception_is_the_cancelled_error            StopCancelsEverything (CancelledError)
+//   test_submit_on_a_stopped_worker_is_cancelled_but_before_start_it_queues StopCancelsEverything
+//   test_timer_firing_during_a_wake_triggered_run_yields_one_follow_up WakesDuringATickGiveExactlyOneFollowUp (one tick
+//                                                                  pending at most, whatever asks)
+//   test_joining_run_once_returns_the_chain_failure                AFailingTickIsReportedAndTheNextComesLater ("every waiter
+//                                                                  got it")
+//   test_job_wait_returns_at_once_on_a_done_job                    none: ScfgJob.wait() (GDScript await); the glue hands out
+//                                                                  callbacks, never a Future (Co.h's are the CMake CoTests')
+//   test_job_wait_resumes_when_the_job_finishes                    none: the same
+//   test_tree_scheduler_fires_and_cancels                          none: Godot's SceneTree scheduler; here the FTSTicker
+//                                                                  element, which every test drives (a private ticker)
+//   test_tree_scheduler_survives_a_freed_target                    none: the same (no Callable target to free)
+//   test_worker_builds_the_default_scheduler_from_a_tree           none: the same; the default core ticker runs the worker in
+//                                                                  Scfg.Glue.Http.TheWorkerOverTheRealTransport
+//   (test_worker.py) test_initial_snapshot_taken_at_construction   TheFirstSnapshotIsTakenAtCreation
+//   test_run_once_reverifies_only_first_time_and_publishes_snapshot TheFirstTickReverifiesOnlyOnce
+//   test_waiting_outcomes_without_error_are_not_published          OnlyNewsIsPublishedAsAnOutcome
+//   test_waiting_outcome_with_error_is_published                   OnlyNewsIsPublishedAsAnOutcome
+//   test_submitted_commands_run_before_tick_and_resolve_futures    CommandsRunBeforeTheTickInOrder
+//   test_a_command_submitted_by_a_command_runs_before_the_same_tick ACommandSubmittedByACallbackRunsBeforeTheTick
+//   test_cancelled_future_is_skipped                               StopCancelsEverything
+//   test_thread_loop_wake_and_stop                                 TicksComeEveryInterval (Python's thread loop; here the
+//                                                                  ticker: no thread)
+//   test_loop_survives_exceptions                                  AFailingTickIsReportedAndTheNextComesLater
+//   test_generator_commands_are_driven_by_the_engine               TheReceiptAndSolanaCommandsRunThroughTheWorker (the network
+//                                                                  commands run as scfg::Job coroutines on the Engine)
+// The tests here without a twin are the Unreal glue's own: refused stores, OnStateChanged's order and handlers,
+// teardown, Stop() from inside the Engine, a handler destroying the worker, the cancelled or failed startup reverify
+// through Stop(), the receipt commands, the fresh snapshot at Stop().
 #include "Containers/Ticker.h"
 #include "Misc/AutomationTest.h"
 
@@ -683,6 +749,36 @@ bool FScfgWorkerStopTest::RunTest(const FString& Parameters)
 	W.Worker->Discard("ps_x", Again.Callback());
 	W.Frames(5);
 	TestTrue(TEXT("Start() accepts work again"), Again.Ok());
+	TestEqual(TEXT("errors"), W.Errors->Num(), 0);
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerStopSnapshotTest, "StopTakesAFreshSnapshot")
+
+// No Python or Godot twin (their worker lets the pass finish): an answer that arrived since the last frame has
+// written its session into the Engine, and the command was not finished by the ticker yet; Stop() takes the snapshot
+// from the Engine, so GetSnapshot() (what the facade's Shutdown saves) has the session (final review F4).
+bool FScfgWorkerStopSnapshotTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	FWorld W;
+	if (!TestTrue(TEXT("created"), W.Make().ok()))
+	{
+		return false;
+	}
+	W.Worker->Start();
+	W.Frames(10);  // the startup tick
+	TGot<Json> Started;
+	W.Worker->StartSession("unlock", "base", Json::dict({{"item", "chapter2"}}), Started.Callback());
+	W.Ticker.Tick(0.1f);  // the command starts and asks the node
+	TestEqual(TEXT("no session yet"), static_cast<int32>(W.Worker->GetSnapshot().pending.as_dict().size()), 0);
+	W.Fake->Pump();  // the answer arrives: the Engine stores the session; no worker frame since
+	TestEqual(TEXT("the Engine has it"), static_cast<int32>(W.Worker->GetEngine().pending().as_dict().size()), 1);
+	TestEqual(TEXT("the last snapshot does not"), static_cast<int32>(W.Worker->GetSnapshot().pending.as_dict().size()), 0);
+	W.Worker->Stop();
+	TestEqual(TEXT("Stop() took a fresh snapshot"), static_cast<int32>(W.Worker->GetSnapshot().pending.as_dict().size()), 1);
+	W.Frame();
+	TestTrue(TEXT("the command's callback still comes, on the next frame"), Started.Value.has_value());
 	TestEqual(TEXT("errors"), W.Errors->Num(), 0);
 	return true;
 }

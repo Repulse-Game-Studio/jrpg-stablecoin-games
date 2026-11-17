@@ -22,9 +22,16 @@
 // The behaviour is ScfgFacade.h's (the engine-object-free part this wraps): misuse never crashes (one "LogScfg: Error:
 // scfg: ..." line and a Failed result with the code), AlreadyOwned comes back at once, keep playing resolves Pending,
 // callbacks and the event fire once per payment (handlers must be idempotent), and a game-instance shutdown with a
-// sheet open resolves the call without delivering anything. The sheet is the plugin's own Slate sheet on the game
+// sheet open resolves the call without delivering anything: no callback (PayAsync's and RestoreAsync's OnResolved
+// included, as the async nodes' pins), no event, no notification. The sheet is the plugin's own Slate sheet on the game
 // viewport (FScfgDefaultSheetHost, ScfgDefaultSheetHost.h) unless SetSheetHost() gave another; a game instance
 // without a viewport shows none, and Pay and Restore resolve Failed "sheet.unavailable".
+//
+// WHERE IT EXISTS. Every game instance gets one, except on a dedicated server (ShouldCreateSubsystem: a server process,
+// or a play-in-editor server instance), which can never show a sheet. Every subsystem of a process reads and writes
+// the one Saved/Scfg/state.json: several game instances in one process (play-in-editor with two or more clients) share
+// it, each saving from its own snapshot, so a receipt one client stored can be dropped by the other's next save until
+// a restart (which reads the file again) or a Restore brings it back. Test payments with one client.
 //
 // Deinitialize (or BeginDestroy, if Deinitialize never ran) tears down in ScfgFacade.h's TEARDOWN order, exactly:
 // 1. the open sheets and controllers are closed; 2. the worker is stopped and destroyed (its destructor destroys its
@@ -58,6 +65,8 @@ class SCFG_API UScfgSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
+	// False on a dedicated server (see WHERE IT EXISTS).
+	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 	// A subsystem destroyed without Deinitialize (its game instance collected without Shutdown) tears down here,
@@ -90,7 +99,8 @@ public:
 	void Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, TFunction<void(const FScfgPaymentResult&)> Callback);
 	// Show the payment sheet; OnResolved gets this call's result once, when the player closes the sheet (or at once:
 	// AlreadyOwned, Failed). Without a callback, a cancel and the later results (a payment the player kept playing
-	// through) also reach OnPaymentResolved: a handler of both must be idempotent. Unity's awaited Pay.
+	// through) also reach OnPaymentResolved: a handler of both must be idempotent. Unity's awaited Pay. A game-instance
+	// shutdown with the sheet open drops OnResolved (it is not called), as it drops the Pay node's pin.
 	void PayAsync(EScfgPayKind Kind, const FScfgPayRequest& Request,
 		TFunction<void(const FScfgPaymentResult&)> OnResolved);
 	// Show the restore screen (the player pastes a transaction hash); OnRestored gets the result once a restore
@@ -98,7 +108,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "SCFG", meta = (AutoCreateRefTerm = "OnRestored"))
 	void Restore(const FOnScfgRestored& OnRestored);
 	// Show the restore screen; OnResolved gets the call's result when the screen is closed: Restored, NothingFound,
-	// Cancelled (closed before a restore finished) or Failed. Callback, if given, as Restore's OnRestored.
+	// Cancelled (closed before a restore finished) or Failed. Callback, if given, as Restore's OnRestored. A
+	// game-instance shutdown with the screen open drops both (neither is called).
 	void RestoreAsync(TFunction<void(const FScfgRestoreResult&)> OnResolved,
 		TFunction<void(const FScfgRestoreResult&)> Callback = nullptr);
 
@@ -144,8 +155,6 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "SCFG")
 	FOnScfgReceiptsChanged OnReceiptsChanged;
 
-	// The flows (for the screens, task 7); null outside Initialize..Deinitialize.
-	FScfgFacade* GetFacade() const { return Facade.Get(); }
 	// Deinitialize has begun: the flows resolve without delivering anything.
 	bool IsShuttingDown() const;
 	// How many calls, process-wide, were refused because they came from another thread (each logged once).
@@ -153,6 +162,16 @@ public:
 
 private:
 	friend struct FScfgSubsystemTestAccess;
+	// The plugin's own access (Private/ScfgSubsystemAccess.h): the facade for the tests and the e2e driver, the
+	// unguarded async starts for the nodes.
+	friend struct FScfgSubsystemAccess;
+
+	// PayAsync / RestoreAsync with OnResolved as given: the async nodes, which drop a teardown result themselves (and
+	// are released by it).
+	void StartPayAsync(EScfgPayKind Kind, const FScfgPayRequest& Request,
+		TFunction<void(const FScfgPaymentResult&)> OnResolved);
+	void StartRestoreAsync(TFunction<void(const FScfgRestoreResult&)> OnResolved,
+		TFunction<void(const FScfgRestoreResult&)> Callback);
 
 	// Builds the facade (Initialize: the defaults; the tests: their hooks) and binds the events.
 	void StartFacade(const FScfgFacadeOptions& Options);

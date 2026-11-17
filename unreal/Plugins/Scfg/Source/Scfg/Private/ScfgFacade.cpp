@@ -2,6 +2,7 @@
 #include "ScfgFacade.h"
 
 #include "ScfgConvert.h"
+#include "ScfgGuard.h"
 #include "ScfgHttpTransport.h"
 #include "ScfgLocalServer.h"
 #include "ScfgLog.h"
@@ -31,17 +32,6 @@ namespace ScfgFacadeDetail
 // Characters that can appear in a transaction hash (hex) or a Solana signature (base58).
 const FString TxChars = TEXT("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
 
-FString Utf8(const std::string& S)
-{
-	return ScfgString::FromUtf8(S);
-}
-
-// A ConfigError's code, else the Err's kind ("TypeError").
-FString ErrCode(const scfg::Err& Error)
-{
-	return Utf8(Error.code.empty() ? Error.kind : Error.code);
-}
-
 bool Truthy(const std::optional<std::string>& S)
 {
 	return S.has_value() && !S->empty();
@@ -60,13 +50,6 @@ double Number(const scfg::Json& V)
 		return static_cast<double>(V.as_int64());
 	}
 	return V.is_float() ? V.as_float() : 0.0;
-}
-
-// A call from another thread is misuse: one ensure (logged with its callstack), then the caller's Failed result or
-// neutral value. Nothing of the facade is touched off the game thread.
-bool OffGameThread(const TCHAR* What)
-{
-	return !ensureMsgf(IsInGameThread(), TEXT("scfg: %s must be called on the game thread"), What);
 }
 
 scfg::Err WrongThread(const TCHAR* What)
@@ -199,7 +182,7 @@ FTSTicker& FScfgFacade::Ticker() const
 
 void FScfgFacade::Start()
 {
-	if (ScfgFacadeDetail::OffGameThread(TEXT("Start()")))
+	if (ScfgGuard::OffGameThread(TEXT("Start()")))
 	{
 		return;
 	}
@@ -279,7 +262,7 @@ FString FScfgFacade::NewId(const TCHAR* Prefix)
 
 TOptional<scfg::Err> FScfgFacade::Misuse(const scfg::Err& Error)
 {
-	Reporter->Error(TEXT("scfg: ") + ScfgFacadeDetail::Utf8(Error.message));
+	Reporter->Error(TEXT("scfg: ") + ScfgString::FromUtf8(Error.message));
 	return Error;
 }
 
@@ -290,7 +273,7 @@ TOptional<scfg::Err> FScfgFacade::ConfigMisuse(const char* Code, const std::stri
 
 void FScfgFacade::ReportError(const FString& Heading, const scfg::Err& Error)
 {
-	Reporter->Error(FString::Printf(TEXT("scfg: %s %s"), *Heading, *ScfgFacadeDetail::Utf8(Error.str())));
+	Reporter->Error(FString::Printf(TEXT("scfg: %s %s"), *Heading, *ScfgString::FromUtf8(Error.str())));
 }
 
 void FScfgFacade::Warn(const FString& Message)
@@ -316,7 +299,7 @@ scfg::Result<const scfg::config::Config*> FScfgFacade::RequireConfig(bool bRepor
 
 TOptional<scfg::Err> FScfgFacade::AddChain(const FString& Key, const FScfgChain& Chain)
 {
-	if (ScfgFacadeDetail::OffGameThread(TEXT("AddChain()")))
+	if (ScfgGuard::OffGameThread(TEXT("AddChain()")))
 	{
 		return ScfgFacadeDetail::WrongThread(TEXT("AddChain()"));
 	}
@@ -335,7 +318,7 @@ TOptional<scfg::Err> FScfgFacade::AddChain(const FString& Key, const FScfgChain&
 
 TOptional<scfg::Err> FScfgFacade::Configure(const FScfgOptions& InOptions)
 {
-	if (ScfgFacadeDetail::OffGameThread(TEXT("Configure()")))
+	if (ScfgGuard::OffGameThread(TEXT("Configure()")))
 	{
 		return ScfgFacadeDetail::WrongThread(TEXT("Configure()"));
 	}
@@ -355,7 +338,7 @@ TOptional<scfg::Err> FScfgFacade::Configure(const FScfgOptions& InOptions)
 	if (Made.logo)
 	{
 		const FString Root = Options.ProjectDir.IsEmpty() ? FPaths::ProjectDir() : Options.ProjectDir;
-		Logo = FPaths::ConvertRelativePathToFull(Root / ScfgFacadeDetail::Utf8(*Made.logo));
+		Logo = FPaths::ConvertRelativePathToFull(Root / ScfgString::FromUtf8(*Made.logo));
 		if (!IFileManager::Get().FileExists(*Logo))
 		{
 			return ConfigMisuse("logo.file_missing",
@@ -370,7 +353,7 @@ TOptional<scfg::Err> FScfgFacade::Configure(const FScfgOptions& InOptions)
 
 TOptional<scfg::Err> FScfgFacade::AddItem(const FString& ItemId, const FScfgItem& Item)
 {
-	if (ScfgFacadeDetail::OffGameThread(TEXT("AddItem()")))
+	if (ScfgGuard::OffGameThread(TEXT("AddItem()")))
 	{
 		return ScfgFacadeDetail::WrongThread(TEXT("AddItem()"));
 	}
@@ -418,7 +401,7 @@ FScfgStore& FScfgFacade::Stored()
 		{
 			const TCHAR* Heading = *Loading ? TEXT("cannot read the stored receipts:")
 											: TEXT("cannot save the payment state:");
-			Reporter->Error(FString::Printf(TEXT("scfg: %s %s"), Heading, *ScfgFacadeDetail::Utf8(Error.str())));
+			Reporter->Error(FString::Printf(TEXT("scfg: %s %s"), Heading, *ScfgString::FromUtf8(Error.str())));
 		};
 		StoreOptions.OnWarning = [Reporter = Reporter](const FString& Warning)
 		{ Reporter->Warning(TEXT("scfg: ") + Warning); };
@@ -464,7 +447,7 @@ FScfgWorker* FScfgFacade::EnsureStarted()
 		WorkerOptions.Clock = [Clock = Options.Clock]() { return static_cast<int64>(std::floor(Clock())); };
 	}
 	WorkerOptions.OnError = [Reporter = Reporter](const scfg::Err& Error)
-	{ Reporter->Error(TEXT("scfg: worker error: ") + ScfgFacadeDetail::Utf8(Error.str())); };
+	{ Reporter->Error(TEXT("scfg: worker error: ") + ScfgString::FromUtf8(Error.str())); };
 	if (Options.WorkerInterval)
 	{
 		WorkerOptions.Interval = Options.WorkerInterval;
@@ -588,7 +571,7 @@ TOptional<scfg::receipts::Ownership> FScfgFacade::Ownership()
 
 bool FScfgFacade::Owns(const FString& ItemId)
 {
-	if (ScfgFacadeDetail::OffGameThread(TEXT("Owns()")) || !RequireConfig(true).ok())
+	if (ScfgGuard::OffGameThread(TEXT("Owns()")) || !RequireConfig(true).ok())
 	{
 		return false;
 	}
@@ -604,7 +587,7 @@ bool FScfgFacade::Owns(const FString& ItemId)
 
 bool FScfgFacade::HasTipped()
 {
-	if (ScfgFacadeDetail::OffGameThread(TEXT("HasTipped()")) || !RequireConfig(true).ok())
+	if (ScfgGuard::OffGameThread(TEXT("HasTipped()")) || !RequireConfig(true).ok())
 	{
 		return false;
 	}
@@ -614,17 +597,17 @@ bool FScfgFacade::HasTipped()
 
 FString FScfgFacade::TipTotal()
 {
-	if (ScfgFacadeDetail::OffGameThread(TEXT("TipTotal()")) || !RequireConfig(true).ok())
+	if (ScfgGuard::OffGameThread(TEXT("TipTotal()")) || !RequireConfig(true).ok())
 	{
 		return TEXT("0");
 	}
 	const TOptional<scfg::receipts::Ownership> O = Ownership();
-	return O.IsSet() ? ScfgFacadeDetail::Utf8(O->tip_total.str()) : FString(TEXT("0"));
+	return O.IsSet() ? ScfgString::FromUtf8(O->tip_total.str()) : FString(TEXT("0"));
 }
 
 scfg::Json FScfgFacade::Receipts()
 {
-	if (ScfgFacadeDetail::OffGameThread(TEXT("Receipts()")))
+	if (ScfgGuard::OffGameThread(TEXT("Receipts()")))
 	{
 		return scfg::Json::dict();
 	}
@@ -633,7 +616,7 @@ scfg::Json FScfgFacade::Receipts()
 
 scfg::Json FScfgFacade::Pending()
 {
-	if (ScfgFacadeDetail::OffGameThread(TEXT("Pending()")))
+	if (ScfgGuard::OffGameThread(TEXT("Pending()")))
 	{
 		return scfg::Json::dict();
 	}
@@ -642,7 +625,7 @@ scfg::Json FScfgFacade::Pending()
 
 void FScfgFacade::ClearLocalData()
 {
-	if (ScfgFacadeDetail::OffGameThread(TEXT("ClearLocalData()")) || bShuttingDown)
+	if (ScfgGuard::OffGameThread(TEXT("ClearLocalData()")) || bShuttingDown)
 	{
 		return;
 	}
@@ -689,7 +672,7 @@ void FScfgFacade::ClearLocalData()
 
 scfg::Result<FString> FScfgFacade::ExportReceipts(const FString& Path)
 {
-	if (ScfgFacadeDetail::OffGameThread(TEXT("ExportReceipts()")))
+	if (ScfgGuard::OffGameThread(TEXT("ExportReceipts()")))
 	{
 		return ScfgFacadeDetail::WrongThread(TEXT("ExportReceipts()"));
 	}
@@ -753,10 +736,9 @@ void FScfgFacade::Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, FScfgPa
 	{
 		Done = [](const FScfgPaymentResult&) {};
 	}
-	if (ScfgFacadeDetail::OffGameThread(TEXT("Pay()")))
+	if (ScfgGuard::OffGameThread(TEXT("Pay()")))
 	{
-		FScfgPaymentResult R = ScfgFacadeDetail::Result(EScfgPaymentStatus::Failed, Kind, Request.Item, Request.Token);
-		R.Error = TEXT("RuntimeError");
+		const FScfgPaymentResult R = ScfgGuard::PaymentNotRunning(Kind, Request.Item, Request.Token);
 		Call(Callback, R);
 		Done(R);
 		return;
@@ -776,7 +758,7 @@ void FScfgFacade::Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, FScfgPa
 			std::find(Owned->owned.begin(), Owned->owned.end(), S.item.as_str()) != Owned->owned.end())
 		{
 			const FScfgPaymentResult Short = ScfgFacadeDetail::Result(EScfgPaymentStatus::AlreadyOwned, Kind,
-				ScfgConvert::Str(S.item), ScfgFacadeDetail::Utf8(S.token));
+				ScfgConvert::Str(S.item), ScfgString::FromUtf8(S.token));
 			Call(Callback, Short);
 			Done(Short);
 			return;
@@ -838,11 +820,9 @@ void FScfgFacade::Restore(FScfgRestoreCallback Callback, FRestoreDone Done)
 	{
 		Done = [](const FScfgRestoreResult&) {};
 	}
-	if (ScfgFacadeDetail::OffGameThread(TEXT("Restore()")))
+	if (ScfgGuard::OffGameThread(TEXT("Restore()")))
 	{
-		FScfgRestoreResult R;
-		R.Status = EScfgRestoreStatus::Failed;
-		R.Error = TEXT("RuntimeError");
+		const FScfgRestoreResult R = ScfgGuard::RestoreNotRunning();
 		Call(Callback, R);
 		Done(R);
 		return;
@@ -895,10 +875,10 @@ void FScfgFacade::FailedPayment(EScfgPayKind Kind, const FScfgPayRequest& Reques
 {
 	if (!bReported)
 	{
-		Reporter->Error(TEXT("scfg: ") + ScfgFacadeDetail::Utf8(Error.message));
+		Reporter->Error(TEXT("scfg: ") + ScfgString::FromUtf8(Error.message));
 	}
 	FScfgPaymentResult R = ScfgFacadeDetail::Result(EScfgPaymentStatus::Failed, Kind, Request.Item, Request.Token);
-	R.Error = ScfgFacadeDetail::ErrCode(Error);
+	R.Error = ScfgGuard::ErrCode(Error);
 	Call(Callback, R);
 	Done(R);
 }
@@ -908,11 +888,11 @@ void FScfgFacade::FailedRestore(
 {
 	if (!bReported)
 	{
-		Reporter->Error(TEXT("scfg: ") + ScfgFacadeDetail::Utf8(Error.message));
+		Reporter->Error(TEXT("scfg: ") + ScfgString::FromUtf8(Error.message));
 	}
 	FScfgRestoreResult R;
 	R.Status = EScfgRestoreStatus::Failed;
-	R.Error = ScfgFacadeDetail::ErrCode(Error);
+	R.Error = ScfgGuard::ErrCode(Error);
 	Call(Callback, R);
 	Done(R);
 }
@@ -1038,7 +1018,7 @@ void FScfgFacade::OpenBrowser(FScfgCheckout& Checkout)
 	const std::optional<std::string> Url = Checkout.Controller->open_browser();
 	if (ScfgFacadeDetail::Truthy(Url))
 	{
-		Options.Platform->OpenUrl(ScfgFacadeDetail::Utf8(*Url));
+		Options.Platform->OpenUrl(ScfgString::FromUtf8(*Url));
 	}
 }
 
@@ -1051,13 +1031,23 @@ void FScfgFacade::OpenWalletApp(FScfgCheckout& Checkout)
 	const scfg::Result<std::optional<std::string>> Uri = Checkout.Controller->payment_uri();
 	if (!Uri.ok())
 	{
-		ReportError(TEXT("cannot build the payment link:"), Uri.err());
+		ReportPaymentLinkError(Checkout, Uri.err());
 		return;
 	}
 	if (ScfgFacadeDetail::Truthy(Uri.value()))
 	{
-		Options.Platform->OpenUrl(ScfgFacadeDetail::Utf8(*Uri.value()));
+		Options.Platform->OpenUrl(ScfgString::FromUtf8(*Uri.value()));
 	}
+}
+
+void FScfgFacade::ReportPaymentLinkError(FScfgCheckout& Checkout, const scfg::Err& Error)
+{
+	if (Checkout.bPaymentLinkReported)
+	{
+		return;
+	}
+	Checkout.bPaymentLinkReported = true;
+	ReportError(TEXT("cannot build the payment link:"), Error);
 }
 
 void FScfgFacade::OpenExplorer(const FString& Url)
@@ -1139,7 +1129,7 @@ FString FScfgFacade::ItemTitle(const FString& ItemId) const
 	{
 		if (const scfg::models::Item* Item = Config->items.find(ScfgString::ToUtf8(ItemId)))
 		{
-			return ScfgFacadeDetail::Utf8(Item->title);
+			return ScfgString::FromUtf8(Item->title);
 		}
 	}
 	return ItemId;
@@ -1152,7 +1142,7 @@ FString FScfgFacade::ChainName(const FString& ChainKey) const
 		const scfg::OrderedMap<scfg::chains::Chain> Registry = Config->registry();
 		if (const scfg::chains::Chain* Chain = Registry.find(ScfgString::ToUtf8(ChainKey)))
 		{
-			return ScfgFacadeDetail::Utf8(Chain->name);
+			return ScfgString::FromUtf8(Chain->name);
 		}
 	}
 	return ChainKey;
@@ -1160,7 +1150,7 @@ FString FScfgFacade::ChainName(const FString& ChainKey) const
 
 FString FScfgFacade::Accent() const
 {
-	return ScfgFacadeDetail::Utf8(Config ? Config->accent : std::string(scfg::config::DEFAULT_ACCENT));
+	return ScfgString::FromUtf8(Config ? Config->accent : std::string(scfg::config::DEFAULT_ACCENT));
 }
 
 bool FScfgFacade::IsMobile() const
@@ -1177,7 +1167,7 @@ double FScfgFacade::PollInterval() const
 
 void FScfgFacade::Pump()
 {
-	if (ScfgFacadeDetail::OffGameThread(TEXT("Pump()")) || !Config || bShuttingDown)
+	if (ScfgGuard::OffGameThread(TEXT("Pump()")) || !Config || bShuttingDown)
 	{
 		return;
 	}
@@ -1199,7 +1189,7 @@ void FScfgFacade::Pump()
 		TSet<FString> Keys;
 		for (const auto& [Sid, Record] : Snap->pending.as_dict())
 		{
-			Keys.Add(ScfgFacadeDetail::Utf8(Sid));
+			Keys.Add(ScfgString::FromUtf8(Sid));
 		}
 		PendingAtDrain = MoveTemp(Keys);
 	}
@@ -1252,7 +1242,7 @@ void FScfgFacade::RegisterCallback(FScfgCheckout& Checkout)
 	if (ScfgFacadeDetail::Truthy(Sid) && Checkout.Callback.Valid() && Sid != Checkout.CallbackSid &&
 		!ScfgFacadeDetail::IsFinal(Checkout.Controller->state()))
 	{
-		Callbacks.Add(ScfgFacadeDetail::Utf8(*Sid), Checkout.Callback);
+		Callbacks.Add(ScfgString::FromUtf8(*Sid), Checkout.Callback);
 		Checkout.CallbackSid = Sid;
 	}
 }
@@ -1331,8 +1321,8 @@ void FScfgFacade::WarnUnready(const std::vector<std::pair<std::string, std::stri
 	WarnedUnready = Unready;
 	for (const auto& [Chain, Token] : Unready)
 	{
-		const FString C = ScfgFacadeDetail::Utf8(Chain);
-		const FString T = ScfgFacadeDetail::Utf8(Token);
+		const FString C = ScfgString::FromUtf8(Chain);
+		const FString T = ScfgString::FromUtf8(Token);
 		Warn(FString::Printf(TEXT("your wallet can't receive %s on %s yet (no token account). Receive any amount of "
 								  "%s there once; until then players aren't offered it."),
 			*T, *C, *T));
@@ -1355,7 +1345,7 @@ void FScfgFacade::Deliver(const scfg::models::PaymentResult& Result)
 	{
 		const scfg::models::Item* Item =
 			Config && Result.item.is_str() ? Config->items.find(Result.item.as_str()) : nullptr;
-		Notify(Item ? ScfgTexts::Format(TEXT("payment_confirmed_item"), {ScfgFacadeDetail::Utf8(Item->title)})
+		Notify(Item ? ScfgTexts::Format(TEXT("payment_confirmed_item"), {ScfgString::FromUtf8(Item->title)})
 					: ScfgTexts::Get(TEXT("payment_confirmed")));
 	}
 	Resolve(Callback.GetPtrOrNull(), Typed);

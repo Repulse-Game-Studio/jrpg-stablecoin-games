@@ -26,7 +26,7 @@
 //   snapshot             what the player sees: the open screens (oldest first: kind "sheet" or "restore", the step,
 //                        the texts, the controls {name, text, disabled, field, rect}, the focused control), the HUD
 //                        ({texts, buttons}), the toasts, the URLs the game opened, the clipboard, whether the game is
-//                        paused, the clicks the world got, the window size and the input state (see `input`)
+//                        paused, the clicks and keys the world got, the window size and the input state (see `input`)
 //   click {name, in}     a real left click at the middle of the control `name` of the newest screen (in = "screen")
 //                        or of the HUD button `name` (in = "game"); a control below the fold of the sheet's scrolling
 //                        body is scrolled into view with the wheel first. Replies {at, wheel_notches}
@@ -43,6 +43,8 @@
 //                        shown and locked to the window)
 //   open {what}          the showcase's Unlock / Tip / Restore action (for the input modes whose cursor cannot click
 //                        the HUD)
+//   sheet_visibility {shown}  the newest open screen hidden (Collapsed) or shown again, its flow left waiting, as a
+//                        game that collapses it does; replies the input state a frame later
 //   activation_cycle     a real native window opens over the game (the game window is deactivated), then closes (the
 //                        engine activates the game window again: FSceneViewport::OnViewportActivated); replies what
 //                        happened and the focus changes the engine made meanwhile, and the input state 5 frames later

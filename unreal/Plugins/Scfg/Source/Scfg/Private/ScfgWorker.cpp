@@ -324,6 +324,11 @@ void FScfgWorker::StopNow()
 		PendingTick->Cancel();
 		Finished.Add(MoveTemp(PendingTick));
 	}
+	// The Engine is idle now. A command whose last answer arrived since the last frame has already written into it
+	// (a receipt, a state change, scan progress) and was cancelled before its snapshot: take it now, so a reader right
+	// after Stop() (the facade's Shutdown saves it) sees it. Last: a failing snapshot is reported, and OnError may
+	// destroy the worker.
+	Refresh();
 }
 
 void FScfgWorker::Submit(TUniquePtr<FCommand> Command)
@@ -470,6 +475,10 @@ bool FScfgWorker::OnTicker(float DeltaTime)
 	if (bStopWanted)
 	{
 		StopNow();
+		if (!*StillAlive)
+		{
+			return false;  // OnError (a failing snapshot) destroyed the worker
+		}
 	}
 	if (bStarted && !PendingTick && !IsTickRunning())
 	{

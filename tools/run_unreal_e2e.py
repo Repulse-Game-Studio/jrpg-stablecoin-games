@@ -22,7 +22,9 @@ shows. Per run (godot/demo's scenarios, tools/run_godot_e2e.py):
      deactivated and activated again by a second native window of the game, and the whole
      application is deactivated by another X client taking the X focus and activated again by
      a real X click (XTest) on the sheet; the sheet keeps the mouse and the focus, takes the
-     clicks, and gives the capture back when it closes; a close under LockAlways gives the
+     clicks, and gives the capture back when it closes; an open sheet the game hides leaves a
+     real key and a real click (where its Next button is) to the game, which keeps its focus and
+     capture, and takes them back when it is drawn again; a close under LockAlways gives the
      cursor lock back without forcing a capture; in the cursor-showing configuration a click on
      the empty screen reaches the world, a HUD click after a close reaches the HUD, and a click
      on the dimmed game while a screen is open reaches neither. The sheet's screenshot is
@@ -1015,6 +1017,46 @@ def real_window_input(game: Game) -> dict:
     print("  game-only input, sheet open: the window deactivated and activated again (a second "
           "window), then the application (another X client, back with a real X click); the "
           "sheet kept the focus and the mouse, took the clicks, and gave the capture back")
+
+    # an open sheet the game hides without closing it (a supported state, ruling R2-18), on the
+    # game's own widget-path code (GSlateFastWidgetPath: every game's, the automation tests run the
+    # editor's): it leaves the game's input alone, and takes it back when it is drawn again
+    game.call("open", what="tip")
+    snap = wait_for(game, "the tip sheet before the hide", has_button("forward", "Next"))
+    nxt = button(sheet(snap), "forward")["rect"]
+    game.call("sheet_visibility", shown=False)
+    game.call("input_mode", mode="game")  # the game takes its input back (SetInputMode(GameOnly))
+    snap = wait_for(game, "the game's capture back while the sheet is hidden",
+                    lambda s: s["input"]["captor"] == "viewport", 30)
+    before = snap
+    game.key("W")
+    after_key = game.call("input")
+    seen["hidden_after_key"] = after_key
+    expect(after_key["captor"] == "viewport" and after_key["focus"] == "viewport"
+           and after_key["high_precision"],
+           "hidden sheet: a key should leave the game its focus and capture", after_key)
+    # a real click where the hidden sheet's Next button is: the world's
+    under = game.call("click_at", x=nxt[0] + nxt[2] / 2, y=nxt[1] + nxt[3] / 2)["under"]
+    snap = wait_for(game, "the world to get the click through the hidden sheet",
+                    lambda s: s["world_clicks"] == before["world_clicks"] + 1, 30)
+    seen["hidden_after_click"] = {**snap["input"], "under": under}
+    expect(snap["input"]["captor"] == "viewport" and snap["input"]["focus"] == "viewport",
+           "hidden sheet: a click should leave the game its focus and capture", snap["input"])
+    expect(snap["world_keys"] == before["world_keys"] + 1,
+           "hidden sheet: the key should be the world's", snap)
+    expect(has_button("forward", "Next")(snap),
+           "hidden sheet: the flow should still wait on the amount step (the click was not the "
+           "sheet's)", snap)
+    game.call("sheet_visibility", shown=True)
+    snap = wait_for(game, "the sheet drawn again to take the input back",
+                    lambda s: s["input"]["focus"] == "sheet" and s["input"]["captor"] != "viewport"
+                    and not s["input"]["high_precision"], 30)
+    seen["shown_again"] = snap["input"]
+    game.key("Escape")
+    wait_for(game, "the sheet to close", no_screen)
+    wait_for(game, "the capture given back", lambda s: s["input"]["captor"] == "viewport", 30)
+    print("  hidden open sheet: a real key and a real click (where its Next button is) were the "
+          "game's, which kept its focus and capture; drawn again, the sheet took them back")
 
     # a cursor shown and locked to the window (LockAlways)
     state = game.call("input_mode", mode="lock_always")

@@ -2,8 +2,10 @@
 #include "ScfgPayAsyncAction.h"
 
 #include "ScfgBlueprintLibrary.h"
+#include "ScfgGuard.h"
 #include "ScfgLog.h"
 #include "ScfgSubsystem.h"
+#include "ScfgSubsystemAccess.h"
 
 #include "Engine/GameInstance.h"
 
@@ -50,17 +52,12 @@ void UScfgPayAsyncAction::Activate()
 	if (!Scfg)
 	{
 		UE_LOG(LogScfg, Error, TEXT("%s"), ScfgAsyncDetail::NoSubsystem);
-		FScfgPaymentResult Failed;
-		Failed.Status = EScfgPaymentStatus::Failed;
-		Failed.Kind = Kind;
-		Failed.Item = Request.Item;
-		Failed.Token = Request.Token;
-		Failed.Error = TEXT("RuntimeError");
-		Finish(Failed);
+		Finish(ScfgGuard::PaymentNotRunning(Kind, Request.Item, Request.Token));
 		return;
 	}
 	TWeakObjectPtr<UScfgPayAsyncAction> Weak(this);
-	Scfg->PayAsync(Kind, Request,
+	// (the unguarded start: Finish itself drops a teardown result, and releases the node)
+	FScfgSubsystemAccess::PayAsyncForNode(*Scfg, Kind, Request,
 		[Weak](const FScfgPaymentResult& Result)
 		{
 			if (UScfgPayAsyncAction* Self = Weak.Get())
@@ -116,14 +113,11 @@ void UScfgRestoreAsyncAction::Activate()
 	if (!Scfg)
 	{
 		UE_LOG(LogScfg, Error, TEXT("%s"), ScfgAsyncDetail::NoSubsystem);
-		FScfgRestoreResult Failed;
-		Failed.Status = EScfgRestoreStatus::Failed;
-		Failed.Error = TEXT("RuntimeError");
-		Finish(Failed);
+		Finish(ScfgGuard::RestoreNotRunning());
 		return;
 	}
 	TWeakObjectPtr<UScfgRestoreAsyncAction> Weak(this);
-	Scfg->RestoreAsync(
+	FScfgSubsystemAccess::RestoreAsyncForNode(*Scfg,
 		[Weak](const FScfgRestoreResult& Result)
 		{
 			if (UScfgRestoreAsyncAction* Self = Weak.Get())

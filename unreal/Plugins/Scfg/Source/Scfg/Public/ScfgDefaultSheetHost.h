@@ -27,6 +27,10 @@
 
 #include "IScfgSheetHost.h"
 
+// The plugin's private types, forward-declared only: SScfgScreen and SScfgToast are its Slate widgets
+// (Private/UI/), FScfgMouseWish what a screen asks of the game viewport's mouse (Private/UI/SScfgScreen.h). A game
+// can count or hold a screen Screens() returns, not use it; the plugin's tests and the development project's e2e
+// driver read them through Private/ (ScfgDefaultSheetHostAccess.h has the mouse-wish hooks).
 class SScfgScreen;
 class SScfgToast;
 class SWidget;
@@ -34,12 +38,6 @@ class UGameInstance;
 class UGameViewportClient;
 
 struct FScfgMouseWish;
-
-namespace ScfgDefaultSheetHostDetail
-{
-// What Client's game viewport wants of the mouse now, read when it is called (ScfgDefaultSheetHost.cpp).
-SCFG_API TFunction<FScfgMouseWish()> WishOf(UGameViewportClient* Client, TWeakObjectPtr<UGameInstance> GameInstance);
-}
 
 class SCFG_API FScfgDefaultSheetHost : public IScfgSheetHost, public TSharedFromThis<FScfgDefaultSheetHost>
 {
@@ -57,10 +55,6 @@ public:
 	virtual void Notify(const FString& Text) override;
 
 	void SetStyleOverride(TSharedPtr<const ISlateStyle> InOverride) { StyleOverride = MoveTemp(InOverride); }
-	// What the screens take as the game viewport's wish for the mouse (default: read from the game viewport client,
-	// ScfgDefaultSheetHostDetail::WishOf). For the plugin's own tests: FScfgMouseWish is defined in a Private header
-	// (UI/SScfgScreen.h), so a game module cannot build one.
-	void SetMouseWishOverride(TFunction<FScfgMouseWish()> InWish) { MouseWishOverride = MoveTemp(InWish); }
 
 	// The screens shown, oldest first, and their widgets (SScfgPaymentSheet / SScfgRestoreScreen): what tests and the
 	// e2e driver read.
@@ -75,6 +69,8 @@ public:
 	void RemoveFinishedToasts();
 
 private:
+	friend struct FScfgDefaultSheetHostAccess;
+
 	struct FShown
 	{
 		TSharedRef<FScfgScreen> Handle;

@@ -10,6 +10,7 @@
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "UObject/UObjectArray.h"
 #include "UObject/UObjectGlobals.h"
 
 #include "ScfgBlueprintLibrary.h"
@@ -19,6 +20,7 @@
 #include "ScfgString.h"
 #include "ScfgSubmitter.h"
 #include "ScfgSubsystem.h"
+#include "ScfgSubsystemAccess.h"
 #include "ScfgSubsystemTestAccess.h"
 #include "ScfgTestReceiver.h"
 
@@ -56,7 +58,7 @@ struct FGame
 		Options.bQuiet = bQuiet;
 		Options.bPumpOnTicker = bPumpOnTicker;
 		FScfgSubsystemTestAccess::Start(*Scfg, Options);
-		W.Facade = Scfg->GetFacade()->AsShared();
+		W.Facade = FScfgSubsystemAccess::Facade(*Scfg)->AsShared();
 		Scfg->SetSheetHost(W.Host);
 	}
 	FGame(const FGame&) = delete;
@@ -264,7 +266,7 @@ bool FScfgBlueprintShutdownTest::RunTest(const FString& Parameters)
 	W.Transport = nullptr;
 	TestTrue(TEXT("nothing is delivered: no pin fires, no event"),
 		G.Receiver->Paid.Num() == 0 && G.Receiver->Restored.Num() == 0 && G.Receiver->Resolved.Num() == 0);
-	TestNull(TEXT("the facade is gone"), G.Scfg->GetFacade());
+	TestNull(TEXT("the facade is gone"), FScfgSubsystemAccess::Facade(*G.Scfg));
 	TestEqual(TEXT("both screens were closed"), W.Host->Closes, 2);
 	// After Deinitialize, a call fails and never crashes; each call site logs once for this subsystem.
 	AddExpectedMessagePlain(TEXT("scfg: Pay(): the SCFG subsystem is not running"), ELogVerbosity::Error,
@@ -351,13 +353,13 @@ bool FScfgBlueprintWorldContextTest::RunTest(const FString& Parameters)
 	UWorld* World = Instance->GetWorld();
 	UScfgSubsystem* Scfg = Instance->GetSubsystem<UScfgSubsystem>();
 	TestNotNull(TEXT("the collection made the subsystem"), Scfg);
-	TestTrue(TEXT("its Initialize started a facade"), Scfg && Scfg->GetFacade() != nullptr);
+	TestTrue(TEXT("its Initialize started a facade"), Scfg && FScfgSubsystemAccess::Facade(*Scfg) != nullptr);
 	TStrongObjectPtr<UScfgTestReceiver> Receiver(NewObject<UScfgTestReceiver>());
 	if (Scfg && World)
 	{
 		TestTrue(TEXT("the library finds it from the world"), UScfgBlueprintLibrary::GetSubsystem(World) == Scfg);
 		FScfgSubsystemTestAccess::Start(*Scfg, W.Options());  // the fakes from here on
-		W.Facade = Scfg->GetFacade()->AsShared();
+		W.Facade = FScfgSubsystemAccess::Facade(*Scfg)->AsShared();
 		Scfg->SetSheetHost(W.Host);
 		FScfgOptions Options;
 		Options.Wallet = UTF8_TO_TCHAR(kDev);
@@ -382,7 +384,7 @@ bool FScfgBlueprintWorldContextTest::RunTest(const FString& Parameters)
 	W.Facade.Reset();
 	W.Transport = nullptr;
 	Instance->Shutdown();  // Deinitialize
-	TestTrue(TEXT("Shutdown deinitialized it"), !Scfg || Scfg->GetFacade() == nullptr);
+	TestTrue(TEXT("Shutdown deinitialized it"), !Scfg || FScfgSubsystemAccess::Facade(*Scfg) == nullptr);
 	if (World)
 	{
 		GEngine->DestroyWorldContext(World);
@@ -463,10 +465,105 @@ bool FScfgBlueprintBeginDestroyTest::RunTest(const FString& Parameters)
 	G.Scfg->ConditionalBeginDestroy();  // no Deinitialize
 	W.Facade.Reset();
 	W.Transport = nullptr;
-	TestTrue(TEXT("BeginDestroy ran the teardown"), G.Scfg->HasAnyFlags(RF_BeginDestroyed) && !G.Scfg->GetFacade());
+	TestTrue(TEXT("BeginDestroy ran the teardown"), G.Scfg->HasAnyFlags(RF_BeginDestroyed) && !FScfgSubsystemAccess::Facade(*G.Scfg));
 	TestTrue(TEXT("nothing is delivered: no pin fires, no event"),
 		G.Receiver->Paid.Num() == 0 && G.Receiver->Restored.Num() == 0 && G.Receiver->Resolved.Num() == 0);
 	TestEqual(TEXT("both screens were closed"), W.Host->Closes, 2);
+	return true;
+}
+
+SCFG_FACADE_BP_TEST(FScfgBlueprintCppTeardownTest, "TheCppAsyncCallbacksAreDroppedAtTeardown")
+
+// The C++ PayAsync / RestoreAsync with their screens open when the game instance goes (final review F1), once by
+// Deinitialize and once by BeginDestroy without it: the game's OnResolved (and RestoreAsync's Callback) are dropped as
+// the nodes' pins are, so game code that would make a UObject there (a widget for the result) never runs, and the
+// teardown itself creates none. Before the teardown the same callbacks are called.
+bool FScfgBlueprintCppTeardownTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeBlueprintTests;
+	for (const bool bBeginDestroy : {false, true})
+	{
+		const FString How = bBeginDestroy ? TEXT("BeginDestroy: ") : TEXT("Deinitialize: ");
+		FWorld W;
+		FGame G(W);
+		G.Configure(*this);
+		W.Start();
+		struct FCalls
+		{
+			int32 Paid = 0;
+			int32 Restored = 0;
+			TArray<TStrongObjectPtr<UScfgTestReceiver>> Made;  // what the game's handlers made
+		};
+		const TSharedRef<FCalls> Calls = MakeShared<FCalls>();
+		auto OnPaid = [Calls](const FScfgPaymentResult&)
+		{
+			++Calls->Paid;
+			Calls->Made.Emplace(NewObject<UScfgTestReceiver>());
+		};
+		auto OnRestored = [Calls](const FScfgRestoreResult&)
+		{
+			++Calls->Restored;
+			Calls->Made.Emplace(NewObject<UScfgTestReceiver>());
+		};
+		// While the game instance runs, a closed sheet reaches the callback.
+		G.Scfg->PayAsync(EScfgPayKind::Unlock, Unlock(), OnPaid);
+		W.Host->CloseSheet(-1, TEXT("cancel"));
+		W.Pump();
+		TestEqual(How + TEXT("before the teardown the callback is called"), Calls->Paid, 1);
+		// Both screens open, then the teardown.
+		G.Scfg->PayAsync(EScfgPayKind::Unlock, Unlock(), OnPaid);
+		W.Session(*this);
+		G.Scfg->RestoreAsync(OnRestored, OnRestored);
+		const int32 ClosesBefore = W.Host->Closes;
+		const int32 ObjectsBefore = GUObjectArray.GetObjectArrayNumMinusAvailable();
+		if (bBeginDestroy)
+		{
+			G.Scfg->ConditionalBeginDestroy();  // no Deinitialize
+		}
+		else
+		{
+			G.Scfg->Deinitialize();
+		}
+		const int32 ObjectsAfter = GUObjectArray.GetObjectArrayNumMinusAvailable();
+		W.Facade.Reset();
+		W.Transport = nullptr;
+		TestTrue(How + TEXT("the facade is gone"), !FScfgSubsystemAccess::Facade(*G.Scfg));
+		TestEqual(How + TEXT("both screens were closed"), W.Host->Closes - ClosesBefore, 2);
+		TestTrue(How + TEXT("nothing is delivered: no OnResolved, no restore Callback"),
+			Calls->Paid == 1 && Calls->Restored == 0);
+		TestEqual(How + TEXT("the teardown created no UObject"), ObjectsAfter, ObjectsBefore);
+	}
+	return true;
+}
+
+SCFG_FACADE_BP_TEST(FScfgBlueprintDedicatedServerTest, "NoSubsystemOnADedicatedServer")
+
+// ShouldCreateSubsystem (final review F8): a game instance gets one, a dedicated server instance (here a
+// play-in-editor one, its world context's RunAsDedicated) does not.
+bool FScfgBlueprintDedicatedServerTest::RunTest(const FString& Parameters)
+{
+	const UScfgSubsystem* Default = GetDefault<UScfgSubsystem>();
+	TStrongObjectPtr<UGameInstance> Instance(NewObject<UGameInstance>(GEngine));
+	TestTrue(TEXT("a game instance gets one"), Default->ShouldCreateSubsystem(Instance.Get()));
+	Instance->InitializeStandalone();
+	UWorld* World = Instance->GetWorld();
+	TestTrue(TEXT("a standalone game too"), Default->ShouldCreateSubsystem(Instance.Get()));
+	if (FWorldContext* Context = Instance->GetWorldContext())
+	{
+		Context->RunAsDedicated = true;
+		TestFalse(TEXT("a dedicated server instance gets none"), Default->ShouldCreateSubsystem(Instance.Get()));
+		Context->RunAsDedicated = false;
+	}
+	else
+	{
+		AddError(TEXT("InitializeStandalone made no world context"));
+	}
+	Instance->Shutdown();
+	if (World)
+	{
+		GEngine->DestroyWorldContext(World);
+		World->DestroyWorld(false);
+	}
 	return true;
 }
 

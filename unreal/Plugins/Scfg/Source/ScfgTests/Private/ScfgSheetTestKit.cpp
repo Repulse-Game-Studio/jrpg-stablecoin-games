@@ -17,6 +17,8 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/SVirtualWindow.h"
 
+#include "ScfgDefaultSheetHostAccess.h"
+
 #if WITH_DEV_AUTOMATION_TESTS
 
 namespace ScfgSheetTests
@@ -87,7 +89,7 @@ FSheetRig::FSheetRig(FAutomationTestBase& Test, FVector2D Size)
 	// The test viewport client has no SViewport: "the game's widget" stands for it (what the screens take the mouse
 	// and the focus back from), a game that captures the mouse while it has it.
 	TWeakPtr<SWidget> WeakGame = Game;
-	Host->SetMouseWishOverride([WeakGame]()
+	FScfgDefaultSheetHostAccess::SetMouseWishOverride(*Host, [WeakGame]()
 	{
 		FScfgMouseWish Wish;
 		Wish.Viewport = WeakGame.Pin();

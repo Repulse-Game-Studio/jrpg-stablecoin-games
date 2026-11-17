@@ -1,6 +1,34 @@
 // No Python twin: FScfgHttpTransport against a real HTTP endpoint, a tiny JSON-RPC node that the test serves itself
 // with the engine's HTTPServer on 127.0.0.1 (a random free port; never 8000). Latent tests: FHttpModule answers on a
 // later frame, when FHttpManager ticks, and each test waits for it frame by frame (bounded).
+//
+// THE MAPPING to godot/tests/test_http_transport.gd (its twin; Python's UrllibTransport has none of its own), each test
+// to the one here that has its behaviour, or why there is none:
+//   test_200_json_is_the_parsed_body                     BlockNumberFromALocalNode
+//   test_429_is_a_transport_error_with_its_status        AnswersAreReadByUrllibsRules (a 503: the same rule, "HTTP <status>"
+//                                                        with the status; the 429 itself: the CMake CoioTests)
+//   test_4xx_with_a_jsonrpc_error_body_is_the_body       AnswersAreReadByUrllibsRules (a 400)
+//   test_non_json_body_is_invalid_json_response          AnswersAreReadByUrllibsRules
+//   test_an_overlong_json_integer_is_invalid_json        none here: the body goes through the core's coio::parse_rpc_body,
+//                                                        tested by CMake's CoioTests.AnIntegerOfMoreThan4300DigitsIsInvalidJson
+//                                                        (a payload with one fails at once: WhatCannotBeSentFailsAtOnce)
+//   test_a_response_over_the_size_limit_is_a_transport_error none here: coio::MAX_RESPONSE_BYTES in parse_rpc_body,
+//                                                        CoioTests.ABodyOverTheCapIsResponseTooLarge
+//   test_timeout_is_a_transport_error                    NoAnswerIsATransportError
+//   test_connection_refused_is_a_transport_error         NoAnswerIsATransportError
+//   test_host_outside_the_tree_is_host_gone              none: Godot's transport needs a node in the scene tree (its
+//                                                        HTTPRequest children); FHttpModule has no host
+//   test_host_freed_mid_request_is_host_gone_not_a_cooldown none: the same; the transport's end is Shutdown():
+//                                                        ShutdownCancelsRequestsInFlight
+//   test_host_removed_mid_request_is_host_gone           none: the same
+//   test_close_ends_requests_in_flight_with_host_gone    ShutdownCancelsRequestsInFlight (CancelledError at once)
+//   test_rpc_client_over_http                            BlockNumberFromALocalNode (an RpcClient over the transport),
+//                                                        TheWorkerOverTheRealTransport
+//   test_parse_rpc_body_refuses_an_overlong_integer      none here: the core's parse_rpc_body, CoioTests (as above)
+//   test_parse_rpc_body_is_linear_on_many_long_digit_runs none: the time of GDScript's _has_overlong_int prefilter;
+//                                                        the core has no prefilter (its Json parser counts the digits as it
+//                                                        reads, CMake's JsonTests)
+// WhatCannotBeSentFailsAtOnce (a dumps Err, a request the engine refuses) is the Unreal transport's own.
 #include "HAL/PlatformTLS.h"
 #include "HAL/PlatformTime.h"
 #include "HttpPath.h"

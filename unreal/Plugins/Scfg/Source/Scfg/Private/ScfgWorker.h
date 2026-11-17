@@ -46,7 +46,9 @@
 // START AND STOP. Commands submitted before Start() wait for it. Stop() cancels the running command (its Job is
 // destroyed, which cancels its coroutine) and every queued one: each callback gets CancelledError, on the next
 // frame; no tick runs until Start() again, and a command submitted while stopped is cancelled the same way. (worker.gd
-// lets a pass already in flight finish; Unreal's quit has no later frame for it.) Destroying the worker cancels
+// lets a pass already in flight finish; Unreal's quit has no later frame for it.) Stop() then takes a fresh Snapshot
+// from the Engine (idle by then): an answer that arrived since the last frame has already written its receipt or
+// state change into the Engine, and GetSnapshot() shows it right after Stop() (the facade's Shutdown saves it). Destroying the worker cancels
 // everything without calling back, then tears down in the order Jobs -> Engine -> transport (Shutdown()).
 #pragma once
 

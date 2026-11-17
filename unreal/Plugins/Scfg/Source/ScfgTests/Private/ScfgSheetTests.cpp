@@ -48,10 +48,12 @@
 
 #include "ScfgCheckoutController.h"
 #include "ScfgDefaultSheetHost.h"
+#include "ScfgDefaultSheetHostAccess.h"
 #include "ScfgFacade.h"
 #include "ScfgSheetWidget.h"
 #include "ScfgString.h"
 #include "ScfgSubsystem.h"
+#include "ScfgSubsystemAccess.h"
 #include "ScfgSubsystemTestAccess.h"
 #include "UI/SScfgQrView.h"
 #include "UI/SScfgToast.h"
@@ -1007,10 +1009,10 @@ bool FScfgSheetDefaultHostTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestTrue(TEXT("Initialize gave the facade the default host"), Scfg->GetFacade() && Scfg->GetFacade()->DefaultSheetHost.IsValid());
+	TestTrue(TEXT("Initialize gave the facade the default host"), FScfgSubsystemAccess::Facade(*Scfg) && FScfgSubsystemAccess::Facade(*Scfg)->DefaultSheetHost.IsValid());
 	TestFalse(TEXT("and no game host"), Scfg->GetSheetHost().IsValid());
 	FScfgSubsystemTestAccess::Start(*Scfg, R.W.Options());  // the fakes from here on
-	R.W.Facade = Scfg->GetFacade()->AsShared();
+	R.W.Facade = FScfgSubsystemAccess::Facade(*Scfg)->AsShared();
 	FScfgOptions Options;
 	Options.Wallet = UTF8_TO_TCHAR(kDev);
 	TestEqual(TEXT("configure"), Scfg->Configure(Options), FString());
@@ -1072,7 +1074,7 @@ bool FScfgSheetDefaultHostTest::RunTest(const FString& Parameters)
 
 // The game instance ends with a sheet open, both ways: Shutdown (Deinitialize), and collected without it (the
 // subsystem's BeginDestroy, inside garbage collection). Either way the sheet leaves the viewport, its widget is
-// released, and closing it created no UObject.
+// released, closing it created no UObject, and PayAsync's OnResolved is not called.
 SCFG_SHEET_TEST(FScfgSheetGameEndsTest, "TheGameInstanceEndsWithASheetOpen")
 
 bool FScfgSheetGameEndsTest::RunTest(const FString& Parameters)
@@ -1091,7 +1093,7 @@ bool FScfgSheetGameEndsTest::RunTest(const FString& Parameters)
 			return false;
 		}
 		FScfgSubsystemTestAccess::Start(*Scfg, R.W.Options());
-		R.W.Facade = Scfg->GetFacade()->AsShared();
+		R.W.Facade = FScfgSubsystemAccess::Facade(*Scfg)->AsShared();
 		FScfgOptions Options;
 		Options.Wallet = UTF8_TO_TCHAR(kDev);
 		Scfg->Configure(Options);
@@ -1135,7 +1137,9 @@ bool FScfgSheetGameEndsTest::RunTest(const FString& Parameters)
 		const TCHAR* Way = bCollected ? TEXT("collected") : TEXT("Shutdown");
 		TestEqual(FString::Printf(TEXT("%s: the sheet left the viewport"), Way), R.NumLayered(), 0);
 		TestEqual(FString::Printf(TEXT("%s: closing it created no UObject"), Way), Created, 0);
-		TestTrue(FString::Printf(TEXT("%s: the call resolved, nothing delivered"), Way), Result.IsSet());
+		// (final review F1: the C++ OnResolved is dropped at the teardown, as the Pay node's pin is)
+		TestFalse(FString::Printf(TEXT("%s: the call resolved without delivering anything, OnResolved included"), Way),
+			Result.IsSet());
 		R.W.Facade.Reset();
 		R.W.Transport = nullptr;
 		TestFalse(FString::Printf(TEXT("%s: its widget is released"), Way), Weak.IsValid());
@@ -1396,7 +1400,7 @@ bool FScfgSheetMouseWishTest::RunTest(const FString& Parameters)
 
 	// B2: the engine's defaults (capture permanently, lock on capture) in a game that held nothing at the open (a
 	// cursor-showing game releases capture and lock on every mouse-up): nothing is taken, nothing is forced at close
-	R.Host->SetMouseWishOverride([Game]()
+	FScfgDefaultSheetHostAccess::SetMouseWishOverride(*R.Host, [Game]()
 	{
 		FScfgMouseWish Wish;
 		Wish.Viewport = Game;
@@ -1498,7 +1502,7 @@ bool FScfgSheetHandOverTest::RunTest(const FString& Parameters)
 	for (const bool bAlwaysLock : {false, true})
 	{
 		const TCHAR* Case = bAlwaysLock ? TEXT("always-lock: ") : TEXT("nothing on top: ");
-		R.Host->SetMouseWishOverride([Game, bAlwaysLock]()
+		FScfgDefaultSheetHostAccess::SetMouseWishOverride(*R.Host, [Game, bAlwaysLock]()
 		{
 			FScfgMouseWish Wish;
 			Wish.Viewport = Game;
