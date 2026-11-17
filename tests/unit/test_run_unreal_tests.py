@@ -1,6 +1,9 @@
 import importlib.util
 import json
+import os
+import signal
 import stat
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -11,16 +14,25 @@ run_unreal_tests = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(run_unreal_tests)
 
 
-def make_report(passed=0, failed=(), not_run=0, warned=0):
-    """An index.json as UE 5.8 writes it: counts, then one entry per test."""
+def make_report(passed=0, failed=(), not_run=0, warned=0, in_process=0, vectors=None):
+    """An index.json as UE 5.8 writes it: counts, then one entry per test (a warned test is a
+    Success entry, AutomationControllerManager.cpp:166-172)."""
     tests = [{"fullTestPath": f"Scfg.Core.Tier1.t{n}", "state": "Success", "entries": []}
-             for n in range(passed)]
+             for n in range(passed + warned)]
     tests += [{"fullTestPath": path, "state": "Fail",
                "entries": [{"event": {"type": "Info", "message": "context"}},
                            {"event": {"type": "Error", "message": f"{message}\nsecond line"}}]}
               for path, message in failed]
+    tests += [{"fullTestPath": f"Scfg.Core.Tier2.n{n}", "state": "NotRun", "entries": []}
+              for n in range(not_run)]
+    tests += [{"fullTestPath": f"Scfg.Core.Tier2.p{n}", "state": "InProcess", "entries": []}
+              for n in range(in_process)]
+    if vectors is not None:
+        tests.append({"fullTestPath": "Scfg.Core.NothingLeftOut", "state": "Success",
+                      "entries": [{"event": {"type": "Info", "message": f"vectors: {vectors}"}}]})
+        passed += 1
     return {"succeeded": passed, "succeededWithWarnings": warned, "failed": len(failed),
-            "notRun": not_run, "inProcess": 0, "tests": tests}
+            "notRun": not_run, "inProcess": in_process, "tests": tests}
 
 
 def fake_editor(tmp_path, body="", report=None, code=0):
@@ -57,7 +69,8 @@ def test_all_passed_is_green_and_the_command_is_headless(tmp_path, capsys):
     argv = json.loads((tmp_path / "argv.json").read_text())
     assert argv[0] == str((tmp_path / "P.uproject").resolve())
     assert argv[1] == "-ExecCmds=Automation RunTests Scfg.Core;Quit"
-    for flag in ("-unattended", "-nullrhi", "-nosplash", "-stdout", "-notraceserver"):
+    for flag in ("-unattended", "-nullrhi", "-nosplash", "-stdout", "-notraceserver",
+                 "-NoZenAutoLaunch", "-ddc=NoZenLocalFallback"):
         assert flag in argv
     assert f"-ReportExportPath={(tmp_path / 'report').resolve()}" in argv
 
@@ -171,3 +184,90 @@ def test_the_editor_target_is_built_first_and_a_failed_build_stops(tmp_path, cap
 def test_a_missing_editor_fails(tmp_path, capsys):
     assert run(tmp_path) == 1
     assert "cannot start" in capsys.readouterr().err
+
+
+def test_an_installed_engine_gets_the_installed_ddc_graph_without_zen(tmp_path):
+    fake_editor(tmp_path, report=make_report(passed=1))
+    (tmp_path / "Engine" / "Build").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "Engine" / "Build" / "InstalledBuild.txt").write_text("")
+    assert run(tmp_path) == 0
+    argv = json.loads((tmp_path / "argv.json").read_text())
+    assert "-ddc=InstalledNoZenLocalFallback" in argv
+    assert "-NoZenAutoLaunch" in argv
+
+
+def test_a_test_still_in_process_fails(tmp_path, capsys):
+    fake_editor(tmp_path, report=make_report(passed=5, in_process=2))
+    assert run(tmp_path) == 1
+    assert "5 passed, 0 failed, 2 in process" in capsys.readouterr().out
+
+
+def test_counts_that_disagree_with_the_entries_fail(tmp_path, capsys):
+    report = make_report(passed=3)
+    report["tests"].pop()
+    fake_editor(tmp_path, report=report)
+    assert run(tmp_path) == 1
+    assert "counts 3 passed but lists 2 tests" in capsys.readouterr().err
+
+
+def test_an_entry_that_did_not_succeed_fails_even_when_the_counts_say_otherwise(tmp_path, capsys):
+    report = make_report(passed=3)
+    report["tests"][1]["state"] = "Skipped"   # skipped tests are not counted (AutomationControllerManager.cpp:184)
+    fake_editor(tmp_path, report=report)
+    assert run(tmp_path) == 1
+    err = capsys.readouterr().err
+    assert "1 test entr(ies) did not succeed" in err
+    assert "Scfg.Core.Tier1.t1: Skipped" in err
+
+
+def test_a_report_without_a_tests_list_fails(tmp_path, capsys):
+    report = make_report(passed=3)
+    del report["tests"]
+    fake_editor(tmp_path, report=report)
+    assert run(tmp_path) == 1
+    assert "no tests list" in capsys.readouterr().err
+
+
+def test_the_vectors_read_are_printed_and_where_they_came_from(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("SCFG_VECTORS", raising=False)
+    fake_editor(tmp_path, report=make_report(passed=1, vectors="/repo/conformance/vectors"))
+    assert run(tmp_path) == 0
+    out = capsys.readouterr().out
+    assert "vectors: $SCFG_VECTORS unset" in out
+    assert "the tests read the vectors in /repo/conformance/vectors (found above the plugin)" in out
+    monkeypatch.setenv("SCFG_VECTORS", "/stale/copy")
+    fake_editor(tmp_path, report=make_report(passed=1, vectors="/stale/copy"))
+    assert run(tmp_path) == 0
+    out = capsys.readouterr().out
+    assert "vectors: $SCFG_VECTORS=/stale/copy" in out
+    assert "the tests read the vectors in /stale/copy ($SCFG_VECTORS)" in out
+
+
+def test_a_signal_to_the_runner_kills_the_editor_and_exits(tmp_path):
+    pid_file = tmp_path / "editor.pid"
+    fake_editor(tmp_path, body=f"open({str(pid_file)!r}, 'w').write(f'{{__import__(\"os\").getpid()}}\\n')\n"
+                               "time.sleep(60)", report=make_report(passed=1))
+    proc = subprocess.Popen([sys.executable, str(TOOL), "--engine", str(tmp_path), "--project",
+                             str(tmp_path / "P.uproject"), "--no-build", "--report-dir",
+                             str(tmp_path / "report")],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    deadline = time.monotonic() + 10
+    while not (pid_file.exists() and pid_file.read_text().endswith("\n")):
+        assert time.monotonic() < deadline, "the fake editor never started"
+        time.sleep(0.05)
+    proc.send_signal(signal.SIGTERM)
+    _, err = proc.communicate(timeout=10)
+    assert proc.returncode == 128 + signal.SIGTERM
+    assert "killed the process group" in err
+    editor = int(pid_file.read_text())
+    deadline = time.monotonic() + 5
+    while True:
+        try:
+            os.kill(editor, 0)
+            state = Path(f"/proc/{editor}/stat").read_text().split()[2]
+        except (ProcessLookupError, OSError):
+            break
+        if state == "Z":
+            break
+        assert time.monotonic() < deadline, "the editor survived the signal"
+        time.sleep(0.05)

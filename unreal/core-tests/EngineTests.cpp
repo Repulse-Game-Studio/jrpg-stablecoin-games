@@ -27,6 +27,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -618,4 +619,36 @@ SCFG_TEST(EngineTests, AHugeBlockNumberIsStoredAndRefusedOnlyByDumps) {
     const Json stored = eng.pending().as_dict().get(record.as_dict().get("id").as_str());
     t.check(stored.as_dict().get("start_block").as_bigint() == head - scfg::BigInt(5), "start_block kept");
     t.check(stored.as_dict().get("cursor").as_bigint() == head + scfg::BigInt(8), "cursor is HEAD + 8");
+}
+
+// N1 at every suspension, not only the first: for every Tier 2 vector, every step that makes requests and every
+// k below its request count, the Engine is destroyed while the step's action waits for request k + 1, then the
+// action's Job. That covers every network command (start_session, build_solana_payment, tick, reverify,
+// restore_lookup) at every depth the vectors reach; under the asan preset a destructor that touched the freed Engine
+// fails here.
+SCFG_TEST(EngineTests, DestroyingTheEngineAtEverySuspensionIsSafe) {
+    std::vector<std::string> ids = scfg_test::vectors::tier2_ids();
+    SCFG_CHECK(t, !ids.empty());
+    size_t probes = 0;
+    std::set<std::string> actions;
+    for (const std::string& id : ids) {
+        std::optional<Json> v = load_vector(id);
+        if (!t.check(v.has_value(), id + " cannot be read")) continue;
+        const Json recorded = v->as_dict().get("steps");
+        const Json::List& steps = recorded.as_list();
+        for (size_t i = 0; i < steps.size(); ++i) {
+            const size_t calls = steps[i].as_dict().get("calls").as_list().size();
+            for (size_t k = 0; k < calls; ++k) {
+                std::optional<std::string> why = scfg_test::tier2::destroy_engine_while_suspended(*v, i, k);
+                t.check(!why.has_value(), id + " step " + std::to_string(i) + " after " + std::to_string(k) +
+                                              " answer(s): " + why.value_or(""));
+                ++probes;
+            }
+            if (calls > 0) actions.insert(steps[i].as_dict().get("action").as_str());
+        }
+    }
+    t.check(probes > 500, "only " + std::to_string(probes) + " suspensions probed");
+    for (const char* a : {"start_session", "build_solana_payment", "tick", "reverify", "restore_lookup"}) {
+        t.check(actions.count(a) == 1, std::string(a) + " was never probed");
+    }
 }

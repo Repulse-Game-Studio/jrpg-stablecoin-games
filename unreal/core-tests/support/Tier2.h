@@ -158,4 +158,11 @@ std::optional<std::string> replay(const scfg::Json& vector, ReplayMode mode = Re
 // The same over a given transport (its mode decides), for tests that probe the requests.
 std::optional<std::string> replay(const scfg::Json& vector, ReplayTransport& transport);
 
+// N1's probe (EngineTests): replays the steps before `step` over a deferred transport, starts step `step`'s network
+// action, answers `answered` of its requests (fewer than the step recorded, so it is still suspended), then destroys
+// the Engine and only then the suspended action, and lets the transport drop what is still queued. nullopt when that
+// ran (the asan preset checks that it touched no freed memory), else why it could not ("finished after 2 answers").
+// The vector must be well formed (one that replay() passes).
+std::optional<std::string> destroy_engine_while_suspended(const scfg::Json& vector, size_t step, size_t answered);
+
 }  // namespace scfg_test::tier2

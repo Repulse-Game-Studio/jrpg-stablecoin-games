@@ -1,5 +1,8 @@
 import importlib.util
+import os
+import signal
 import stat
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -13,6 +16,14 @@ spec.loader.exec_module(run_unreal_build)
 verdict = run_unreal_build.verdict
 ENGINE = Path("/engine")
 CORE = "/repo/unreal/Plugins/Scfg/Source/ScfgCore"
+
+
+@pytest.fixture(autouse=True)
+def scratch_project(tmp_path, monkeypatch):
+    """The default --project is a scratch one: no test touches the real dev project's Intermediate."""
+    project = tmp_path / "Proj" / "ScfgDev.uproject"
+    monkeypatch.setattr(run_unreal_build, "DEFAULT_PROJECT", project)
+    return project
 
 
 def test_green_needs_exit_zero_and_no_diagnostic_outside_the_engine():
@@ -134,3 +145,133 @@ def test_main_drops_the_targets_cached_build_plan_only(tmp_path):
     assert run_unreal_build.main(["--engine", engine, "--project", str(project)]) == 0
     assert not ours.exists()
     assert other.exists()
+
+
+@pytest.mark.parametrize("flag, value", [
+    ("--target", "*"), ("--target", "ScfgDev/../x"), ("--platform", "/x"),
+    ("--platform", "../../Elsewhere/.."), ("--config", "Development/.."), ("--config", ""),
+])
+def test_a_name_that_is_not_plain_is_refused_before_anything_is_deleted_or_run(
+        tmp_path, capsys, scratch_project, flag, value):
+    marker = tmp_path / "ran"
+    engine = fake_build_sh(tmp_path, f"open({str(marker)!r}, 'w').close()\nsys.exit(0)")
+    plan = scratch_project.parent / "Intermediate" / "Build" / "Linux" / "x64" / "ScfgDevEditor" \
+        / "Development" / "Makefile.bin"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("plan")
+    assert run_unreal_build.main(["--engine", engine, flag, value]) == 1
+    assert "is not a plain name" in capsys.readouterr().err
+    assert plan.exists()
+    assert not marker.exists()
+
+
+def test_drop_makefile_refuses_a_plan_that_resolves_outside_the_intermediate(tmp_path):
+    project = tmp_path / "Proj" / "ScfgDev.uproject"
+    elsewhere = tmp_path / "Elsewhere" / "ScfgDevEditor" / "Development"
+    elsewhere.mkdir(parents=True)
+    (elsewhere / "Makefile.bin").write_text("someone else's")
+    linux = project.parent / "Intermediate" / "Build" / "Linux"
+    linux.mkdir(parents=True)
+    (linux / "x64").symlink_to(tmp_path / "Elsewhere")
+    with pytest.raises(ValueError, match="outside"):
+        run_unreal_build.drop_makefile(project, "ScfgDevEditor", "Linux", "Development")
+    assert (elsewhere / "Makefile.bin").exists()
+
+
+def game_link_inputs(project, text, config="Shipping"):
+    binary = "ScfgDev" if config == "Development" else f"ScfgDev-Linux-{config}"
+    rsp = project.parent / "Intermediate" / "Build" / "Linux" / "x64" / "ScfgDev" / config \
+        / f"{binary}.rsp"
+    rsp.parent.mkdir(parents=True, exist_ok=True)
+    rsp.write_text(text)
+    return rsp
+
+
+GAME_OBJECTS = ('"/p/Intermediate/External/Build/Linux/x64/UnrealGame/Shipping/ScfgCore/'
+                'Module.ScfgCore.cpp.o"\n"/p/Intermediate/Build/Linux/x64/UnrealGame/Shipping/'
+                'ScfgDev/ScfgDev.cpp.o"\n')
+
+
+def test_a_game_build_that_links_no_test_module_is_green(tmp_path, scratch_project):
+    engine = fake_build_sh(tmp_path, printing("Result: Succeeded\n", 0))
+    game_link_inputs(scratch_project, GAME_OBJECTS)
+    assert run_unreal_build.main(["--engine", engine, "--target", "ScfgDev",
+                                  "--config", "Shipping"]) == 0
+
+
+@pytest.mark.parametrize("text, why", [
+    (GAME_OBJECTS + '"/p/Intermediate/External/Build/Linux/x64/UnrealGame/Shipping/ScfgCoreTests/'
+                    'Module.ScfgCoreTests.cpp.o"\n', "links the test-only module ScfgCoreTests"),
+    ('"/p/ScfgDev/ScfgDev.cpp.o"\n', "links no ScfgCore object"),
+    (None, "no link inputs of ScfgDev-Linux-Shipping"),
+])
+def test_a_game_build_fails_when_its_link_inputs_hold_a_test_module_or_cannot_be_checked(
+        tmp_path, capsys, scratch_project, text, why):
+    engine = fake_build_sh(tmp_path, printing("Result: Succeeded\n", 0))
+    if text is not None:
+        game_link_inputs(scratch_project, text)
+    assert run_unreal_build.main(["--engine", engine, "--target", "ScfgDev",
+                                  "--config", "Shipping"]) == 1
+    assert why in capsys.readouterr().err
+
+
+def test_a_development_game_is_checked_too(tmp_path, capsys, scratch_project):
+    engine = fake_build_sh(tmp_path, printing("Result: Succeeded\n", 0))
+    game_link_inputs(scratch_project, GAME_OBJECTS + '"/x/ScfgCoreTests/a.o"\n', "Development")
+    assert run_unreal_build.main(["--engine", engine, "--target", "ScfgDev"]) == 1
+    assert "test-only module ScfgCoreTests" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT])
+def test_a_signal_to_the_wrapper_kills_the_build_and_exits(tmp_path, sig):
+    # an outer `timeout` or a Ctrl-C must not leave UBT (or a compiler it started) running
+    pids = tmp_path / "pids"
+    engine = fake_build_sh(
+        tmp_path,
+        f"child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+        f"open({str(pids)!r}, 'w').write(f'{{child.pid}}\\n')\n"
+        "time.sleep(60)")
+    proc = subprocess.Popen([sys.executable, str(TOOL), "--engine", engine, "--project",
+                             str(tmp_path / "Proj" / "ScfgDev.uproject")],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    deadline = time.monotonic() + 10
+    while not (pids.exists() and pids.read_text().endswith("\n")):
+        assert time.monotonic() < deadline, "the fake build never started"
+        time.sleep(0.05)
+    proc.send_signal(sig)
+    _, err = proc.communicate(timeout=10)
+    assert proc.returncode == 128 + sig
+    assert "killed the process group" in err
+    child = int(pids.read_text())
+    deadline = time.monotonic() + 5
+    while alive(child):
+        assert time.monotonic() < deadline, "the build's child survived the signal"
+        time.sleep(0.05)
+
+
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    # a zombie (killed, not yet reaped by its dead parent's reaper) counts as gone
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().split()[2] != "Z"
+    except OSError:
+        return False
+
+
+def test_the_log_is_closed_when_a_helper_outlives_the_linger(tmp_path):
+    # linger mode: the run ends while a detached helper still writes to the pipe; what it writes
+    # afterwards does not reach the closed log
+    helper = ("import sys, time; time.sleep(0.8); print('late', flush=True)")
+    script = tmp_path / "cmd.py"
+    script.write_text("import subprocess, sys\nprint('early', flush=True)\n"
+                      f"subprocess.Popen([sys.executable, '-c', {helper!r}], start_new_session=True)\n")
+    log = tmp_path / "out.log"
+    code, output = run_unreal_build.run_streamed([sys.executable, str(script)], 30, str(log),
+                                                 linger=0.2)
+    assert code == 0
+    assert "early" in output
+    time.sleep(1.5)
+    assert log.read_text() == "early\n"

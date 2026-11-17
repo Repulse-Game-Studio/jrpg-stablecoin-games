@@ -17,7 +17,9 @@ triggers fails the build, and so does any message of UBT's own, which names no f
 takes longer than --timeout seconds (default 3600) fails: every process in its process group is
 killed, even when Build.sh itself has already exited and only a descendant is left. UBT's cached
 build plan of the target (Intermediate/Build/<platform>/*/<target>/<config>/Makefile.bin) is deleted
-first, since UBT would reuse it even after a changed .uplugin or -DisableUnity (drop_makefile).
+first, since UBT would reuse it even after a changed .uplugin or -DisableUnity (drop_makefile). A
+game target (not *Editor) fails too when its link inputs hold a test-only module
+(game_link_problem). SIGTERM or SIGINT kills UBT's process group before the wrapper exits.
 """
 
 from __future__ import annotations
@@ -97,7 +99,10 @@ def run_streamed(cmd: list[str], timeout: float, log_path: str | None = None,
     every process of its group was killed. linger None: the run lasts until every holder of the
     output has closed it (a UBT compiler left behind is still the build). A number: the run ends
     when cmd exits, and the output is read for at most `linger` more seconds (an editor's detached
-    helper may keep it open). Raises OSError when cmd cannot be started.
+    helper may keep it open); the log is closed then all the same. A SIGTERM or SIGINT to this
+    process kills cmd's whole group too, and then exits with 128 + the signal number (an outer
+    `timeout`, a Ctrl-C), so no editor or compiler of ours is left behind. Raises OSError when
+    cmd cannot be started.
     """
     deadline = time.monotonic() + timeout
     # A session of its own: a timeout kills cmd's children (UBT's dotnet, compilers), nothing else.
@@ -105,6 +110,7 @@ def run_streamed(cmd: list[str], timeout: float, log_path: str | None = None,
                             errors="replace", start_new_session=True)
     lines: list[str] = []
     log = open(log_path, "w", encoding="utf-8") if log_path else None
+    log_lock = threading.Lock()   # the pump writes, the main thread closes
 
     def pump():
         # Ends when every process holding the pipe has closed it, which may be after cmd exits: so
@@ -112,11 +118,22 @@ def run_streamed(cmd: list[str], timeout: float, log_path: str | None = None,
         for line in proc.stdout:
             sys.stdout.write(line)
             sys.stdout.flush()
-            if log:
-                log.write(line)
-                log.flush()   # a log someone tails shows progress too
+            with log_lock:
+                if log:
+                    log.write(line)
+                    log.flush()   # a log someone tails shows progress too
             lines.append(line)
 
+    def on_signal(signum, _frame):
+        kill_group(proc.pid)
+        print(f"{Path(sys.argv[0]).name}: signal {signum}: killed the process group of "
+              f"{cmd[0]} (pid {proc.pid})", file=sys.stderr, flush=True)
+        raise SystemExit(128 + signum)
+
+    previous = {}
+    if threading.current_thread() is threading.main_thread():
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            previous[sig] = signal.signal(sig, on_signal)
     reader = threading.Thread(target=pump, daemon=True)
     reader.start()
     returncode = None
@@ -142,9 +159,16 @@ def run_streamed(cmd: list[str], timeout: float, log_path: str | None = None,
         elif linger is not None:
             reader.join(min(linger, max(0.0, deadline - time.monotonic())))
     finally:
-        if log and not reader.is_alive():
-            log.close()
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+        with log_lock:   # a pump still reading a helper's output writes no more to it
+            if log:
+                log.close()
+                log = None
     return returncode, "".join(lines)
+
+
+NAME = re.compile(r"[A-Za-z0-9_]+")
 
 
 def drop_makefile(project: Path, target: str, platform: str, config: str) -> list[Path]:
@@ -153,25 +177,65 @@ def drop_makefile(project: Path, target: str, platform: str, config: str) -> lis
     under -NoUBTMakefiles (Modes/BuildMode.cs:1293-1315), and keeps it valid when a .uplugin gains
     a module or -DisableUnity is added (neither is among the plan's checks, System/
     TargetMakefile.cs:695-888): the build then silently leaves out the new module or stays unity.
-    Returns the files deleted."""
-    base = Path(project).resolve().parent / "Intermediate" / "Build" / platform
-    found = [*base.glob(f"*/{target}/{config}/Makefile.bin"),
-             *base.glob(f"{target}/{config}/Makefile.bin")]
+    target, platform and config must be plain names (letters, digits, _), and only a file inside
+    the project's Intermediate/Build is deleted; ValueError otherwise. Returns the files deleted."""
+    for what, value in (("target", target), ("platform", platform), ("config", config)):
+        if not NAME.fullmatch(value):
+            raise ValueError(f"{what} {value!r} is not a plain name (letters, digits, _)")
+    inside = (Path(project).resolve().parent / "Intermediate" / "Build").resolve()
+    base = inside / platform
+    found = []
+    for f in [*base.glob(f"*/{target}/{config}/Makefile.bin"),
+              *base.glob(f"{target}/{config}/Makefile.bin")]:
+        if not f.resolve().is_relative_to(inside):
+            raise ValueError(f"{f} is outside {inside}")
+        found.append(f)
     for f in found:
         f.unlink(missing_ok=True)
     return found
+
+
+# Modules that must never be linked into a game (Scfg.uplugin: UncookedOnly), and one that must.
+UNCOOKED_ONLY = ("ScfgCoreTests",)
+SHIPPED = "ScfgCore"
+
+
+def game_link_problem(project: Path, target: str, platform: str, config: str) -> str | None:
+    """For a game target (a single monolithic binary): None when its link inputs, UBT's
+    Intermediate/Build/<platform>/*/<target>/<config>/<binary>.rsp, hold an object of ScfgCore and
+    none of an UncookedOnly module, else why not. The receipt (.target) of a monolithic target
+    lists no modules, so the link inputs are what tells."""
+    binary = target if config == "Development" else f"{target}-{platform}-{config}"
+    base = Path(project).resolve().parent / "Intermediate" / "Build" / platform
+    found = sorted(base.glob(f"*/{target}/{config}/{binary}.rsp"))
+    if not found:
+        return f"no link inputs of {binary} under {base} to check for test modules"
+    text = found[0].read_text(encoding="utf-8", errors="replace")
+    for module in UNCOOKED_ONLY:
+        if f"/{module}/" in text:
+            return f"{binary} links the test-only module {module} ({found[0]})"
+    if f"/{SHIPPED}/" not in text:
+        return f"{found[0]} links no {SHIPPED} object: the check would prove nothing"
+    return None
 
 
 def build(engine: Path, project: Path, target: str = "ScfgDevEditor",
           config: str = "Development", platform: str = "Linux",
           timeout: float = DEFAULT_TIMEOUT, log: str | None = None,
           ubt_args: list[str] | tuple[str, ...] = ()) -> str | None:
-    """Build target with UBT under the timeout: None when the build is green, else why not."""
+    """Build target with UBT under the timeout: None when the build is green, else why not. A game
+    target (one not named *Editor) must also not link a test-only module (game_link_problem)."""
     build_sh = engine / "Engine" / "Build" / "BatchFiles" / "Linux" / "Build.sh"
+    if not build_sh.is_file():
+        return f"cannot start {build_sh}: no such file"
+    try:
+        dropped = drop_makefile(project, target, platform, config)
+    except ValueError as e:
+        return str(e)
+    for f in dropped:
+        print(f"run_unreal_build: deleted the cached {f}", flush=True)
     cmd = [str(build_sh), target, platform, config, f"-Project={Path(project).resolve()}",
            "-WaitMutex", "-NoHotReload", "-UBAHost=127.0.0.1", *ubt_args]
-    for dropped in drop_makefile(project, target, platform, config):
-        print(f"run_unreal_build: deleted the cached {dropped}", flush=True)
     print("run_unreal_build: " + " ".join(cmd), flush=True)
     try:
         returncode, output = run_streamed(cmd, timeout, log)
@@ -179,7 +243,10 @@ def build(engine: Path, project: Path, target: str = "ScfgDevEditor",
         return f"cannot start {build_sh}: {e}"
     if returncode is None:
         return f"UBT did not finish within {timeout:g} s and was killed"
-    return verdict(returncode, output, engine)
+    why = verdict(returncode, output, engine)
+    if why is None and not target.endswith("Editor"):
+        why = game_link_problem(project, target, platform, config)
+    return why
 
 
 def main(argv=None) -> int:

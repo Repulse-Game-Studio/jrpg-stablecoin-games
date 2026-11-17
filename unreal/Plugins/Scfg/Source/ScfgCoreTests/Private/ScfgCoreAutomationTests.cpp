@@ -4,7 +4,7 @@
 //   Scfg.Core.Tier1.<topic>              core-tests/support/Tier1 over conformance/vectors/tier1/<topic>.json
 //   Scfg.Core.Tier2.<group>.<name>       core-tests/support/Tier2 over tier2/<group>/<name>.json, immediate transport
 //   Scfg.Core.Tier2Deferred.<group>.<name>  the same, requests answered one per pump turn (Unreal's HTTP callbacks)
-//   Scfg.Core.NothingLeftOut             the three above have one test per vector file: 18 topics, 121 vectors
+//   Scfg.Core.NothingLeftOut             the three above have exactly one test per vector file, by name
 //
 // A vector id's "/" is a "." in the test name, so the session frontend shows the vector groups as folders. The
 // vectors are $SCFG_VECTORS, else the conformance/vectors found by walking up from the Scfg plugin's folder.
@@ -35,10 +35,6 @@
 namespace ScfgCoreAutomation
 {
 
-// The vector files of this checkout; a vector added or removed changes these on purpose (and run_unreal_tests.py's
-// --expect in the docs).
-constexpr int32 kTier1Topics = 18;
-constexpr int32 kTier2Vectors = 121;
 // The command of the one test a listing that fails or finds nothing becomes (no vector file is named so).
 const FString kListing = TEXT("!listing");
 // At most this many failures of one test are reported one by one.
@@ -234,9 +230,11 @@ bool FScfgCoreTier2DeferredTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FScfgCoreNothingLeftOutTest, "Scfg.Core.NothingLeftOut",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-// The listings above use std::filesystem (support/Vectors); this counts the files again through the engine's own
-// file manager, and checks that the framework got one test per file from each complex test, and that every Tier 1
-// topic file has its adapters (Tier1Tests.EveryTopicIsRegisteredOnceAndHasVectors).
+// The listings above use std::filesystem (support/Vectors); this lists the files again through the engine's own
+// file manager and checks, by name, that each complex test generates exactly one test per vector file and nothing
+// else, and that the Tier 1 topics registered are the topic files (RunnerTests.NothingLeftOut and
+// Tier1Tests.EveryTopicIsRegisteredOnceAndHasVectors in the CMake binary). No count is pinned: a vector added to or
+// removed from conformance/vectors changes the expected names with it.
 bool FScfgCoreNothingLeftOutTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgCoreAutomation;
@@ -246,37 +244,63 @@ bool FScfgCoreNothingLeftOutTest::RunTest(const FString& Parameters)
 	const char* Locale = std::setlocale(LC_ALL, nullptr);
 	AddInfo(FString::Printf(TEXT("setlocale(LC_ALL, nullptr): %s"), Locale ? *Text(Locale) : TEXT("(null)")));
 
+	// "amounts" for tier1/amounts.json; "smoke.evm_unlock_paid" for tier2/smoke/evm_unlock_paid.json.
+	const FString Tier1Dir = Root / TEXT("tier1");
+	const FString Tier2Dir = Root / TEXT("tier2");
 	TArray<FString> Tier1Files;
-	IFileManager::Get().FindFiles(Tier1Files, *(Root / TEXT("tier1")), TEXT("*.json"));
+	IFileManager::Get().FindFiles(Tier1Files, *Tier1Dir, TEXT("*.json"));
 	TArray<FString> Tier2Files;
-	IFileManager::Get().FindFilesRecursive(Tier2Files, *(Root / TEXT("tier2")), TEXT("*.json"), true, false);
-	TestEqual(TEXT("tier1/*.json files"), Tier1Files.Num(), kTier1Topics);
-	TestEqual(TEXT("tier2/**/*.json files"), Tier2Files.Num(), kTier2Vectors);
+	IFileManager::Get().FindFilesRecursive(Tier2Files, *Tier2Dir, TEXT("*.json"), true, false);
+	TArray<FString> Topics;
+	for (const FString& File : Tier1Files)
+	{
+		Topics.Add(FPaths::GetBaseFilename(File));
+	}
+	TArray<FString> Ids;
+	for (FString File : Tier2Files)
+	{
+		FPaths::MakePathRelativeTo(File, *(Tier2Dir + TEXT("/")));
+		Ids.Add(FPaths::GetBaseFilename(File, /*bRemovePath*/ false).Replace(TEXT("/"), TEXT(".")));
+	}
+	TestTrue(TEXT("tier1 has vector files"), Topics.Num() > 0);
+	TestTrue(TEXT("tier2 has vector files"), Ids.Num() > 0);
 
 	struct FExpected
 	{
 		const FAutomationTestBase& Test;
 		const TCHAR* Prefix;
-		int32 Count;
+		const TArray<FString>& Names;
 	};
 	const FExpected Expected[] = {
-		{FScfgCoreTier1TestAutomationTestInstance, TEXT("Scfg.Core.Tier1."), Tier1Files.Num()},
-		{FScfgCoreTier2TestAutomationTestInstance, TEXT("Scfg.Core.Tier2."), Tier2Files.Num()},
-		{FScfgCoreTier2DeferredTestAutomationTestInstance, TEXT("Scfg.Core.Tier2Deferred."), Tier2Files.Num()},
+		{FScfgCoreTier1TestAutomationTestInstance, TEXT("Scfg.Core.Tier1."), Topics},
+		{FScfgCoreTier2TestAutomationTestInstance, TEXT("Scfg.Core.Tier2."), Ids},
+		{FScfgCoreTier2DeferredTestAutomationTestInstance, TEXT("Scfg.Core.Tier2Deferred."), Ids},
 	};
 	for (const FExpected& E : Expected)
 	{
-		const TArray<FString> Names = NamesOf(E.Test);
-		int32 Matching = 0;
-		for (const FString& Name : Names)
+		TArray<FString> Want;
+		for (const FString& Name : E.Names)
 		{
-			if (Name.StartsWith(E.Prefix, ESearchCase::CaseSensitive) && !Name.EndsWith(TEXT(".Listing")))
+			Want.Add(E.Prefix + Name);
+		}
+		TArray<FString> Got = NamesOf(E.Test);
+		Want.Sort();
+		Got.Sort();
+		for (const FString& Name : Want)
+		{
+			if (!Got.Contains(Name))
 			{
-				++Matching;
+				AddError(FString::Printf(TEXT("%s has no test (its vector file is not listed)"), *Name));
 			}
 		}
-		TestEqual(*FString::Printf(TEXT("%stests"), E.Prefix), Names.Num(), E.Count);
-		TestEqual(*FString::Printf(TEXT("%s<vector> tests"), E.Prefix), Matching, E.Count);
+		for (const FString& Name : Got)
+		{
+			if (!Want.Contains(Name))
+			{
+				AddError(FString::Printf(TEXT("%s has no vector file"), *Name));
+			}
+		}
+		TestEqual(*FString::Printf(TEXT("%s<vector> tests"), E.Prefix), Got.Num(), Want.Num());
 	}
 
 	const scfg_test::tier1::Registry& Registry = scfg_test::tier1::registry();
@@ -284,12 +308,15 @@ bool FScfgCoreNothingLeftOutTest::RunTest(const FString& Parameters)
 	{
 		AddError(Text(Error));
 	}
-	TestEqual(TEXT("registered Tier 1 topics"), static_cast<int32>(Registry.topics.size()), kTier1Topics);
-	for (const FString& File : Tier1Files)
+	for (const FString& Topic : Topics)
 	{
-		const std::string Topic = Utf8(FPaths::GetBaseFilename(File));
-		TestTrue(*Text("tier1/" + Topic + ".json has its SCFG_TIER1_TOPIC(" + Topic + ")"),
-			std::find(Registry.topics.begin(), Registry.topics.end(), Topic) != Registry.topics.end());
+		const std::string Name = Utf8(Topic);
+		TestTrue(*Text("tier1/" + Name + ".json has its SCFG_TIER1_TOPIC(" + Name + ")"),
+			std::find(Registry.topics.begin(), Registry.topics.end(), Name) != Registry.topics.end());
+	}
+	for (const std::string& Name : Registry.topics)
+	{
+		TestTrue(*Text("SCFG_TIER1_TOPIC(" + Name + ") has its tier1/" + Name + ".json"), Topics.Contains(Text(Name)));
 	}
 	return true;
 }

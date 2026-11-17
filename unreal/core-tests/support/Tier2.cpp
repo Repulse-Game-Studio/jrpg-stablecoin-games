@@ -16,6 +16,8 @@
 
 #include <cmath>
 #include <map>
+#include <memory>
+#include <optional>
 #include <utility>
 #include <variant>
 
@@ -325,6 +327,53 @@ ActionOutcome run_action(engine::Engine& eng, const std::string& action, const J
         raised(out, Err::value_error("unknown action " + py::repr_str(action)));
     }
     return out;
+}
+
+// destroy_engine_while_suspended's last step: starts work in a Job, answers `answered` of its requests, then destroys
+// the Engine while the Job is suspended, and the Job after it.
+template <class T>
+std::optional<std::string> drop_engine_first(scfg::Co<T> work, ReplayTransport& transport, size_t answered,
+                                             std::unique_ptr<engine::Engine>& eng) {
+    std::optional<scfg::Job<T>> job(std::in_place);
+    bool reported = false;
+    job->start(std::move(work), [&reported](Result<T>) { reported = true; });
+    for (size_t k = 0; k < answered && !job->done(); ++k) {
+        if (!transport.pump_one()) return "nothing queued after " + std::to_string(k) + " answer(s)";
+    }
+    if (job->done()) return "the action finished after " + std::to_string(answered) + " answer(s)";
+    if (transport.queued() == 0) return "the action is waiting with nothing queued";
+    eng.reset();  // the Engine goes first (N1)
+    job.reset();  // then its suspended command: only destructors run
+    if (reported) return std::string("a destroyed action reported a result");
+    return std::nullopt;
+}
+
+// The network actions of run_action, started for drop_engine_first.
+std::optional<std::string> probe_action(std::unique_ptr<engine::Engine>& eng, const std::string& action, const Json& args,
+                                        ReplayTransport& transport, size_t answered) {
+    Result<Json> decoded_args = decoded(args);
+    if (!decoded_args.ok()) return "args: " + decoded_args.err().str();
+    Json kw = decoded_args.take();
+    if (action == "start_session") {
+        Result<Json> kind = pop(kw, "kind");
+        Result<Json> chain = pop(kw, "chain");
+        if (!kind.ok() || !chain.ok()) return std::string("start_session without kind or chain");
+        return drop_engine_first(eng->start_session(kind.take(), chain.take(), kw), transport, answered, eng);
+    }
+    if (action == "build_solana_payment") {
+        Result<Json> sid = py::get(kw, "sid");
+        Result<Json> account = py::get(kw, "account");
+        if (!sid.ok() || !account.ok()) return std::string("build_solana_payment without sid or account");
+        return drop_engine_first(eng->build_solana_payment(sid.take(), account.take()), transport, answered, eng);
+    }
+    if (action == "tick") return drop_engine_first(eng->tick(), transport, answered, eng);
+    if (action == "reverify") return drop_engine_first(eng->reverify(), transport, answered, eng);
+    if (action == "restore_lookup") {
+        Result<Json> tx = py::get(kw, "tx");
+        if (!tx.ok()) return std::string("restore_lookup without tx");
+        return drop_engine_first(eng->restore_lookup(tx.take()), transport, answered, eng);
+    }
+    return action + " makes no request";
 }
 
 }  // namespace scfg_test::tier2::detail
@@ -807,6 +856,35 @@ std::optional<std::string> replay(const Json& vector, ReplayTransport& transport
         if (std::optional<std::string> d = first_diff(step.as_dict().get("snapshot"), snapshot.value())) {
             return where + ": snapshot: " + *d + " (recorded != got)";
         }
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> destroy_engine_while_suspended(const Json& vector, size_t step, size_t answered) {
+    const Json setup = vector.as_dict().get("setup");
+    const Json steps = vector.as_dict().get("steps");
+    const Json::List& list = steps.as_list();
+    if (step >= list.size()) return std::string("no such step");
+    // As replay(): declared before the transport and the Engine, which therefore go first.
+    int64_t now = setup.as_dict().get("clock").as_int64();
+    ScriptedEntropy entropy;
+    std::function<int64_t()> clock = [&now]() { return now; };
+    std::function<void(const Err&)> on_error = [](const Err&) {};
+    ReplayTransport transport(ReplayMode::Deferred);
+    Result<std::unique_ptr<engine::Engine>> built = build_engine(setup, transport, clock, on_error, &entropy);
+    if (!built.ok()) return "setup: " + built.err().str();
+    std::unique_ptr<engine::Engine> eng = built.take();
+    for (size_t i = 0; i <= step; ++i) {
+        const Json& s = list[i];
+        now = s.as_dict().get("at").as_int64();
+        transport.load(s.as_dict().get("calls"));
+        entropy.load(s.as_dict().get("entropy"));
+        const std::string action = s.as_dict().get("action").as_str();
+        if (i < step) {
+            detail::run_action(*eng, action, s.as_dict().get("args"), list, i, transport);
+            continue;
+        }
+        return detail::probe_action(eng, action, s.as_dict().get("args"), transport, answered);
     }
     return std::nullopt;
 }

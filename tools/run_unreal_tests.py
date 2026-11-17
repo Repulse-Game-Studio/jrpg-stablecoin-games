@@ -10,16 +10,29 @@ of ours. Then runs
 
     <engine>/Engine/Binaries/Linux/UnrealEditor-Cmd <uproject>
         -ExecCmds="Automation RunTests <filter>;Quit" -unattended -nullrhi -nosplash -stdout
-        -notraceserver -ReportExportPath=<report dir>
+        -notraceserver -NoZenAutoLaunch -ddc=<graph without ZenLocal>
+        -ReportExportPath=<report dir>
 
-in a session of its own under --timeout (default 1800 s; on expiry every process of the session
-is killed), passing its output through. -notraceserver keeps the editor from forking an
-UnrealTraceServer daemon (Core's TraceAuxiliary.cpp), which would outlive the run and listen on
-its own ports. The editor's report, <report dir>/index.json (UTF-8 with a BOM), decides: it prints
-"<n> passed, <m> failed" and the run is green only when the editor exited 0, wrote a report,
-m == 0, no test was left unrun, n > 0 and, with --expect, n >= the expected count. The report
-directory defaults to a new temporary directory, which is kept (its path is printed); a given one
-loses any old index.json first, so a stale report never passes.
+in a session of its own under --timeout (default 1800 s; on expiry, or on a SIGTERM or SIGINT to
+this script, every process of the session is killed), passing its output through.
+
+What the flags keep off the network: -notraceserver keeps the editor from forking an
+UnrealTraceServer daemon (Core's TraceAuxiliary.cpp:2365). -NoZenAutoLaunch
+(ZenServerInterface.cpp:1753) keeps it from launching, or restarting, the per-user zen DDC service:
+auto-launch listens on every interface (BaseEngine.ini's RemoteNetworkService=GeneratedStaticKey,
+ZenServerInterface.cpp:2085-2089), and it shuts down a running instance whose command line
+differs from its own (:4153-4190, :4221-4237), which may be another editor's. The DDC graph
+without ZenLocal (InstalledNoZenLocalFallback on an installed engine, else NoZenLocalFallback)
+uses the file cache instead. What stays: the editor's trace control port, 0.0.0.0:1985, which
+has no switch (unreal/README.md, "Under UBT").
+
+The editor's report, <report dir>/index.json (UTF-8 with a BOM), decides: it prints "<n> passed,
+<m> failed" and the run is green only when the editor exited 0, wrote a report, m == 0, no test
+was left unrun or in process, every entry of its tests list succeeded and their number is n,
+n > 0 and, with --expect, n >= that minimum. The vectors the run read are printed (from
+Scfg.Core.NothingLeftOut's entry), and whether $SCFG_VECTORS chose them. The report directory
+defaults to a new temporary directory, which is kept (its path is printed); a given one loses any
+old index.json first, so a stale report never passes.
 """
 
 from __future__ import annotations
@@ -45,12 +58,31 @@ LINGER = 30.0
 SHOWN = 20   # failing tests listed one by one
 
 
+def ddc_graph(engine: Path) -> str:
+    """BaseEngine.ini's DDC graph without ZenLocal: the Installed variant on an installed engine
+    (Engine/Build/InstalledBuild.txt), whose default graph is Installed too."""
+    installed = (engine / "Engine" / "Build" / "InstalledBuild.txt").is_file()
+    return "InstalledNoZenLocalFallback" if installed else "NoZenLocalFallback"
+
+
 def editor_command(engine: Path, project: Path, test_filter: str, report_dir: Path) -> list[str]:
     editor = engine / "Engine" / "Binaries" / "Linux" / "UnrealEditor-Cmd"
     return [str(editor), str(Path(project).resolve()),
             f"-ExecCmds=Automation RunTests {test_filter};Quit",
             "-unattended", "-nullrhi", "-nosplash", "-stdout", "-notraceserver",
+            "-NoZenAutoLaunch", f"-ddc={ddc_graph(engine)}",
             f"-ReportExportPath={report_dir}"]
+
+
+def vectors_read(report: dict) -> str | None:
+    """The vectors directory Scfg.Core.NothingLeftOut logged ("vectors: <dir>"), if it ran."""
+    for test in report.get("tests") or []:
+        for entry in test.get("entries") or []:
+            message = entry.get("event", {}).get("message", "")
+            if test.get("fullTestPath") == "Scfg.Core.NothingLeftOut" and message.startswith(
+                    "vectors: "):
+                return message[len("vectors: "):]
+    return None
 
 
 def read_report(index: Path) -> dict | str:
@@ -86,17 +118,29 @@ def verdict(returncode: int, report: dict | str, expect: int | None) -> tuple[st
     if isinstance(report, str):
         return "no report", report
     counts = {}
-    for key in ("succeeded", "succeededWithWarnings", "failed", "notRun"):
+    for key in ("succeeded", "succeededWithWarnings", "failed", "notRun", "inProcess"):
         value = report.get(key, 0)
         counts[key] = value if isinstance(value, int) and not isinstance(value, bool) else -1
     passed = counts["succeeded"] + counts["succeededWithWarnings"]
     summary = f"{passed} passed, {counts['failed']} failed"
     if counts["notRun"]:
         summary += f", {counts['notRun']} not run"
+    if counts["inProcess"]:
+        summary += f", {counts['inProcess']} in process"
     if min(counts.values()) < 0:
         return summary, "the report's counts are not integers"
-    if counts["failed"] or counts["notRun"]:
-        return summary, f"{counts['failed'] + counts['notRun']} test(s) did not pass"
+    if counts["failed"] or counts["notRun"] or counts["inProcess"]:
+        not_passed = counts["failed"] + counts["notRun"] + counts["inProcess"]
+        return summary, f"{not_passed} test(s) did not pass"
+    tests = report.get("tests")
+    if not isinstance(tests, list):
+        return summary, "the report has no tests list"
+    states = [t.get("state") if isinstance(t, dict) else None for t in tests]
+    if any(state != "Success" for state in states):
+        bad = sum(state != "Success" for state in states)
+        return summary, f"{bad} test entr(ies) did not succeed"
+    if len(states) != passed:
+        return summary, f"the report counts {passed} passed but lists {len(states)} tests"
     if passed <= 0:
         return summary, "no test ran (does the filter match any test?)"
     if expect is not None and passed < expect:
@@ -153,6 +197,10 @@ def main(argv=None) -> int:
     index.unlink(missing_ok=True)
 
     cmd = editor_command(engine, project, args.filter, report_dir)
+    chosen = os.environ.get("SCFG_VECTORS")
+    print("run_unreal_tests: vectors: " + (f"$SCFG_VECTORS={chosen}" if chosen else
+                                           "$SCFG_VECTORS unset: found above the plugin's folder"),
+          flush=True)
     print("run_unreal_tests: " + " ".join(cmd), flush=True)
     try:
         returncode, _ = run_unreal_build.run_streamed(cmd, args.timeout, args.log, linger=LINGER)
@@ -166,6 +214,9 @@ def main(argv=None) -> int:
 
     report = read_report(index)
     summary, why = verdict(returncode, report, args.expect)
+    if isinstance(report, dict) and (read := vectors_read(report)):
+        source = "$SCFG_VECTORS" if chosen else "found above the plugin"
+        print(f"run_unreal_tests: the tests read the vectors in {read} ({source})", flush=True)
     print(f"run_unreal_tests: {summary} (report: {report_dir})", flush=True)
     if why is not None:
         if isinstance(report, dict):
