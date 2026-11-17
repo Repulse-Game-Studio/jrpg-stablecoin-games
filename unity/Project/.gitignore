@@ -15,3 +15,6 @@
 # made by the editor when a PanelSettings asset is created; the package ships its own theme
 /Assets/UI Toolkit/
 /Assets/UI Toolkit.meta
+# the package samples, copied in by tools/check_unity_samples.py
+/Assets/Samples/
+/Assets/Samples.meta
