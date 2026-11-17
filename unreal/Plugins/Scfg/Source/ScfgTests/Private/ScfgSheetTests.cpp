@@ -21,7 +21,8 @@
 // Unreal only: SlateRunsHeadless, EscapeAndGamepadBack, GamepadConfirmAndStick, ToastsFadeInRealTime,
 // WorksWhilePausedAndDilated, TheDefaultHostIsUsedWhenTheGameSetsNone, TheGameInstanceEndsWithASheetOpen,
 // TheMouseIsTheSheetsWhileItIsOpen, TheMouseGoesBackAsTheGameWantsItNow, OtherWidgetsKeepTheirMouseAndFocus,
-// ASheetTheGameRemovesCountsAsCancel.
+// ASheetTheGameRemovesCountsAsCancel, TheScreenBelowHandsItsCaptureToTheTop, TheInputThatActivatesTheGameIsTheSheets,
+// AnOpenSheetThatIsNotDrawnLeavesTheInputAlone.
 #include "ScfgSheetTestKit.h"
 
 #include "Blueprint/UserWidget.h"
@@ -1583,6 +1584,98 @@ bool FScfgSheetFirstInputTest::RunTest(const FString& Parameters)
 	R.Frame(2);
 	TestTrue(TEXT("it is the sheet's (Escape on the first step closes it)"), Box->IsSet());
 	TestTrue(TEXT("closing gave the capture back to the game"), R.MouseCaptor() == R.Game);
+	return true;
+}
+
+// Task 8 re-review N1 (a supported state): an open sheet the game stops drawing (it collapsed the sheet, its
+// UScfgSheetWidget or an ancestor, without closing the flow) is neither painted nor ticked, and the input guard leaves
+// the game's mouse and focus alone too; drawn again, the sheet takes them back. A UMG sheet the game collapses is
+// hidden by the widget's own check (off every window as far as the visible paths go): the focus goes back, the flow
+// still waits, and it is shown again once it is painted.
+SCFG_SHEET_TEST(FScfgSheetNotDrawnTest, "AnOpenSheetThatIsNotDrawnLeavesTheInputAlone")
+
+bool FScfgSheetNotDrawnTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSheetTestsDetail;
+	FSheetRig R(*this);
+	if (!R.bReady)
+	{
+		return false;
+	}
+	FScfgFacade& S = R.Started(*this);
+	R.GameCapturesTheMouse();
+	const TSharedRef<TOptional<FScfgPaymentResult>> Box = R.W.Pay(EScfgPayKind::Tip, Tip(TEXT("3.00"), TEXT("USDC")));
+	R.Frame(2);
+	const TSharedPtr<SScfgPaymentSheet> Sheet = R.Sheet();
+	if (!TestTrue(TEXT("the sheet, holding the game's capture"), Sheet.IsValid() && R.MouseCaptor() != R.Game &&
+			R.FocusInside(*Sheet)))
+	{
+		return false;
+	}
+	// The game takes its input back while the sheet is not drawn: its viewport's focus and capture, as a click on it
+	// and SetInputMode(GameOnly) give them.
+	auto GameTakesItsInput = [&R]()
+	{
+		FWidgetPath Path;
+		FSlateApplication& App = FSlateApplication::Get();
+		App.FindPathToWidget(R.Game.ToSharedRef(), Path);
+		App.ProcessReply(Path, FReply::Handled().SetUserFocus(R.Game.ToSharedRef(), EFocusCause::SetDirectly)
+			.CaptureMouse(R.Game.ToSharedRef()), nullptr, nullptr, 0);
+	};
+	Sheet->SetVisibility(EVisibility::Collapsed);
+	R.Frame(3);
+	TestTrue(TEXT("not drawn: still open, the flow waiting"), Sheet->IsOpen() && !Box->IsSet());
+	GameTakesItsInput();
+	R.Game->Got.Reset();
+	R.Key(EKeys::W);
+	TestTrue(TEXT("a key: the game keeps its capture"), R.MouseCaptor() == R.Game);
+	TestTrue(TEXT("and its focus"), R.Focused() == R.Game);
+	R.Click(R.Game.ToSharedRef());
+	TestTrue(TEXT("a click: the game keeps its capture"), R.MouseCaptor() == R.Game);
+	TestEqual(TEXT("the key and the click are the game's"), FString::Join(R.Game->Got, TEXT(",")),
+		FString(TEXT("W,mouse down,mouse up")));
+	Sheet->SetVisibility(EVisibility::Visible);
+	R.Frame(2);
+	TestTrue(TEXT("drawn again: the sheet has the focus"), R.FocusInside(*Sheet));
+	TestTrue(TEXT("and the mouse"), R.MouseCaptor() != R.Game);
+	R.Game->Got.Reset();
+	GameTakesItsInput();
+	R.Key(EKeys::W);  // in the same pump: the guard acts again for a drawn sheet
+	TestEqual(TEXT("the key is not the game's"), FString::Join(R.Game->Got, TEXT(",")), FString());
+	TestTrue(TEXT("and the sheet took the mouse back"), R.MouseCaptor() != R.Game);
+	R.Key(EKeys::Escape);
+	R.Frame(2);
+	TestTrue(TEXT("Escape cancels"), Box->IsSet() && (*Box)->Status == EScfgPaymentStatus::Cancelled);
+	TestTrue(TEXT("closing gave the capture back to the game"), R.MouseCaptor() == R.Game);
+
+	// A UMG host collapsing its widget.
+	const TSharedRef<FUmgHost> Host = MakeShared<FUmgHost>();
+	Host->Rig = &R;
+	S.SheetHost = Host;
+	const TSharedRef<TOptional<FScfgPaymentResult>> Second = R.W.Pay(EScfgPayKind::Unlock, Unlock());
+	R.Frame(2);
+	const TSharedPtr<SScfgScreen> Screen = Host->Widget.IsValid() ? Host->Widget->GetSlateScreen() : nullptr;
+	if (!TestTrue(TEXT("UMG: the sheet has the focus"), Screen.IsValid() && R.FocusInside(*Screen)))
+	{
+		return false;
+	}
+	Host->Widget->SetVisibility(ESlateVisibility::Collapsed);
+	R.Frame(2);
+	GameTakesItsInput();
+	R.Key(EKeys::W);
+	TestTrue(TEXT("UMG collapsed: the game keeps its focus"), R.Focused() == R.Game);
+	FTSTicker::GetCoreTicker().Tick(0.f);  // the widget's check
+	TestFalse(TEXT("UMG collapsed: hidden by the widget's check"), Screen->IsOpen());
+	TestTrue(TEXT("UMG collapsed: the focus is still the game's"), R.Focused() == R.Game);
+	TestFalse(TEXT("UMG collapsed: the flow still waits"), Second->IsSet());
+	Host->Widget->SetVisibility(ESlateVisibility::Visible);
+	R.Frame(2);
+	TestTrue(TEXT("UMG visible again: shown, with the focus"), Screen->IsOpen() && R.FocusInside(*Screen));
+	R.Key(EKeys::Escape);
+	R.Frame(2);
+	TestTrue(TEXT("UMG: Escape cancels"), Second->IsSet() && (*Second)->Status == EScfgPaymentStatus::Cancelled);
+	FTSTicker::GetCoreTicker().Tick(0.f);
+	TestFalse(TEXT("UMG: hidden once it left the window"), Screen->IsOpen());
 	return true;
 }
 

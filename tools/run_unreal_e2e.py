@@ -40,9 +40,10 @@ Xvfb that xvfb-run started for this run (own_xvfb). Rendering: Vulkan on Mesa's 
 (VulkanRHI.cpp's device choice skips CPU devices otherwise), at the Linux default feature level
 SM5. The e2e config asks the game to draw no world (draw_world false: lavapipe draws even the
 empty Entry map at under one frame a second); the showcase itself draws it. The game's user data
-(HOME, XDG_*, -UserDir) lives in a temporary directory, which a passed run removes (--keep keeps
-it), and its D-Bus session address points nowhere, so no session bus, portal, gvfs or
-accessibility daemon is started for it.
+(HOME, XDG_*, -UserDir) lives in a temporary directory, which a passed run removes (a failed one
+removes only the packaged archive, once the games are closed; --keep keeps it all), and its D-Bus
+session address points nowhere, so no session bus, portal, gvfs or accessibility daemon is
+started for it.
 
 Two modes:
   default     the editor build (tools/run_unreal_build.py, ScfgDevEditor Development) run as a
@@ -55,8 +56,11 @@ Two modes:
 Every process (the build, the game, the chain, the browser) runs under a timeout; the game and
 the builds are killed by process group. The inner run is one session under xvfb-run; at the end
 the outer run ends that session and every process descended from it, including those that
-started sessions of their own (Playwright's Chromium). UAT writes its logs into the run's
-directory (uebp_LogFolder, uebp_EngineSavedFolder). A run fails on every Error or Warning line of
+started sessions of their own (Playwright's Chromium), as long as their chain of parents is
+alive (a process whose parent died is reparented out of the tree and not found). UAT writes its
+logs into the run's directory (uebp_LogFolder, uebp_EngineSavedFolder), checked: a packaged run
+fails when UAT's default log folders changed meanwhile, which a UAT run of your own at the same
+time also causes (a known false failure). A run fails on every Error or Warning line of
 the game logs except the measured engine ones (ALLOWED).
 
 Network: the control socket, Anvil, the game's checkout page and UBA are on 127.0.0.1, on ports
@@ -402,7 +406,9 @@ def group_alive(pgid: int) -> bool:
 
 def run_tree(sid: int, processes: list, me: int | None = None) -> list:
     """The live processes of session `sid` and every process descended from one of them, also in
-    sessions of their own (Playwright starts the browser in one): what the outer run ends."""
+    sessions of their own (Playwright starts the browser in one): what the outer run ends. Found
+    by parent links, so only while the chain of parents is alive: a process whose parent died is
+    reparented (to pid 1 or a subreaper) and, in a session of its own, is not found."""
     live = [p for p in processes if p.state != "Z" and p.pid != me]
     found = {p.pid for p in live if p.sid == sid}
     grew = True
@@ -1163,6 +1169,9 @@ def uat_env(environ: dict, work: Path) -> dict:
 
 
 # Where UAT writes by default (uat_env keeps it out of both): checked unchanged by a packaged run.
+# The check sees the whole folders, not only our run's files: a UAT run of the developer's own
+# (another BuildCookRun, the editor's packaging) during a packaged run fails it too (a known false
+# failure: run it again when nothing else packages).
 UAT_DEFAULT_LOGS = (Path.home() / "Library" / "Logs" / "Unreal Engine" / "LocalBuildLogs",)
 
 
@@ -1178,6 +1187,21 @@ def newest_mtime(paths) -> float:
     return newest
 
 
+def changed_since(paths, since: float, limit: int = 10) -> list:
+    """The files and folders under `paths` modified after `since` (at most `limit`), to name what
+    the UAT check saw: a removal shows only as its folder's change."""
+    found = []
+    for root in paths:
+        if root.exists():
+            for f in [root, *root.rglob("*")]:
+                try:
+                    if f.stat().st_mtime > since:
+                        found.append(f)
+                except OSError:
+                    pass
+    return sorted(found)[:limit]
+
+
 def build_packaged(engine: Path, work: Path) -> Path:
     archive = work / "archive"
     log = work / "buildcookrun.log"
@@ -1186,8 +1210,11 @@ def build_packaged(engine: Path, work: Path) -> Path:
     code = run_grouped(buildcookrun_command(engine, archive), log, BUILD_TIMEOUT,
                        env=uat_env(os.environ, work))
     if newest_mtime(defaults) != before:
+        seen = "".join(f"\n  {f}" for f in changed_since(defaults, before))
         raise E2EError("UAT wrote outside the run's directory (under "
-                       f"{', '.join(map(str, defaults))})")
+                       f"{', '.join(map(str, defaults))}):{seen or ' a file removed'}\n"
+                       "(a UAT run of your own at the same time trips this check too: run again "
+                       "when nothing else packages)")
     if not any((work / "uat-logs").rglob("*")):
         raise E2EError(f"UAT wrote no log into {work / 'uat-logs'}")
     text = log.read_text(errors="replace")
@@ -1245,6 +1272,7 @@ def run_inner(args) -> int:
     control = Control()
     times = {}
     mode = "packaged" if args.packaged else "default"
+    failed = False
     try:
         print(f"Unreal e2e: {args.family}, {mode} mode, DISPLAY {os.environ['DISPLAY']} "
               f"(Xvfb of this run), work {work}")
@@ -1320,8 +1348,7 @@ def run_inner(args) -> int:
         print(e if isinstance(e, E2EError) else traceback.format_exc())
         print(f"Unreal e2e ({args.family}, {mode}) FAILED after "
               f"{time.monotonic() - started:.1f} s (logs in {work})")
-        if not args.keep:
-            remove_work(work / "archive")  # the logs stay; the 1 GB archive goes
+        failed = True
         return 1
     finally:
         for game in games:
@@ -1329,6 +1356,9 @@ def run_inner(args) -> int:
         control.close()
         if fam is not None:
             fam.cleanup()
+        if failed and not args.keep:
+            # once the games are closed: the logs stay, the 1 GB archive goes
+            remove_work(work / "archive")
     shown = ", ".join(f"{k} {v:.1f} s" for k, v in times.items())
     kept = work if args.keep else None
     if kept is None:
@@ -1380,7 +1410,10 @@ def main(argv=None) -> int:
                     help="default mode: use the editor build as it is")
     ap.add_argument("--screenshots", help="where the sheet's screenshot goes (default: the "
                     "run's temporary directory, removed with it when the run passes)")
-    ap.add_argument("--keep", action="store_true", help="keep the packaged archive")
+    ap.add_argument("--keep", action="store_true",
+                    help="keep the whole work directory (logs, the game's user data, the "
+                    "packaged archive); without it a passed run removes it and a failed one "
+                    "removes only the archive")
     args = ap.parse_args(argv)
     if os.environ.get(INNER_ENV):
         return run_inner(args)

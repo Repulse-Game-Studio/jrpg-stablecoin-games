@@ -181,6 +181,23 @@ def test_uat_writes_its_logs_into_the_run(tmp_path):
                    "uebp_EngineSavedFolder": str(tmp_path / "uat-saved")}
 
 
+def test_changed_since_names_what_changed_after_the_mark(tmp_path):
+    import os as _os
+
+    old = tmp_path / "logs" / "old.txt"
+    new = tmp_path / "logs" / "sub" / "new.txt"
+    new.parent.mkdir(parents=True)
+    old.write_text("x")
+    new.write_text("y")
+    for p in (old, old.parent, new.parent):
+        _os.utime(p, (100.0, 100.0))
+    _os.utime(new, (300.0, 300.0))
+    assert e2e.changed_since([tmp_path / "logs", tmp_path / "missing"], 200.0) == [new]
+    assert e2e.newest_mtime([tmp_path / "logs"]) == 300.0
+    assert e2e.changed_since([tmp_path / "logs"], 50.0, limit=2) == sorted(
+        [old.parent, old, new.parent, new])[:2]
+
+
 def _png(path, width, height, pixel):
     """An RGBA PNG whose rows use every filter type in turn (the decoder must undo each)."""
     import struct

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the Scfg dev project's editor and run its automation tests headless; fail unless all pass.
 
-    python tools/run_unreal_tests.py [--filter Scfg.Core] [--expect <n>] [--engine <dir>]
+    uv run python tools/run_unreal_tests.py [--filter Scfg.Core] [--expect <n>] [--engine <dir>]
         [--project <uproject>] [--target ScfgDevEditor] [--timeout <s>] [--build-timeout <s>]
         [--no-build] [--report-dir <dir>] [--log <file>]
 

@@ -43,6 +43,9 @@
 // focus when nothing has it. An input processor registered while a screen is open does the same before Slate routes
 // each mouse button and key: the engine's activation and the click or key that caused it come in one message pump,
 // before the next tick (on Linux a click activates the application), and that input would otherwise be the game's.
+// It acts only for a screen painted in the last frames: an open screen the game does not draw (it collapsed or hid
+// the screen, its UScfgSheetWidget or an ancestor, without closing the flow) is not ticked, and takes nothing back
+// until it is drawn again (a supported state; a UMG sheet off every visible path is also hidden by its widget's check).
 // Every other widget keeps its capture and focus (an editor widget in PIE, a game widget
 // or a modal above the sheet, a context menu), and nothing is taken while a modal window is up. A screen below
 // another never takes them, so two stacked screens do not fight. A screen closing below another hands the mouse over
@@ -123,8 +126,9 @@ public:
 	bool IsEnded() const { return bEnded; }
 	// The screens shown and not hidden yet, oldest first.
 	static TArray<TSharedRef<SScfgScreen>> OpenScreens();
-	// The topmost open screen takes back what the game viewport took (KeepInput, as on its tick); an input processor
-	// registered while a screen is open calls it before Slate routes a mouse button or a key (see THE MOUSE).
+	// The topmost open screen, if it was painted lately, takes back what the game viewport took (KeepInput, as on its
+	// tick); an input processor registered while a screen is open calls it before Slate routes a mouse button or a key
+	// (see THE MOUSE).
 	static void KeepTopmostInput();
 
 	// --- what tests and drivers read (Godot's control(), focus_order(), ...) ---
@@ -291,6 +295,11 @@ private:
 	// when the viewport has it or nobody does (never from another widget).
 	void KeepInput();
 	bool bShowWhenPainted = false;
+	// Ticked (so painted) in this frame or the last two (GFrameCounter): only such a screen's KeepInput runs from the
+	// input guard, so an open screen the game does not draw leaves the game's input alone.
+	bool PaintedRecently() const;
+	bool bPainted = false;
+	uint64 LastPaintFrame = 0;
 	// The left stick moved past the threshold on an axis (one step per push).
 	bool bStickX = false;
 	bool bStickY = false;

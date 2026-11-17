@@ -78,7 +78,8 @@ struct FSheetRig
 
 	// FWorld::Started with this rig's host as the facade's default host (no game host).
 	FScfgFacade& Started(FAutomationTestBase& Test);
-	// Frames: the facade's pump, then the window painted (which ticks the screens).
+	// Frames: the facade's pump, then the window painted (which ticks the screens), then GFrameCounter advanced, as
+	// the engine loop does after Slate's draw.
 	void Frame(int32 N = 1, float Dt = 1.f / 60.f);
 	// A worker pass (FWorld::Pass), then two frames.
 	void Pass();

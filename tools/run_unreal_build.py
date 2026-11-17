@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build an Unreal target of the Scfg dev project with UBT, under a timeout; fail on any warning.
 
-    python tools/run_unreal_build.py [--target ScfgDevEditor] [--config Development]
+    uv run python tools/run_unreal_build.py [--target ScfgDevEditor] [--config Development]
         [--engine <dir>] [--project <uproject>] [--timeout <s>] [--log <file>]
         [-- <more UBT arguments, e.g. -DisableUnity>]
 
