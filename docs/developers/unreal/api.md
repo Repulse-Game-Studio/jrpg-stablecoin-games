@@ -422,6 +422,8 @@ The cooker packages assets only, so a packaged game has the logo only when both 
    advanced part of the Packaging section; the paths there are relative to `Content/`, so add `Scfg`), or in
    **Additional Non-Asset Directories To Copy**. In `Config/DefaultGame.ini` that is
    `+DirectoriesToAlwaysStageAsUFS=(Path="Scfg")` under `[/Script/UnrealEd.ProjectPackagingSettings]`.
+   Only "Additional Non-Asset Directories to Package" has been tested in a packaged game; "To Copy" should work the
+   same way, but it has not been run.
 
 Otherwise the editor and play in the editor still find the file, but the packaged game's `Configure` fails with
 `logo.file_missing`: project settings with that logo are not applied, and every `Pay` then fails with

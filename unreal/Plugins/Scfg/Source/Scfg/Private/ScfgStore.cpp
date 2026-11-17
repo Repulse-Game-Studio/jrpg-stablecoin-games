@@ -7,6 +7,7 @@
 
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/Paths.h"
 
 #include "Scfg/Py.h"

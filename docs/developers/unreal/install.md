@@ -40,8 +40,9 @@ PrivateDependencyModuleNames.Add("Scfg");
 needs the compiler for step 3. If the editor will not build the plugin for it, add any C++ class (**Tools > New C++
 Class**), which turns the project into a C++ project, and open it again.
 
-So far the plugin has been built only inside the repository's own development project (a C++ project, on Linux),
-not yet from the release zip.
+The plugin from the 5.8 zip builds on its own (`RunUAT BuildPlugin` on Linux: the editor, and a Development and a
+Shipping game), but it has not yet been copied into a fresh project and opened in the editor; until now it was used
+only inside the repository's own development project (a C++ project, on Linux).
 
 ## Try the showcase first
 

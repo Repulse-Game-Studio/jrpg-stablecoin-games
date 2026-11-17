@@ -25,6 +25,10 @@ addons/ is the only top-level entry, Godot 4.3 to 4.6 strip it as well and insta
 res://scfg/. The license, guide and notices sit inside addons/scfg/ so nothing lands in the
 project root.
 
+The Unreal zips (--engine unreal, built by tools/package_unreal.py, whose docstring has the layout)
+are one per engine version, dist/scfg-unreal-<version>-ue<5.x>.zip, each holding the plugin folder
+Scfg/ (source only, without the test modules) for the developer's Plugins/ folder.
+
 The RPG Maker MZ zip unzips into an MZ project folder:
 
     js/plugins/SCFG.js                 (the whole plugin, built by `npm run build` in rpgmaker/)
@@ -363,8 +367,14 @@ def build_renpy_zip(dist):
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Build a release zip into dist/.")
-    parser.add_argument("--engine", choices=("renpy", "godot", "rpgmaker"), default="renpy")
+    parser.add_argument(
+        "--engine", choices=("renpy", "godot", "rpgmaker", "unreal"), default="renpy"
+    )
     args = parser.parse_args(argv)
+    if args.engine == "unreal":
+        import package_unreal
+
+        return package_unreal.main(ROOT / "dist")
     dist = ROOT / "dist"
     builders = {"renpy": build_renpy_zip, "godot": build_godot_zip, "rpgmaker": build_rpgmaker_zip}
     build = builders[args.engine]
