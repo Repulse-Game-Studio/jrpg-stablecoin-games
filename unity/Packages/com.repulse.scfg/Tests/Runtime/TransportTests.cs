@@ -197,9 +197,7 @@ namespace Scfg.Tests
             using var server = new CannedServer { Answer = () => (200, new byte[8192]), PartialOf = 1 << 20 };
             var transport = new UnityWebRequestTransport();
             var t = transport.PostJson(server.Url, Payload, 30);
-            var until = DateTime.UtcNow.AddSeconds(10);
-            while (server.Requests == 0 && DateTime.UtcNow < until) yield return null;
-            for (int i = 0; i < 10; i++) yield return null; // the first 8 KiB arrive
+            yield return Downloaded(transport, 8192); // the first 8 KiB arrive
             transport.Pump();
             Assert.That(t.IsCompleted, Is.False, "under the cap: still downloading");
             transport.BodySizeLimit = 4096;
@@ -209,6 +207,39 @@ namespace Scfg.Tests
             Assert.That(Error(t)!.Message, Is.EqualTo(Coio.ResponseTooLarge));
             Assert.That(transport.InFlight, Is.EqualTo(0));
             transport.Pump(); // nothing left to do
+        }
+
+        /// <summary>
+        /// The facade's half of the WebGL cap: SCFG.Pump pumps the transport it made (no test calls transport.Pump here),
+        /// configured, so the whole pump runs.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheFacadesPumpAbortsItsOwnTransportsDownloadPastTheCap()
+        {
+            using var rig = new ScfgRig();
+            rig.Configure();
+            using var server = new CannedServer { Answer = () => (200, new byte[8192]), PartialOf = 1 << 20 };
+            var transport = new UnityWebRequestTransport();
+            SCFG.Current.OwnTransport = transport;
+            var t = transport.PostJson(server.Url, Payload, 30);
+            yield return Downloaded(transport, 8192);
+            rig.Pump();
+            Assert.That(t.IsCompleted, Is.False, "under the cap: still downloading");
+            transport.BodySizeLimit = 4096;
+            rig.Pump();
+            Assert.That(SCFG.Current.Worker, Is.Not.Null, "the pump ran in full");
+            Assert.That(t.IsCompleted, Is.True, "SCFG.Pump aborted it");
+            Assert.That(Error(t), Is.TypeOf<TransportError>());
+            Assert.That(Error(t)!.Message, Is.EqualTo(Coio.ResponseTooLarge));
+            Assert.That(transport.InFlight, Is.EqualTo(0));
+        }
+
+        /// <summary>Waits (frames, at most 10 s) until a request of <paramref name="transport"/> has <paramref name="bytes"/>.</summary>
+        private static IEnumerator Downloaded(UnityWebRequestTransport transport, ulong bytes)
+        {
+            var until = DateTime.UtcNow.AddSeconds(10);
+            while (transport.MostDownloaded() < bytes && DateTime.UtcNow < until) yield return null;
+            Assert.That(transport.MostDownloaded(), Is.GreaterThanOrEqualTo(bytes), "the download did not start in time");
         }
 
         [UnityTest]

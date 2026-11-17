@@ -49,6 +49,14 @@ namespace Scfg
 
         public int InFlight => _inFlight.Count;
 
+        /// <summary>Test hook: the most bytes a request in flight has downloaded so far (0 with none).</summary>
+        internal ulong MostDownloaded()
+        {
+            ulong most = 0;
+            foreach (var p in _inFlight) most = Math.Max(most, p.Downloaded);
+            return most;
+        }
+
         public Task<object?> PostJson(string url, JsonObject payload, double timeout)
         {
             var tcs = new TaskCompletionSource<object?>();
@@ -129,6 +137,21 @@ namespace Scfg
             private bool _done;
 
             public string Url { get; }
+
+            public ulong Downloaded
+            {
+                get
+                {
+                    try
+                    {
+                        return _done ? 0 : _request.downloadedBytes;
+                    }
+                    catch (Exception)
+                    {
+                        return 0; // the request is already disposed
+                    }
+                }
+            }
 
             public Pending(UnityWebRequestTransport owner, string url, UnityWebRequest request, CappedDownload download,
                            TaskCompletionSource<object?> tcs)
