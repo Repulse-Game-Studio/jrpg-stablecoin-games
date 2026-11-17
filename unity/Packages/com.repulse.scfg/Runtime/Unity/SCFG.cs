@@ -104,6 +104,7 @@ namespace Scfg
             public bool SheetHostSet;
 
             public ConfigData? Config;
+            public bool ConfigFromSettings; // Config is the SCFG Settings asset's (ScfgSettings.Apply), not a Configure from code
             public readonly List<Chain> CustomChains = new List<Chain>();
             public Texture2D? Logo;
             public byte[]? LogoPng;
@@ -217,12 +218,30 @@ namespace Scfg
 
         /// <summary>
         /// Add an EVM chain that is not built in. Call it before Configure; its key can then be used in Configure's
-        /// Chains, RpcUrls and Confirmations. Returns null, or the error code it reported.
+        /// Chains, RpcUrls and Confirmations. With an SCFG Settings asset, call it before payments start (the first
+        /// scene's Awake): it sets the asset's configuration aside for the Configure that follows. Returns null, or the
+        /// error code it reported.
         /// </summary>
         public static string? AddChain(string key, ScfgChain chain)
         {
             if (S.Config != null)
-                return Misuse(new ConfigError("call SCFG.AddChain() before SCFG.Configure()", "configure.after_add_chain"));
+            {
+                if (!S.ConfigFromSettings)
+                    return Misuse(new ConfigError("call SCFG.AddChain() before SCFG.Configure()", "configure.after_add_chain"));
+                if (S.Worker != null || S.StartError != null)
+                    return Misuse(new ConfigError("call SCFG.AddChain() before payments start: the SCFG Settings asset configured"
+                                                  + " SCFG before the first scene, and payments started with it. Add your chains and"
+                                                  + " call SCFG.Configure() from the first scene's Awake", "configure.after_add_chain"));
+                // The asset cannot name a chain added from code, so the Configure from code that has to follow replaces
+                // the asset's configuration anyway: drop it now.
+                S.Config = null;
+                S.ConfigFromSettings = false;
+                S.Logo = null;
+                S.LogoPng = null;
+                S.LogoPngTried = false;
+                Warn("SCFG.AddChain() set aside the SCFG Settings asset's configuration (it cannot name your own chains):"
+                     + " call SCFG.Configure() next, from code.");
+            }
             if (chain == null) return Misuse(new TypeError("AddChain(): chain must not be null"));
             try
             {
@@ -260,6 +279,7 @@ namespace Scfg
                 return Misuse(e);
             }
             S.Config = cfg;
+            S.ConfigFromSettings = false;
             if (S.WebStorageId != options.WebStorageId)
             {
                 // a new key: the copy under it is merged at the next read of the state

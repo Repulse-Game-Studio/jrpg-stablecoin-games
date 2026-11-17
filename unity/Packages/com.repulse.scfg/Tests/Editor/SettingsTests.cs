@@ -1,12 +1,14 @@
 // The SCFG Settings asset (Runtime/Unity/ScfgSettings.cs) and its editor side (Editor/ScfgSettingsEditor.cs): the core's
-// validation without touching SCFG, applying it through Configure and AddItem, a later Configure from code winning,
-// finding the project's asset and the build step that preloads it.
+// validation without touching SCFG, applying it through Configure and AddItem, a later Configure from code winning (and
+// an AddChain setting it aside), the logo (cut out of any texture, never thrown, one copy), finding the project's asset
+// (several: none) and the build step that preloads it and cleans up after a build that did not finish.
 #nullable enable
 using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
 using Scfg.Editor;
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEngine;
 
 namespace Scfg.Tests
@@ -22,7 +24,8 @@ namespace Scfg.Tests
         [TearDown]
         public void Clean()
         {
-            foreach (var o in _made) Object.DestroyImmediate(o);
+            foreach (var o in _made)
+                if (o != null) Object.DestroyImmediate(o);
             _made.Clear();
             _rig.Dispose();
         }
@@ -170,18 +173,146 @@ namespace Scfg.Tests
         }
 
         [Test]
+        public void ApplyAtStartupNeverThrows()
+        {
+            ScfgSettings.FindOverride = () => throw new System.InvalidOperationException("boom");
+            try
+            {
+                Assert.DoesNotThrow(ScfgSettings.ApplyAtStartup);
+            }
+            finally
+            {
+                ScfgSettings.FindOverride = null;
+            }
+            Assert.That(_rig.Reported.Last(), Does.Contain("could not be applied: InvalidOperationException: boom"));
+        }
+
+        // --- the logo ----------------------------------------------------------------------------------------
+
+        /// <summary>A w x h texture whose every pixel is a different color (r = x, g = y).</summary>
+        private Texture2D Gradient(int w, int h, bool readable = true)
+        {
+            var texture = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            var pixels = new Color32[w * h];
+            for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                pixels[y * w + x] = new Color32((byte)(x * 10), (byte)(y * 10), 7, 255);
+            texture.SetPixels32(pixels);
+            texture.Apply(false, !readable);
+            _made.Add(texture);
+            return texture;
+        }
+
+        private Sprite SpriteOf(Texture2D texture, Rect rect, SpriteMeshType mesh = SpriteMeshType.FullRect)
+        {
+            var sprite = Sprite.Create(texture, rect, new Vector2(0.3f, 0.6f), 100, 0, mesh);
+            _made.Add(sprite);
+            return sprite;
+        }
+
+        [Test]
         public void AWholeTextureSpriteIsTheLogoAsIs()
         {
-            var texture = new Texture2D(4, 4, TextureFormat.RGBA32, false);
-            _made.Add(texture);
-            var whole = Sprite.Create(texture, new Rect(0, 0, 4, 4), Vector2.zero);
-            _made.Add(whole);
-            Assert.That(Make(a => a.logo = whole).ToOptions().Logo, Is.SameAs(texture));
-            var part = Sprite.Create(texture, new Rect(1, 1, 2, 3), Vector2.zero);
-            _made.Add(part);
-            var cropped = Make(a => a.logo = part).ToOptions().Logo!;
+            var texture = Gradient(4, 4);
+            var s = Make(a => a.logo = SpriteOf(texture, new Rect(0, 0, 4, 4)));
+            Assert.That(s.ToOptions().Logo, Is.SameAs(texture));
+            Assert.That(s.LogoCopy, Is.Null, "no copy");
+        }
+
+        [Test]
+        public void ASheetCellIsCutOutIntoOneCopyTheAssetOwns()
+        {
+            var texture = Gradient(8, 8);
+            var cell = SpriteOf(texture, new Rect(1, 2, 3, 4));
+            var s = Make(a => a.logo = cell);
+            var logo = s.ToOptions().Logo!;
+            Assert.That((logo.width, logo.height), Is.EqualTo((3, 4)));
+            Assert.That(logo.GetPixel(0, 0), Is.EqualTo(texture.GetPixel(1, 2)));
+            Assert.That(logo.GetPixel(2, 3), Is.EqualTo(texture.GetPixel(3, 5)));
+            Assert.That(s.ToOptions().Logo, Is.SameAs(logo), "the copy is reused");
+            Assert.That(s.Apply(), Is.Null);
+            Assert.That(SCFG.LogoTexture, Is.SameAs(logo), "Apply reuses it too");
+
+            // another sprite: a new copy; the old one is destroyed, unless SCFG still shows it
+            _made.Add(logo);
+            s.logo = SpriteOf(texture, new Rect(0, 0, 2, 2));
+            var second = s.ToOptions().Logo!;
+            Assert.That(second, Is.Not.SameAs(logo));
+            Assert.That(logo != null, Is.True, "SCFG still shows the first copy");
+            s.logo = cell;
+            var third = s.ToOptions().Logo!;
+            Assert.That(second == null, Is.True, "the copy SCFG did not show was destroyed");
+            Assert.That(third, Is.SameAs(s.LogoCopy));
+            Assert.That(_rig.Warnings.Where(w => w.Contains("logo")), Is.Empty);
+        }
+
+        [Test]
+        public void ValidateMakesNoLogo()
+        {
+            var s = Make(a => a.logo = SpriteOf(Gradient(8, 8, readable: false), new Rect(1, 1, 2, 3)));
+            Assert.That(s.Validate(), Is.Null);
+            Assert.That(s.LogoCopy, Is.Null);
+            Assert.That(_rig.Warnings, Is.Empty);
+            Assert.That(_rig.Reported, Is.Empty);
+        }
+
+        [Test]
+        public void ACellOfANonReadableTextureNeverThrows()
+        {
+            // The tests run without a graphics device, so the GPU cannot read it either: the whole texture, with a warning.
+            // (With a device, Read cuts it out through a RenderTexture.)
+            var texture = Gradient(8, 8, readable: false);
+            Assert.That(texture.isReadable, Is.False);
+            var s = Make(a => a.logo = SpriteOf(texture, new Rect(1, 1, 2, 3)));
+            ScfgOptions? o = null;
+            Assert.DoesNotThrow(() => o = s.ToOptions());
+            Assert.That(o!.Logo, Is.SameAs(texture));
+            Assert.That(_rig.Warnings.Single(), Does.Contain("could not be cut out of its texture"));
+            Assert.That(s.Apply(), Is.Null, "the asset is still applied");
+            Assert.That(SCFG.ItemTitle("chapter2"), Is.EqualTo("Chapter 2"));
+        }
+
+        [Test]
+        public void ADestroyedLogoTextureMeansNoLogo()
+        {
+            var texture = Gradient(4, 4);
+            var s = Make(a => a.logo = SpriteOf(texture, new Rect(0, 0, 2, 2)));
+            Object.DestroyImmediate(texture);
+            ScfgOptions? o = null;
+            Assert.DoesNotThrow(() => o = s.ToOptions());
+            Assert.That(o!.Logo, Is.Null);
+            Assert.That(s.Apply(), Is.Null);
+        }
+
+        [TestCase(SpriteMeshType.FullRect)]
+        [TestCase(SpriteMeshType.Tight)]
+        public void APackedSpriteIsDrawnFromItsMesh(SpriteMeshType mesh)
+        {
+            // Render is the path of a sprite packed tight or rotated in a Sprite Atlas (a player); here its mesh and UVs
+            // point into an unpacked texture, so it must give what the rect crop gives.
+            var texture = Gradient(16, 12);
+            var pixels = texture.GetPixels32();
+            for (int y = 0; y < 12; y++) pixels[y * 16 + 2] = new Color32(0, 0, 0, 0); // a transparent column for the tight mesh
+            texture.SetPixels32(pixels);
+            texture.Apply();
+            var sprite = SpriteOf(texture, new Rect(2, 3, 9, 7), mesh);
+            var drawn = ScfgSettings.Render(sprite, texture)!;
+            _made.Add(drawn);
+            var cropped = ScfgSettings.Crop(texture, new RectInt(2, 3, 9, 7))!;
             _made.Add(cropped);
-            Assert.That((cropped.width, cropped.height), Is.EqualTo((2, 3)), "a readable atlas sprite is cropped");
+            Assert.That((drawn.width, drawn.height), Is.EqualTo((9, 7)));
+            var a = drawn.GetPixels32();
+            var b = cropped.GetPixels32();
+            int opaque = 0, covered = 0;
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (b[i].a != 0) opaque++;
+                if (a[i].a == 0) continue; // a tight mesh leaves out the transparent column
+                covered++;
+                Assert.That(a[i], Is.EqualTo(b[i]), "pixel " + (i % 9) + "," + (i / 9));
+            }
+            if (mesh == SpriteMeshType.FullRect) Assert.That(covered, Is.EqualTo(opaque));
+            else Assert.That(covered, Is.GreaterThanOrEqualTo(opaque * 8 / 10), "the tight mesh covers the opaque part");
         }
 
         [Test]
@@ -205,11 +336,104 @@ namespace Scfg.Tests
             }
             finally
             {
-                ScfgSettingsBuild.Remove();
+                ScfgSettingsBuild.CleanUp();
                 AssetDatabase.DeleteAsset(path);
                 PlayerSettings.SetPreloadedAssets(before);
             }
             Assert.That(ScfgSettings.Find(), Is.Null);
+        }
+
+        [Test]
+        public void ABuildThatDidNotFinishIsCleanedUpWithoutMemory()
+        {
+            // A failed build has no postprocess, and a script reload forgets everything: the clean-up (run after the
+            // build and at every editor load) takes out every SCFG Settings entry and keeps the others.
+            const string path = "Assets/ScfgSettingsTest.asset";
+            var before = PlayerSettings.GetPreloadedAssets();
+            var asset = ScriptableObject.CreateInstance<ScfgSettings>();
+            AssetDatabase.CreateAsset(asset, path);
+            var other = ScriptableObject.CreateInstance<ScfgSettings>();
+            _made.Add(other);
+            var theirs = new Texture2D(1, 1);
+            _made.Add(theirs);
+            try
+            {
+                new ScfgSettingsBuild().OnPreprocessBuild(null!);
+                // a stale entry of an older build (another asset since) and the developer's own preloaded asset
+                PlayerSettings.SetPreloadedAssets(PlayerSettings.GetPreloadedAssets().Concat(new Object[] { other, theirs }).ToArray());
+                new ScfgSettingsBuild().OnPreprocessBuild(null!);
+                var preloaded = PlayerSettings.GetPreloadedAssets();
+                Assert.That(preloaded.Count(o => o is ScfgSettings), Is.EqualTo(1), "a build preloads exactly the asset Find uses");
+                Assert.That(preloaded, Has.Member(asset).And.Member(theirs));
+                PlayerSettings.SetPreloadedAssets(preloaded.Append(other).ToArray());
+                ScfgSettingsBuild.CleanUp();
+                Assert.That(PlayerSettings.GetPreloadedAssets().Any(o => o is ScfgSettings), Is.False);
+                Assert.That(PlayerSettings.GetPreloadedAssets(), Has.Member(theirs));
+            }
+            finally
+            {
+                ScfgSettingsBuild.CleanUp();
+                AssetDatabase.DeleteAsset(path);
+                PlayerSettings.SetPreloadedAssets(before);
+            }
+        }
+
+        [Test]
+        public void SeveralAssetsAreRefusedInPlayModeAndInABuild()
+        {
+            const string a = "Assets/ScfgSettingsTestA.asset", b = "Assets/ScfgSettingsTestB.asset";
+            var before = PlayerSettings.GetPreloadedAssets();
+            AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<ScfgSettings>(), b);
+            AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<ScfgSettings>(), a);
+            try
+            {
+                Assert.That(ScfgSettings.FindAll().Select(ScfgSettings.Describe), Is.EqualTo(new[] { a, b }));
+                Assert.That(ScfgSettings.Find(), Is.Null, "none is applied");
+                Assert.That(_rig.Reported.Last(), Does.Contain("2 SCFG Settings assets were found (" + a + ", " + b + "), so none is applied"));
+                var e = Assert.Throws<BuildFailedException>(() => new ScfgSettingsBuild().OnPreprocessBuild(null!));
+                Assert.That(e!.Message, Does.Contain(a).And.Contain(b));
+                Assert.That(PlayerSettings.GetPreloadedAssets(), Is.EqualTo(before), "the list is left alone");
+            }
+            finally
+            {
+                AssetDatabase.DeleteAsset(a);
+                AssetDatabase.DeleteAsset(b);
+                PlayerSettings.SetPreloadedAssets(before);
+            }
+        }
+
+        // --- AddChain with the asset -------------------------------------------------------------------------
+
+        private static ScfgChain MyL2() => new ScfgChain
+        {
+            Name = "My L2", ChainId = 4242, Rpc = new List<string> { "https://rpc.example.org" },
+            Tokens = new Dictionary<string, string> { { "USDC", "0x0000000000000000000000000000000000000001" } },
+            Confirmations = 3, ExplorerTx = "https://explorer.example.org/tx/{}",
+        };
+
+        [Test]
+        public void AddChainSetsTheAssetsConfigurationAsideForTheCodesConfigure()
+        {
+            Assert.That(Make().Apply(), Is.Null);
+            Assert.That(SCFG.AddChain("myl2", MyL2()), Is.Null);
+            Assert.That(SCFG.Current.Config, Is.Null, "the asset's configuration is set aside");
+            Assert.That(_rig.Warnings.Last(), Does.Contain("call SCFG.Configure() next"));
+            Assert.That(SCFG.Configure(new ScfgOptions { Wallet = ScfgRig.Dev, Chains = new List<string> { "myl2" } }), Is.Null);
+            Assert.That(SCFG.ChainName("myl2"), Is.EqualTo("My L2"));
+            Assert.That(SCFG.ItemTitle("chapter2"), Is.EqualTo("chapter2"), "the asset's items went with it");
+            Assert.That(SCFG.AddChain("other", MyL2()), Is.EqualTo("configure.after_add_chain"), "after a Configure from code: refused");
+            Assert.That(_rig.Reported.Last(), Does.EndWith("call SCFG.AddChain() before SCFG.Configure()"));
+        }
+
+        [Test]
+        public void AddChainAfterTheAssetsPaymentsStartedIsRefused()
+        {
+            Assert.That(Make().Apply(), Is.Null);
+            _rig.Pump();
+            Assert.That(SCFG.Current.Worker, Is.Not.Null);
+            Assert.That(SCFG.AddChain("myl2", MyL2()), Is.EqualTo("configure.after_add_chain"));
+            Assert.That(_rig.Reported.Last(), Does.Contain("the SCFG Settings asset configured SCFG before the first scene"));
+            Assert.That(SCFG.ItemTitle("chapter2"), Is.EqualTo("Chapter 2"), "the asset's configuration stays");
         }
     }
 }
