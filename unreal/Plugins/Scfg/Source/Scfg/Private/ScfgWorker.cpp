@@ -189,7 +189,15 @@ public:
 		ReverifyJob.reset();
 		if (!Result)
 		{
-			Result.emplace(ScfgWorkerDetail::Cancelled());
+			// A startup reverify that failed before this tick was polled keeps its Err (reported, not retried).
+			if (Reverified && !Reverified->ok())
+			{
+				Result.emplace(Reverified->err());
+			}
+			else
+			{
+				Result.emplace(ScfgWorkerDetail::Cancelled());
+			}
 		}
 	}
 	virtual void Deliver() override { Worker.EndTick(*Result, Waiters); }
@@ -475,6 +483,17 @@ bool FScfgWorker::OnTicker(float DeltaTime)
 		{
 			TUniquePtr<FCommand> Done = MoveTemp(Finished[0]);
 			Finished.RemoveAt(0);
+			// Every Err a command ends with is logged once, here, whether it has a callback or not; the callback
+			// gets the Result too and must not log it again. A cancellation is not an error. First, so that a
+			// handler below that destroys the worker cannot lose it.
+			if (const scfg::Err* Failed = Done->Error(); Failed && !ScfgWorkerDetail::IsCancelled(*Failed))
+			{
+				Report(*Failed);
+				if (!*StillAlive)
+				{
+					return false;
+				}
+			}
 			if (Done->bStarted)
 			{
 				Refresh();  // a failing snapshot is reported: OnError may have destroyed the worker
@@ -482,20 +501,7 @@ bool FScfgWorker::OnTicker(float DeltaTime)
 				{
 					return false;
 				}
-				// A copy: the broadcast must not touch this worker's delegate once a handler has destroyed it
-				// (TMulticastDelegateBase::Broadcast compacts its own invocation list after the handlers return).
-				const FSimpleMulticastDelegate Changed = OnStateChanged;
-				Changed.Broadcast();
-				if (!*StillAlive)
-				{
-					return false;
-				}
-			}
-			// Every Err a command ends with is logged once, here, whether it has a callback or not; the callback
-			// gets the Result too and must not log it again. A cancellation is not an error.
-			if (const scfg::Err* Failed = Done->Error(); Failed && !ScfgWorkerDetail::IsCancelled(*Failed))
-			{
-				Report(*Failed);
+				BroadcastStateChanged(StillAlive);
 				if (!*StillAlive)
 				{
 					return false;
@@ -543,6 +549,48 @@ void FScfgWorker::EndTick(const scfg::Result<FOutcomes>& Result, TArray<TOnDone<
 		if (!*StillAlive)
 		{
 			return;
+		}
+	}
+}
+
+FDelegateHandle FScfgStateChanged::Add(FSimpleDelegate Handler)
+{
+	check(IsInGameThread());
+	if (!Handler.IsBound())
+	{
+		return FDelegateHandle();
+	}
+	const FDelegateHandle Handle(FDelegateHandle::GenerateNewHandle);
+	Entries.Add(FEntry{Handle, MakeShared<const FSimpleDelegate>(MoveTemp(Handler))});
+	return Handle;
+}
+
+bool FScfgStateChanged::Remove(FDelegateHandle Handle)
+{
+	check(IsInGameThread());
+	return Handle.IsValid() && Entries.RemoveAll([Handle](const FEntry& Each) { return Each.Handle == Handle; }) > 0;
+}
+
+bool FScfgStateChanged::Contains(FDelegateHandle Handle) const
+{
+	return Entries.ContainsByPredicate([Handle](const FEntry& Each) { return Each.Handle == Handle; });
+}
+
+void FScfgWorker::BroadcastStateChanged(const TSharedRef<bool>& StillAlive)
+{
+	// The list is copied (its handlers are shared, not copied): a handler may add or remove handlers, or destroy the
+	// worker (the list itself is shared too, so Event stays valid).
+	const TSharedRef<FScfgStateChanged> Event = OnStateChanged;
+	const TArray<FScfgStateChanged::FEntry> Handlers = Event->Entries;
+	for (const FScfgStateChanged::FEntry& Each : Handlers)
+	{
+		if (!*StillAlive)
+		{
+			return;
+		}
+		if (Event->Contains(Each.Handle))
+		{
+			Each.Handler->ExecuteIfBound();
 		}
 	}
 }

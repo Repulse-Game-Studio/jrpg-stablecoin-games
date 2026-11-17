@@ -701,7 +701,7 @@ bool FScfgWorkerStateChangedTest::RunTest(const FString& Parameters)
 	}
 	TArray<FString> Order;
 	FScfgWorker& Worker = *W.Worker;
-	W.Worker->OnStateChanged.AddLambda([&]()
+	W.Worker->OnStateChanged->AddLambda([&]()
 	{
 		Order.Add(FString::Printf(TEXT("changed(%d)"), static_cast<int32>(Worker.GetSnapshot().pending.as_dict().size())));
 	});
@@ -840,9 +840,9 @@ bool FScfgWorkerErrorsLoggedOnceTest::RunTest(const FString& Parameters)
 
 SCFG_WORKER_TEST(FScfgWorkerDestroyFromHandlersTest, "AHandlerMayDestroyTheWorker")
 
-// OnStateChanged and OnError (called from the ticker) may destroy the worker: it broadcasts a copy of its delegate,
-// calls a copy of OnError, and touches nothing after. (The installed editor is not an ASan build: this shows the
-// path runs; the CMake asan preset does not compile the glue.)
+// OnStateChanged and OnError (called from the ticker) may destroy the worker: it broadcasts from a copy of its
+// handler list, calls a copy of OnError, and touches nothing after, not even the next handler. (The installed editor
+// is not an ASan build: this shows the path runs; the CMake asan preset does not compile the glue.)
 bool FScfgWorkerDestroyFromHandlersTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgWorkerTests;
@@ -854,18 +854,18 @@ bool FScfgWorkerDestroyFromHandlersTest::RunTest(const FString& Parameters)
 		}
 		int32 Calls = 0;
 		TGot<void> Never;
-		W.Worker->OnStateChanged.AddLambda([&]()
+		W.Worker->OnStateChanged->AddLambda([&]()
 		{
 			++Calls;
 			W.Fake = nullptr;
 			W.Worker.Reset();
 		});
-		W.Worker->OnStateChanged.AddLambda([&]() { ++Calls; });  // the copy still runs every handler it holds
+		W.Worker->OnStateChanged->AddLambda([&]() { Calls += 100; });  // after the destroy: never called
 		W.Worker->Discard("ps_a", Never.Callback());
 		W.Worker->Start();
 		W.Frames(3);
 		TestFalse(TEXT("destroyed from OnStateChanged"), W.Worker.IsValid());
-		TestEqual(TEXT("both handlers of that broadcast ran"), Calls, 2);
+		TestEqual(TEXT("no handler ran after the one that destroyed the worker"), Calls, 1);
 		TestFalse(TEXT("no callback after"), Never.Value.has_value());
 		TestEqual(TEXT("shut down once"), W.Stats->Shutdowns, 1);
 	}
@@ -1057,6 +1057,152 @@ bool FScfgWorkerReceiptCommandsTest::RunTest(const FString& Parameters)
 		AddInfo(FString::Printf(TEXT("build_solana_payment: %s"), *ScfgString::FromUtf8(Payment.Value->err().str())));
 	}
 	TestEqual(TEXT("and its Err is reported once"), W.Errors->Num(), ErrorsBefore + 1);
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerHandlersTest, "OnStateChangedSkipsRemovedAndDeadHandlers")
+
+// A handler removed by an earlier one in the same broadcast is skipped (the engine's own Broadcast does the same), one
+// added during it waits for the next broadcast, and one bound to a shared owner that has died is not called.
+bool FScfgWorkerHandlersTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	FWorld W;
+	if (!TestTrue(TEXT("created"), W.Make().ok()))
+	{
+		return false;
+	}
+	TArray<FString> Calls;
+	FDelegateHandle Second;
+	TSharedRef<FScfgStateChanged> Event = W.Worker->OnStateChanged;
+	Event->AddLambda([&]()
+	{
+		Calls.Add(TEXT("first"));
+		if (Second.IsValid())
+		{
+			TestTrue(TEXT("removed"), Event->Remove(Second));
+			Second.Reset();
+			Event->AddLambda([&]() { Calls.Add(TEXT("added")); });
+		}
+	});
+	Second = Event->AddLambda([&]() { Calls.Add(TEXT("second")); });
+	struct FOwner
+	{
+		int32 Calls = 0;
+		void OnChanged() { ++Calls; }
+	};
+	TSharedPtr<FOwner> Owner = MakeShared<FOwner>();
+	Event->AddSP(Owner.ToSharedRef(), &FOwner::OnChanged);
+	int32 LambdaOwnerCalls = 0;
+	Event->AddSPLambda(Owner.ToSharedRef(), [&LambdaOwnerCalls]() { ++LambdaOwnerCalls; });
+	int32 KeptState = 0;
+	Event->AddLambda([Count = 0, &KeptState]() mutable { KeptState = ++Count; });  // not copied per broadcast
+	TestEqual(TEXT("five handlers"), Event->Num(), 5);
+	W.Worker->Discard("ps_a", nullptr);
+	W.Worker->Start();
+	W.Frame();
+	// Two broadcasts in that frame: the Discard's, then its tick's (which asks the fake node nothing).
+	TestEqual(TEXT("the removed one was skipped, the added one waited for the next broadcast"),
+		FString::Join(Calls, TEXT(" ")), TEXT("first first added"));
+	TestTrue(TEXT("the shared owner's handlers ran"), Owner->Calls == 2 && LambdaOwnerCalls == 2);
+	Calls.Reset();
+	const TWeakPtr<FOwner> Gone = Owner;
+	Owner.Reset();
+	TestFalse(TEXT("the owner is gone"), Gone.IsValid());
+	W.Worker->Discard("ps_b", nullptr);
+	W.Frames(3);
+	TestEqual(TEXT("the other handlers still run"), FString::Join(Calls, TEXT(" ")), TEXT("first added first added"));
+	TestEqual(TEXT("the dead owner's lambda was not called"), LambdaOwnerCalls, 2);
+	TestEqual(TEXT("a mutable lambda keeps its state"), KeptState, 4);
+	TestFalse(TEXT("removing twice"), Event->Remove(FDelegateHandle()));
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerErrBeforeHandlersTest, "TheErrIsReportedBeforeAHandlerCanDestroyTheWorker")
+
+// A command's Err is reported before the snapshot is refreshed and OnStateChanged runs, so a handler that destroys
+// the worker (the facade tearing everything down) does not lose it.
+bool FScfgWorkerErrBeforeHandlersTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	FWorld W;
+	if (!TestTrue(TEXT("created"), W.Make().ok()))
+	{
+		return false;
+	}
+	FString ErrorsWhenChanged = TEXT("-");
+	W.Worker->OnStateChanged->AddLambda([&]()
+	{
+		ErrorsWhenChanged = FString::Join(*W.Errors, TEXT(" | "));
+		W.Fake = nullptr;
+		W.Worker.Reset();
+	});
+	TGot<void> Never;
+	W.Worker->SetUiStatus("ps_gone", "cancelled", nullptr);  // unknown sid: no Err
+	W.Worker->ReportHint("ps_gone", Json(kTx), Never.Callback());
+	W.Worker->Start();
+	W.Frames(3);
+	TestFalse(TEXT("destroyed by the handler"), W.Worker.IsValid());
+	TestEqual(TEXT("the first command had no Err"), ErrorsWhenChanged, TEXT(""));
+	TestEqual(TEXT("nothing reported"), W.Errors->Num(), 0);
+	FWorld V;
+	if (!TestTrue(TEXT("created"), V.Make().ok()))
+	{
+		return false;
+	}
+	V.Worker->OnStateChanged->AddLambda([&]()
+	{
+		ErrorsWhenChanged = FString::Join(*V.Errors, TEXT(" | "));
+		V.Fake = nullptr;
+		V.Worker.Reset();
+	});
+	V.Worker->ReportHint("ps_gone", Json(kTx), Never.Callback());
+	V.Worker->Start();
+	V.Frames(3);
+	TestFalse(TEXT("destroyed by the handler"), V.Worker.IsValid());
+	TestEqual(TEXT("the Err was reported before the handler ran"), ErrorsWhenChanged, TEXT("KeyError: 'ps_gone'"));
+	TestEqual(TEXT("once"), V.Errors->Num(), 1);
+	TestFalse(TEXT("its callback never ran"), Never.Value.has_value());
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerFailedReverifyThenStopTest, "AFailedReverifyKeepsItsErrThroughStop")
+
+// The startup reverify has failed (its answer came this frame) but the worker has not polled it yet when Stop() runs:
+// the tick ends with the reverify's Err, which is reported once, not with CancelledError; and it is not retried.
+bool FScfgWorkerFailedReverifyThenStopTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	FWorld W;
+	if (!TestTrue(TEXT("created"), W.Make(Json(), Receipts()).ok()))
+	{
+		return false;
+	}
+	W.Fake->Answer = [](const FString&) -> Result<Json>
+	{
+		return scfg::Err::make("BaseException", "the node is down hard");
+	};
+	TGot<FScfgWorker::FOutcomes> Tick;
+	W.Worker->Tick(Tick.Callback());
+	W.Worker->Start();
+	W.Frame();
+	TestTrue(TEXT("the reverify waits for the node"), W.Worker->IsBusy() && W.Fake->NumHeld() == 1);
+	W.Fake->Pump();  // the answer: the reverify fails now, before the worker's ticker runs
+	W.Worker->Stop();
+	W.Ticker.Tick(0.1f);
+	TestEqual(TEXT("the tick got the reverify's Err"), Tick.Kind(), TEXT("BaseException"));
+	TestTrue(TEXT("reported once"), W.Errors->Num() == 1 && (*W.Errors)[0].StartsWith(TEXT("BaseException")));
+	const int32 Requests = W.Stats->Methods.Num();
+	W.Fake->Answer = [](const FString& Method) -> Result<Json>
+	{
+		return Method == TEXT("eth_blockNumber") ? Result<Json>(Json("0x3e8")) : Result<Json>(Json::list());
+	};
+	TGot<FScfgWorker::FOutcomes> After;
+	W.Worker->Start();
+	W.Worker->Tick(After.Callback());
+	W.Frames(10);
+	TestTrue(TEXT("the next tick"), After.Ok());
+	TestEqual(TEXT("no second reverify (no pending session: nothing asked)"), W.Stats->Methods.Num(), Requests);
 	return true;
 }
 

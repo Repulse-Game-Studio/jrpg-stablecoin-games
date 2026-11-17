@@ -28,12 +28,20 @@
 // turn it into a Failed result: they must not log it again.
 //
 // CALLBACKS. Every completion callback and OnStateChanged run on the game thread from the worker's ticker, never
-// inside a call to the worker (a sync command's callback comes on the next frame), and in this order: the snapshot is
-// refreshed, OnStateChanged fires, the Err (if any) is reported to OnError, then the command's callback. Any of them
-// (OnError included, when it is called from the ticker) may submit commands, Stop() or Start() the worker, or destroy
-// it (the worker notices and touches nothing more). The Engine's contained errors are reported from inside the
-// running command's coroutine: OnError must not destroy the worker then (checked), and a Stop() there is deferred to
-// the next frame (IsRunning() is false meanwhile, and a Start() after it wins).
+// inside a call to the worker (a sync command's callback comes on the next frame), and in this order: the Err (if
+// any) is reported to OnError, the snapshot is refreshed, OnStateChanged's handlers run, then the command's callback.
+// Any of them (OnError included, when it is called from the ticker) may submit commands, Stop() or Start() the worker,
+// or destroy it: the worker notices and touches nothing more, and calls no further handler or callback (the Err was
+// reported first, so it is never lost that way). The Engine's contained errors are reported from inside the running
+// command's coroutine: OnError must not destroy the worker then (checked), and a Stop() there is deferred to the next
+// frame (IsRunning() is false meanwhile, and a Start() after it wins).
+//
+// ONSTATECHANGED'S HANDLERS (FScfgStateChanged) run in the order they were added. A handler removed by an earlier one
+// is skipped, one added during the broadcast waits for the next, and none runs once a handler has destroyed the
+// worker. A handler's owner may still die meanwhile (the facade destroying the store, say): bind it weakly (AddSP,
+// AddSPLambda: the owner is checked at call time) or Remove() it in the owner's destructor, never a raw `this`
+// alone. The list is shared (a TSharedRef), so a subscriber that may outlive the worker keeps a TWeakPtr to it and
+// removes its handler only while it is still there.
 //
 // START AND STOP. Commands submitted before Start() wait for it. Stop() cancels the running command (its Job is
 // destroyed, which cancels its coroutine) and every queued one: each callback gets CancelledError, on the next
@@ -63,6 +71,46 @@
 #include <map>
 #include <optional>
 #include <vector>
+
+// FScfgWorker::OnStateChanged: the handlers to run after every command (see ONSTATECHANGED'S HANDLERS in FScfgWorker's
+// comment). Game thread only.
+class SCFG_API FScfgStateChanged
+{
+public:
+	FDelegateHandle Add(FSimpleDelegate Handler);
+	// The handler runs only while Owner is alive.
+	template <class UserClass, class Method>
+	FDelegateHandle AddSP(const TSharedRef<UserClass>& Owner, Method Fn)
+	{
+		return Add(FSimpleDelegate::CreateSP(Owner, Fn));
+	}
+	template <class UserClass, class Functor>
+	FDelegateHandle AddSPLambda(const TSharedRef<UserClass>& Owner, Functor&& Fn)
+	{
+		return Add(FSimpleDelegate::CreateSPLambda(Owner, Forward<Functor>(Fn)));
+	}
+	// A lambda with no owner check: its captures must stay valid while it is bound (tests, or Remove() in time).
+	template <class Functor>
+	FDelegateHandle AddLambda(Functor&& Fn)
+	{
+		return Add(FSimpleDelegate::CreateLambda(Forward<Functor>(Fn)));
+	}
+	// True when the handler was there.
+	bool Remove(FDelegateHandle Handle);
+	int32 Num() const { return Entries.Num(); }
+
+private:
+	friend class FScfgWorker;
+	// Shared, so a broadcast holds each handler alive through its own call even if it is removed meanwhile, without
+	// copying it (a mutable lambda keeps its state).
+	struct FEntry
+	{
+		FDelegateHandle Handle;
+		TSharedRef<const FSimpleDelegate> Handler;
+	};
+	bool Contains(FDelegateHandle Handle) const;
+	TArray<FEntry> Entries;
+};
 
 // FScfgWorker's options (FScfgWorker::FOptions).
 struct FScfgWorkerOptions
@@ -143,8 +191,9 @@ public:
 	bool IsBusy() const { return Current.IsValid(); }
 	bool IsTickPending() const { return PendingTick.IsValid(); }
 
-	// After every command that started (one cancelled while it ran included), once the Snapshot is refreshed.
-	FSimpleMulticastDelegate OnStateChanged;
+	// After every command that started (one cancelled while it ran included), once the Snapshot is refreshed. Shared,
+	// so a subscriber can hold it weakly (see ONSTATECHANGED'S HANDLERS above).
+	const TSharedRef<FScfgStateChanged> OnStateChanged = MakeShared<FScfgStateChanged>();
 
 	// The commands (defined in ScfgWorker.cpp).
 	class FCommand;
@@ -161,6 +210,8 @@ private:
 	// The tick's end (FTickCommand::Deliver): outcomes, the next interval, OnError, then each waiter.
 	void EndTick(const scfg::Result<FOutcomes>& Result, TArray<TOnDone<FOutcomes>>& Waiters);
 	void Report(const scfg::Err& Error);
+	// OnStateChanged's handlers; stops as soon as one has destroyed the worker (StillAlive false).
+	void BroadcastStateChanged(const TSharedRef<bool>& StillAlive);
 	void Refresh();
 	bool IsTickRunning() const;
 
