@@ -12,15 +12,50 @@ name: unity
 # Unity job (the "license" job says so) instead of failing.
 
 on:
+  # The same paths on both: what the Unity jobs build or import (the e2e runners reuse the Godot and Ren'Py
+  # runners' families, helpers and mocks). The weekly run covers everything else.
   push:
     branches: [main]
+    paths:
+      - "unity/**"
+      - "plugin/game/scfg/web/**"
+      - "plugin/game/python-packages/scfg_core/**"
+      - "contracts/**"
+      - "tools/run_unity_e2e.py"
+      - "tools/run_unity_web_e2e.py"
+      - "tools/check_unity_samples.py"
+      - "tools/run_godot_e2e.py"
+      - "tools/run_godot_web_e2e.py"
+      - "tools/run_renpy_e2e.py"
+      - "tools/run_renpy_web_e2e.py"
+      - "tools/sync_demo.py"
+      - "tools/fetch_godot.py"
+      - "tests/integration/browser_mocks.py"
+      - "tests/integration/mock_token.py"
+      - "tests/integration/solana_local.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/unity.yml"
   pull_request:
     paths:
       - "unity/**"
       - "plugin/game/scfg/web/**"
+      - "plugin/game/python-packages/scfg_core/**"
+      - "contracts/**"
       - "tools/run_unity_e2e.py"
       - "tools/run_unity_web_e2e.py"
       - "tools/check_unity_samples.py"
+      - "tools/run_godot_e2e.py"
+      - "tools/run_godot_web_e2e.py"
+      - "tools/run_renpy_e2e.py"
+      - "tools/run_renpy_web_e2e.py"
+      - "tools/sync_demo.py"
+      - "tools/fetch_godot.py"
+      - "tests/integration/browser_mocks.py"
+      - "tests/integration/mock_token.py"
+      - "tests/integration/solana_local.py"
+      - "pyproject.toml"
+      - "uv.lock"
       - ".github/workflows/unity.yml"
   schedule:
     - cron: "0 7 * * 1"   # weekly, after test.yml: a new runner image or GameCI image shows up here
@@ -29,14 +64,25 @@ on:
 permissions:
   contents: read
 
+# Every Unity job activates the same Unity account (each builder or test-runner step takes a license seat and
+# returns it when it ends), so the activations are kept down: one group for the whole workflow, so runs from
+# different branches never overlap, and no cancel-in-progress, because a job killed mid-build cannot return its
+# seat. Inside a run at most two jobs hold a seat at once: the test legs one after the other beside samples,
+# then the two e2e jobs. A newer run waits; GitHub keeps one waiting run per group and cancels an older waiting
+# one (it had not started, so it held no seat).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 env:
   AGAVE_VERSION: v4.3.0
   UNITY_VERSION: 6000.6.9f1   # unity/Project/ProjectSettings/ProjectVersion.txt
   PROJECT: unity/Project
+  # unity-builder runs the game-ci/cli binary, with the Unity credentials in its environment, and without
+  # cliVersion it downloads the latest CLI release at every run: the action's SHA pin alone does not pin what
+  # runs. This is the release the workflow was checked against (its build check wants the "Build succeeded!"
+  # line the build methods log); bump it together with unity-builder, after reading what changed.
+  GAME_CI_CLI: v0.1.76
 
 jobs:
   license:
@@ -66,9 +112,9 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      max-parallel: 1   # one seat at a time (see concurrency); samples holds the other
       matrix:
         unity: ["6000.3.28f1", "6000.6.9f1"]   # 6.3 LTS, the package's minimum; the dev project's version
-        mode: [editmode, playmode]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -84,13 +130,13 @@ jobs:
         with:
           projectPath: ${{ env.PROJECT }}
           unityVersion: ${{ matrix.unity }}
-          testMode: ${{ matrix.mode }}
-          artifactsPath: artifacts/${{ matrix.unity }}-${{ matrix.mode }}
+          testMode: all   # edit and play mode in one activation
+          artifactsPath: artifacts/${{ matrix.unity }}
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: unity-tests-${{ matrix.unity }}-${{ matrix.mode }}
-          path: artifacts/${{ matrix.unity }}-${{ matrix.mode }}
+          name: unity-tests-${{ matrix.unity }}
+          path: artifacts/${{ matrix.unity }}
           if-no-files-found: ignore
 
   samples:
@@ -115,12 +161,14 @@ jobs:
           projectPath: ${{ env.PROJECT }}
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: StandaloneLinux64
+          cliVersion: ${{ env.GAME_CI_CLI }}
           buildMethod: ScfgSamplesCheck.Check
           allowDirtyBuild: true   # the samples' copy is untracked
 
   linux-e2e:
-    needs: license
-    if: needs.license.outputs.ok == 'true'
+    # After tests and samples (seats, see concurrency), whatever their result.
+    needs: [license, tests, samples]
+    if: ${{ !cancelled() && needs.license.outputs.ok == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -140,6 +188,7 @@ jobs:
           projectPath: ${{ env.PROJECT }}
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: StandaloneLinux64
+          cliVersion: ${{ env.GAME_CI_CLI }}
           buildMethod: Scfg.E2E.ScfgE2EBuild.BuildLinux
           customParameters: -scfgBackend il2cpp -scfgOut /github/workspace/build/linux-il2cpp
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
@@ -162,8 +211,9 @@ jobs:
         run: SCFG_E2E_WINDOWED=1 uv run python tools/run_unity_e2e.py --player build/linux-il2cpp --family solana
 
   webgl-e2e:
-    needs: license
-    if: needs.license.outputs.ok == 'true'
+    # After tests and samples (seats, see concurrency), whatever their result.
+    needs: [license, tests, samples]
+    if: ${{ !cancelled() && needs.license.outputs.ok == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -183,6 +233,7 @@ jobs:
           projectPath: ${{ env.PROJECT }}
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: WebGL
+          cliVersion: ${{ env.GAME_CI_CLI }}
           buildMethod: Scfg.E2E.ScfgE2EBuild.BuildWebGL
           customParameters: -scfgOut /github/workspace/build/webgl
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
