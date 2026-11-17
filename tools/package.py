@@ -407,17 +407,18 @@ def unity_problems(package=UNITY_PACKAGE):
         out.append(f"{license_copy.name} is not a copy of LICENSE")
     out += check_unity_meta.problems(package.parent)
     out += check_unity_samples.problems(package / "Samples~", package / "package.json")
-    out += [f"checkout page copy: {x}" for x in sync_web_page.check(sync_web_page.SRC,
-                                                                     sync_web_page.UNITY_TARGET)]
+    web = package / sync_web_page.UNITY_TARGET.relative_to(UNITY_PACKAGE)
+    out += [f"checkout page copy: {x}" for x in sync_web_page.check(sync_web_page.SRC, web)]
     return out
 
 
 def unity_files_to_ship(package=UNITY_PACKAGE):
     """(path, name) for the tarball's files under package/, sorted: everything in the package
-    folder but Tests/ and hidden entries."""
+    folder but Tests/, hidden entries and editor backups (files ending in ~, which the .meta check
+    skips; the Samples~ and Documentation~ folders do ship)."""
     for path in sorted(package.rglob("*")):
         rel = path.relative_to(package)
-        if path.is_dir() or rel.parts[0] in UNITY_SKIP_TOP:
+        if path.is_dir() or rel.parts[0] in UNITY_SKIP_TOP or path.name.endswith("~"):
             continue
         if any(part.startswith(".") for part in rel.parts):
             continue
@@ -444,12 +445,10 @@ def build_unity_tgz(dist, package=UNITY_PACKAGE):
     target = dist / f"scfg-unity-{__version__}.tgz"
     raw = io.BytesIO()
     with tarfile.open(fileobj=raw, mode="w", format=tarfile.PAX_FORMAT) as tar:
-        names = set()
         for path, name in unity_files_to_ship(package):
             if name == "package/" + UNITY_GUIDE_NAME:
                 raise ValueError(f"{path} would be overwritten by the generated guide")
             _tar_add(tar, name, path.read_bytes())
-            names.add(name)
             print(f"  {name}")
         name = "package/" + UNITY_GUIDE_NAME
         _tar_add(tar, name, unity_guide().encode("utf-8"))

@@ -35,13 +35,19 @@ UNITY_TARGETS = {UNITY_TARGET}
 UNITY_SUFFIX = ".bytes"
 
 
+def _unity(target: Path) -> bool:
+    """A Unity target: one of UNITY_TARGETS, or the same folder in another copy of the package
+    (package.py checks the package it is given)."""
+    return target in UNITY_TARGETS or target.parts[-4:] == UNITY_TARGET.parts[-4:]
+
+
 def _suffix(target: Path) -> str:
-    return UNITY_SUFFIX if target in UNITY_TARGETS else ""
+    return UNITY_SUFFIX if _unity(target) else ""
 
 
 def _kept(target: Path, name: str) -> bool:
     """An entry of `target` that is not a copy and is left alone (a Unity .meta)."""
-    return target in UNITY_TARGETS and name.endswith(".meta")
+    return _unity(target) and name.endswith(".meta")
 
 
 def _files(directory: Path) -> dict:
