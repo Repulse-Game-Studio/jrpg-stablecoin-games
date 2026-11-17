@@ -1,6 +1,8 @@
 #include "ScfgDev.h"
 
+#include "Misc/App.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Modules/ModuleManager.h"
 #include "Scfg/Amounts.h"
 #include "Scfg/Json.h"
@@ -20,6 +22,24 @@ bool FScfgDevSmokeTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TestEqual(TEXT("parse_amount(\"4.99\")"), FString(UTF8_TO_TCHAR(Price.value().str().c_str())), FString(TEXT("4.99")));
+	return true;
+}
+
+// Our editor runs send nothing to Epic (Config/DefaultEditorSettings.ini): no usage analytics, and no crash report
+// upload from an unattended run that crashes.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FScfgDevNoTelemetryTest, "ScfgDev.NoTelemetry", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FScfgDevNoTelemetryTest::RunTest(const FString& Parameters)
+{
+	bool bSendUsageData = true;
+	bool bSendUnattendedBugReports = true;
+	TestTrue(TEXT("bSendUsageData is set"), GConfig->GetBool(TEXT("/Script/UnrealEd.AnalyticsPrivacySettings"),
+		TEXT("bSendUsageData"), bSendUsageData, GEditorSettingsIni));
+	TestTrue(TEXT("bSendUnattendedBugReports is set"), GConfig->GetBool(TEXT("/Script/UnrealEd.CrashReportsPrivacySettings"),
+		TEXT("bSendUnattendedBugReports"), bSendUnattendedBugReports, GEditorSettingsIni));
+	TestFalse(TEXT("no usage analytics"), bSendUsageData);
+	TestFalse(TEXT("no unattended crash report upload"), bSendUnattendedBugReports);
+	TestTrue(TEXT("unattended"), FApp::IsUnattended());
 	return true;
 }
 
