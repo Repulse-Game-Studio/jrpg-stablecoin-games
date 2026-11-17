@@ -1,6 +1,7 @@
 #include "ScfgDev.h"
 
-#include "Misc/App.h"
+#include "EngineAnalytics.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Modules/ModuleManager.h"
@@ -25,21 +26,30 @@ bool FScfgDevSmokeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Our editor runs send nothing to Epic (Config/DefaultEditorSettings.ini): no usage analytics, and no crash report
-// upload from an unattended run that crashes.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FScfgDevNoTelemetryTest, "ScfgDev.NoTelemetry", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+// Our editor runs reach nothing beyond localhost (Config/DefaultEditorSettings.ini, Config/DefaultEngine.ini): no usage
+// analytics, no crash report upload from an unattended run that crashes, and no Home panel, whose connectivity check
+// fetches https://www.google.com/generate_204. It holds in any run, unattended or not (the session frontend's too).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FScfgDevNoTelemetryTest, "ScfgDev.NoTelemetry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FScfgDevNoTelemetryTest::RunTest(const FString& Parameters)
 {
 	bool bSendUsageData = true;
 	bool bSendUnattendedBugReports = true;
+	// GEditorSettingsIni: BaseEditorSettings.ini, then the project's DefaultEditorSettings.ini, then the per-user
+	// EditorSettings.ini that every 5.8 project shares, which would win
 	TestTrue(TEXT("bSendUsageData is set"), GConfig->GetBool(TEXT("/Script/UnrealEd.AnalyticsPrivacySettings"),
 		TEXT("bSendUsageData"), bSendUsageData, GEditorSettingsIni));
 	TestTrue(TEXT("bSendUnattendedBugReports is set"), GConfig->GetBool(TEXT("/Script/UnrealEd.CrashReportsPrivacySettings"),
 		TEXT("bSendUnattendedBugReports"), bSendUnattendedBugReports, GEditorSettingsIni));
 	TestFalse(TEXT("no usage analytics"), bSendUsageData);
 	TestFalse(TEXT("no unattended crash report upload"), bSendUnattendedBugReports);
-	TestTrue(TEXT("unattended"), FApp::IsUnattended());
+	TestFalse(TEXT("no analytics provider was started"), FEngineAnalytics::IsAvailable());
+	const IConsoleVariable* HomeScreen = IConsoleManager::Get().FindConsoleVariable(TEXT("HomeScreen.EnableHomeScreen"));
+	if (TestNotNull(TEXT("the HomeScreen.EnableHomeScreen cvar"), HomeScreen))
+	{
+		TestFalse(TEXT("no Home panel (no connectivity check to www.google.com)"), HomeScreen->GetBool());
+	}
 	return true;
 }
 

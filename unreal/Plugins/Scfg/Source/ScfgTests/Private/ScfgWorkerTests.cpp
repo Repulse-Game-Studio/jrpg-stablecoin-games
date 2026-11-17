@@ -14,6 +14,7 @@
 #include "Scfg/Engine.h"
 #include "Scfg/Err.h"
 #include "Scfg/Json.h"
+#include "Scfg/Restore.h"
 #include "Scfg/Result.h"
 #include "Scfg/Watcher.h"
 
@@ -608,11 +609,16 @@ bool FScfgWorkerFailingTickTest::RunTest(const FString& Parameters)
 		return Method == TEXT("eth_blockNumber") ? Result<Json>(Json("0x3e8")) : Result<Json>(Json::list());
 	};
 	TGot<FScfgWorker::FOutcomes> First;
+	TGot<FScfgWorker::FOutcomes> AlsoWaiting;
+	TGot<FScfgWorker::FOutcomes> AndAThird;
 	W.Worker->Tick(First.Callback());
+	W.Worker->Tick(AlsoWaiting.Callback());
+	W.Worker->Tick(AndAThird.Callback());
 	W.Worker->Start();
 	W.Frame(0.0f);
 	TestEqual(TEXT("the first tick failed with the reverify's Err"), First.Kind(), TEXT("BaseException"));
-	TestEqual(TEXT("reported once"), W.Errors->Num(), 1);
+	TestTrue(TEXT("every waiter got it"), AlsoWaiting.Kind() == TEXT("BaseException") && AndAThird.Kind() == TEXT("BaseException"));
+	TestEqual(TEXT("reported once, not once per waiter"), W.Errors->Num(), 1);
 	TestEqual(TEXT("the session was not stepped"), W.Count(TEXT("eth_getLogs")), 0);
 	const int32 ReverifyRequests = W.Stats->Methods.Num();
 	TestEqual(TEXT("the reverify asked once (eth_blockNumber)"), ReverifyRequests, 1);
@@ -802,6 +808,255 @@ bool FScfgWorkerStopFromOnErrorTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("then the tick was cancelled"), Tick.Kind(), TEXT("CancelledError"));
 	TestFalse(TEXT("stopped"), W.Worker->IsRunning());
 	TestEqual(TEXT("reported once"), Reported, 1);
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerErrorsLoggedOnceTest, "EveryErrIsReportedOnce")
+
+// The worker owns "an Err is logged once": a command's Err goes to OnError whether it has a callback or not (the
+// callback gets the Result too, and must not log it again); a cancelled command is not an error.
+bool FScfgWorkerErrorsLoggedOnceTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	FWorld W;
+	if (!TestTrue(TEXT("created"), W.Make().ok()))
+	{
+		return false;
+	}
+	W.Worker->ReportHint("ps_gone", Json(kTx), nullptr);  // no callback: still reported
+	TGot<void> WithCallback;
+	W.Worker->ReportHint("ps_other", Json(kTx), WithCallback.Callback());
+	W.Worker->Start();
+	W.Frames(5);
+	TestEqual(TEXT("the callback got the Err"), WithCallback.Kind(), TEXT("KeyError"));
+	TestEqual(TEXT("both reported, once each"), FString::Join(*W.Errors, TEXT(" | ")),
+		TEXT("KeyError: 'ps_gone' | KeyError: 'ps_other'"));
+	W.Worker->Stop();
+	W.Worker->ReportHint("ps_late", Json(kTx), nullptr);  // cancelled: not an error
+	W.Frames(3);
+	TestEqual(TEXT("a cancellation is not reported"), W.Errors->Num(), 2);
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerDestroyFromHandlersTest, "AHandlerMayDestroyTheWorker")
+
+// OnStateChanged and OnError (called from the ticker) may destroy the worker: it broadcasts a copy of its delegate,
+// calls a copy of OnError, and touches nothing after. (The installed editor is not an ASan build: this shows the
+// path runs; the CMake asan preset does not compile the glue.)
+bool FScfgWorkerDestroyFromHandlersTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	{
+		FWorld W;
+		if (!TestTrue(TEXT("created"), W.Make().ok()))
+		{
+			return false;
+		}
+		int32 Calls = 0;
+		TGot<void> Never;
+		W.Worker->OnStateChanged.AddLambda([&]()
+		{
+			++Calls;
+			W.Fake = nullptr;
+			W.Worker.Reset();
+		});
+		W.Worker->OnStateChanged.AddLambda([&]() { ++Calls; });  // the copy still runs every handler it holds
+		W.Worker->Discard("ps_a", Never.Callback());
+		W.Worker->Start();
+		W.Frames(3);
+		TestFalse(TEXT("destroyed from OnStateChanged"), W.Worker.IsValid());
+		TestEqual(TEXT("both handlers of that broadcast ran"), Calls, 2);
+		TestFalse(TEXT("no callback after"), Never.Value.has_value());
+		TestEqual(TEXT("shut down once"), W.Stats->Shutdowns, 1);
+	}
+	{
+		FWorld W;
+		TUniquePtr<FFakeTransport> Transport = MakeUnique<FFakeTransport>(W.Stats);
+		FScfgWorker::FOptions Options;
+		Options.Ticker = &W.Ticker;
+		int32 Reported = 0;
+		Options.OnError = [&](const scfg::Err&)
+		{
+			++Reported;
+			W.Worker.Reset();  // from the ticker, outside the Engine
+		};
+		Result<TUniquePtr<FScfgWorker>> Made =
+			FScfgWorker::Create(BaseConfig(), MoveTemp(Transport), Json(), Json(), MoveTemp(Options));
+		if (!TestTrue(TEXT("created"), Made.ok()))
+		{
+			return false;
+		}
+		W.Worker = Made.take();
+		TGot<void> Hint;
+		W.Worker->ReportHint("ps_gone", Json(kTx), Hint.Callback());
+		W.Worker->Start();
+		W.Frames(3);
+		TestFalse(TEXT("destroyed from OnError"), W.Worker.IsValid());
+		TestEqual(TEXT("reported once"), Reported, 1);
+		TestFalse(TEXT("its callback never ran"), Hint.Value.has_value());
+		TestEqual(TEXT("shut down once"), W.Stats->Shutdowns, 1);
+	}
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerCancelledReverifyTest, "ACancelledStartupReverifyRunsAgain")
+
+// Stop() while the startup reverify waits for the node, then Start(): the reverify is owed, so the next tick runs it
+// (a failed one is not retried; a cancelled one is).
+bool FScfgWorkerCancelledReverifyTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	FWorld W;
+	if (!TestTrue(TEXT("created"), W.Make(Json(), Receipts()).ok()))
+	{
+		return false;
+	}
+	W.Fake->RpcErrorFor = [](const FString& Method) -> std::optional<Json>
+	{
+		if (Method == TEXT("eth_getLogs"))
+		{
+			return Json::dict({{"code", -32000}, {"message", "internal error"}});  // keep the receipt
+		}
+		return std::nullopt;
+	};
+	W.Fake->bHold = true;
+	W.Worker->Start();
+	W.Frame();
+	TestTrue(TEXT("the reverify waits for the node"), W.Worker->IsBusy() && W.Fake->NumHeld() == 1);
+	W.Worker->Stop();
+	W.Frame();
+	W.Fake->bHold = false;
+	TGot<FScfgWorker::FOutcomes> Tick;
+	W.Worker->Start();
+	W.Worker->Tick(Tick.Callback());
+	W.Frames(20);
+	TestTrue(TEXT("the tick after the restart"), Tick.Ok());
+	TestTrue(TEXT("it ran the reverify (its eth_getLogs in the receipt's block)"), W.Count(TEXT("eth_getLogs")) >= 1);
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerStopThenStartInOnErrorTest, "AStartAfterADeferredStopWins")
+
+// Inside the Engine (a contained error), Stop() is deferred: IsRunning() is false at once, and a Start() after it
+// wins, so the next frame does not stop the worker.
+bool FScfgWorkerStopThenStartInOnErrorTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	FWorld W;
+	Json Bad = Json::dict({{"chain", "base"}, {"state", "awaiting"}, {"ui_status", "cancelled"}});
+	TUniquePtr<FFakeTransport> Transport = MakeUnique<FFakeTransport>(W.Stats);
+	FScfgWorker* Raw = nullptr;
+	bool bRunningAfterStop = true;
+	FScfgWorker::FOptions Options;
+	Options.Ticker = &W.Ticker;
+	Options.Clock = []() { return kNow; };
+	Options.OnError = [&](const scfg::Err&)
+	{
+		Raw->Stop();
+		bRunningAfterStop = Raw->IsRunning();
+		Raw->Start();
+	};
+	Result<TUniquePtr<FScfgWorker>> Made = FScfgWorker::Create(
+		BaseConfig(), MoveTemp(Transport), Json::dict({{"ps_bad", std::move(Bad)}}), Json(), MoveTemp(Options));
+	if (!TestTrue(TEXT("created"), Made.ok()))
+	{
+		return false;
+	}
+	W.Worker = Made.take();
+	Raw = W.Worker.Get();
+	TGot<FScfgWorker::FOutcomes> Tick;
+	W.Worker->Tick(Tick.Callback());
+	W.Worker->Start();
+	W.Frames(5);
+	TestFalse(TEXT("IsRunning() is false once a stop is wanted"), bRunningAfterStop);
+	TestTrue(TEXT("the Start() after it won"), W.Worker->IsRunning());
+	TestTrue(TEXT("the tick finished, not cancelled"), Tick.Ok());
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerReceiptCommandsTest, "TheReceiptAndSolanaCommandsRunThroughTheWorker")
+
+// Reverify, RestoreLookup, RestoreApply and BuildSolanaPayment, each through the worker's queue over the fake node.
+bool FScfgWorkerReceiptCommandsTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	FWorld W;
+	if (!TestTrue(TEXT("created"), W.Make(Json(), Receipts()).ok()))
+	{
+		return false;
+	}
+	TSharedRef<bool> bKeep = MakeShared<bool>(true);
+	W.Fake->RpcErrorFor = [bKeep](const FString& Method) -> std::optional<Json>
+	{
+		if (*bKeep && Method == TEXT("eth_getLogs"))
+		{
+			return Json::dict({{"code", -32000}, {"message", "internal error"}});
+		}
+		return std::nullopt;
+	};
+	W.Fake->Answer = [Fake = W.Fake](const FString& Method) -> Result<Json>
+	{
+		if (Method == TEXT("eth_blockNumber"))
+		{
+			return Json(ScfgString::ToUtf8(FString::Printf(TEXT("0x%llx"), static_cast<unsigned long long>(Fake->Head++))));
+		}
+		if (Method == TEXT("eth_getLogs"))
+		{
+			return Json::list();
+		}
+		return Json();  // "not found" for every lookup
+	};
+	W.Worker->Start();
+	W.Frames(20);  // the startup reverify keeps the receipt (the node refuses eth_getLogs)
+	TestEqual(TEXT("kept at startup"), static_cast<int32>(W.Worker->GetSnapshot().receipts.as_dict().size()), 1);
+
+	*bKeep = false;  // now the node finds no such log: an explicit Reverify revokes the receipt
+	TGot<Json> Removed;
+	W.Worker->Reverify(Removed.Callback());
+	W.Frames(20);
+	if (TestTrue(TEXT("reverify"), Removed.Ok()))
+	{
+		TestTrue(TEXT("the receipt's key is returned"), Removed.Value->value().is_list() &&
+			Removed.Value->value().as_list().size() == 1);
+	}
+	TestEqual(TEXT("revoked"), static_cast<int32>(W.Worker->GetSnapshot().receipts.as_dict().size()), 0);
+
+	TGot<std::vector<scfg::restore::RestoreCandidate>> Lookup;
+	W.Worker->RestoreLookup(Json(kTx), Lookup.Callback());
+	W.Frames(200);
+	TestTrue(TEXT("restore_lookup answered"), Lookup.Value.has_value());
+	if (Lookup.Value && !Lookup.Value->ok())
+	{
+		AddInfo(FString::Printf(TEXT("restore_lookup: %s"), *ScfgString::FromUtf8(Lookup.Value->err().str())));
+	}
+	TestEqual(TEXT("an unknown transaction"), Lookup.Value && !Lookup.Value->ok() ?
+		ScfgString::FromUtf8(Lookup.Value->err().code) : FString(TEXT("-")), TEXT("tx_not_found"));
+
+	TGot<Json> Applied;
+	W.Worker->RestoreApply({}, std::nullopt, Applied.Callback());
+	W.Frames(3);
+	TestTrue(TEXT("restore_apply of nothing adds nothing"), Applied.Ok() && Applied.Value->value().is_list() &&
+		Applied.Value->value().as_list().empty());
+
+	std::string Sid;
+	W.Worker->StartSession("unlock", "base", Json::dict({{"item", "chapter2"}}), [&Sid](Result<Json> R)
+	{
+		if (R.ok())
+		{
+			Sid = R.value().as_dict().get("id").as_str();
+		}
+	});
+	W.Frames(10);
+	const int32 ErrorsBefore = W.Errors->Num();
+	TGot<Json> Payment;
+	W.Worker->BuildSolanaPayment(Json(Sid), Json("4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T"), Payment.Callback());
+	W.Frames(10);
+	TestTrue(TEXT("an EVM session has no Solana payment"), Payment.Value.has_value() && !Payment.Value->ok());
+	if (Payment.Value && !Payment.Value->ok())
+	{
+		AddInfo(FString::Printf(TEXT("build_solana_payment: %s"), *ScfgString::FromUtf8(Payment.Value->err().str())));
+	}
+	TestEqual(TEXT("and its Err is reported once"), W.Errors->Num(), ErrorsBefore + 1);
 	return true;
 }
 

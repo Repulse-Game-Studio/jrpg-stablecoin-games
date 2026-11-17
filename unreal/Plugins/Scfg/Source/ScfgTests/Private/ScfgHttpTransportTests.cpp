@@ -15,14 +15,19 @@
 
 #include "ScfgHttpTransport.h"
 #include "ScfgString.h"
+#include "ScfgWorker.h"
 
+#include "Scfg/BackendsBase.h"
 #include "Scfg/BigInt.h"
+#include "Scfg/Chains.h"
+#include "Scfg/Config.h"
 #include "Scfg/Co.h"
 #include "Scfg/Err.h"
 #include "Scfg/Json.h"
 #include "Scfg/Result.h"
 #include "Scfg/Rpc.h"
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -82,7 +87,11 @@ private:
 	FLocalNode()
 	{
 		FHttpServerModule& Server = FHttpServerModule::Get();
-		Server.StartAllListeners();  // listeners enabled first: GetHttpRouter then binds at once, or says it cannot
+		// Listeners enabled first: GetHttpRouter then binds at once, or says it cannot. StartAllListeners starts every
+		// HTTPServer listener registered in this editor process, not only ours: ScfgDev registers none, but in a
+		// project with one (Web Remote Control, say) running these tests opens that listener too. Ours stays open,
+		// on 127.0.0.1 only, until the editor exits.
+		Server.StartAllListeners();
 		for (int32 Attempt = 0; Attempt < 40 && !Router.IsValid(); ++Attempt)
 		{
 			const uint32 Candidate = static_cast<uint32>(FMath::RandRange(20000, 60999));
@@ -98,11 +107,14 @@ private:
 		}
 		Bind(TEXT("/rpc"), [](const FHttpServerRequest& Request, const std::string& Body)
 		{
-			// eth_blockNumber's answer, with the request's id
+			// A node at block 42 that has no logs, answering with the request's id
 			const Result<Json> Call = scfg::json::loads(Body);
-			const Json Id = Call.ok() && Call.value().is_dict() ? Call.value().as_dict().get("id") : Json();
-			const Result<std::string> Text =
-				scfg::json::dumps(Json::dict({{"jsonrpc", "2.0"}, {"id", Id}, {"result", "0x2a"}}));
+			const bool bCall = Call.ok() && Call.value().is_dict();
+			const Json Id = bCall ? Call.value().as_dict().get("id") : Json();
+			const Json Method = bCall ? Call.value().as_dict().get("method") : Json();
+			const bool bLogs = Method.is_str() && Method.as_str() == "eth_getLogs";
+			const Result<std::string> Text = scfg::json::dumps(
+				Json::dict({{"jsonrpc", "2.0"}, {"id", Id}, {"result", bLogs ? Json::list() : Json("0x2a")}}));
 			return Reply(EHttpServerResponseCodes::Ok, Text.ok() ? Text.value() : std::string("{}"));
 		});
 		Bind(TEXT("/unavailable"), [](const FHttpServerRequest&, const std::string&)
@@ -425,6 +437,145 @@ bool FScfgHttpShutdownTest::RunTest(const FString& Parameters)
 			return false;
 		}
 		return ++Wait->FramesAfter >= 10;  // some frames for a late completion to (not) arrive
+	}));
+	return true;
+}
+
+SCFG_HTTP_TEST(FScfgHttpRefusedAtOnceTest, "WhatCannotBeSentFailsAtOnce")
+
+// Two requests that never leave: a payload json::dumps refuses (an int of more than 4300 digits, Python's
+// ValueError) completes the Future inside post_json with that Err, and so does a request the engine refuses in
+// ProcessRequest() (an empty URL: HttpRequestCommon.cpp:97-101, finished at once on the game thread, :224-231),
+// as a TransportError.
+bool FScfgHttpRefusedAtOnceTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgHttpTests;
+	FLocalNode& Node = FLocalNode::Get();
+	if (!TestTrue(TEXT("the local node is listening on 127.0.0.1"), Node.IsUp()))
+	{
+		return false;
+	}
+	AddExpectedMessagePlain(TEXT("ProcessRequest failed. No URL was specified."), ELogVerbosity::Warning,
+		EAutomationExpectedMessageFlags::Contains, 1);
+	AddExpectedMessagePlain(TEXT("completed with reason 'Other'"), ELogVerbosity::Warning,
+		EAutomationExpectedMessageFlags::Contains, 1);
+	const int32 SeenBefore = Node.Seen.Num();
+	FScfgHttpTransport Transport;
+
+	Json Huge = Json::dict({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "eth_call"},
+		{"params", Json::list({Json(scfg::BigInt(10).pow(4400))})}});
+	scfg::Future<Json> Dumped = Transport.post_json(ScfgString::ToUtf8(Node.Url(TEXT("/rpc"))), std::move(Huge), 5.0);
+	TestTrue(TEXT("a dumps Err completes at once"), Dumped.done());
+	scfg::Job<Json> DumpedJob;
+	std::optional<Result<Json>> DumpedGot;
+	DumpedJob.start(Await(std::move(Dumped)), [&DumpedGot](Result<Json> R) { DumpedGot.emplace(std::move(R)); });
+	TestTrue(TEXT("with dumps' ValueError"), DumpedGot && !DumpedGot->ok() && DumpedGot->err().kind == "ValueError");
+
+	scfg::Future<Json> NoUrl = Transport.post_json("", Json::dict({{"method", "eth_blockNumber"}}), 5.0);
+	TestTrue(TEXT("a request ProcessRequest() refuses completes inside post_json"), NoUrl.done());
+	scfg::Job<Json> NoUrlJob;
+	std::optional<Result<Json>> NoUrlGot;
+	NoUrlJob.start(Await(std::move(NoUrl)), [&NoUrlGot](Result<Json> R) { NoUrlGot.emplace(std::move(R)); });
+	if (TestTrue(TEXT("as a TransportError"), NoUrlGot && !NoUrlGot->ok() && NoUrlGot->err().kind == "TransportError"))
+	{
+		TestEqual(TEXT("its message"), ScfgString::FromUtf8(NoUrlGot->err().message),
+			TEXT("<urlopen error cannot start the request to ''>"));
+		TestFalse(TEXT("with no status"), NoUrlGot->err().status.has_value());
+	}
+	TestEqual(TEXT("both counted"), Transport.Posts(), 2);
+	TestEqual(TEXT("nothing in flight"), Transport.InFlight(), 0);
+	TestEqual(TEXT("the node saw nothing"), Node.Seen.Num(), SeenBefore);
+	return true;
+}
+
+SCFG_HTTP_TEST(FScfgHttpWorkerTest, "TheWorkerOverTheRealTransport")
+
+// The worker over FScfgHttpTransport and the core ticker, against the local node only (an RpcFactory whose client
+// has no other url): start_session asks the node for the head, and the callback comes from the worker's ticker.
+bool FScfgHttpWorkerTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgHttpTests;
+	FLocalNode& Node = FLocalNode::Get();
+	if (!TestTrue(TEXT("the local node is listening on 127.0.0.1"), Node.IsUp()))
+	{
+		return false;
+	}
+	struct FState
+	{
+		TUniquePtr<FScfgWorker> Worker;
+		std::optional<Result<Json>> Session;
+		TArray<FString> Errors;
+		bool bOnGameThread = false;
+		double Started = FPlatformTime::Seconds();
+		int32 SeenBefore = 0;
+	};
+	TSharedRef<FState> S = MakeShared<FState>();
+	S->SeenBefore = Node.Seen.Num();
+	TUniquePtr<FScfgHttpTransport> Transport = MakeUnique<FScfgHttpTransport>();
+	FScfgHttpTransport* const Http = Transport.Get();  // owned by the worker, which outlives its Engine's clients
+	const std::string Url = ScfgString::ToUtf8(Node.Url(TEXT("/rpc")));
+	FScfgWorker::FOptions Options;
+	Options.RpcFactory = [Http, Url](const scfg::chains::Chain&) -> Result<scfg::backends::base::Rpc>
+	{
+		SCFG_TRY(scfg::rpc::RpcClient Client, scfg::rpc::RpcClient::make({Url}, *Http));
+		return scfg::backends::base::Rpc(std::make_shared<scfg::rpc::RpcClient>(std::move(Client)));
+	};
+	FState* Raw = &S.Get();
+	Options.OnError = [Raw](const scfg::Err& E) { Raw->Errors.Add(ScfgString::FromUtf8(E.str())); };
+	Result<scfg::config::Config> Config = scfg::config::build_config(Json::dict(
+		{{"wallet", "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"}, {"chains", Json::list({"base"})}, {"testnet", true}}));
+	if (!TestTrue(TEXT("config"), Config.ok()))
+	{
+		return false;
+	}
+	scfg::config::Config Built = Config.take();
+	Result<scfg::models::Item> Item = scfg::config::add_item(
+		Built, "chapter2", Json::dict({{"code", 37}, {"price", "4.99"}, {"token", "USDC"}, {"title", "Chapter 2"}}));
+	if (!TestTrue(TEXT("item"), Item.ok()))
+	{
+		return false;
+	}
+	Result<TUniquePtr<FScfgWorker>> Made =
+		FScfgWorker::Create(std::move(Built), MoveTemp(Transport), Json(), Json(), MoveTemp(Options));
+	if (!TestTrue(TEXT("worker"), Made.ok()))
+	{
+		return false;
+	}
+	S->Worker = Made.take();
+	S->Worker->StartSession("unlock", "base", Json::dict({{"item", "chapter2"}}), [Raw](Result<Json> R)
+	{
+		Raw->bOnGameThread = IsInGameThread();
+		Raw->Session.emplace(std::move(R));
+	});
+	S->Worker->Start();
+	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand([this, S, &Node]()
+	{
+		// wait for the session, then for the tick it asked for, so no request is in flight when the worker goes
+		// (a node answering a cancelled request logs LogHttpConnection's socket_send_failure)
+		const bool bIdle = S->Session && !S->Worker->IsBusy() && !S->Worker->IsTickPending() &&
+			S->Worker->NumQueued() == 0;
+		if (!bIdle && FPlatformTime::Seconds() - S->Started < kPatience)
+		{
+			return false;
+		}
+		if (TestTrue(TEXT("start_session answered"), S->Session.has_value()))
+		{
+			if (TestTrue(TEXT("a session"), S->Session->ok()))
+			{
+				const Json& StartBlock = S->Session->value().as_dict().get("start_block");
+				TestTrue(TEXT("its start block is below the node's head (42)"),
+					StartBlock.is_int64() && StartBlock.as_int64() > 0 && StartBlock.as_int64() <= 42);
+			}
+			else
+			{
+				AddError(ScfgString::FromUtf8(S->Session->err().str()));
+			}
+		}
+		TestTrue(TEXT("the callback ran on the game thread"), S->bOnGameThread);
+		TestTrue(TEXT("the node was asked"), Node.Seen.Num() > S->SeenBefore);
+		TestEqual(TEXT("no error"), FString::Join(S->Errors, TEXT(" | ")), FString());
+		S->Worker.Reset();  // Jobs, Engine, then the transport's Shutdown, outside the ticker
+		return true;
 	}));
 	return true;
 }

@@ -3,19 +3,28 @@
 //
 // post_json makes one request: POST, Content-Type: application/json, User-Agent: scfg/0.1 (urllib's header here),
 // the body json::dumps(payload) (its Err, an int of more than 4300 digits, completes the Future at once), and
-// SetTimeout(timeout): the whole request, in seconds. The request completes on the game thread
-// (EHttpRequestDelegateThreadPolicy::CompleteOnGameThread, the default, checked), when FHttpManager ticks, so the
-// waiting coroutine resumes on the game thread inside OnProcessRequestComplete. The Future is completed with:
+// SetTimeout(timeout) (see the timeout divergences below). The request is set to complete on the game thread
+// (SetDelegateThreadPolicy(CompleteOnGameThread), 5.8's default, set explicitly so that a changed default cannot move
+// it, Shipping included), when FHttpManager ticks, so the waiting coroutine resumes on the game thread inside
+// OnProcessRequestComplete. Every entry point is game-thread only. The Future is completed with:
 // - an HTTP answer (any status): coio::parse_rpc_body(status, body bytes), rpc.UrllibTransport's rules;
 // - no answer: TransportError with no status and a message as close to urllib's as the engine tells
-//   ("timed out", "<urlopen error connection failed>", ...; FailureMessage in the .cpp).
+//   ("timed out", "<urlopen error connection failed>", ...; FailureMessage in the .cpp);
+// - a request the engine will not start (an empty URL): TransportError("<urlopen error cannot start the request to
+//   '<url>'>"), already complete when post_json returns.
 //
 // Shutdown() (also run by the destructor) unbinds each request's delegates first, so a late completion can never
 // reach this object, cancels the request, then drops its promise (CancelledError).
 //
-// Port limits: the engine reads the whole body before we see it (curl caps it at int32, CurlHttp.cpp:626), and only
-// then is a body over coio::MAX_RESPONSE_BYTES refused, as urllib reads without a cap. Redirects are followed as
-// libcurl's defaults in the engine follow them.
+// Port limits (unreal/README.md, "Known divergences"):
+// - Timeouts. urllib's timeout bounds each socket operation; SetTimeout bounds the whole request, so an answer that
+//   trickles in for longer than timeout succeeds in Python and is "timed out" here. A timeout <= 0 sets no total
+//   timeout here (the engine's default, none), where Python fails at once (no caller passes one: the core's is 10 s).
+//   The engine's own [HTTP] HttpConnectionTimeout and HttpActivityTimeout (30 s, BaseEngine.ini:40-41) also end a
+//   request whose connect, or whose silence, lasts longer, whatever the core's timeout.
+// - The engine reads the whole body before we see it (curl caps it at int32, CurlHttp.cpp:626), and only then is a
+//   body over coio::MAX_RESPONSE_BYTES refused, as urllib reads without a cap. Redirects are followed as libcurl's
+//   defaults in the engine follow them.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -58,6 +67,8 @@ private:
 	TUniquePtr<FWaiting> Take(const IHttpRequest* Request);
 
 	TMap<const IHttpRequest*, TUniquePtr<FWaiting>> Waiting;
+	// The request inside ProcessRequest(), whose refusal the engine reports through OnComplete at once.
+	const IHttpRequest* Starting = nullptr;
 	int32 NumPosts = 0;
 	bool bShutDown = false;
 };

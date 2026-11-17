@@ -44,10 +44,17 @@ scfg::Err NoAnswer(EHttpFailureReason Reason)
 	return scfg::Err::transport_error(FailureMessage(Reason), std::nullopt);
 }
 
+// A request the engine would not start (godot's http_transport.gd says "cannot start the request to <url>").
+scfg::Err CannotStart(const std::string& Url)
+{
+	return scfg::Err::transport_error("<urlopen error cannot start the request to '" + Url + "'>", std::nullopt);
+}
+
 }  // namespace ScfgHttpTransportDetail
 
 FScfgHttpTransport::~FScfgHttpTransport()
 {
+	check(IsInGameThread());
 	Shutdown();
 }
 
@@ -68,7 +75,7 @@ scfg::Future<scfg::Json> FScfgHttpTransport::post_json(std::string Url, scfg::Js
 	const std::string& Text = Body.value();
 
 	const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
-	check(Request->GetDelegateThreadPolicy() == EHttpRequestDelegateThreadPolicy::CompleteOnGameThread);
+	Request->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnGameThread);
 	Request->SetVerb(TEXT("POST"));
 	Request->SetURL(ScfgString::FromUtf8(Url));
 	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
@@ -84,14 +91,18 @@ scfg::Future<scfg::Json> FScfgHttpTransport::post_json(std::string Url, scfg::Js
 	Entry->Request = Request;
 	scfg::Future<scfg::Json> Answer = Entry->Promise.get_future();
 	Waiting.Add(&Request.Get(), MoveTemp(Entry));
-	if (!Request->ProcessRequest())
+	// A request the engine refuses (an empty or disallowed URL, a disabled HTTP module) is finished inside
+	// ProcessRequest, which then calls OnComplete at once on the game thread (HttpRequestCommon.cpp:180-201, :224-231):
+	// Starting tells OnComplete so.
+	Starting = &Request.Get();
+	const bool bStarted = Request->ProcessRequest();
+	Starting = nullptr;
+	if (!bStarted)
 	{
-		// Refused before it went out (a malformed URL, the HTTP module shutting down). The engine may already have
-		// called OnComplete from inside ProcessRequest; if not, the request is still ours to fail.
-		if (TUniquePtr<FWaiting> Refused = Take(&Request.Get()))
+		if (TUniquePtr<FWaiting> Refused = Take(&Request.Get()))  // not finished by the engine: ours to fail
 		{
 			Request->OnProcessRequestComplete().Unbind();
-			Refused->Promise.complete(ScfgHttpTransportDetail::NoAnswer(Request->GetFailureReason()));
+			Refused->Promise.complete(ScfgHttpTransportDetail::CannotStart(Url));
 		}
 	}
 	return Answer;
@@ -114,6 +125,10 @@ void FScfgHttpTransport::OnComplete(FHttpRequestPtr Request, FHttpResponsePtr Re
 		Entry->Promise.complete(scfg::coio::parse_rpc_body(Response->GetResponseCode(),
 			std::string_view(reinterpret_cast<const char*>(Body.GetData()), static_cast<size_t>(Body.Num()))));
 	}
+	else if (Request.Get() == Starting)
+	{
+		Entry->Promise.complete(ScfgHttpTransportDetail::CannotStart(ScfgString::ToUtf8(Request->GetURL())));
+	}
 	else
 	{
 		Entry->Promise.complete(ScfgHttpTransportDetail::NoAnswer(Request->GetFailureReason()));
@@ -133,6 +148,7 @@ TUniquePtr<FScfgHttpTransport::FWaiting> FScfgHttpTransport::Take(const IHttpReq
 
 void FScfgHttpTransport::Shutdown()
 {
+	check(IsInGameThread());  // it may resume waiting coroutines
 	bShutDown = true;
 	TMap<const IHttpRequest*, TUniquePtr<FWaiting>> Dropped = MoveTemp(Waiting);
 	Waiting.Reset();

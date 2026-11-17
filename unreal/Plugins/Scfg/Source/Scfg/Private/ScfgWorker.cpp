@@ -41,6 +41,8 @@ public:
 	virtual void Cancel() = 0;
 	virtual void Deliver() = 0;
 	virtual bool IsTick() const { return false; }
+	// The Err the command finished with (not called before Poll() said it finished), or null for a value.
+	virtual const scfg::Err* Error() const = 0;
 
 	// Start() was called: the Engine's state may have changed (OnStateChanged follows).
 	bool bStarted = false;
@@ -85,6 +87,7 @@ public:
 			OnDone(std::move(*Result));
 		}
 	}
+	virtual const scfg::Err* Error() const override { return Result && !Result->ok() ? &Result->err() : nullptr; }
 
 private:
 	FMake Make;
@@ -122,6 +125,7 @@ public:
 			OnDone(std::move(*Result));
 		}
 	}
+	virtual const scfg::Err* Error() const override { return Result && !Result->ok() ? &Result->err() : nullptr; }
 
 private:
 	FRun Run;
@@ -175,6 +179,12 @@ public:
 	}
 	virtual void Cancel() override
 	{
+		// A startup reverify that was cancelled before it finished is owed: the next tick runs it (a failed one is
+		// not retried, worker.gd).
+		if (bStarted && bReverifyFirst && !Reverified)
+		{
+			Worker.bFirstTick = true;
+		}
 		TickJob.reset();
 		ReverifyJob.reset();
 		if (!Result)
@@ -183,6 +193,7 @@ public:
 		}
 	}
 	virtual void Deliver() override { Worker.EndTick(*Result, Waiters); }
+	virtual const scfg::Err* Error() const override { return Result && !Result->ok() ? &Result->err() : nullptr; }
 
 private:
 	void StartTick(scfg::engine::Engine& E)
@@ -263,13 +274,13 @@ FScfgWorker::~FScfgWorker()
 void FScfgWorker::Start()
 {
 	check(IsInGameThread());
+	bStopWanted = false;  // the last call wins over a Stop() deferred from inside the Engine
 	if (bStarted)
 	{
 		return;
 	}
 	bStarted = true;
 	bStopped = false;
-	bStopWanted = false;
 	RequestTick();
 }
 
@@ -466,8 +477,25 @@ bool FScfgWorker::OnTicker(float DeltaTime)
 			Finished.RemoveAt(0);
 			if (Done->bStarted)
 			{
-				Refresh();
-				OnStateChanged.Broadcast();
+				Refresh();  // a failing snapshot is reported: OnError may have destroyed the worker
+				if (!*StillAlive)
+				{
+					return false;
+				}
+				// A copy: the broadcast must not touch this worker's delegate once a handler has destroyed it
+				// (TMulticastDelegateBase::Broadcast compacts its own invocation list after the handlers return).
+				const FSimpleMulticastDelegate Changed = OnStateChanged;
+				Changed.Broadcast();
+				if (!*StillAlive)
+				{
+					return false;
+				}
+			}
+			// Every Err a command ends with is logged once, here, whether it has a callback or not; the callback
+			// gets the Result too and must not log it again. A cancellation is not an error.
+			if (const scfg::Err* Failed = Done->Error(); Failed && !ScfgWorkerDetail::IsCancelled(*Failed))
+			{
+				Report(*Failed);
 				if (!*StillAlive)
 				{
 					return false;
@@ -509,14 +537,6 @@ void FScfgWorker::EndTick(const scfg::Result<FOutcomes>& Result, TArray<TOnDone<
 			}
 		}
 	}
-	else if (!ScfgWorkerDetail::IsCancelled(Result.err()))
-	{
-		Report(Result.err());
-		if (!*StillAlive)
-		{
-			return;
-		}
-	}
 	for (TOnDone<FOutcomes>& Waiter : Waiters)
 	{
 		Waiter(Result);
@@ -531,7 +551,9 @@ void FScfgWorker::Report(const scfg::Err& Error)
 {
 	if (Options.OnError)
 	{
-		Options.OnError(Error);
+		// A copy: a handler that destroys the worker destroys Options with it.
+		const TFunction<void(const scfg::Err&)> Handler = Options.OnError;
+		Handler(Error);
 	}
 	else
 	{

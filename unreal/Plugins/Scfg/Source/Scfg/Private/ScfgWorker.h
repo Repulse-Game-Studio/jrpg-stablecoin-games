@@ -19,14 +19,21 @@
 // wakes the loop, so a command is followed by a tick), by Start(), and by the clock: Interval() seconds (default
 // POLL_INTERVAL, worker.py's 15.0) after the last tick ended. The very first tick runs Engine::reverify() before
 // Engine::tick() (worker.py's first run_once); when that reverify fails, the tick fails with its Err and the reverify
-// is not retried (worker.gd). A failing tick or reverify is reported to OnError; the next tick comes an interval later.
+// is not retried (worker.gd), unless it was cancelled by Stop() before it finished: then the next tick runs it. The
+// next tick comes an interval after a failing one.
+//
+// ERRORS ARE LOGGED HERE, ONCE. Every Err a command or a tick ends with (a CancelledError excepted) goes to OnError
+// (default: LogScfg) exactly once, whether the command has a callback or not and however many Tick() callers wait on
+// that tick; so do a failing snapshot and the Engine's contained errors. The callbacks get the Result as well, to
+// turn it into a Failed result: they must not log it again.
 //
 // CALLBACKS. Every completion callback and OnStateChanged run on the game thread from the worker's ticker, never
 // inside a call to the worker (a sync command's callback comes on the next frame), and in this order: the snapshot is
-// refreshed, OnStateChanged fires, then the command's callback. A callback may submit commands, Stop() or Start()
-// the worker, or destroy it (the worker notices and touches nothing more). OnError and the Engine's contained errors
-// run inside the running command's coroutine: they must not destroy the worker (checked); a Stop() there is deferred
-// to the next frame.
+// refreshed, OnStateChanged fires, the Err (if any) is reported to OnError, then the command's callback. Any of them
+// (OnError included, when it is called from the ticker) may submit commands, Stop() or Start() the worker, or destroy
+// it (the worker notices and touches nothing more). The Engine's contained errors are reported from inside the
+// running command's coroutine: OnError must not destroy the worker then (checked), and a Stop() there is deferred to
+// the next frame (IsRunning() is false meanwhile, and a Start() after it wins).
 //
 // START AND STOP. Commands submitted before Start() wait for it. Stop() cancels the running command (its Job is
 // destroyed, which cancels its coroutine) and every queued one: each callback gets CancelledError, on the next
@@ -65,9 +72,9 @@ struct FScfgWorkerOptions
 	TFunction<double()> Interval;
 	// The Engine's clock: whole seconds (session timestamps and windows). Default: Unix time.
 	TFunction<int64()> Clock;
-	// A failing tick or reverify, a failing snapshot, and the Engine's contained errors (Engine::on_error). Default:
-	// logged once to LogScfg. A contained error is reported from inside the running command's coroutine (see
-	// FScfgWorker's CALLBACKS).
+	// Every Err the worker meets, once: a command's or a tick's (CancelledError excepted), a failing snapshot, and
+	// the Engine's contained errors (Engine::on_error). Default: logged to LogScfg as "scfg: <Err::str()>". A
+	// contained error is reported from inside the running command's coroutine (see FScfgWorker's CALLBACKS).
 	TFunction<void(const scfg::Err&)> OnError;
 	// The ticker that drives the worker; it must outlive the worker. Default: FTSTicker::GetCoreTicker(). The
 	// tests pass their own and tick it by hand.
@@ -105,8 +112,8 @@ public:
 	void Start();
 	// Cancels the running and queued commands and stops ticking (see the top of this file).
 	void Stop();
-	// Between Start() and Stop().
-	bool IsRunning() const { return bStarted; }
+	// Between Start() and Stop() (a Stop() deferred from inside the Engine counts at once).
+	bool IsRunning() const { return bStarted && !bStopWanted; }
 
 	// --- commands (the Engine's, Engine.h; each followed by a tick) ---
 

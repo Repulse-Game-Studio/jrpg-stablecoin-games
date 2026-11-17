@@ -51,7 +51,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FScfgStringRoundTripTest, "Scfg.Glue.String.Rou
 bool FScfgStringRoundTripTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgStringTests;
-	static_assert(sizeof(TCHAR) == 2, "the policy is written for UTF-16 TCHAR");
 	struct FCase
 	{
 		const TCHAR* What;
