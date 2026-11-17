@@ -30,6 +30,11 @@
 // test_a_cancelled_start_is_a_failed_start, test_a_start_that_is_not_a_session_is_a_failed_start,
 // test_a_start_delivered_later_is_picked_up_by_poll; and test_a_confirming_outcome_clears_the_message (no Python test
 // reaches that branch).
+// C++ only, review R1/R3 (guards no Python test pins): test_destroying_the_controller_stops_its_server,
+// test_finish_stops_the_server, test_cancel_after_paid_keeps_the_paid_result, test_expired_after_paid_keeps_paid,
+// test_a_reverted_verdict_drops_no_transaction, test_a_network_switch_forgets_the_old_payment,
+// test_the_same_network_while_starting_does_not_skip_ahead, test_the_same_network_after_a_seen_payment_restarts,
+// test_a_delivery_keeps_its_first_result.
 // The broken server factory raises RuntimeError("no sockets") where Python raises OSError (not in the Err table).
 #include "support/CheckoutFakes.h"
 #include "support/JsonEq.h"
@@ -132,16 +137,23 @@ StepOutcome outcome(std::string sid, std::string status) {
     return o;
 }
 
-const Json& info_of(const Setup& s) { return s.servers->at(0)->args.session_info; }
+const Json& info_of(const Setup& s) { return s.servers->front()->args.session_info; }
 
 // A submitter whose start_session is answered by the test.
+// A submitter whose start_session is answered by the test; it records every command by name.
 struct HeldSubmitter final : scfg::worker::Submitter {
     std::vector<scfg::worker::OnDone<Json>> starts;
-    void start_session(Json, Json, Json, scfg::worker::OnDone<Json> done) override { starts.push_back(std::move(done)); }
-    void build_solana_payment(Json, Json, scfg::worker::OnDone<Json>) override {}
-    void report_hint(Json, Json, scfg::worker::OnDone<void>) override {}
-    void set_ui_status(Json, Json, scfg::worker::OnDone<void>) override {}
-    void discard_session(Json, scfg::worker::OnDone<void>) override {}
+    std::vector<std::string> names;
+    void start_session(Json, Json, Json, scfg::worker::OnDone<Json> done) override {
+        names.push_back("start_session");
+        starts.push_back(std::move(done));
+    }
+    void build_solana_payment(Json, Json, scfg::worker::OnDone<Json>) override { names.push_back("build_solana_payment"); }
+    void report_hint(Json, Json, scfg::worker::OnDone<void>) override { names.push_back("report_hint"); }
+    void set_ui_status(Json, Json status, scfg::worker::OnDone<void>) override {
+        names.push_back("set_ui_status " + (status.is_str() ? status.as_str() : std::string("?")));
+    }
+    void discard_session(Json, scfg::worker::OnDone<void>) override { names.push_back("discard_session"); }
     void restore_lookup(Json, scfg::worker::OnDone<std::vector<scfg::restore::RestoreCandidate>>) override {}
     void restore_apply(std::vector<scfg::restore::RestoreCandidate>, std::optional<std::map<int64_t, Json>>,
                        scfg::worker::OnDone<Json>) override {}
@@ -355,7 +367,7 @@ SCFG_TEST(CheckoutTests, test_browser_server_lifecycle_and_hints) {
     SCFG_CHECK_EQ(t, show(url), fakes::kServerUrl);
     SCFG_CHECK(t, ctl.start_browser() == url && s->servers->size() == 1);  // reused
     if (s->servers->empty()) return;
-    fakes::ServerLog& srv = *s->servers->at(0);
+    fakes::ServerLog& srv = *s->servers->front();
     const Json::Dict& info = srv.args.session_info.as_dict();
     SCFG_CHECK(t, srv.started);
     SCFG_CHECK_EQ(t, info.get("amount_units").as_str(), ctl.session().as_dict().get("units").as_bigint().to_decimal());
@@ -424,7 +436,7 @@ SCFG_TEST(CheckoutTests, test_session_info_is_the_exact_python_dict) {
     CheckoutController& ctl = *s->ctl;
     (void)ctl.start_browser();
     if (!t.check(!s->servers->empty(), "a server")) return;
-    const fakes::ServerLog& srv = *s->servers->at(0);
+    const fakes::ServerLog& srv = *s->servers->front();
     SCFG_CHECK(t, srv.args.on_tx && srv.args.get_status && !srv.args.build_tx);
     const scfg::chains::Chain& arb = *scfg::chains::MAINNET().find("arbitrum");
     Json expected = Json::dict({
@@ -496,7 +508,8 @@ SCFG_TEST(CheckoutTests, test_a_start_that_is_not_a_session_is_a_failed_start) {
         std::unique_ptr<CheckoutController> ctl = held_controller(t, sub);
         if (!ctl) return;
         SCFG_CHECK(t, ctl->select_chain("base").ok());
-        sub->starts.at(0)(rec);
+        if (!t.check(sub->starts.size() == 1, "one start")) return;
+        sub->starts[0](rec);
         ctl->poll();
         SCFG_CHECK(t, ctl->state() == "choose" && show(ctl->error) == "start_failed" && ctl->session().is_null());
     }
@@ -535,4 +548,148 @@ SCFG_TEST(CheckoutTests, test_a_confirming_outcome_clears_the_message) {
     SCFG_CHECK(t, show(ctl.error) == "internal_error" && ctl.state() == "confirming" && ctl.step() == "waiting");
     ctl.on_outcome(outcome(sid, "confirming"));
     SCFG_CHECK(t, !ctl.error && !ctl.message());
+}
+
+// --- review R1 / R3: what the Python tests leave unpinned ------------------------------------------------------------
+
+// A paid outcome for the controller's own session, with its PaymentResult.
+static StepOutcome final_outcome(const CheckoutController& ctl, std::string status, std::string tx) {
+    StepOutcome o = outcome(*ctl.session_id(), status);
+    scfg::models::PaymentResult r;
+    r.status = std::move(status);
+    r.tx_hash = Json(std::move(tx));
+    r.session_id = Json(*ctl.session_id());
+    o.result = r;
+    return o;
+}
+
+// held_controller() with its start answered by a session on base.
+static std::unique_ptr<CheckoutController> held_started(scfg_test::Ctx& t, const std::shared_ptr<HeldSubmitter>& sub) {
+    std::unique_ptr<CheckoutController> ctl = held_controller(t, sub);
+    if (!ctl) return nullptr;
+    if (!t.check(ctl->choose_network("base").ok() && sub->starts.size() == 1, "one start")) return nullptr;
+    sub->starts[0](Json::dict({{"id", "ps_a"}, {"units", 4993742}, {"chain", "base"}}));
+    ctl->poll();
+    if (!t.check(ctl->state() == "waiting", "started")) return nullptr;
+    return ctl;
+}
+
+// R1: a sheet torn down without cancel() or finish() still stops its page.
+SCFG_TEST(CheckoutTests, test_destroying_the_controller_stops_its_server) {
+    std::optional<Setup> s = started(t);
+    if (!s) return;
+    SCFG_CHECK_EQ(t, show(s->ctl->start_browser()), fakes::kServerUrl);
+    if (!t.check(s->servers->size() == 1, "a server")) return;
+    std::shared_ptr<fakes::ServerLog> srv = s->servers->front();
+    SCFG_CHECK(t, srv->started && !srv->stopped);
+    s->ctl.reset();
+    SCFG_CHECK(t, srv->stopped);
+}
+
+SCFG_TEST(CheckoutTests, test_finish_stops_the_server) {
+    std::optional<Setup> s = started(t);
+    if (!s) return;
+    (void)s->ctl->start_browser();
+    if (!t.check(s->servers->size() == 1, "a server")) return;
+    (void)s->ctl->finish();
+    SCFG_CHECK(t, s->servers->front()->stopped);
+}
+
+// Cancel after a final state marks nothing cancelled and returns the paid result.
+SCFG_TEST(CheckoutTests, test_cancel_after_paid_keeps_the_paid_result) {
+    std::shared_ptr<HeldSubmitter> sub = std::make_shared<HeldSubmitter>();
+    std::unique_ptr<CheckoutController> ctl = held_started(t, sub);
+    if (!ctl) return;
+    ctl->on_outcome(final_outcome(*ctl, "paid", TX));
+    sub->names.clear();
+    scfg::models::PaymentResult r = ctl->cancel();
+    SCFG_CHECK(t, r.status == "paid" && r.tx_hash.is_str() && r.tx_hash.as_str() == TX);
+    SCFG_CHECK(t, sub->names.empty());
+}
+
+// The 30-minute window closing after the payment landed changes nothing.
+SCFG_TEST(CheckoutTests, test_expired_after_paid_keeps_paid) {
+    for (const char* landed : {"paid", "underpaid"}) {
+        std::shared_ptr<HeldSubmitter> sub = std::make_shared<HeldSubmitter>();
+        std::unique_ptr<CheckoutController> ctl = held_started(t, sub);
+        if (!ctl) return;
+        ctl->on_outcome(final_outcome(*ctl, landed, TX));
+        ctl->on_outcome(final_outcome(*ctl, "expired", "0x" + std::string(64, 'c')));
+        SCFG_CHECK(t, ctl->state() == landed && ctl->result() && ctl->result()->status == landed);
+        SCFG_CHECK(t, ctl->result() && ctl->result()->tx_hash.is_str() && ctl->result()->tx_hash.as_str() == TX);
+        SCFG_CHECK_EQ(t, ctl->step(), "done");
+    }
+}
+
+// Only tx_not_landed names a dropped transaction (the page offers Pay again for it).
+SCFG_TEST(CheckoutTests, test_a_reverted_verdict_drops_no_transaction) {
+    for (const char* verdict : {"tx_reverted", "tx_not_a_payment"}) {
+        std::shared_ptr<HeldSubmitter> sub = std::make_shared<HeldSubmitter>();
+        std::unique_ptr<CheckoutController> ctl = held_started(t, sub);
+        if (!ctl) return;
+        ctl->report_hint(TX);
+        StepOutcome o = outcome(*ctl->session_id(), "waiting");
+        o.error = verdict;
+        o.hint_tx = TX;
+        ctl->on_outcome(o);
+        SCFG_CHECK(t, ctl->dropped_tx().is_null() && !ctl->hint_tx && show(ctl->error) == verdict);
+    }
+}
+
+// Starting on another network forgets the hint, the dropped transaction and the confirmations of the old one.
+SCFG_TEST(CheckoutTests, test_a_network_switch_forgets_the_old_payment) {
+    std::optional<Setup> s = started(t);
+    if (!s) return;
+    CheckoutController& ctl = *s->ctl;
+    const std::string sid = *ctl.session_id();
+    StepOutcome confirming = outcome(sid, "confirming");
+    confirming.confirmations = 3;
+    confirming.required = 20;
+    ctl.on_outcome(confirming);
+    StepOutcome dropped = outcome(sid, "waiting");
+    dropped.error = "tx_not_landed";
+    dropped.hint_tx = TX;
+    ctl.on_outcome(dropped);
+    ctl.hint_tx = "0x" + std::string(64, 'c');
+    SCFG_CHECK(t, ctl.confirmations() == scfg::BigInt(3) && ctl.dropped_tx().is_str() && ctl.hint_tx);
+    SCFG_CHECK(t, ctl.select_chain("base").ok());
+    SCFG_CHECK(t, !ctl.hint_tx && ctl.dropped_tx().is_null() && ctl.confirmations() == scfg::BigInt(0));
+}
+
+// Picking the network that is still starting waits for that start: no second start, no skip to the method step.
+SCFG_TEST(CheckoutTests, test_the_same_network_while_starting_does_not_skip_ahead) {
+    std::shared_ptr<HeldSubmitter> sub = std::make_shared<HeldSubmitter>();
+    std::unique_ptr<CheckoutController> ctl = held_controller(t, sub);
+    if (!ctl) return;
+    SCFG_CHECK(t, ctl->choose_network("base").ok());
+    SCFG_CHECK(t, ctl->choose_network("base").ok());
+    SCFG_CHECK(t, ctl->step() == "network" && ctl->state() == "starting" && sub->starts.size() == 1);
+}
+
+// Only a waiting session is kept by picking its network again; a confirming one starts over (Python's rule).
+SCFG_TEST(CheckoutTests, test_the_same_network_after_a_seen_payment_restarts) {
+    std::shared_ptr<HeldSubmitter> sub = std::make_shared<HeldSubmitter>();
+    std::unique_ptr<CheckoutController> ctl = held_started(t, sub);
+    if (!ctl) return;
+    ctl->on_outcome(outcome(*ctl->session_id(), "confirming"));
+    SCFG_CHECK_EQ(t, ctl->state(), "confirming");
+    SCFG_CHECK(t, ctl->choose_network("base").ok());
+    SCFG_CHECK(t, ctl->state() == "starting" && ctl->session().is_null() && sub->starts.size() == 2);
+    SCFG_CHECK_EQ(t, ctl->step(), "network");
+}
+
+// Submitter.h: done is called at most once; a second Result is ignored and each callback runs once.
+SCFG_TEST(CheckoutTests, test_a_delivery_keeps_its_first_result) {
+    std::shared_ptr<scfg::worker::Delivery<Json>> d = std::make_shared<scfg::worker::Delivery<Json>>();
+    std::vector<std::string> seen;
+    d->add_done_callback([&seen](const Result<Json>& r) { seen.push_back(r.ok() ? r.value().as_str() : "err"); });
+    scfg::worker::OnDone<Json> done = scfg::worker::Delivery<Json>::receiver(d);
+    SCFG_CHECK(t, !d->done());
+    done(Json("first"));
+    done(Json("second"));
+    d->deliver(scfg::Err::make("RuntimeError", "late"));
+    SCFG_CHECK(t, d->done() && d->result().ok() && d->result().value().as_str() == "first");
+    SCFG_CHECK(t, seen == std::vector<std::string>({"first"}));
+    d->add_done_callback([&seen](const Result<Json>& r) { seen.push_back(r.ok() ? "late " + r.value().as_str() : "late err"); });
+    SCFG_CHECK(t, seen == std::vector<std::string>({"first", "late first"}));  // at once on a done delivery
 }

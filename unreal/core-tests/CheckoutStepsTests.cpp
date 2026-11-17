@@ -379,7 +379,7 @@ SCFG_TEST(CheckoutStepsTests, test_a_hash_from_the_browser_page_moves_to_waiting
     ctl.choose_method("browser");
     (void)ctl.open_browser();
     if (!t.check(!s->servers->empty(), "a server")) return;
-    s->servers->at(0)->args.on_tx(TX, std::string(PAYER));
+    s->servers->front()->args.on_tx(TX, std::string(PAYER));
     SCFG_CHECK(t, ctl.step() == "waiting" && !ctl.can_go_back());
 }
 
@@ -507,7 +507,7 @@ SCFG_TEST(CheckoutStepsTests, test_the_controller_pumps_and_reopens_an_overlay_p
     (void)ctl.open_browser();
     ctl.poll();
     if (!t.check(!s->servers->empty(), "a server")) return;
-    SCFG_CHECK_EQ(t, s->servers->at(0)->pumps, 1);
+    SCFG_CHECK_EQ(t, s->servers->front()->pumps, 1);
     (void)ctl.open_browser();
-    SCFG_CHECK_EQ(t, s->servers->at(0)->reopens, 1);
+    SCFG_CHECK_EQ(t, s->servers->front()->reopens, 1);
 }

@@ -294,7 +294,10 @@ SCFG_TEST(RestoreFlowTests, test_choices_follow_the_candidates_left_to_save) {
     if (!t.check(sub->applied.size() == 1 && sub->applied_choices[0].has_value(), "one apply with choices")) return;
     SCFG_CHECK(t, sub->applied[0].size() == 2 && sub->applied[0][0].chain == "arbitrum");
     const std::map<int64_t, Json>& picked = *sub->applied_choices[0];  // {0: "chapter2", 1: "tip"}
-    SCFG_CHECK(t, picked.size() == 2 && picked.at(0).as_str() == "chapter2" && picked.at(1).as_str() == "tip");
+    const auto first = picked.find(0);
+    const auto second = picked.find(1);
+    SCFG_CHECK(t, picked.size() == 2 && first != picked.end() && second != picked.end() &&
+                      first->second.as_str() == "chapter2" && second->second.as_str() == "tip");
     sub->applies[0](Json::list({Json::dict({{"item", "chapter2"}})}));
     ctl.poll();
     SCFG_CHECK(t, ctl.state() == "done" && ctl.result().status == "restored" && ctl.added().size() == 1);
@@ -316,5 +319,6 @@ SCFG_TEST(RestoreFlowTests, test_equal_candidates_map_to_the_first) {
     // index_map = {1: 1} (both equal candidates are index 1 of candidates()): of the choices {1: "chapter2",
     // 2: "tip"} only index 1's is kept, under cands index 1.
     const std::map<int64_t, Json>& picked = *sub->applied_choices[0];
-    SCFG_CHECK(t, picked.size() == 1 && picked.count(1) == 1 && picked.at(1).as_str() == "chapter2");
+    const auto kept = picked.find(1);
+    SCFG_CHECK(t, picked.size() == 1 && kept != picked.end() && kept->second.as_str() == "chapter2");
 }

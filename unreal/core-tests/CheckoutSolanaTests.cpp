@@ -262,7 +262,7 @@ SCFG_TEST(CheckoutSolanaTests, test_solana_session_info_key_order) {
     if (!t.check(ctl.state() == "waiting", "started")) return;
     (void)ctl.start_browser();
     if (!t.check(!s->servers->empty(), "a server")) return;
-    const scfg::checkout::ServerArgs& args = s->servers->at(0)->args;
+    const scfg::checkout::ServerArgs& args = s->servers->front()->args;
     SCFG_CHECK(t, args.session_info.as_dict().keys() ==
                       std::vector<std::string>({"title", "kind", "token", "family", "decimals", "amount_units",
                                                 "amount_text", "price_text", "recipient", "chain_name", "native_symbol",

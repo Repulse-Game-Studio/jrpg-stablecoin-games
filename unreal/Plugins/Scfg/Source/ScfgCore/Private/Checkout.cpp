@@ -84,6 +84,8 @@ CheckoutController::CheckoutController(CheckoutOptions options)
       amount_(spec_.price),
       step_(spec_.kind == "tip" ? "amount" : "network") {}
 
+CheckoutController::~CheckoutController() { close(); }
+
 Result<std::unique_ptr<CheckoutController>> CheckoutController::make(CheckoutOptions options) {
     if (!options.submit) return Err::type_error("CheckoutController needs a submit");
     SCFG_TRY(OrderedMap<chains::Chain> enabled, config::enabled_chains(options.config));

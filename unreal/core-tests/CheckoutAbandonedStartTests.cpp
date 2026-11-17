@@ -11,7 +11,8 @@
 //   test_a_failed_abandoned_start_needs_no_discard                      -> the same name
 // C++ only (as godot/tests/test_checkout_abandoned_start.gd): test_abandoning_an_already_finished_start_discards_at_once
 // (Python's add_done_callback runs at once on a done future), and test_an_abandoned_start_outlives_its_controller (the
-// discard still goes out when the start finishes after the controller is gone).
+// discard still goes out when the start finishes after the controller is gone); review R1:
+// test_destroying_the_controller_while_starting_discards_the_session (no cancel(): the destructor closes).
 // `fut.set_exception(RuntimeError("rpc down"))` is the queued command's fail() with that Err.
 #include "support/CheckoutFakes.h"
 #include "support/Test.h"
@@ -146,4 +147,27 @@ SCFG_TEST(CheckoutAbandonedStartTests, test_an_abandoned_start_outlives_its_cont
     s->ctl.reset();  // the sheet is gone; the start is still queued
     s->deferred->run();
     SCFG_CHECK(t, s->engine->pending().as_dict().empty());
+}
+
+SCFG_TEST(CheckoutAbandonedStartTests, test_destroying_the_controller_while_starting_discards_the_session) {
+    std::optional<Setup> s = setup(t);
+    if (!s) return;
+    SCFG_CHECK(t, s->ctl->choose_network("arbitrum").ok());
+    s->ctl.reset();  // the sheet is torn down without cancel() or finish()
+    if (!t.check(s->deferred->queue.size() == 1, "the start is queued")) return;
+    s->deferred->run();  // the start finishes, then its discard runs
+    SCFG_CHECK(t, s->engine->pending().as_dict().empty() && s->deferred->queue.empty());
+}
+
+// A start poll() already picked up is the controller's session, not an abandoned one: destroying the controller
+// discards nothing.
+SCFG_TEST(CheckoutAbandonedStartTests, test_destroying_the_controller_keeps_a_started_session) {
+    std::optional<Setup> s = setup(t);
+    if (!s) return;
+    SCFG_CHECK(t, s->ctl->choose_network("arbitrum").ok());
+    s->deferred->run();
+    s->ctl->poll();
+    SCFG_CHECK_EQ(t, s->ctl->state(), "waiting");
+    s->ctl.reset();
+    SCFG_CHECK(t, s->deferred->queue.empty() && s->engine->pending().as_dict().size() == 1);
 }

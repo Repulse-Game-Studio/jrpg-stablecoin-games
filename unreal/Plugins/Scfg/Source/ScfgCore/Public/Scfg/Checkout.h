@@ -28,21 +28,34 @@
 // - config() and spec() are the controller's own copies, which nothing changes: enabled_chains(config), the methods'
 //   options and text_on(accent) are read once, in make().
 // - Renamed: _report_hint is report_hint() (public: the page's on_tx, which the tests also call, as Python's do);
-//   _submit_build is the server's build_tx. Python's private helpers are private.
+//   _submit_build is the server's build_tx; _result is make_result() (private: result() is the attribute's
+//   accessor). Python's other private helpers keep their names without the underscore, and are private;
+//   unready_routes() reads the unready callable (empty: nothing blocked, Python's `unready or frozenset`).
 // - A method Python can raise from returns a Result (select_chain's ValueError, a parse_amount Err that is neither a
 //   TypeError nor a ValueError, the paylinks' Errs).
 //
-// Divergences, none reachable with the Engine's own results:
+// Divergences (README, "Known divergences from Python"), none reachable with the Engine's own results:
 // - poll() accepts a started session only when it is a dict with a str "id", an int "units" and, on Solana, a str
 //   "reference"; anything else is a failed start (start_failed), where Python would fail later reading it. So
-//   session_id(), pay_amount_text() and start_browser() cannot fail.
+//   session_id(), pay_amount_text() and start_browser() cannot fail. The session such a start may have created is
+//   not discarded (there is no id to discard).
+// - A cancelled start (CancelledError: the worker was stopped) is a failed start too (start_failed, back to the
+//   network step); in Python fut.exception() raises CancelledError out of poll().
+// - enabled_chains(config), the methods options (config.methods) and text_on(accent) are read once, in make(), so
+//   their errors come from make(); Python re-reads the config on every call and raises where it is read. The
+//   controller's config cannot change, so the values are the same.
+// - Destroying the controller closes it (close(): an abandoned start is discarded once it finishes, the server is
+//   stopped); Python has no such hook and relies on the screen calling cancel() or finish(). A start poll() already
+//   picked up is not abandoned, and close() twice does nothing more.
 // - A server factory's or start()'s Err of any kind makes the browser method unavailable (Python catches Exception;
-//   a page has no BaseException to raise).
+//   a page has no BaseException to raise). The controller keeps only error = "browser_unavailable" and drops the
+//   Err, so the factory and Server::start() report their own Err (log it once) before returning it.
 // - token_address() is None for a chain without the payment's token (Python's KeyError; chain_key only ever names a
 //   chain of spec().chains, which all carry it). rpc_url is None for a chain without RPC urls (Python's IndexError;
 //   build_chain refuses one).
 //
-// Lifetime: the controller owns its server and destroys it first; the callbacks it hands the server (on_tx,
+// Lifetime: the controller owns its server; its destructor stops and destroys the server first (close()), before any
+// other member, and server_ is declared last so it would go first anyway. The callbacks it hands the server (on_tx,
 // get_status, build_tx) are bound to the controller, so a server must not call them after it is stopped or
 // destroyed. The OnDone a server passes to build_tx may run after that (the worker calls it later): it must not
 // reach a dead server. The Submitter is shared: an abandoned session start keeps only a weak reference to it, to
@@ -108,7 +121,8 @@ using Routes = std::vector<std::pair<std::string, std::string>>;
 class Server {
 public:
     virtual ~Server() = default;
-    // Start serving the page. An Err (Python's raise) makes the browser method unavailable.
+    // Start serving the page. An Err (Python's raise) makes the browser method unavailable; the controller drops it,
+    // so the server reports (logs) it itself before returning it.
     virtual Status start() = 0;
     virtual void stop() = 0;
     // The page's address.
@@ -132,6 +146,8 @@ struct ServerArgs {
     std::function<void(Json account, worker::OnDone<Json> done)> build_tx;
 };
 
+// An Err (or a null server) makes the browser method unavailable. The controller does not pass the Err on, so the
+// factory reports (logs) its own Err before returning it.
 using ServerFactory = std::function<Result<std::unique_ptr<Server>>(ServerArgs args)>;
 
 // CheckoutController's keyword arguments.
@@ -152,6 +168,8 @@ public:
     // A TypeError for an empty submit; enabled_chains()'s KeyError; a methods option that is missing or not
     // iterable; text_on's ValueError; the first network step's Err (for one network: select_chain's).
     static Result<std::unique_ptr<CheckoutController>> make(CheckoutOptions options);
+    // close(): an abandoned start is discarded once it finishes, the server is stopped and destroyed first.
+    ~CheckoutController();
     CheckoutController(const CheckoutController&) = delete;
     CheckoutController& operator=(const CheckoutController&) = delete;
 
@@ -299,10 +317,11 @@ private:
     std::optional<models::PaymentResult> result_;
     bool browser_failed_ = false;
     std::shared_ptr<worker::Delivery<Json>> future_;
-    std::unique_ptr<Server> server_;
     std::string step_;
     int nav_dir_ = 1;
     bool picked_network_ = false;  // move on from the network step once the session starts
+    // Last, so that it is destroyed first even without the destructor's close(): its callbacks reach every member.
+    std::unique_ptr<Server> server_;
 };
 
 }  // namespace scfg::checkout
