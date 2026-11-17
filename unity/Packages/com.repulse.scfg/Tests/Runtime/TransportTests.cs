@@ -28,6 +28,8 @@ namespace Scfg.Tests
         public volatile string LastHead = "";
         public Func<(int Status, byte[] Body)> Answer = () => (200, Encoding.UTF8.GetBytes("{}"));
         public volatile bool Silent;
+        /// <summary>When set, the answer claims this Content-Length but stops after its body, the connection held open.</summary>
+        public volatile int PartialOf;
 
         public CannedServer()
         {
@@ -72,10 +74,11 @@ namespace Scfg.Tests
                     }
                     var (status, answer) = Answer();
                     var reply = Encoding.ASCII.GetBytes("HTTP/1.1 " + status + " X\r\nContent-Type: application/json\r\nContent-Length: "
-                                                       + answer.Length + "\r\nConnection: close\r\n\r\n");
+                                                       + (PartialOf > 0 ? PartialOf : answer.Length) + "\r\nConnection: close\r\n\r\n");
                     stream.Write(reply, 0, reply.Length);
                     stream.Write(answer, 0, answer.Length);
                     stream.Flush();
+                    if (PartialOf > 0) held.Add(client); // the rest never comes: only the pump ends the request
                 }
                 catch (Exception)
                 {
@@ -185,6 +188,27 @@ namespace Scfg.Tests
             yield return Wait(t);
             Assert.That(Error(t), Is.TypeOf<TransportError>());
             Assert.That(Error(t)!.Message, Is.EqualTo(Coio.ResponseTooLarge));
+        }
+
+        /// <summary>WebGL's way (a refused chunk does not stop the browser): the pump aborts a download past the cap.</summary>
+        [UnityTest]
+        public IEnumerator ThePumpAbortsADownloadPastTheCap()
+        {
+            using var server = new CannedServer { Answer = () => (200, new byte[8192]), PartialOf = 1 << 20 };
+            var transport = new UnityWebRequestTransport();
+            var t = transport.PostJson(server.Url, Payload, 30);
+            var until = DateTime.UtcNow.AddSeconds(10);
+            while (server.Requests == 0 && DateTime.UtcNow < until) yield return null;
+            for (int i = 0; i < 10; i++) yield return null; // the first 8 KiB arrive
+            transport.Pump();
+            Assert.That(t.IsCompleted, Is.False, "under the cap: still downloading");
+            transport.BodySizeLimit = 4096;
+            transport.Pump();
+            Assert.That(t.IsCompleted, Is.True, "aborted at once");
+            Assert.That(Error(t), Is.TypeOf<TransportError>());
+            Assert.That(Error(t)!.Message, Is.EqualTo(Coio.ResponseTooLarge));
+            Assert.That(transport.InFlight, Is.EqualTo(0));
+            transport.Pump(); // nothing left to do
         }
 
         [UnityTest]

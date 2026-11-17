@@ -5,10 +5,11 @@
 // Coio.ParseRpcBody(status, body) (an HTTP error answer included: its status and body decide), or fails with a
 // TransportError without a status when no HTTP answer came (refused, unresolvable, TLS, timeout). The body is read
 // through a DownloadHandlerScript that stops the download as soon as it passes Coio.MaxResponseBytes ("response too
-// large"), so a hostile endpoint cannot fill the game's memory on desktop. (On WebGL the browser's fetch may hand
-// the body over only once it has it all: the cap then refuses an oversized body but does not bound the download;
-// phase 3 checks it.) UnityWebRequest.timeout is whole seconds: the timeout
-// is rounded up. Off the web the User-Agent is urllib's "scfg/0.1"; a browser keeps its own.
+// large"), so a hostile endpoint cannot fill the game's memory. On WebGL (checked on 6000.6) refusing a chunk in
+// ReceiveData does not stop the browser's fetch: the request would end only once the whole body is in. So Pump(),
+// once per frame from the facade, aborts every request whose download passed the cap (the browser's fetch is
+// aborted with it), giving the same "response too large" a frame or so later. UnityWebRequest.timeout is whole
+// seconds: the timeout is rounded up. Off the web the User-Agent is urllib's "scfg/0.1"; a browser keeps its own.
 //
 // Close() (the game quitting, or the facade reset with domain reload off) aborts every request in flight; their
 // callers resume with HostGone, which is not a TransportError, so an RPC client does not cool down a healthy endpoint.
@@ -94,6 +95,16 @@ namespace Scfg
             return tcs.Task;
         }
 
+        /// <summary>
+        /// Once per frame: a request whose download passed <see cref="BodySizeLimit"/> is aborted and fails with
+        /// "response too large" (on WebGL a refused chunk does not stop the browser's download; see the file header).
+        /// </summary>
+        public void Pump()
+        {
+            if (_inFlight.Count == 0) return;
+            foreach (var p in new List<Pending>(_inFlight)) p.AbortIfTooLarge();
+        }
+
         /// <summary>Ends every request in flight with <see cref="HostGone"/> and refuses later ones.</summary>
         public void Close()
         {
@@ -143,6 +154,21 @@ namespace Scfg
                     _request.Dispose();
                 }
                 _tcs.TrySetException(error);
+            }
+
+            public void AbortIfTooLarge()
+            {
+                if (_done) return;
+                bool tooLarge;
+                try
+                {
+                    tooLarge = _download.TooLarge || _request.downloadedBytes > (ulong)Math.Max(0, _owner.BodySizeLimit);
+                }
+                catch (Exception)
+                {
+                    return; // the request is already disposed: Finish ran
+                }
+                if (tooLarge) Fail(new TransportError(Coio.ResponseTooLarge));
             }
 
             public void Finish()
