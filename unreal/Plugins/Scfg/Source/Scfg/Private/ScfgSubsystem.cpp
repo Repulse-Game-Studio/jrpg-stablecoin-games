@@ -3,6 +3,7 @@
 
 #include "ScfgConvert.h"
 #include "ScfgControllers.h"
+#include "ScfgDefaultSheetHost.h"
 #include "ScfgFacade.h"
 #include "ScfgLog.h"
 #include "ScfgString.h"
@@ -96,6 +97,8 @@ void UScfgSubsystem::StartFacade(const FScfgFacadeOptions& Options)
 	StopFacade();
 	bStopping = false;
 	Facade = MakeShared<FScfgFacade>(Options);
+	// The plugin's own Slate sheet on this game instance's viewport, unless the game sets a host of its own.
+	Facade->DefaultSheetHost = MakeShared<FScfgDefaultSheetHost>(GetGameInstance());
 	TWeakObjectPtr<UScfgSubsystem> Weak(this);
 	Facade->OnPaymentResolved = [Weak](const FScfgPaymentResult& Result)
 	{

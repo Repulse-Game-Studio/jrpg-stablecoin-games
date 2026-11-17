@@ -19,6 +19,7 @@
 #include "ScfgString.h"
 #include "ScfgSubmitter.h"
 #include "ScfgSubsystem.h"
+#include "ScfgSubsystemTestAccess.h"
 #include "ScfgTestReceiver.h"
 
 #include "Scfg/Checkout.h"
@@ -28,12 +29,6 @@
 #include <thread>
 
 #if WITH_DEV_AUTOMATION_TESTS
-
-// UScfgSubsystem's facade with the tests' hooks (the subsystem's friend).
-struct FScfgSubsystemTestAccess
-{
-	static void Start(UScfgSubsystem& Subsystem, const FScfgFacadeOptions& Options) { Subsystem.StartFacade(Options); }
-};
 
 #define SCFG_FACADE_BP_TEST(Class, Name) \
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(Class, "Scfg.Glue.Facade.Blueprint." Name, \
@@ -490,7 +485,6 @@ bool FScfgBlueprintOffThreadTest::RunTest(const FString& Parameters)
 		TArray<bool> AsyncOnGameThread;
 		TArray<FScfgPaymentResult> Async;
 		bool bOwns = true;
-		int32 Ensures = 0;
 		int32 RefusedBefore = 0;
 		double Started = 0;
 	};
@@ -514,9 +508,8 @@ bool FScfgBlueprintOffThreadTest::RunTest(const FString& Parameters)
 	std::thread Other([S, Scfg, OnPaid, OnRestored]()
 	{
 		// thread_local: an ensure of this thread is skipped (no callstack, no crash report)
-		const TFunction<bool(const FEnsureHandlerArgs&)> Previous = SetEnsureHandler([S](const FEnsureHandlerArgs&)
+		const TFunction<bool(const FEnsureHandlerArgs&)> Previous = SetEnsureHandler([](const FEnsureHandlerArgs&)
 		{
-			++S->Ensures;
 			return true;
 		});
 		Scfg->Pay(EScfgPayKind::Unlock, Unlock(), OnPaid);

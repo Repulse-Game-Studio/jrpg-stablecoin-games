@@ -218,8 +218,13 @@ public:
 
 	// Show a notice through the host when a payment confirms or purchases are restored.
 	bool bNotify = false;
-	// How the screens are shown; none: Pay and Restore resolve Failed "sheet.unavailable".
+	// How the screens are shown: the game's host (SetSheetHost), else the default one (UScfgSubsystem sets the Slate
+	// FScfgDefaultSheetHost); neither: Pay and Restore resolve Failed "sheet.unavailable". A screen is closed through
+	// the host that opened it, even if the host changed meanwhile.
 	TSharedPtr<IScfgSheetHost> SheetHost;
+	TSharedPtr<IScfgSheetHost> DefaultSheetHost;
+	// The host the next screen opens through.
+	TSharedPtr<IScfgSheetHost> ActiveSheetHost() const { return SheetHost.IsValid() ? SheetHost : DefaultSheetHost; }
 	// A final result of a payment that has no Pay callback (Godot's payment_resolved).
 	TFunction<void(const FScfgPaymentResult&)> OnPaymentResolved;
 	// The stored receipts changed (Godot's receipts_changed).
@@ -286,6 +291,8 @@ private:
 		TWeakPtr<FScfgScreen> Screen;
 		TSharedPtr<FScfgCheckout> Checkout;
 		TSharedPtr<FScfgRestore> Restore;
+		// The host that opened the screen (it closes it).
+		TSharedPtr<IScfgSheetHost> Host;
 		FPayDone PayDone;
 		FRestoreDone RestoreDone;
 	};
@@ -326,7 +333,7 @@ private:
 	void EndWait(FWait& Wait, const FString& How, bool bGone);
 	void CloseCheckout(FWait& Wait, const FString& How, bool bGone);
 	void CloseRestore(FWait& Wait, bool bGone);
-	void CloseScreen(const TWeakPtr<FScfgScreen>& Screen, bool bGone);
+	void CloseScreen(const FWait& Wait, bool bGone);
 	bool IsOpen(const FScfgCheckout& Checkout) const;
 	bool IsOpen(const FScfgRestore& Flow) const;
 	static void ApplyPaste(std::string& Field, std::optional<std::string>& Error, const FString& Text);

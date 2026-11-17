@@ -22,8 +22,9 @@
 // The behaviour is ScfgFacade.h's (the engine-object-free part this wraps): misuse never crashes (one "LogScfg: Error:
 // scfg: ..." line and a Failed result with the code), AlreadyOwned comes back at once, keep playing resolves Pending,
 // callbacks and the event fire once per payment (handlers must be idempotent), and a game-instance shutdown with a
-// sheet open resolves the call without delivering anything. Until task 7's Slate sheet there is no default sheet host:
-// Pay and Restore resolve Failed "sheet.unavailable" unless SetSheetHost() gave one.
+// sheet open resolves the call without delivering anything. The sheet is the plugin's own Slate sheet on the game
+// viewport (FScfgDefaultSheetHost, ScfgDefaultSheetHost.h) unless SetSheetHost() gave another; a game instance
+// without a viewport shows none, and Pay and Restore resolve Failed "sheet.unavailable".
 //
 // Deinitialize (or BeginDestroy, if Deinitialize never ran) tears down in ScfgFacade.h's TEARDOWN order, exactly:
 // 1. the open sheets and controllers are closed; 2. the worker is stopped and destroyed (its destructor destroys its
@@ -130,8 +131,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "SCFG")
 	bool GetNotify() const;
 
-	// How the payment sheet and the restore screen are shown (IScfgSheetHost.h).
+	// How the payment sheet and the restore screen are shown (IScfgSheetHost.h); null: the default Slate sheet
+	// (FScfgDefaultSheetHost). A screen already open is closed by the host that opened it.
 	void SetSheetHost(TSharedPtr<IScfgSheetHost> Host);
+	// The game's host, or null when the default one is used.
 	TSharedPtr<IScfgSheetHost> GetSheetHost() const;
 
 	// A final result of a payment that has no Pay callback (a cancel too).

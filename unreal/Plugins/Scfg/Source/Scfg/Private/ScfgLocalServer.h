@@ -48,8 +48,8 @@ struct SCFG_API FScfgLocalServer
 	// Listen() for the core: a non-blocking ISocketSubsystem TCP listener on Host (an IPv4 address) and port 0, with
 	// local_server::LISTEN_BACKLOG; RuntimeError "cannot listen on <host>: <why>" when it cannot.
 	static scfg::local_server::Listen Listen();
-	// The files of local_server::ASSETS in Directory, read now: name -> bytes (a file that cannot be read is left out,
-	// and served as a 500).
+	// The files of local_server::ASSETS in Directory, read now: name -> bytes. A file that cannot be read is left out
+	// and listed in Missing; Factory() then fails.
 	static TMap<FString, std::string> ReadPage(const FString& Directory, TArray<FString>* Missing = nullptr);
 	// The CheckoutController's server_factory: a local_server::CheckoutServer over Listen(), the page read from
 	// WebDirectory, the logo read from *LogoPath. A page file that is missing fails the factory (RuntimeError), and a

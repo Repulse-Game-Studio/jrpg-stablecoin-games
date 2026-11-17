@@ -13,7 +13,8 @@ public class ScfgTests : ModuleRules
 		// SCFG_API for this module.
 		PrivateIncludePaths.Add(Path.GetFullPath(Path.Combine(ModuleDirectory, "..", "Scfg", "Private")));
 		// HTTPServer only for the local JSON-RPC endpoint of the real HTTP test (bound to 127.0.0.1); Sockets for the raw
-		// loopback client of the checkout page tests, Projects to find the plugin's folders.
-		PrivateDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "HTTP", "HTTPServer", "Projects", "Scfg", "ScfgCore", "Sockets" });
+		// loopback client of the checkout page tests, Projects to find the plugin's folders; Slate, SlateCore, InputCore and
+		// UMG to drive the screens (Scfg.Glue.Sheet.*).
+		PrivateDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "HTTP", "HTTPServer", "InputCore", "Projects", "Scfg", "ScfgCore", "Slate", "SlateCore", "Sockets", "UMG" });
 	}
 }

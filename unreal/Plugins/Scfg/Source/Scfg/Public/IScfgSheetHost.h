@@ -1,6 +1,7 @@
 // Twin of godot/addons/scfg/sheet_host.gd (ScfgSheetHost) and Unity's IScfgSheetHost / IScfgScreen: the interface
 // between the payment and restore flows (UScfgSubsystem's Pay and Restore) and the screens that show them. The
-// subsystem holds one (SetSheetHost); task 7's Slate sheet is the default one, a test host scripts the player.
+// subsystem holds one (SetSheetHost); the plugin's Slate sheet (FScfgDefaultSheetHost, ScfgDefaultSheetHost.h) is the
+// default one, a test host scripts the player.
 //
 // A host shows a screen for a controller and hands back an FScfgScreen (its own, or a subclass), which it keeps alive
 // while the screen is shown. The screen calls Close(How) once when the player is done with it:
@@ -24,8 +25,9 @@
 // before they call Close(screen).
 //
 // This base shows nothing: OpenPayment and OpenRestore return null, and Pay / Restore then resolve Failed with error
-// "sheet.unavailable" (logged once). A plain C++ interface rather than a UInterface: the screens are Slate (task 7),
-// and a UMG host binds through task 7's UScfgCheckoutController.
+// "sheet.unavailable" (logged once). A plain C++ interface rather than a UInterface: the screens are Slate. A custom
+// sheet reads its controller through FScfgCheckoutController / FScfgRestoreController (ScfgCheckoutController.h); a
+// UMG host can show the plugin's own sheet with UScfgSheetWidget (ScfgSheetWidget.h).
 #pragma once
 
 #include "CoreMinimal.h"

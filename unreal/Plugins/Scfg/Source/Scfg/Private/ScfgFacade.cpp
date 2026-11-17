@@ -815,7 +815,8 @@ void FScfgFacade::Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, FScfgPa
 	Checkout->Callback = MoveTemp(Callback);
 	Checkout->Facade = Self;
 	Checkouts.Add(Checkout);
-	const TSharedPtr<FScfgScreen> Screen = SheetHost.IsValid() ? SheetHost->OpenPayment(Checkout) : nullptr;
+	const TSharedPtr<IScfgSheetHost> Host = ActiveSheetHost();
+	const TSharedPtr<FScfgScreen> Screen = Host.IsValid() ? Host->OpenPayment(Checkout) : nullptr;
 	if (!Screen.IsValid())
 	{
 		Checkouts.Remove(Checkout);
@@ -825,6 +826,7 @@ void FScfgFacade::Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, FScfgPa
 	}
 	FWait Wait;
 	Wait.Screen = Screen;
+	Wait.Host = Host;
 	Wait.Checkout = Checkout;
 	Wait.PayDone = MoveTemp(Done);
 	AddWait(MoveTemp(Wait));
@@ -864,7 +866,8 @@ void FScfgFacade::Restore(FScfgRestoreCallback Callback, FRestoreDone Done)
 	Ctl->Callback = MoveTemp(Callback);
 	Ctl->Facade = Self;
 	Restores.Add(Ctl);
-	const TSharedPtr<FScfgScreen> Screen = SheetHost.IsValid() ? SheetHost->OpenRestore(Ctl) : nullptr;
+	const TSharedPtr<IScfgSheetHost> Host = ActiveSheetHost();
+	const TSharedPtr<FScfgScreen> Screen = Host.IsValid() ? Host->OpenRestore(Ctl) : nullptr;
 	if (!Screen.IsValid())
 	{
 		Restores.Remove(Ctl);
@@ -875,6 +878,7 @@ void FScfgFacade::Restore(FScfgRestoreCallback Callback, FRestoreDone Done)
 	}
 	FWait Wait;
 	Wait.Screen = Screen;
+	Wait.Host = Host;
 	Wait.Restore = Ctl;
 	Wait.RestoreDone = MoveTemp(Done);
 	AddWait(MoveTemp(Wait));
@@ -957,12 +961,12 @@ void FScfgFacade::EndWait(FWait& Wait, const FString& How, bool bGone)
 	}
 }
 
-void FScfgFacade::CloseScreen(const TWeakPtr<FScfgScreen>& Screen, bool bGone)
+void FScfgFacade::CloseScreen(const FWait& Wait, bool bGone)
 {
-	const TSharedPtr<FScfgScreen> Shown = Screen.Pin();
-	if (!bGone && Shown.IsValid() && SheetHost.IsValid())
+	const TSharedPtr<FScfgScreen> Shown = Wait.Screen.Pin();
+	if (!bGone && Shown.IsValid() && Wait.Host.IsValid())
 	{
-		SheetHost->Close(Shown.ToSharedRef());
+		Wait.Host->Close(Shown.ToSharedRef());
 	}
 }
 
@@ -975,7 +979,7 @@ void FScfgFacade::CloseCheckout(FWait& Wait, const FString& How, bool bGone)
 	{
 		// Ren'Py's _shutdown: close the page and deliver nothing; the session stays watched.
 		const scfg::models::PaymentResult Result = Core.finish();
-		CloseScreen(Wait.Screen, bGone);
+		CloseScreen(Wait, bGone);
 		Wait.PayDone(ScfgConvert::PaymentResult(Result));
 		return;
 	}
@@ -994,7 +998,7 @@ void FScfgFacade::CloseCheckout(FWait& Wait, const FString& How, bool bGone)
 	{
 		Result = Core.finish();
 	}
-	CloseScreen(Wait.Screen, bGone);
+	CloseScreen(Wait, bGone);
 	const FScfgPaymentResult Typed = ScfgConvert::PaymentResult(Result);
 	if (How == TEXT("cancel"))
 	{
@@ -1008,7 +1012,7 @@ void FScfgFacade::CloseRestore(FWait& Wait, bool bGone)
 	const TSharedRef<FScfgRestore> Ctl = Wait.Restore.ToSharedRef();
 	Restores.Remove(Ctl);
 	Ctl->Callback = FScfgRestoreCallback();
-	CloseScreen(Wait.Screen, bGone);
+	CloseScreen(Wait, bGone);
 	Wait.RestoreDone(ScfgConvert::RestoreResult(Ctl->Controller->result()));
 }
 
@@ -1399,9 +1403,9 @@ void FScfgFacade::Call(const FScfgRestoreCallback& Callback, const FScfgRestoreR
 
 void FScfgFacade::Notify(const FString& Text)
 {
-	if (SheetHost.IsValid())
+	if (const TSharedPtr<IScfgSheetHost> Host = ActiveSheetHost())
 	{
-		SheetHost->Notify(Text);
+		Host->Notify(Text);
 	}
 }
 
