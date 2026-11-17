@@ -17,6 +17,9 @@
 // - the logo is served only as a raster image (config::LOGO_TYPES: png, jpeg, webp), never SVG.
 // As local_server.gd (Python has no such limits): a connection has DEADLINE_S to deliver its request and again to take
 // its answer, at most MAX_CONNECTIONS are open at once, and a request head is at most MAX_HEAD bytes in all (431).
+// Known limit, shared with Godot: MAX_CONNECTIONS slow clients (a local process sending partial requests; a web page
+// cannot) hold every slot until their DEADLINE_S, so the page waits meanwhile, where Python's threaded server answers
+// at once. QR and manual payment are unaffected.
 //
 // HTTP, as Python's BaseHTTPRequestHandler reads it (local_server.gd's rules, which pass the shared suite
 // tests/server_security): GET and POST only (anything else, HEAD included, is 501; HEAD gets no body); an empty request
@@ -208,7 +211,10 @@ public:
     // Bytes read from the connection (at most io().read); empty when the socket had none now (a closed one is
     // hang_up()). May call load_asset, get_status, load_logo, on_tx and build_tx.
     void feed(Conn conn, std::string_view bytes);
-    // The peer closed its side, or the socket failed: the connection is closed (a build it waits for is cancelled).
+    // The peer closed its side, or the socket failed: the connection is closed, and a build it waits for is cancelled.
+    // CheckoutServer does not read a connection while its build runs (io().read is 0 then), so a client that goes
+    // away during a build is noticed only when the answer is written or build_timeout_s passes: one connection slot
+    // held for up to that long, as Python's handler stays blocked in fut.result().
     void hang_up(Conn conn);
     // n bytes of io().write went out.
     void sent(Conn conn, size_t n);

@@ -85,7 +85,7 @@ def cpp_server_driver():
 
 @pytest.fixture(params=["python", pytest.param("godot", marks=pytest.mark.godot_server),
                         pytest.param("node", marks=pytest.mark.node_server),
-                        pytest.param("cpp", marks=pytest.mark.cpp_server)])
+                        "cpp"])  # marked cpp_server in pytest_collection_modifyitems (see there)
 def make_server(request, monkeypatch):
     """make_server(**config) -> a started server handle (see server_handles.py)."""
     made = []
@@ -146,10 +146,20 @@ def pytest_configure(config):
         config.option.markexpr = config.option.markexpr.replace(term, "")
 
 
+@pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(config, items):
-    """Deselects the `cpp_server` tests unless the `-m` expression names `cpp_server` (pyproject's
-    addopts cannot name a marker this conftest registers), so a plain `pytest` never builds the
-    C++ driver."""
+    """Marks the `cpp` items `cpp_server`, then deselects them unless the `-m` expression names
+    `cpp_server` (pyproject's addopts cannot name a marker this conftest registers), so a plain
+    `pytest` never builds the C++ driver.
+
+    The mark is added here, not as `pytest.param(..., marks=pytest.mark.cpp_server)`: in a plain
+    run this conftest is imported during collection, before its pytest_configure has registered the
+    marker, so a mark made at import time warns (PytestUnknownMarkWarning) and fails collection
+    under --strict-markers. tryfirst: before pytest's own `-m` deselection reads the marks."""
+    for item in items:
+        callspec = getattr(item, "callspec", None)
+        if callspec is not None and callspec.params.get("make_server") == "cpp":
+            item.add_marker("cpp_server")
     if "cpp_server" in (config.option.markexpr or ""):
         return
     dropped = [item for item in items if item.get_closest_marker("cpp_server") is not None]

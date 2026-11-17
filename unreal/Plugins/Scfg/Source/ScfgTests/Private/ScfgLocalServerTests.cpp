@@ -46,14 +46,12 @@ struct FSeen
 {
 	std::vector<std::pair<std::string, std::optional<std::string>>> Hints;
 	TArray<FString> Errors;
-	TArray<FString> Warnings;
 };
 
 FScfgLocalServerPage Page(const TSharedRef<FSeen>& Seen)
 {
 	FScfgLocalServerPage P;
 	P.OnError = [Seen](const FString& Line) { Seen->Errors.Add(Line); };
-	P.OnWarning = [Seen](const FString& Line) { Seen->Warnings.Add(Line); };
 	return P;
 }
 
@@ -272,7 +270,7 @@ bool FScfgLocalServerHttpTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("on_tx got the normalized hash and sender"), Seen->Hints.size() == 1 &&
 			Seen->Hints[0].first == kTx &&
 			Seen->Hints[0].second == std::optional<std::string>("0x52908400098527886E0F7030069857D2E4169EE7"));
-		TestEqual(TEXT("nothing reported"), Seen->Errors.Num() + Seen->Warnings.Num(), 0);
+		TestEqual(TEXT("nothing reported"), Seen->Errors.Num(), 0);
 		S->Server->stop();
 		TestTrue(TEXT("stopped: the port is closed"), ScfgTestHttp::Refused(S->Port));
 		S->Server.reset();
@@ -371,7 +369,7 @@ bool FScfgLocalServerStopTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("and answers"), Got && Got->Status == 200);
 	Server.reset();  // the destructor stops it
 	TestTrue(TEXT("destroyed: the port is closed"), ScfgTestHttp::Refused(Again));
-	TestEqual(TEXT("nothing reported"), Seen->Errors.Num() + Seen->Warnings.Num(), 0);
+	TestEqual(TEXT("nothing reported"), Seen->Errors.Num(), 0);
 	return true;
 }
 
@@ -407,8 +405,8 @@ bool FScfgLocalServerCannotBindTest::RunTest(const FString& Parameters)
 SCFG_LOCAL_SERVER_TEST(FScfgLocalServerPageFilesTest, "ThePageFilesAreThePluginsCopies")
 
 // The plugin's Resources/Web/ holds every file the server serves, byte for byte the shared page
-// (plugin/game/scfg/web/, which tools/sync_web_page.py --check also compares); a directory without them is a 500 per
-// file and one warning per factory.
+// (plugin/game/scfg/web/, which tools/sync_web_page.py --check also compares); a directory without them fails the
+// factory, reported once per attempt.
 bool FScfgLocalServerPageFilesTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgLocalServerTests;
@@ -442,18 +440,15 @@ bool FScfgLocalServerPageFilesTest::RunTest(const FString& Parameters)
 	const scfg::checkout::ServerFactory Factory = FScfgLocalServer::Factory(MoveTemp(P));
 	for (int32 Round = 0; Round < 2; ++Round)
 	{
-		scfg::Result<std::unique_ptr<scfg::checkout::Server>> Made = Factory(Args(Seen));
-		if (!TestTrue(TEXT("made"), Made.ok() && Made.value()->start().ok()))
-		{
-			break;
-		}
-		std::unique_ptr<scfg::checkout::Server> Server = Made.take();
-		const int32 Port = ScfgTestHttp::PortOf(Url(*Server));
-		const std::optional<ScfgTestHttp::FAnswer> Got = ScfgTestHttp::Exchange(Port,
-			ScfgTestHttp::Request("GET", Path(*Server), Port), [&] { Server->pump(); });
-		TestTrue(TEXT("a missing page file is a 500"), Got && Got->Status == 500 && Got->Body == "asset missing");
+		const scfg::Result<std::unique_ptr<scfg::checkout::Server>> Made = Factory(Args(Seen));
+		TestTrue(TEXT("a missing page file fails the factory (so the browser method is unavailable)"),
+			!Made.ok() && Made.err().kind == "RuntimeError" &&
+			Made.err().message.rfind("the checkout page files are missing (", 0) == 0);
 	}
-	TestEqual(TEXT("warned once per factory"), Seen->Warnings.Num(), 1);
+	TestEqual(TEXT("reported once per attempt, as the page's Err"), Seen->Errors.Num(), 2);
+	TestTrue(TEXT("naming the files"), Seen->Errors.Num() == 2 &&
+		Seen->Errors[0].StartsWith(TEXT("scfg: cannot start the checkout page: RuntimeError: the checkout page files are missing")) &&
+		Seen->Errors[0].Contains(TEXT("index.html")));
 	IFileManager::Get().DeleteDirectory(*Empty, false, true);
 	return true;
 }

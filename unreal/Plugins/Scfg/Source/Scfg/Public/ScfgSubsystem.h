@@ -145,6 +145,8 @@ public:
 	FScfgFacade* GetFacade() const { return Facade.Get(); }
 	// Deinitialize has begun: the flows resolve without delivering anything.
 	bool IsShuttingDown() const;
+	// How many calls, process-wide, were refused because they came from another thread (each logged once).
+	static int32 NumOffThreadCalls();
 
 private:
 	friend struct FScfgSubsystemTestAccess;

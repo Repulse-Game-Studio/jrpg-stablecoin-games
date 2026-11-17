@@ -12,6 +12,7 @@
 #include "Scfg/Err.h"
 #include "Scfg/Json.h"
 
+#include <atomic>
 #include <string>
 
 namespace ScfgSubsystemDetail
@@ -42,6 +43,9 @@ FScfgRestoreResult RestoreNotRunning()
 	return R;
 }
 
+// Every call refused for its thread, process-wide (UScfgSubsystem::NumOffThreadCalls).
+std::atomic<int32> OffThreadCalls{0};
+
 // A call from another thread is misuse: each function logs its own line (an ensure reports only once per process),
 // then one ensure with its callstack. Nothing of the subsystem or the facade is touched off the game thread.
 bool OffGameThread(const TCHAR* What)
@@ -50,6 +54,7 @@ bool OffGameThread(const TCHAR* What)
 	{
 		return false;
 	}
+	OffThreadCalls.fetch_add(1);
 	UE_LOG(LogScfg, Error, TEXT("scfg: %s must be called on the game thread"), What);
 	ensureMsgf(false, TEXT("scfg: %s must be called on the game thread"), What);
 	return true;
@@ -123,6 +128,11 @@ void UScfgSubsystem::StopFacade()
 	Facade.Reset();
 }
 
+int32 UScfgSubsystem::NumOffThreadCalls()
+{
+	return ScfgSubsystemDetail::OffThreadCalls.load();
+}
+
 bool UScfgSubsystem::IsShuttingDown() const
 {
 	return bStopping || (Facade.IsValid() && Facade->IsShuttingDown());
@@ -167,16 +177,17 @@ FString UScfgSubsystem::AddItem(const FString& ItemId, const FScfgItem& Item)
 
 void UScfgSubsystem::Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, const FOnScfgPaid& OnPaid)
 {
+	if (ScfgSubsystemDetail::OffGameThread(TEXT("Pay()")))
+	{
+		// (copied, not read: IsBound() reads a weak object pointer, which only the game thread may)
+		ScfgSubsystemDetail::OnGameThread([OnPaid] { OnPaid.ExecuteIfBound(ScfgSubsystemDetail::NotRunning()); });
+		return;
+	}
 	FScfgPayCallback Callback;
 	if (OnPaid.IsBound())
 	{
 		Callback.Fn = [OnPaid](const FScfgPaymentResult& Result) { OnPaid.ExecuteIfBound(Result); };
 		Callback.IsValid = [OnPaid]() { return OnPaid.IsBound(); };
-	}
-	if (ScfgSubsystemDetail::OffGameThread(TEXT("Pay()")))
-	{
-		ScfgSubsystemDetail::OnGameThread([OnPaid] { OnPaid.ExecuteIfBound(ScfgSubsystemDetail::NotRunning()); });
-		return;
 	}
 	FScfgFacade* F = Live(TEXT("Pay()"));
 	if (!F)
@@ -240,16 +251,16 @@ void UScfgSubsystem::PayAsync(
 
 void UScfgSubsystem::Restore(const FOnScfgRestored& OnRestored)
 {
+	if (ScfgSubsystemDetail::OffGameThread(TEXT("Restore()")))
+	{
+		ScfgSubsystemDetail::OnGameThread([OnRestored] { OnRestored.ExecuteIfBound(ScfgSubsystemDetail::RestoreNotRunning()); });
+		return;
+	}
 	FScfgRestoreCallback Callback;
 	if (OnRestored.IsBound())
 	{
 		Callback.Fn = [OnRestored](const FScfgRestoreResult& Result) { OnRestored.ExecuteIfBound(Result); };
 		Callback.IsValid = [OnRestored]() { return OnRestored.IsBound(); };
-	}
-	if (ScfgSubsystemDetail::OffGameThread(TEXT("Restore()")))
-	{
-		ScfgSubsystemDetail::OnGameThread([OnRestored] { OnRestored.ExecuteIfBound(ScfgSubsystemDetail::RestoreNotRunning()); });
-		return;
 	}
 	FScfgFacade* F = Live(TEXT("Restore()"));
 	if (!F)

@@ -491,6 +491,7 @@ bool FScfgBlueprintOffThreadTest::RunTest(const FString& Parameters)
 		TArray<FScfgPaymentResult> Async;
 		bool bOwns = true;
 		int32 Ensures = 0;
+		int32 RefusedBefore = 0;
 		double Started = 0;
 	};
 	const TSharedRef<FState> S = MakeShared<FState>();
@@ -509,9 +510,10 @@ bool FScfgBlueprintOffThreadTest::RunTest(const FString& Parameters)
 	OnPaid.BindDynamic(S->G->Receiver.Get(), &UScfgTestReceiver::OnPaid);
 	FOnScfgRestored OnRestored;
 	OnRestored.BindDynamic(S->G->Receiver.Get(), &UScfgTestReceiver::OnRestored);
+	S->RefusedBefore = UScfgSubsystem::NumOffThreadCalls();
 	std::thread Other([S, Scfg, OnPaid, OnRestored]()
 	{
-		// thread_local: the ensures of this thread are recorded and skipped (no callstack, no crash report)
+		// thread_local: an ensure of this thread is skipped (no callstack, no crash report)
 		const TFunction<bool(const FEnsureHandlerArgs&)> Previous = SetEnsureHandler([S](const FEnsureHandlerArgs&)
 		{
 			++S->Ensures;
@@ -535,7 +537,8 @@ bool FScfgBlueprintOffThreadTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("a query answers its neutral value"), S->bOwns);
 	TestTrue(TEXT("nothing of the subsystem changed"), !Scfg->GetNotify() && Scfg->GetSheetHost() == Host &&
 		S->W.F().NumCheckouts() == 0 && S->W.F().NumRestores() == 0);
-	TestTrue(TEXT("the ensure fired"), S->Ensures >= 1);
+	// (the ensure itself fires once per process, so a second run of this test in the same editor would not see it)
+	TestEqual(TEXT("each of the six calls was refused"), UScfgSubsystem::NumOffThreadCalls() - S->RefusedBefore, 6);
 	S->Started = FPlatformTime::Seconds();
 	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand([this, S]()
 	{

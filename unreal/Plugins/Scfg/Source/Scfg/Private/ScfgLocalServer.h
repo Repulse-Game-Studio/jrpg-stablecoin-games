@@ -5,7 +5,7 @@
 //   and writes them without ever waiting, from the controller's poll() in every facade pump (game thread only);
 // - the page's files, read from the plugin's Resources/Web/ (copies of plugin/game/scfg/web/ made by
 //   tools/sync_web_page.py; Scfg.Build.cs stages them for packaged games as RuntimeDependencies) when a page server is
-//   made, so the server answers from memory;
+//   made, so the server answers from memory; without them the browser method is unavailable;
 // - the developer's logo, read once when a page server is made (Godot's _server_opts), served only as png, jpeg or
 //   webp;
 // - FPlatformTime::Seconds() as the server's clock, and the reporter for the Err of a page that cannot start.
@@ -31,9 +31,9 @@ struct FScfgLocalServerPage
 	// The configured logo's full path, read when a page server is made; "" for none (no /logo route). Shared with the
 	// facade, which sets it in Configure().
 	TSharedPtr<FString> LogoPath;
-	// Told each Err a page server cannot start with (the controller drops it, Checkout.h), and each missing page file.
+	// Told each Err a page server cannot be made or started with (the controller drops it, Checkout.h): a missing page
+	// file, a listener that cannot bind.
 	TFunction<void(const FString& Line)> OnError;
-	TFunction<void(const FString& Line)> OnWarning;
 	// The server's clock (monotonic seconds). Default: FPlatformTime::Seconds.
 	TFunction<double()> Clock;
 	// The address it binds. Default: "127.0.0.1" (the core's).
@@ -52,7 +52,8 @@ struct SCFG_API FScfgLocalServer
 	// and served as a 500).
 	static TMap<FString, std::string> ReadPage(const FString& Directory, TArray<FString>* Missing = nullptr);
 	// The CheckoutController's server_factory: a local_server::CheckoutServer over Listen(), the page read from
-	// WebDirectory (a missing file warned once per factory), the logo read from *LogoPath. A server that cannot start
-	// is reported through OnError ("scfg: cannot start the checkout page: <Err>").
+	// WebDirectory, the logo read from *LogoPath. A page file that is missing fails the factory (RuntimeError), and a
+	// server that cannot start fails start(); both are reported through OnError ("scfg: cannot start the checkout
+	// page: <Err>") and make the browser method unavailable.
 	static scfg::checkout::ServerFactory Factory(FScfgLocalServerPage Page);
 };

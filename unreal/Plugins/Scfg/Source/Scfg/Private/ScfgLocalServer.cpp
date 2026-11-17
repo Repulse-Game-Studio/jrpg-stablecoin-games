@@ -197,27 +197,27 @@ TMap<FString, std::string> FScfgLocalServer::ReadPage(const FString& Directory, 
 
 scfg::checkout::ServerFactory FScfgLocalServer::Factory(FScfgLocalServerPage Page)
 {
-	struct FShared
-	{
-		FScfgLocalServerPage Page;
-		bool bWarnedMissing = false;
-	};
-	const TSharedRef<FShared> Shared = MakeShared<FShared>();
-	Shared->Page = MoveTemp(Page);
+	const TSharedRef<FScfgLocalServerPage> Shared = MakeShared<FScfgLocalServerPage>(MoveTemp(Page));
 	return [Shared](scfg::checkout::ServerArgs Args) -> scfg::Result<std::unique_ptr<scfg::checkout::Server>>
 	{
-		const FScfgLocalServerPage& P = Shared->Page;
-		// The page's files, read now: the server answers from memory
+		const FScfgLocalServerPage& P = *Shared;
+		// The page's files, read now: the server answers from memory. A missing one fails the factory (reported, as
+		// the factory reports its own Err), so the controller shows browser_unavailable and the player pays by QR or
+		// by hand instead of landing on an error page.
 		TArray<FString> Missing;
 		const FString Directory = P.WebDirectory.IsEmpty() ? FScfgLocalServer::WebDirectory() : P.WebDirectory;
 		TSharedRef<const TMap<FString, std::string>> Files =
 			MakeShared<const TMap<FString, std::string>>(ReadPage(Directory, &Missing));
-		if (Missing.Num() > 0 && !Shared->bWarnedMissing && P.OnWarning)
+		if (Missing.Num() > 0)
 		{
-			Shared->bWarnedMissing = true;
-			P.OnWarning(FString::Printf(TEXT("scfg: the checkout page files are missing (%s): the browser checkout "
-				"cannot work. The plugin's Resources/Web/ folder must ship with the game (Scfg.Build.cs stages it)"),
-				*FString::Join(Missing, TEXT(", "))));
+			const scfg::Err Error = scfg::Err::make("RuntimeError", ScfgString::ToUtf8(FString::Printf(
+				TEXT("the checkout page files are missing (%s): the plugin's Resources/Web/ folder must ship with the "
+					 "game (Scfg.Build.cs stages it)"), *FString::Join(Missing, TEXT(", ")))));
+			if (P.OnError)
+			{
+				P.OnError(TEXT("scfg: cannot start the checkout page: ") + ScfgString::FromUtf8(Error.str()));
+			}
+			return Error;
 		}
 		scfg::local_server::Options O;
 		O.load_asset = [Files](const std::string& Name) -> std::optional<std::string>

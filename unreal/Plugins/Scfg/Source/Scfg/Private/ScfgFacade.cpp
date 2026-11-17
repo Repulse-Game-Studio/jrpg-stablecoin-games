@@ -182,7 +182,6 @@ FScfgFacade::FScfgFacade(FScfgFacadeOptions InOptions) : Options(MoveTemp(InOpti
 		FScfgLocalServerPage Page;
 		Page.LogoPath = PageLogo;
 		Page.OnError = [Reporter = Reporter](const FString& Line) { Reporter->Error(Line); };
-		Page.OnWarning = [Reporter = Reporter](const FString& Line) { Reporter->Warning(Line); };
 		Options.ServerFactory = FScfgLocalServer::Factory(MoveTemp(Page));
 	}
 }

@@ -18,8 +18,12 @@ public class Scfg : ModuleRules
 		// Resources/Web/.
 		PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "HTTP", "Projects", "ScfgCore", "Sockets" });
 		// bEnableExceptions and bUseRTTI keep their defaults (false).
-		// The checkout page's files (copies of plugin/game/scfg/web/, kept by tools/sync_web_page.py), staged with a
-		// packaged game as loose files at the plugin's own path, where FScfgLocalServer::WebDirectory() finds them.
-		RuntimeDependencies.Add(Path.Combine(PluginDirectory, "Resources", "Web", "*"), StagedFileType.NonUFS);
+		// The checkout page's files the server serves (local_server::ASSETS; copies of plugin/game/scfg/web/, kept by
+		// tools/sync_web_page.py), staged with a packaged game as loose files at the plugin's own path, where
+		// FScfgLocalServer::WebDirectory() finds them. bridge.js is the web exports' bridge: never served, not staged.
+		foreach (string Asset in new string[] { "index.html", "app.js", "evm.js", "solana.js" })
+		{
+			RuntimeDependencies.Add(Path.Combine(PluginDirectory, "Resources", "Web", Asset), StagedFileType.NonUFS);
+		}
 	}
 }

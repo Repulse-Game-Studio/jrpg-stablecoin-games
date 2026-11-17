@@ -44,11 +44,14 @@
 //       the session's hint, the page stopped with the sheet
 //   TheDesktopPathWorksWhenThePageCannotStart                -> a page that cannot listen: reported by the page, the
 //       browser method shows "browser_unavailable" and drops out; the QR link and the manual hash work
+//   TheBrowserFallsBackWhenThePageFilesAreMissing            -> no Resources/Web/ files: the page server is not made,
+//       browser_unavailable, QR and manual remain
 //   AnItemAddedAfterTheStartCanBeSoldAndOwned                -> AddItem after the worker started reaches the Engine
 //       (Python's Engine shares the game's Config): paid on chain, then owned
 //   ClearLocalDataWithAPaymentSheetOpen                      -> the wipe while a sheet watches its session
 #include "Misc/AutomationTest.h"
 
+#include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
 
 #include "ScfgConvert.h"
@@ -1030,6 +1033,37 @@ bool FScfgFlowsNoPageServerTest::RunTest(const FString& Parameters)
 	const Json Record = S.Pending().as_dict().get(ScfgString::ToUtf8(SessionIdOf(Ctl)));
 	TestTrue(TEXT("and reported to the Engine"),
 		Record.is_dict() && Same(Record.as_dict().get("hint_tx"), Json(kTx)));
+	W.Host->CloseSheet(-1, TEXT("cancel"));
+	W.Pump();
+	TestTrue(TEXT("and the sheet closes as any other"), Is(*Box, EScfgPaymentStatus::Cancelled));
+	return true;
+}
+
+SCFG_FACADE_FLOWS_TEST(FScfgFlowsNoPageFilesTest, "TheBrowserFallsBackWhenThePageFilesAreMissing")
+
+// A game shipped without the plugin's Resources/Web/ (a packaging mistake): the page server is not made, the browser
+// method is unavailable and the player pays by QR or by hand, instead of a browser opened on an error page.
+bool FScfgFlowsNoPageFilesTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeFlowsTests;
+	FWorld W;
+	const FString Empty = W.Dir / TEXT("no-web");  // inside the world's own directory (removed with it)
+	IFileManager::Get().MakeDirectory(*Empty, true);
+	const TSharedRef<TArray<FString>> PageErrors = MakeShared<TArray<FString>>();
+	FScfgLocalServerPage Page;
+	Page.WebDirectory = Empty;
+	Page.OnError = [PageErrors](const FString& Line) { PageErrors->Add(Line); };
+	W.ServerFactory = FScfgLocalServer::Factory(MoveTemp(Page));
+	W.Started(*this);
+	const TSharedRef<TOptional<FScfgPaymentResult>> Box = W.Pay(EScfgPayKind::Unlock, Unlock());
+	FScfgCheckout& Ctl = W.Session(*this);
+	Ctl.OpenBrowser();
+	TestTrue(TEXT("no browser is opened, and the browser method is unavailable"),
+		W.Platform->Opened.Num() == 0 && Ctl.Core().browser_failed() &&
+			Ctl.Core().error == std::optional<std::string>("browser_unavailable"));
+	TestTrue(TEXT("QR and manual remain"), Ctl.Core().methods() == std::vector<std::string>{"qr", "manual"});
+	TestTrue(TEXT("the missing files are reported once"), PageErrors->Num() == 1 &&
+		(*PageErrors)[0].Contains(TEXT("the checkout page files are missing")));
 	W.Host->CloseSheet(-1, TEXT("cancel"));
 	W.Pump();
 	TestTrue(TEXT("and the sheet closes as any other"), Is(*Box, EScfgPaymentStatus::Cancelled));
