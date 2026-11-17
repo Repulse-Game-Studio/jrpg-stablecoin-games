@@ -12,7 +12,3 @@ CMakeLists.txt
 .vscode/
 .idea/
 .vs/
-# Written by the editor's first run (AndroidFileServer's random SecurityToken, the input settings upgrade). A task
-# that needs project settings drops these lines and commits its own files.
-ScfgDev/Config/DefaultEngine.ini
-ScfgDev/Config/DefaultInput.ini

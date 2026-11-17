@@ -443,11 +443,12 @@ static std::string top_level(std::string s) {
     return s;
 }
 
-// A declaration (not a definition) of a function that some .cpp defines: `... name(...) [const] [noexcept]
-// [override] [final] [-> T]`, with no `= default`, `= delete` or `= 0` (a top-level '=' is a variable).
+// A declaration (not a definition) of a function that some .cpp defines: `... name(...) [const] [volatile]
+// [&|&&] [noexcept[(...)]] [override] [final] [-> T]`, with no `= default`, `= delete` or `= 0` (a top-level '=' is
+// a variable).
 static bool declares_function(const std::string& stmt) {
-    static const std::regex fn(
-        "^[^=]*[\\w\\]]\\s*@\\s*(const\\s*)?(noexcept\\s*)?((override|final)\\s*)*(->[^=]*)?$");
+    static const std::regex fn("^[^=]*[\\w\\]]\\s*@\\s*(const\\s*)?(volatile\\s*)?(&&?\\s*)?(noexcept\\s*@?\\s*)?"
+                               "((override|final)\\s*)*(->[^=]*)?$");
     return std::regex_match(top_level(stmt), fn);
 }
 
@@ -491,6 +492,8 @@ std::vector<std::string> exports(const File& f) {
     static const std::regex access("^((public|private|protected)\\s*:\\s*)+");
     static const std::regex attrs("^(\\[\\[[^\\]]*\\]\\]\\s*)+");
     static const std::regex template_prefix("^template\\s*");
+    static const std::regex extern_kw("^extern\\s*");
+    static const std::regex inline_data("\\b(constexpr|inline)\\b");
     auto clean = [&](const std::string& s) {
         std::string t = std::regex_replace(s, access, "");
         size_t b = t.find_first_not_of(" \t\n");
@@ -504,14 +507,26 @@ std::vector<std::string> exports(const File& f) {
         Scope& sc = scopes.back();
         bool api = s.find("SCFGCORE_API") != std::string::npos;
         std::string bare = std::regex_replace(s, attrs, "");  // [[noreturn]] void f();
+        bool fn = declares_function(bare);
+        // `class X;` is a declaration of X, `struct X make();` one of make()
+        bool elaborated = starts_with_word(bare, "class") || starts_with_word(bare, "struct") ||
+                          starts_with_word(bare, "union") || starts_with_word(bare, "enum");
         if (sc.kind == Kind::Ns) {
             for (const char* w : {"inline", "template", "constexpr", "consteval", "static", "using", "typedef",
-                                  "static_assert", "namespace", "class", "struct", "union", "enum", "friend"}) {
+                                  "static_assert", "namespace", "friend"}) {
                 if (starts_with_word(bare, w)) return;
             }
-            if (starts_with_word(bare, "extern")) {
+            if (elaborated && !fn) return;
+            if (bare.rfind("extern \"\"", 0) == 0) {  // extern "C" void f(); (the literal is blanked)
+                bare = bare.substr(9);
+                fn = declares_function(bare);
+            } else if (starts_with_word(bare, "extern")) {
+                // an explicit instantiation declaration is not a variable, and has nothing of ours to export
+                if (starts_with_word(std::regex_replace(bare, extern_kw, ""), "template")) return;
                 if (!api) hits.push_back(at(f, stmt_line, "extern variable without SCFGCORE_API", why_fn));
-            } else if (declares_function(bare) && !api) {
+                return;
+            }
+            if (fn && !api) {
                 hits.push_back(at(f, stmt_line, "free function without SCFGCORE_API", why_fn));
             }
             return;
@@ -522,10 +537,15 @@ std::vector<std::string> exports(const File& f) {
                 hits.push_back(at(f, stmt_line, "friend function without SCFGCORE_API", why_fn));
             return;
         }
-        for (const char* w : {"template", "using", "typedef", "static_assert", "enum", "class", "struct", "union"}) {
+        for (const char* w : {"template", "using", "typedef", "static_assert"}) {
             if (starts_with_word(bare, w)) return;
         }
-        if (declares_function(bare)) sc.needs = true;
+        if (elaborated && !fn) return;
+        if (fn) {
+            sc.needs = true;
+        } else if (starts_with_word(bare, "static") && !std::regex_search(bare, inline_data)) {
+            sc.needs = true;  // a static data member: some .cpp defines it
+        }
     };
 
     for (size_t i = 0; i < code.size(); ++i) {

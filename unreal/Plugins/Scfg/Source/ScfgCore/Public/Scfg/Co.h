@@ -32,7 +32,10 @@
 //   is caught there and aborts (g++ 13 does not warn; Clang does, -Wreturn-type).
 // - Build a braced argument before the co_await (`Json params = Json::list({a, b}); co_await call(m, params)`):
 //   g++ 13 has an internal compiler error on an initializer list inside a co_await's operand.
-// - Exceptions are off, so unhandled_exception() is unreachable; it aborts.
+// - The core never throws or catches (the lints forbid throw, try and catch). It is built with -fno-exceptions in
+//   the CMake build and Unreal's game builds, but Unreal's editor builds compile it with -fexceptions, so a
+//   standard-library throw inside a coroutine (std::bad_function_call, say) would reach unhandled_exception(),
+//   which aborts.
 //
 // Promise<T> rules (programming errors abort through detail::programming_error):
 // - complete() resumes the awaiting coroutine, if any, before it returns; completing before anyone awaits is

@@ -9,10 +9,13 @@ Runs `<engine>/Engine/Build/BatchFiles/Linux/Build.sh <target> Linux <config>
 -Project=<uproject> -WaitMutex -NoHotReload -UBAHost=127.0.0.1` (UBT's build accelerator would
 otherwise listen on every interface, 0.0.0.0:1345). The engine is --engine, else $UE_ROOT, else
 /mnt/files/UnrealEngine. UBT's output is passed through as it comes and, with --log, saved too.
-The build counts as green only when UBT exits 0 *and* no line of its output is a `warning:` or
-`error:` about our own code: a path under unreal/ (the plugin, the dev project and their
-generated unity files) or one of our modules. A build that takes longer than --timeout seconds
-(default 3600) is killed, with every process it started, and fails.
+
+The build counts as green only when UBT exits 0 *and* its output has no `warning:` or `error:`
+line, except one located in an engine file and reached through engine files only (its "In file
+included from" chain, if any, is the engine's too): an engine header warning that our code
+triggers fails the build, and so does any message of UBT's own, which names no file. A build that
+takes longer than --timeout seconds (default 3600) fails: every process in its process group is
+killed, even when Build.sh itself has already exited and only a descendant is left.
 """
 
 from __future__ import annotations
@@ -24,32 +27,64 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ENGINE = "/mnt/files/UnrealEngine"
 DEFAULT_PROJECT = ROOT / "unreal" / "Project" / "ScfgDev" / "ScfgDev.uproject"
 DEFAULT_TIMEOUT = 3600.0
-DIAGNOSTIC = re.compile(r"\b(warning|error)\s*:", re.IGNORECASE)
-OURS = re.compile(r"\b(ScfgCore|ScfgDev|Scfg\.uplugin|Plugins/Scfg)\b")
+KILL_GRACE = 5.0   # seconds the output may take to close after the kill
+DIAGNOSTIC = re.compile(r"\b(warning|error)\b(\s+[A-Z]+\d+)?\s*:", re.IGNORECASE)
+# clang/gcc `path:line[:col]: warning:` and MSVC `path(line[,col]): warning C4251:`
+LOCATED = re.compile(r"^\s*(?P<path>[^\s:(][^:(]*?)(:\d+(:\d+)?|\(\d+(,\d+)?\))\s*:")
+INCLUDED = re.compile(r"^\s*(In file included from|from)\s+(?P<path>.+?):\d+(:\d+)?[:,]?\s*$")
 
 
-def our_diagnostics(output: str, root: Path = ROOT) -> list[str]:
-    """The warning and error lines of a UBT log that are about our code."""
-    unreal = str(root / "unreal")
-    return [line for line in output.splitlines()
-            if DIAGNOSTIC.search(line) and (unreal in line or OURS.search(line))]
+def in_engine(path: str, engine: Path) -> bool:
+    """path is a file of the engine: absolute under it, or relative to Engine/Source (UBT's
+    working directory) and existing there."""
+    p = Path(path)
+    if p.is_absolute():
+        return p.resolve().is_relative_to(engine.resolve())
+    return (engine / "Engine" / "Source" / p).exists()
 
 
-def verdict(returncode: int, output: str, root: Path = ROOT) -> str | None:
+def our_diagnostics(output: str, engine: Path) -> list[str]:
+    """The warning and error lines of a UBT log that are not the engine's own business."""
+    found, chain = [], []
+    for line in output.splitlines():
+        inc = INCLUDED.match(line)
+        if inc:
+            chain.append(inc.group("path"))
+            continue
+        if DIAGNOSTIC.search(line):
+            loc = LOCATED.match(line)
+            engine_only = (loc is not None and in_engine(loc.group("path"), engine)
+                           and all(in_engine(p, engine) for p in chain))
+            if not engine_only:
+                found.append(line)
+        chain = []
+    return found
+
+
+def verdict(returncode: int, output: str, engine: Path) -> str | None:
     """None when the build is green, else why it is not."""
-    found = our_diagnostics(output, root)
+    found = our_diagnostics(output, engine)
     if found:
-        return (f"{len(found)} warning/error line(s) about our code, the first: "
+        return (f"{len(found)} warning/error line(s) not confined to the engine, the first: "
                 f"{found[0].strip()}")
     if returncode != 0:
         return f"UBT exited with {returncode}"
     return None
+
+
+def kill_group(pgid: int) -> None:
+    """SIGKILL every process of the group, whether or not its leader is still alive."""
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass   # the whole group is gone already
 
 
 def main(argv=None) -> int:
@@ -74,11 +109,13 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if not args.timeout > 0:
         parser.error("--timeout must be a positive number of seconds")
-    build_sh = Path(args.engine) / "Engine" / "Build" / "BatchFiles" / "Linux" / "Build.sh"
+    engine = Path(args.engine)
+    build_sh = engine / "Engine" / "Build" / "BatchFiles" / "Linux" / "Build.sh"
     cmd = [str(build_sh), args.target, args.platform, args.config,
            f"-Project={Path(args.project).resolve()}", "-WaitMutex", "-NoHotReload",
            "-UBAHost=127.0.0.1", *args.ubt_args]
     print("run_unreal_build: " + " ".join(cmd), flush=True)
+    deadline = time.monotonic() + args.timeout
     try:
         # A session of its own: a timeout kills UBT's dotnet and compiler children, nothing else.
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
@@ -86,36 +123,45 @@ def main(argv=None) -> int:
     except OSError as e:
         print(f"run_unreal_build: cannot start {build_sh}: {e}", file=sys.stderr)
         return 1
-    timed_out = threading.Event()
-
-    def kill():
-        if proc.poll() is None:
-            timed_out.set()
-            os.killpg(proc.pid, signal.SIGKILL)   # its stdout closes, which ends the loop below
-
-    timer = threading.Timer(args.timeout, kill)
-    timer.daemon = True
-    timer.start()
     lines = []
     log = open(args.log, "w", encoding="utf-8") if args.log else None
-    try:
-        for line in proc.stdout:   # passed through as it comes
+
+    def pump():
+        # Ends when every process holding the pipe has closed it, which may be after Build.sh
+        # exits: so it runs on its own thread, and the deadline is kept by the main thread.
+        for line in proc.stdout:
             sys.stdout.write(line)
             sys.stdout.flush()
             if log:
                 log.write(line)
                 log.flush()   # a log someone tails shows progress too
             lines.append(line)
-        returncode = proc.wait()
+
+    reader = threading.Thread(target=pump, daemon=True)
+    reader.start()
+    try:
+        reader.join(max(0.0, deadline - time.monotonic()))
+        timed_out = reader.is_alive()
+        if not timed_out:
+            try:
+                returncode = proc.wait(timeout=max(0.0, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired:
+                timed_out = True
+        if timed_out:
+            kill_group(proc.pid)
+            reader.join(KILL_GRACE)   # a holder outside the group may keep it open: give up then
+            try:
+                proc.wait(timeout=KILL_GRACE)
+            except subprocess.TimeoutExpired:
+                pass
     finally:
-        timer.cancel()
-        if log:
+        if log and not reader.is_alive():
             log.close()
-    if timed_out.is_set():
+    if timed_out:
         print(f"run_unreal_build: FAILED: UBT did not finish within {args.timeout:g} s "
               f"and was killed", file=sys.stderr)
         return 1
-    why = verdict(returncode, "".join(lines))
+    why = verdict(returncode, "".join(lines), engine)
     if why is not None:
         print(f"run_unreal_build: FAILED: {why}", file=sys.stderr)
         return 1

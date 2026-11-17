@@ -442,6 +442,13 @@ SCFG_TEST(LintTests, ExportsBite) {
              inc + "class SCFGCORE_API O {\n    struct In {\n        void f();\n    };\n};\n",
              inc + "class SCFGCORE_API C {\n    explicit operator bool() const;\n};\nint f(int);\n",
              "SCFGCORE_API void f();\n",
+             // R3: a static data member, a ref-qualified member, an elaborated return type; R4's extern "C"
+             inc + "class C {\n    static const int kTable[4];\n    int f() const { return 1; }\n};\n",
+             inc + "class C {\n    const Json& get() const&;\n};\n",
+             inc + "class C {\n    Json take() && noexcept;\n};\n",
+             inc + "namespace n {\nstruct Foo make_foo(int x);\n}\n",
+             inc + "class SCFGCORE_API O {\n    class In* find(std::string_view k) const;\n};\nclass In* g();\n",
+             inc + "extern \"C\" void hook(int x);\n",
          }) {
         t.check(hits(bad).size() == 1, "export lint missed:\n" + bad);
     }
@@ -464,6 +471,12 @@ SCFG_TEST(LintTests, ExportsBite) {
              "inline constexpr std::array<std::pair<int, int>, 1> X = {{\n    {1, 2},\n}};\n"
              "using F = std::function<int(int)>;\n",
              "enum class Cmp { Lt, Le };\nstruct Fwd;\n#define M(x) \\\n    auto t = (x);   \\\n    f(t)\n",
+             // R4: an explicit instantiation declaration is not an extern variable
+             "extern template class B<int>;\nextern template struct C<Json>;\n",
+             "class C {\n    static constexpr int N = 1;\n    static inline int x = 0;\n    struct Fwd;\n"
+             "    enum class E : int;\n    Json& at() & { return j; }\n};\nenum class E2 : int;\nstruct X x_value;\n",
+             inc + "extern \"C\" SCFGCORE_API void hook(int x);\nclass SCFGCORE_API C {\n    static const int k[4];\n"
+                   "    const Json& get() const&;\n};\n",
              "namespace scfg {\ntemplate <std::integral T>\n    requires(!std::same_as<T, bool>)\n"
              "std::string dec(T v) {\n    return std::string();\n}\n}\n",
          }) {

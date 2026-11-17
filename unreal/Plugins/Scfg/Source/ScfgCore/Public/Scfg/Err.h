@@ -1,9 +1,10 @@
 // Twin of scfg_core/errors.py, plus Python's built-in exception classes: a Python exception as a value.
 //
-// The core is built without exceptions. Every function Python can raise from returns a Result<T> (Result.h)
-// holding either its value or an Err, and the caller propagates it (SCFG_TRY) or handles it where Python has an
-// `except`. `kind` is the Python class name and is_a() follows Python's class tree (err.gd's BASES table), so
-// `except ValueError` is `e.is_a("ValueError")`, which also holds for a ConfigError.
+// The core never throws or catches, as the lints check: it builds with or without exceptions (Unreal's editor
+// builds turn them on, its game builds and the CMake build off). Every function Python can raise from returns a
+// Result<T> (Result.h) holding either its value or an Err, and the caller propagates it (SCFG_TRY) or handles it
+// where Python has an `except`. `kind` is the Python class name and is_a() follows Python's class tree (err.gd's
+// BASES table), so `except ValueError` is `e.is_a("ValueError")`, which also holds for a ConfigError.
 #pragma once
 
 #include "Scfg/Export.h"
