@@ -3,6 +3,7 @@
 
 #include "ScfgConvert.h"
 #include "ScfgHttpTransport.h"
+#include "ScfgLocalServer.h"
 #include "ScfgLog.h"
 #include "ScfgString.h"
 #include "ScfgSubmitter.h"
@@ -175,20 +176,14 @@ FScfgFacade::FScfgFacade(FScfgFacadeOptions InOptions) : Options(MoveTemp(InOpti
 	}
 	if (!Options.ServerFactory)
 	{
-		// No localhost page server yet (task 6 replaces this): the factory fails, so the controller marks the browser
-		// method unavailable (error "browser_unavailable") instead of offering a button that does nothing. Its Err is
-		// reported here, once (Checkout.h: the factory reports its own Err).
-		Options.ServerFactory = [Reporter = Reporter, Warned = MakeShared<bool>(false)](scfg::checkout::ServerArgs)
-			-> scfg::Result<std::unique_ptr<scfg::checkout::Server>>
-		{
-			if (!*Warned)
-			{
-				*Warned = true;
-				Reporter->Warning(TEXT("scfg: this version of the plugin has no checkout page server yet: the browser "
-									   "method is unavailable (players can pay with the QR code or by hand)"));
-			}
-			return scfg::Err::make("RuntimeError", "no checkout page server");
-		};
+		// The localhost checkout page (ScfgLocalServer.h): its Err, when it cannot start, is reported here (Checkout.h:
+		// the factory and the server report their own Err; the controller then shows "browser_unavailable"). The
+		// handlers hold the reporter and the logo path, never the facade: a controller may outlive it.
+		FScfgLocalServerPage Page;
+		Page.LogoPath = PageLogo;
+		Page.OnError = [Reporter = Reporter](const FString& Line) { Reporter->Error(Line); };
+		Page.OnWarning = [Reporter = Reporter](const FString& Line) { Reporter->Warning(Line); };
+		Options.ServerFactory = FScfgLocalServer::Factory(MoveTemp(Page));
 	}
 }
 
@@ -369,6 +364,7 @@ TOptional<scfg::Err> FScfgFacade::Configure(const FScfgOptions& InOptions)
 	}
 	Config = std::move(Made);
 	LogoPath = Logo;
+	*PageLogo = Logo;
 	return {};
 }
 

@@ -12,7 +12,8 @@ public class ScfgTests : ModuleRules
 		// The glue's classes under test live in Scfg's Private/ (they are not the plugin's public API); they carry
 		// SCFG_API for this module.
 		PrivateIncludePaths.Add(Path.GetFullPath(Path.Combine(ModuleDirectory, "..", "Scfg", "Private")));
-		// HTTPServer only for the local JSON-RPC endpoint of the real HTTP test (bound to 127.0.0.1).
-		PrivateDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "HTTP", "HTTPServer", "Scfg", "ScfgCore" });
+		// HTTPServer only for the local JSON-RPC endpoint of the real HTTP test (bound to 127.0.0.1); Sockets for the raw
+		// loopback client of the checkout page tests, Projects to find the plugin's folders.
+		PrivateDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "HTTP", "HTTPServer", "Projects", "Scfg", "ScfgCore", "Sockets" });
 	}
 }

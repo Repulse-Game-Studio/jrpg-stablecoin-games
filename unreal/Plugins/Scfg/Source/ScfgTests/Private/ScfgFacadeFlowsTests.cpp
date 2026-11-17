@@ -9,9 +9,9 @@
 //   test_pay_cancel_returns_cancelled_and_calls_callback     -> same name
 //   test_keep_playing_delivers_later_result_via_signal       -> same name
 //   test_paid_tip_notifies_without_a_title_and_respects_notify_off -> same name
-//   test_closing_the_sheet_releases_the_page_first           -> same name, with a recording page (the localhost
-//       server is task 6). Godot only: the HTTP requests to the page (200 for the page, 404 for /build, the status
-//       route), which belong to task 6's server tests
+//   test_closing_the_sheet_releases_the_page_first           -> same name, with a recording page; its HTTP requests
+//       to the page (200 for the page, 404 for /build, the status route) are in TheBrowserMethodSendsAHintToTheEngine,
+//       over the real localhost server
 //   test_no_sheet_ui_fails_clearly                           -> same name (the bare IScfgSheetHost)
 //   test_misused_pay_resolves_failed_with_code               -> same name. Godot only: the unknown option ("colour")
 //       and the callback that is not a Callable, which typed requests and callbacks cannot express; "gift" is an
@@ -39,9 +39,11 @@
 //       what the pump reads, as Godot's test sets worker.snapshot)
 //   test_the_snapshot_is_read_before_the_outcomes_are_drained -> same name (DrainForTests plays RacingWorker)
 // C++ only:
-//   TheDesktopPathWorksWithoutAPageServer                    -> the default facade has no page server until task 6:
-//       its default factory fails (warned once), so the browser method shows "browser_unavailable" and drops out;
-//       the QR link and the manual hash work
+//   TheBrowserMethodSendsAHintToTheEngine                    -> the default page server (the localhost checkout
+//       server, task 6) on a real socket: the page served, no /build on EVM, the page's POST /tx reaching the Engine as
+//       the session's hint, the page stopped with the sheet
+//   TheDesktopPathWorksWhenThePageCannotStart                -> a page that cannot listen: reported by the page, the
+//       browser method shows "browser_unavailable" and drops out; the QR link and the manual hash work
 //   AnItemAddedAfterTheStartCanBeSoldAndOwned                -> AddItem after the worker started reaches the Engine
 //       (Python's Engine shares the game's Config): paid on chain, then owned
 //   ClearLocalDataWithAPaymentSheetOpen                      -> the wipe while a sheet watches its session
@@ -52,8 +54,10 @@
 #include "ScfgConvert.h"
 #include "ScfgFacade.h"
 #include "ScfgFacadeTestKit.h"
+#include "ScfgLocalServer.h"
 #include "ScfgStore.h"
 #include "ScfgString.h"
+#include "ScfgTestHttpClient.h"
 #include "ScfgWorker.h"
 
 #include "Scfg/Engine.h"
@@ -938,12 +942,71 @@ bool FScfgFlowsSnapshotBeforeDrainTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-SCFG_FACADE_FLOWS_TEST(FScfgFlowsNoPageServerTest, "TheDesktopPathWorksWithoutAPageServer")
+SCFG_FACADE_FLOWS_TEST(FScfgFlowsBrowserHintTest, "TheBrowserMethodSendsAHintToTheEngine")
+
+// The default page server (FScfgLocalServer, a real 127.0.0.1 socket) on the browser method: Open checkout in browser
+// opens the page's URL; the page, its session and, on EVM, no /build route; the page's POST /tx reaches the Engine as
+// the session's hint (pumped by the facade, as a browser wallet would post it); closing the sheet stops the page.
+// The HTTP half of Godot's test_closing_the_sheet_releases_the_page_first is here too.
+bool FScfgFlowsBrowserHintTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeFlowsTests;
+	FWorld W;  // no ServerFactory: the facade's default, the localhost checkout server
+	FScfgFacade& S = W.Started(*this);
+	const TSharedRef<TOptional<FScfgPaymentResult>> Box = W.Pay(EScfgPayKind::Unlock, Unlock());
+	FScfgCheckout& Ctl = W.Session(*this);
+	Ctl.OpenBrowser();
+	if (!TestEqual(TEXT("the browser is opened on the page"), W.Platform->Opened.Num(), 1))
+	{
+		return true;
+	}
+	const FString Url = W.Platform->Opened[0];
+	const int32 Port = ScfgTestHttp::PortOf(Url);
+	TestTrue(TEXT("at 127.0.0.1, on a random port, behind the secret"),
+		Port > 0 && Port != 8000 && Url.Contains(TEXT("/c/")) && Url.EndsWith(TEXT("/")));
+	TestFalse(TEXT("the browser method stays available"), Ctl.Core().browser_failed());
+	const std::string Base = ScfgString::ToUtf8(Url.RightChop(Url.Find(TEXT("/c/"))));
+	const TFunction<void()> Pump = [&W] { W.Pump(); };  // the facade polls the controller, which pumps the page
+	std::optional<ScfgTestHttp::FAnswer> Got = ScfgTestHttp::Exchange(Port, ScfgTestHttp::Request("GET", Base, Port), Pump);
+	TestTrue(TEXT("the page is served"), Got && Got->Status == 200 && Got->Body.find("<html") != std::string::npos);
+	Got = ScfgTestHttp::Exchange(Port, ScfgTestHttp::Request("POST", Base + "build", Port, "{}"), Pump);
+	TestTrue(TEXT("/build is not a route on EVM"), Got && Got->Status == 404);
+	Got = ScfgTestHttp::Exchange(Port, ScfgTestHttp::Request("GET", Base + "session.json", Port), Pump);
+	const scfg::Result<Json> Info = Got ? scfg::json::loads(Got->Body) : scfg::Result<Json>(scfg::Err::value_error("none"));
+	TestTrue(TEXT("session.json is the controller's session"), Info.ok() && Info.value().is_dict() &&
+		Same(Info.value().as_dict().get("chain_id"), Json(42161)) && Same(Info.value().as_dict().get("kind"), Json("unlock")));
+	const std::string Hint = "{\"tx_hash\": \"" + kTx + "\"}";
+	Got = ScfgTestHttp::Exchange(Port, ScfgTestHttp::Request("POST", Base + "tx", Port, Hint), Pump);
+	TestTrue(TEXT("the page's hint is taken"), Got && Got->Status == 202 && Got->Body == "{\"ok\": true}");
+	TestTrue(TEXT("the controller has it"), Ctl.Core().hint_tx == std::optional<std::string>(kTx));
+	W.Pass();
+	const Json Record = S.Pending().as_dict().get(ScfgString::ToUtf8(SessionIdOf(Ctl)));
+	TestTrue(TEXT("and the Engine has it as the session's hint"),
+		Record.is_dict() && Same(Record.as_dict().get("hint_tx"), Json(kTx)));
+	Got = ScfgTestHttp::Exchange(Port, ScfgTestHttp::Request("GET", Base + "status", Port), Pump);
+	const scfg::Result<Json> Status = Got ? scfg::json::loads(Got->Body) : scfg::Result<Json>(scfg::Err::value_error("none"));
+	TestTrue(TEXT("the page's status names the hint"), Status.ok() && Status.value().is_dict() &&
+		Same(Status.value().as_dict().get("tx_hash"), Json(kTx)));
+	TestEqual(TEXT("nothing reported"), W.Reports().Errors.Num() + W.Reports().Warnings.Num(), 0);
+	W.Host->CloseSheet(-1, TEXT("cancel"));
+	W.Pump();
+	TestTrue(TEXT("closing the sheet stops the page"), ScfgTestHttp::Refused(Port));
+	TestTrue(TEXT("and the sheet closes as any other"), Is(*Box, EScfgPaymentStatus::Cancelled));
+	return true;
+}
+
+SCFG_FACADE_FLOWS_TEST(FScfgFlowsNoPageServerTest, "TheDesktopPathWorksWhenThePageCannotStart")
 
 bool FScfgFlowsNoPageServerTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgFacadeFlowsTests;
-	FWorld W;  // no ServerFactory: the default until task 6's localhost server
+	FWorld W;
+	// The localhost page on an address that is not this machine's (TEST-NET-1): it cannot listen
+	const TSharedRef<TArray<FString>> PageErrors = MakeShared<TArray<FString>>();
+	FScfgLocalServerPage Page;
+	Page.Host = TEXT("192.0.2.1");
+	Page.OnError = [PageErrors](const FString& Line) { PageErrors->Add(Line); };
+	W.ServerFactory = FScfgLocalServer::Factory(MoveTemp(Page));
 	FScfgFacade& S = W.Started(*this);
 	const TSharedRef<TOptional<FScfgPaymentResult>> Box = W.Pay(EScfgPayKind::Unlock, Unlock());
 	FScfgCheckout& Ctl = W.Session(*this);
@@ -951,14 +1014,14 @@ bool FScfgFlowsNoPageServerTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("the desktop rule: every method is offered until the page is tried"),
 		Methods == std::vector<std::string>{"browser", "qr", "manual"});
 	Ctl.OpenBrowser();
-	TestTrue(TEXT("Open checkout in browser: the default factory fails, so the browser is unavailable"),
+	TestTrue(TEXT("Open checkout in browser: the page cannot start, so the browser is unavailable"),
 		W.Platform->Opened.Num() == 0 && Ctl.Core().browser_failed() &&
 			Ctl.Core().error == std::optional<std::string>("browser_unavailable"));
 	TestTrue(TEXT("and drops out of the methods"),
 		Ctl.Core().methods() == std::vector<std::string>{"qr", "manual"});
-	TestEqual(TEXT("the factory's Err is reported once, as a warning"), W.Reports().Warnings.Num(), 1);
-	Ctl.Core().start_browser();
-	TestEqual(TEXT("once"), W.Reports().Warnings.Num(), 1);
+	TestEqual(TEXT("the page's Err is reported by the page, once per attempt"), PageErrors->Num(), 1);
+	TestTrue(TEXT("as the page's Err"), PageErrors->Num() == 1 &&
+		(*PageErrors)[0].StartsWith(TEXT("scfg: cannot start the checkout page: RuntimeError: cannot listen on 192.0.2.1: ")));
 	const scfg::Result<std::optional<std::string>> Uri = Ctl.Core().payment_uri();
 	TestTrue(TEXT("the QR's payment link"), Uri.ok() && Uri.value() && Uri.value()->rfind("ethereum:", 0) == 0);
 	const scfg::Result<bool> Sent = Ctl.Core().submit_hash(kTx);

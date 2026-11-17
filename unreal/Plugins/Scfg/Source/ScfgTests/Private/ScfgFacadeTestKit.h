@@ -186,6 +186,9 @@ struct FWorld
 	FFakeNodeTransport* Transport = nullptr;  // owned by the worker
 	TSharedPtr<FScfgFacade> Facade;
 	bool bRecordingServer = false;
+	// Replaces the facade's page server factory when set (bRecordingServer wins). Unset: the default, the localhost
+	// checkout server (FScfgLocalServer) on a real 127.0.0.1 socket.
+	scfg::checkout::ServerFactory ServerFactory;
 	// The worker never ticks by itself (Godot's ManualTimer); false keeps the facade's own interval wiring.
 	bool bManualWorker = true;
 	double TickerOwed = 0;  // seconds the clock moved that the ticker has not yet

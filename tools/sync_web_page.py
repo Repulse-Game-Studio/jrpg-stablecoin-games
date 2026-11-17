@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Copy (or --check) the shared browser checkout page into each engine's addon.
+"""Copy (or --check) the shared browser checkout page into each engine's addon (Godot's addon,
+the Unreal plugin's Resources/Web).
 
 plugin/game/scfg/web/ is the single source; every target gets a byte-for-byte copy.
 
@@ -22,7 +23,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "plugin" / "game" / "scfg" / "web"
 # RPG Maker MZ is no target: rpgmaker/build.mjs embeds the page in SCFG.js at build time.
-TARGETS = [ROOT / "godot" / "addons" / "scfg" / "web"]
+TARGETS = [
+    ROOT / "godot" / "addons" / "scfg" / "web",
+    # the Unreal plugin's localhost checkout page (Scfg.Build.cs stages it as RuntimeDependencies)
+    ROOT / "unreal" / "Plugins" / "Scfg" / "Resources" / "Web",
+]
 
 
 def _files(directory: Path) -> dict:

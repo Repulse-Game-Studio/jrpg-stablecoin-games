@@ -1,6 +1,7 @@
 // The Unreal glue around the payment core (unreal/README.md, "The glue module"): the worker that drives the core's
 // Engine on the game thread, the FHttpModule transport, the UTF-8 bridge, the store (state.json), the facade with its
-// game-instance subsystem and Blueprint API, and (later tasks) the checkout server and the UI.
+// game-instance subsystem and Blueprint API, the localhost checkout server, and (later tasks) the UI.
+using System.IO;
 using UnrealBuildTool;
 
 public class Scfg : ModuleRules
@@ -13,7 +14,12 @@ public class Scfg : ModuleRules
 		// dependent's include path (the glue never exposes scfg::Co or scfg::Future); ApplicationCore for the
 		// clipboard.
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
-		PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "HTTP", "ScfgCore" });
+		// Sockets for the localhost checkout server's listener (ScfgLocalServer.h), Projects to find the plugin's
+		// Resources/Web/.
+		PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "HTTP", "Projects", "ScfgCore", "Sockets" });
 		// bEnableExceptions and bUseRTTI keep their defaults (false).
+		// The checkout page's files (copies of plugin/game/scfg/web/, kept by tools/sync_web_page.py), staged with a
+		// packaged game as loose files at the plugin's own path, where FScfgLocalServer::WebDirectory() finds them.
+		RuntimeDependencies.Add(Path.Combine(PluginDirectory, "Resources", "Web", "*"), StagedFileType.NonUFS);
 	}
 }

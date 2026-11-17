@@ -135,8 +135,9 @@ struct FScfgFacadeOptions
 	bool bQuiet = false;
 	// Default: FScfgDesktopPlatform.
 	TSharedPtr<IScfgPlatform> Platform;
-	// The checkout controllers' server_factory (the browser page). Default, until task 6's localhost server: one that
-	// fails (warned once), so the browser method shows "browser_unavailable" and drops out.
+	// The checkout controllers' server_factory (the browser page). Default: the localhost checkout server
+	// (FScfgLocalServer::Factory: 127.0.0.1 on a random port, the plugin's Resources/Web/ page, the configured logo);
+	// a page that cannot start is reported once per attempt and shows "browser_unavailable".
 	scfg::checkout::ServerFactory ServerFactory;
 	// The directory a configured logo is relative to. Default: FPaths::ProjectDir().
 	FString ProjectDir;
@@ -346,6 +347,8 @@ private:
 	std::optional<scfg::config::Config> Config;
 	std::vector<scfg::config::CustomChain> CustomChains;
 	FString LogoPath;  // the configured logo's full path, or ""
+	// The same, shared with the default page server's factory (read when a page server is made).
+	TSharedRef<FString> PageLogo = MakeShared<FString>();
 
 	TUniquePtr<FScfgStore> Store;
 	// What was last mirrored (Godot's _persisted): what readers see before the worker starts and while wiping.

@@ -33,7 +33,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run pytest   # server_security's Python third; its Godot third skips here (godot-core runs it), rpgmaker_ui and node_server are deselected (rpgmaker-ui runs them)
       - run: uv run python tools/gen_vectors.py --check   # committed conformance vectors are current
-      - run: uv run python tools/sync_web_page.py --check   # Godot addon copy of the checkout page matches plugin/game/scfg/web
+      - run: uv run python tools/sync_web_page.py --check   # the Godot addon's and the Unreal plugin's copies of the checkout page match plugin/game/scfg/web
       - run: uv run python tools/make_pot.py --check   # the Godot translation template is current
       - run: uv run python tools/check_text_ids.py --check   # the RPG Maker text ids agree with the shared messages and the Godot template
       - name: Release zips build

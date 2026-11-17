@@ -408,6 +408,10 @@ FScfgFacadeOptions FWorld::Options()
 	{
 		Out.ServerFactory = RecordingFactory(Journal, Servers);
 	}
+	else if (ServerFactory)
+	{
+		Out.ServerFactory = ServerFactory;
+	}
 	Out.ProjectDir = Dir;
 	Out.GameName = TEXT("ScfgTests");
 	Out.bPumpOnTicker = false;
