@@ -238,6 +238,11 @@ public:
 	void PasteInto(FScfgRestore& Flow);
 	// Ren'Py's _clean_paste: the first word, hash characters only, at most TX_MAX_LENGTH (it stops there).
 	static FString CleanPaste(const FString& Text);
+	// The characters a hash field takes (hex or base58; Godot's TX_CHARS).
+	static const FString& TxChars();
+	// Godot's _report_error("screen:", err): an Err a screen's action got back (unreachable with the Engine's own
+	// results), reported once like every other ("scfg: screen: ...").
+	void ReportScreenError(const scfg::Err& Error) { ReportError(TEXT("screen:"), Error); }
 	// The declared title, else the id itself.
 	FString ItemTitle(const FString& ItemId) const;
 	// The chain's display name, else its key.

@@ -57,6 +57,8 @@ public:
 	void Copy(const FString& Text);
 	// The clipboard's first word, hash characters only, into the hash field.
 	void Paste();
+	// The flows this belongs to (null once they are gone).
+	TSharedPtr<FScfgFacade> GetFacade() const { return Facade.Pin(); }
 
 private:
 	friend class FScfgFacade;
@@ -83,6 +85,7 @@ public:
 
 	void Paste();
 	void Copy(const FString& Text);
+	TSharedPtr<FScfgFacade> GetFacade() const { return Facade.Pin(); }
 
 private:
 	friend class FScfgFacade;

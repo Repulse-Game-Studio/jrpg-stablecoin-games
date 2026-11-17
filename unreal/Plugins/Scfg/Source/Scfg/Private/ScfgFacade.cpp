@@ -1124,6 +1124,11 @@ FString FScfgFacade::CleanPaste(const FString& Text)
 	return Out;
 }
 
+const FString& FScfgFacade::TxChars()
+{
+	return ScfgFacadeDetail::TxChars;
+}
+
 FString FScfgFacade::ItemTitle(const FString& ItemId) const
 {
 	if (Config)
