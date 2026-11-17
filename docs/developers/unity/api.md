@@ -405,6 +405,12 @@ the build: the page's files ship inside the package.
 - **Private browsing.** If the browser blocks IndexedDB (some private-browsing modes, blocked site data, a
   restricted iframe), `persistentDataPath` is lost when the tab closes and the receipts are kept only in the
   `localStorage` copy; a development build warns once.
+- **Keyboard.** While the checkout overlay is shown, the package turns `WebGLInput.captureAllKeyboardInput` off, so
+  the player can Tab and press Enter in the overlay; your game's own value comes back once the overlay is closed or
+  hidden.
+- **Content-Security-Policy.** The package loads the checkout page's scripts into your page with `eval`. A page
+  whose CSP forbids it (`script-src` without `'unsafe-eval'`) gets no browser checkout: a development build warns once
+  and names the scripts, and the other methods still work.
 - **A harmless console warning.** Unity's loader logs `[UnityCache] Response is served without Content-Length
   header` for RPC answers that come in chunks. That warning is Unity's own and does no harm.
 
