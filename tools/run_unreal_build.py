@@ -15,7 +15,9 @@ line, except one located in an engine file and reached through engine files only
 included from" chain, if any, is the engine's too): an engine header warning that our code
 triggers fails the build, and so does any message of UBT's own, which names no file. A build that
 takes longer than --timeout seconds (default 3600) fails: every process in its process group is
-killed, even when Build.sh itself has already exited and only a descendant is left.
+killed, even when Build.sh itself has already exited and only a descendant is left. UBT's cached
+build plan of the target (Intermediate/Build/<platform>/*/<target>/<config>/Makefile.bin) is deleted
+first, since UBT would reuse it even after a changed .uplugin or -DisableUnity (drop_makefile).
 """
 
 from __future__ import annotations
@@ -87,6 +89,99 @@ def kill_group(pgid: int) -> None:
         pass   # the whole group is gone already
 
 
+def run_streamed(cmd: list[str], timeout: float, log_path: str | None = None,
+                 linger: float | None = None) -> tuple[int | None, str]:
+    """Run cmd in a session of its own, passing its output through as it comes (and to log_path).
+
+    Returns (its exit code, its output); the code is None when it overran `timeout` seconds and
+    every process of its group was killed. linger None: the run lasts until every holder of the
+    output has closed it (a UBT compiler left behind is still the build). A number: the run ends
+    when cmd exits, and the output is read for at most `linger` more seconds (an editor's detached
+    helper may keep it open). Raises OSError when cmd cannot be started.
+    """
+    deadline = time.monotonic() + timeout
+    # A session of its own: a timeout kills cmd's children (UBT's dotnet, compilers), nothing else.
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                            errors="replace", start_new_session=True)
+    lines: list[str] = []
+    log = open(log_path, "w", encoding="utf-8") if log_path else None
+
+    def pump():
+        # Ends when every process holding the pipe has closed it, which may be after cmd exits: so
+        # it runs on its own thread, and the deadline is kept by the main thread.
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            if log:
+                log.write(line)
+                log.flush()   # a log someone tails shows progress too
+            lines.append(line)
+
+    reader = threading.Thread(target=pump, daemon=True)
+    reader.start()
+    returncode = None
+    try:
+        if linger is None:
+            reader.join(max(0.0, deadline - time.monotonic()))
+            timed_out = reader.is_alive()
+        else:
+            timed_out = False
+        if not timed_out:
+            try:
+                returncode = proc.wait(timeout=max(0.0, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired:
+                timed_out = True
+        if timed_out:
+            returncode = None
+            kill_group(proc.pid)
+            reader.join(KILL_GRACE)   # a holder outside the group may keep it open: give up then
+            try:
+                proc.wait(timeout=KILL_GRACE)
+            except subprocess.TimeoutExpired:
+                pass
+        elif linger is not None:
+            reader.join(min(linger, max(0.0, deadline - time.monotonic())))
+    finally:
+        if log and not reader.is_alive():
+            log.close()
+    return returncode, "".join(lines)
+
+
+def drop_makefile(project: Path, target: str, platform: str, config: str) -> list[Path]:
+    """Delete UBT's cached build plan of this target (Makefile.bin), so that the build is planned
+    from the rules, descriptors and arguments it is given. UBT 5.8 loads the cached plan even
+    under -NoUBTMakefiles (Modes/BuildMode.cs:1293-1315), and keeps it valid when a .uplugin gains
+    a module or -DisableUnity is added (neither is among the plan's checks, System/
+    TargetMakefile.cs:695-888): the build then silently leaves out the new module or stays unity.
+    Returns the files deleted."""
+    base = Path(project).resolve().parent / "Intermediate" / "Build" / platform
+    found = [*base.glob(f"*/{target}/{config}/Makefile.bin"),
+             *base.glob(f"{target}/{config}/Makefile.bin")]
+    for f in found:
+        f.unlink(missing_ok=True)
+    return found
+
+
+def build(engine: Path, project: Path, target: str = "ScfgDevEditor",
+          config: str = "Development", platform: str = "Linux",
+          timeout: float = DEFAULT_TIMEOUT, log: str | None = None,
+          ubt_args: list[str] | tuple[str, ...] = ()) -> str | None:
+    """Build target with UBT under the timeout: None when the build is green, else why not."""
+    build_sh = engine / "Engine" / "Build" / "BatchFiles" / "Linux" / "Build.sh"
+    cmd = [str(build_sh), target, platform, config, f"-Project={Path(project).resolve()}",
+           "-WaitMutex", "-NoHotReload", "-UBAHost=127.0.0.1", *ubt_args]
+    for dropped in drop_makefile(project, target, platform, config):
+        print(f"run_unreal_build: deleted the cached {dropped}", flush=True)
+    print("run_unreal_build: " + " ".join(cmd), flush=True)
+    try:
+        returncode, output = run_streamed(cmd, timeout, log)
+    except OSError as e:
+        return f"cannot start {build_sh}: {e}"
+    if returncode is None:
+        return f"UBT did not finish within {timeout:g} s and was killed"
+    return verdict(returncode, output, engine)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -109,59 +204,8 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if not args.timeout > 0:
         parser.error("--timeout must be a positive number of seconds")
-    engine = Path(args.engine)
-    build_sh = engine / "Engine" / "Build" / "BatchFiles" / "Linux" / "Build.sh"
-    cmd = [str(build_sh), args.target, args.platform, args.config,
-           f"-Project={Path(args.project).resolve()}", "-WaitMutex", "-NoHotReload",
-           "-UBAHost=127.0.0.1", *args.ubt_args]
-    print("run_unreal_build: " + " ".join(cmd), flush=True)
-    deadline = time.monotonic() + args.timeout
-    try:
-        # A session of its own: a timeout kills UBT's dotnet and compiler children, nothing else.
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                                errors="replace", start_new_session=True)
-    except OSError as e:
-        print(f"run_unreal_build: cannot start {build_sh}: {e}", file=sys.stderr)
-        return 1
-    lines = []
-    log = open(args.log, "w", encoding="utf-8") if args.log else None
-
-    def pump():
-        # Ends when every process holding the pipe has closed it, which may be after Build.sh
-        # exits: so it runs on its own thread, and the deadline is kept by the main thread.
-        for line in proc.stdout:
-            sys.stdout.write(line)
-            sys.stdout.flush()
-            if log:
-                log.write(line)
-                log.flush()   # a log someone tails shows progress too
-            lines.append(line)
-
-    reader = threading.Thread(target=pump, daemon=True)
-    reader.start()
-    try:
-        reader.join(max(0.0, deadline - time.monotonic()))
-        timed_out = reader.is_alive()
-        if not timed_out:
-            try:
-                returncode = proc.wait(timeout=max(0.0, deadline - time.monotonic()))
-            except subprocess.TimeoutExpired:
-                timed_out = True
-        if timed_out:
-            kill_group(proc.pid)
-            reader.join(KILL_GRACE)   # a holder outside the group may keep it open: give up then
-            try:
-                proc.wait(timeout=KILL_GRACE)
-            except subprocess.TimeoutExpired:
-                pass
-    finally:
-        if log and not reader.is_alive():
-            log.close()
-    if timed_out:
-        print(f"run_unreal_build: FAILED: UBT did not finish within {args.timeout:g} s "
-              f"and was killed", file=sys.stderr)
-        return 1
-    why = verdict(returncode, "".join(lines), engine)
+    why = build(Path(args.engine), Path(args.project), args.target, args.config, args.platform,
+                args.timeout, args.log, args.ubt_args)
     if why is not None:
         print(f"run_unreal_build: FAILED: {why}", file=sys.stderr)
         return 1

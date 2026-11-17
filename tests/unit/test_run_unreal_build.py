@@ -118,3 +118,19 @@ def test_main_gives_up_on_a_holder_outside_the_group(tmp_path, capsys, monkeypat
 def test_main_reports_a_missing_engine(tmp_path, capsys):
     assert run_unreal_build.main(["--engine", str(tmp_path / "nope")]) == 1
     assert "cannot start" in capsys.readouterr().err
+
+
+def test_main_drops_the_targets_cached_build_plan_only(tmp_path):
+    # UBT reuses Makefile.bin even under -NoUBTMakefiles and after a .uplugin or -DisableUnity
+    # change: the wrapper deletes this target's one, and leaves the others
+    engine = fake_build_sh(tmp_path, printing("Result: Succeeded\n", 0))
+    project = tmp_path / "Proj" / "ScfgDev.uproject"
+    build = tmp_path / "Proj" / "Intermediate" / "Build" / "Linux"
+    ours = build / "x64" / "ScfgDevEditor" / "Development" / "Makefile.bin"
+    other = build / "x64" / "ScfgDev" / "Shipping" / "Makefile.bin"
+    for f in (ours, other):
+        f.parent.mkdir(parents=True)
+        f.write_text("plan")
+    assert run_unreal_build.main(["--engine", engine, "--project", str(project)]) == 0
+    assert not ours.exists()
+    assert other.exists()

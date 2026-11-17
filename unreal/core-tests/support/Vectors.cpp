@@ -7,10 +7,16 @@
 #include <fstream>
 #include <iterator>
 #include <system_error>
+#include <utility>
 
 namespace fs = std::filesystem;
 
 namespace scfg_test::vectors {
+
+static std::string& fallback() {
+    static std::string dir;
+    return dir;
+}
 
 std::string root() {
     const char* env = std::getenv("SCFG_VECTORS");
@@ -19,7 +25,26 @@ std::string root() {
         fs::path abs = fs::absolute(fs::path(env), ec);
         return (ec ? fs::path(env) : abs).lexically_normal().generic_string();  // a bad path fails at listing
     }
+    if (!fallback().empty()) return fallback();
+#if defined(SCFG_REPO_ROOT)
     return (fs::path(SCFG_REPO_ROOT) / "conformance" / "vectors").lexically_normal().generic_string();
+#else
+    return "";
+#endif
+}
+
+void set_fallback(std::string dir) { fallback() = std::move(dir); }
+
+std::optional<std::string> find_above(std::string_view start) {
+    fs::path dir = fs::path(std::string(start)).lexically_normal();
+    while (true) {
+        std::error_code ec;
+        fs::path candidate = dir / "conformance" / "vectors";
+        if (fs::is_directory(candidate, ec)) return candidate.generic_string();
+        fs::path parent = dir.parent_path();
+        if (parent.empty() || parent == dir) return std::nullopt;
+        dir = parent;
+    }
 }
 
 // The paths of the *.json files under dir (recursively or not), relative to dir, without .json, sorted.

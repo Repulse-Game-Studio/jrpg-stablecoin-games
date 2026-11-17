@@ -9,8 +9,10 @@ The C++ port of the payment core (`ScfgCore`), the start of the Unreal port. It 
 | `Plugins/Scfg/Source/ScfgCore/` | The core: `Public/Scfg/*.h` and `Private/*.cpp`, one pair per Python module (`Config.h` is `config.py`, `BackendsSolana.h` is `backends/solana.py`, `SolanaTx.h` is `solana/tx.py`). Each file's first comment names its Python twin, or says "No Python twin" for the C++ machinery (`Result.h`, `Co.h`, `BigInt.h`, `Json.h`, `Py.h`, `Dec.h` and the like). C++20 standard library only: no exceptions, no RTTI, no threads |
 | `core-tests/` | The test binary `scfg_core_tests`: per-module tests (`*Tests.cpp`), the lints, the locale reruns and the Tier 1 and Tier 2 conformance runners (`support/Tier1.cpp` with its adapters in `tier1/`, `support/Tier2.cpp`). It uses an in-house runner (`support/Test.h`), not a test framework |
 | `core-driver/` | `scfg_core_driver`, the JSON-lines driver that `tests/integration/test_cpp_core.py` runs against Anvil and solana-test-validator (protocol: `rpgmaker/test/integration/engine_driver.ts`), with a test-only blocking POSIX HTTP transport |
-| `CMakeLists.txt`, `CMakePresets.json` | The build (CMake 3.25+, Ninja): the core library, the test binary, the driver, the compile-only checks, and one ctest test per test group |
+| `core-exports/` | `scfg_core_exports`, the export check (ruling R2-3): linked against the core built as a hidden-visibility shared library, it calls the Engine, `json::loads`, `amounts::parse_amount` and `config::build_config`, so a declaration that lost its `SCFGCORE_API` fails the link (ctest `SharedLibraryExports`) |
+| `CMakeLists.txt`, `CMakePresets.json` | The build (CMake 3.25+, Ninja): the core library, the test binary, the driver, the compile-only checks, the export check, and one ctest test per test group |
 | `Plugins/Scfg/Scfg.uplugin`, `Plugins/Scfg/Source/ScfgCore/ScfgCore.Build.cs` | The Unreal plugin and the core's module rules (UE 5.8; Win64, Mac and Linux) |
+| `Plugins/Scfg/Source/ScfgCoreTests/` | The test-only module `ScfgCoreTests` (`UncookedOnly`): the Tier 1 and Tier 2 runners of `core-tests/` compiled in place, as the automation tests `Scfg.Core.*` (see [Under UBT](#under-ubt)) |
 | `Project/ScfgDev/` | The development project: it loads the plugin from `../../Plugins` (`AdditionalPluginDirectories`, so the plugin is never copied) and has a minimal game module, `ScfgDev`, with the `ScfgDev` (Game) and `ScfgDevEditor` (Editor) targets |
 
 ## Development
@@ -33,17 +35,17 @@ build/release/scfg_core_tests --test Tier2.smoke/evm_unlock_paid
 uv run pytest -m integration tests/integration/test_cpp_core.py
 ```
 
-Every preset builds with `-Werror`, and no ctest group may fail or skip. A new test group must be added to `SCFG_TEST_GROUPS` in `CMakeLists.txt`, or `RunnerTests.EveryGroupIsRegistered` fails. `RunnerTests.NothingLeftOut` checks that no vector, topic or test is filtered out.
+Every preset builds with `-Werror`, and no ctest group may fail or skip; ctest also runs `SharedLibraryExports`. A new test group must be added to `SCFG_TEST_GROUPS` in `CMakeLists.txt`, or `RunnerTests.EveryGroupIsRegistered` fails. `RunnerTests.NothingLeftOut` checks that no vector, topic or test is filtered out.
 
 Environment:
 
-- `SCFG_VECTORS` overrides the vectors directory the tests read (default: `conformance/vectors/`).
+- `SCFG_VECTORS` overrides the vectors directory the tests read (default: `conformance/vectors/`), in the CMake binary and in the editor's `Scfg.Core.*` tests (whose default is the `conformance/vectors` found by walking up from the plugin's folder).
 - `SCFG_REQUIRE_LOCALES=1` (set in CI) makes `LocaleTests` fail when `tr_TR.UTF-8` or `de_DE.UTF-8` is not installed. Without it, the reruns fall back to another installed locale with a decimal comma. When there is none either (a stock Ubuntu, Docker or WSL image has only `C`, `POSIX` and `en_US`), `LocaleTests` fails. Install the two locales with `sudo locale-gen tr_TR.UTF-8 de_DE.UTF-8` (Debian: enable them in `/etc/locale.gen` first).
 - `SCFG_REQUIRE_CPP=1` (set in CI) makes the `test_cpp_core.py` twins fail, rather than skip, when the toolchain is missing or unusable. `tests/integration/cpp_driver.py` builds the driver once per session into `unreal/build/integration`. It takes cmake from `PATH` or `~/.local/bin` and needs 3.25 or newer. The compiler is `$CXX` when its program resolves, else `c++`, `g++` or `clang++`. It builds with Ninja, or with make when there is no Ninja. Without one of these the twins skip. A configure or compile failure of the code itself always fails. The EVM and Arc twins also need `anvil`, which CI installs.
 
 ## Under UBT
 
-The plugin is `Plugins/Scfg/`: `Scfg.uplugin` (version 0.3.0, `EngineVersion` 5.8.0, no content) with one module so far, `ScfgCore` (`Runtime`, `LoadingPhase` `Default`, Win64, Mac and Linux). Only UE 5.8 (5.8.4 on Linux) has been built against; 5.6 and 5.7 are unverified.
+The plugin is `Plugins/Scfg/`: `Scfg.uplugin` (version 0.3.0, `EngineVersion` 5.8.0, no content) with two modules so far: `ScfgCore` (`Runtime`, `LoadingPhase` `Default`, Win64, Mac and Linux) and the test-only `ScfgCoreTests` (`UncookedOnly`: built into the editor and uncooked targets, never into a cooked game; ModuleDescriptor.cs:792, where `DeveloperTool` would follow `bBuildDeveloperTools`, true for Development games). Only UE 5.8 (5.8.4 on Linux) has been built against; 5.6 and 5.7 are unverified.
 
 Building, from the repository root (headless; `--engine` defaults to `$UE_ROOT`, else `/mnt/files/UnrealEngine`):
 
@@ -61,6 +63,23 @@ The wrapper runs `Engine/Build/BatchFiles/Linux/Build.sh <target> Linux <config>
 "$UE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$PWD/unreal/Project/ScfgDev/ScfgDev.uproject" -ExecCmds="Automation RunTests ScfgDev.Smoke;Quit" \
   -unattended -nullrhi -nosplash -stdout -ReportExportPath=<dir>
 ```
+
+The conformance vectors run inside the editor process too, through `ScfgCoreTests`, by the same runner code as the CMake binary (one copy: `core-tests/tier1/` is a source directory of the module through `ConditionalAddModuleDirectory`, so a new topic file needs no edit; the five runner files of `core-tests/support/` that it needs, `Tier1`, `Tier2`, `JsonEq`, `ConfigJson` and `Vectors`, come in through one-line shims in `Private/CoreTests/`, because UBT can only add whole directories and that one also holds the CMake-only `Test.cpp`, `Lint.cpp` and `Locales.cpp`). `Private/ScfgCoreAutomationTests.cpp` turns them into automation tests (`IMPLEMENT_COMPLEX_AUTOMATION_TEST`, `EditorContext | EngineFilter`), enumerated from the vector files at run time:
+
+| Test | What |
+|---|---|
+| `Scfg.Core.Tier1.<topic>` | one per `conformance/vectors/tier1/*.json` (18) |
+| `Scfg.Core.Tier2.<group>.<name>` | one per `tier2/<group>/<name>.json` (121; the id's `/` is a `.` in the name), immediate transport |
+| `Scfg.Core.Tier2Deferred.<group>.<name>` | the same vectors, requests answered one per pump turn |
+| `Scfg.Core.NothingLeftOut` | the vector files, counted again through the engine's file manager, are 18 and 121, each complex test generates one test per file, and every topic has its adapters |
+
+```bash
+python tools/run_unreal_tests.py --filter Scfg.Core --expect 261   # builds ScfgDevEditor first, then runs the editor headless
+```
+
+`tools/run_unreal_tests.py` builds the editor target through `run_unreal_build.py`, then runs `UnrealEditor-Cmd <uproject> -ExecCmds="Automation RunTests <filter>;Quit" -unattended -nullrhi -nosplash -stdout -notraceserver -ReportExportPath=<dir>` under a timeout (default 1800 s, process-group kill), reads `<dir>/index.json` (UTF-8 with a BOM) and prints `<n> passed, <m> failed`; it fails unless the editor exited 0, m is 0, no test was left unrun, n > 0 and n reaches `--expect`. `-notraceserver` keeps the editor from forking an UnrealTraceServer daemon. The project disables the `UdpMessaging` plugin, whose transport otherwise binds `0.0.0.0` and joins the multicast group 230.0.0.1:6666 on every interface; the in-process automation controller does not need it. Locale reruns stay CMake-only: inside the editor `setlocale(LC_ALL, nullptr)` is `"C"` (`NothingLeftOut` logs it).
+
+UBT caches each target's build plan (`Project/ScfgDev/Intermediate/Build/Linux/x64/<target>/<config>/Makefile.bin`) and, in 5.8, reuses it even under `-NoUBTMakefiles`, after a `.uplugin` gained a module, and when `-DisableUnity` is added or dropped: the build then silently leaves the new module out, or stays unity. `run_unreal_build.py` therefore deletes that one file before every build (a few seconds of planning).
 
 How the core fits UBT:
 
@@ -89,12 +108,12 @@ Python's core is generators: a function that needs the network yields a `Request
 - Coroutine parameters are taken by value. A reference, `string_view`, span or pointer would dangle after the first suspension (`LintTests.CoroutineParamsByValue`).
 - No coroutine lambdas, in the core or the tests (ruling R8, `LintTests.NoCoroutineLambdas`). Clang miscompiles some of them (llvm/llvm-project#91983), so coroutines are named functions with default-constructible promises.
 - `Co<void>` ends with `co_return scfg::ok();`, since flowing off the end of a coroutine is undefined.
-- Teardown order: destroy every `Job` (and every `Co` outside one) before the objects its coroutines use: the Engine, the RPC clients and the transport. A transport destroyed first drops its promises, and each one resumes its waiter with `CancelledError` inside the destructor, on objects that are being torn down.
+- Teardown order: destroy every `Job` (and every `Co` outside one) before the objects its coroutines use: the Engine, the RPC clients and the transport. A transport destroyed first drops its promises, and each one resumes its waiter with `CancelledError` inside the destructor, on objects that are being torn down. Destroying the Engine before a suspended `Job` is safe too (N1: a command's busy guard shares the Engine's flag through a `shared_ptr`, `EngineTests.DestroyingTheEngineBeforeASuspendedJobIsSafe`), as long as the `Job` is destroyed before its request is answered or dropped.
 - g++ 13.3 has an internal compiler error on a braced initializer list inside a `co_await`'s operand. Build the argument in a local first (`Json params = Json::list({a, b}); co_await call(m, params);`).
 
 ## Lints
 
-`core-tests/LintTests.cpp` scans every file under `Plugins/Scfg/Source/ScfgCore/` and fails with `path:line: rule (why)`. Its rule tables are the source of truth. The file-level checks are in `core-tests/support/Lint.cpp`. Comments and the contents of string and char literals are ignored. `RulesBite` and `FileChecksBite` feed every rule an offending and a clean input. The rules are:
+`core-tests/LintTests.cpp` scans every file under `Plugins/Scfg/Source/ScfgCore/` (not `ScfgCoreTests/`, whose files are Unreal code by design: the runner code it compiles lives in `core-tests/`, and UBT itself refuses two sources of one module with the same file name) and fails with `path:line: rule (why)`. Its rule tables are the source of truth. The file-level checks are in `core-tests/support/Lint.cpp`. Comments and the contents of string and char literals are ignored. `RulesBite` and `FileChecksBite` feed every rule an offending and a clean input. The rules are:
 
 | Group | Forbidden |
 |---|---|
@@ -109,10 +128,11 @@ Python's core is generators: a function that needs the network yields a `Request
 
 A file is exempt from a line rule only through `kWaivers` in `LintTests.cpp` (ruling R3), which names the file and the one rule it needs, for example `PyFloat.cpp` with `printf` and `strto*` for the shortest float repr. The one file exempt from `OnlyStdIncludes` is `Private/ScfgCoreModule.cpp`, the module's registration with Unreal, and `ModuleFileIsMinimal` holds it to exactly its two lines: `#include "Modules/ModuleManager.h"` and `IMPLEMENT_MODULE(FDefaultModuleImpl, ScfgCore)`.
 
-Two compile-only targets check the core as Unreal will build it:
+Two compile-only targets check the core as Unreal will build it, and one link check its exports:
 
 - `scfg_core_poisoned` compiles every source and every public header on its own, with `core-tests/support/UnrealMacroPoison.h` force-included. That header defines the plain words that Unreal and the Windows headers `#define` (`check`, `ERROR`, `TEXT` and others) as poison tokens, so a core name that spells one fails to compile.
 - `scfg_core_unity` compiles the whole core as one translation unit, as UBT's unity build does.
+- `scfg_core_shared` is the core as a shared library with `-fvisibility=hidden` and `SCFGCORE_API` defined as `__attribute__((visibility("default")))`, stricter than UBT's `-fvisibility-ms-compat`, and `scfg_core_exports` (`core-exports/Main.cpp`) links against it.
 
 ## Locale reruns and the deferred replay
 

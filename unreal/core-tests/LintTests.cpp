@@ -238,6 +238,17 @@ SCFG_TEST(LintTests, VectorsFound) {
     t.check(ids.size() > 100, "tier2_ids() found " + std::to_string(ids.size()) + " under " + scfg_test::vectors::root());
 }
 
+// How the Unreal test module finds the vectors: upwards from the plugin's folder (or any folder in the repository).
+SCFG_TEST(LintTests, VectorsFoundAbove) {
+    const std::string want = scfg_test::vectors::root();
+    for (const char* below : {"/unreal/Plugins/Scfg", "/unreal/Project/ScfgDev/../../Plugins/Scfg/", "/conformance",
+                              ""}) {
+        std::optional<std::string> got = scfg_test::vectors::find_above(std::string(SCFG_REPO_ROOT) + below);
+        t.check(got == std::optional<std::string>(want), std::string("from <repo>") + below + ": " + got.value_or("nothing"));
+    }
+    SCFG_CHECK(t, !scfg_test::vectors::find_above("/").has_value());
+}
+
 // ---- the lints bite ----
 
 struct Bite {
