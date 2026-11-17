@@ -26,7 +26,10 @@
 // links go through the page's bridge (the runner reads the browser's clipboard). A click with "press": false does not
 // press: it answers {"at": [x, y]}, the button's centre in canvas pixels from the top left, for the runner's mouse.
 // Extra commands: state (persistentDataPath/scfg/state.json as JSON, or null), post {url, payload, timeout} (a POST
-// through the package's UnityWebRequestTransport) and post_result (null while it runs, then {"value"} or {"error"}).
+// through the facade's own UnityWebRequestTransport, the one its RPC clients use: only SCFG.Pump pumps it, so the
+// download cap proves the facade does), post_result (null while it runs, then {"value"} or {"error"}) and
+// fs_persistent (ScfgWeb.jslib's answer: did Unity's IndexedDB database open). A web snapshot's screens also carry
+// "fields" (each text field's value) and "error" (the controller's error code, or null).
 #nullable enable
 using System;
 using System.Collections.Concurrent;
@@ -68,7 +71,6 @@ namespace Scfg.E2E
         private bool _quitting;
         private static string? _webConfig; // web: the config text the page gave
         private Task<object?>? _post;
-        private UnityWebRequestTransport? _postTransport;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         private static readonly bool Web = true;
@@ -301,7 +303,6 @@ namespace Scfg.E2E
 
         private void Update()
         {
-            _postTransport?.Pump();
             if (Web && !_quitting)
             {
                 var next = ScfgE2ETake();
@@ -365,6 +366,8 @@ namespace Scfg.E2E
                     return SCFG.Owns((string)cmd["item"]!);
                 case "user_dir":
                     return Application.persistentDataPath;
+                case "fs_persistent":
+                    return ScfgBrowserJs.Create()?.FsPersistent();
                 case "state":
                 {
                     var path = Path.Combine(Application.persistentDataPath, "scfg", "state.json");
@@ -372,9 +375,10 @@ namespace Scfg.E2E
                 }
                 case "post":
                 {
-                    _postTransport ??= new UnityWebRequestTransport();
+                    var transport = SCFG.Current.OwnTransport
+                                    ?? throw new InvalidOperationException("the facade has no transport of its own yet");
                     var payload = cmd.Get("payload") as JsonObject ?? new JsonObject();
-                    _post = _postTransport.PostJson((string)cmd["url"]!, payload, cmd.Get("timeout") is long t ? t : 30);
+                    _post = transport.PostJson((string)cmd["url"]!, payload, cmd.Get("timeout") is long t ? t : 30);
                     return true;
                 }
                 case "post_result":
@@ -410,10 +414,15 @@ namespace Scfg.E2E
                         });
                 var texts = v.Root.Query<Label>().ToList().Where(l => !(l.parent is Button))
                     .Select(l => (object?)l.text).ToList();
+                var fields = new JsonObject();
+                foreach (var key in v.Keys)
+                    if (v.Control(key) is TextField f) fields[key] = f.value;
+                string? error = v is ScfgSheetView sv ? sv.Controller.Core.Error
+                    : v is ScfgRestoreView rv ? rv.Controller.Core.Error : null;
                 screens.Add(new JsonObject
                 {
                     { "kind", v is ScfgSheetView ? "sheet" : "restore" }, { "buttons", buttons }, { "texts", texts },
-                    { "focus", v.Focused },
+                    { "focus", v.Focused }, { "fields", fields }, { "error", error },
                 });
             }
             return new JsonObject

@@ -6,13 +6,18 @@ server serves it. The page gets a mock wallet (EIP-6963 for evm/arc, Wallet Stan
 and the e2e config (window.scfgE2EConfig); the game is driven through window.scfgE2E, which the e2e
 driver (unity/Project/Assets/E2E/E2EDriver.cs, THE WEB DRIVER) defines only under that config.
 Sheet buttons are clicked with the browser's mouse at the position the driver reports, the done
-step is closed with the browser's keyboard, and the checkout overlay is clicked in the DOM. The
-steps are the Godot web e2e's (tools/run_godot_web_e2e.py), plus one for the download cap:
+step is closed with the browser's keyboard, and the checkout overlay is used in the DOM. The steps
+are the Godot web e2e's (tools/run_godot_web_e2e.py), plus the keyboard, Paste, links, the download
+cap and a blocked IndexedDB:
 
   0. a window.scfgE2EConfig that is not a string is refused (no driver, nothing after);
-  1. browser wallet: the in-page checkout overlay pays "chapter2", which becomes owned;
+  1. browser wallet: the in-page checkout overlay pays "chapter2", which becomes owned; its wallet
+     button is clicked and its pay button reached with Tab and pressed with Enter (the page has the
+     keyboard while the overlay shows: WebGLInput.captureAllKeyboardInput is off); the done step's
+     explorer link opens a new tab on the receipt's transaction without window.opener;
   2. manual transfer: a tip copied from the sheet (through the browser's clipboard) and sent from
-     the chain side is found;
+     the chain side is found; before that, Paste puts the browser's clipboard (cleaned) into the
+     hash field, and with the clipboard permission taken away it shows paste_blocked;
   3. reload: after the tab reloads, the receipts and an unpaid pending session are still there (in
      IndexedDB, database /idbfs, within IDB_WITHIN_S seconds of the method step), and paying that
      session after the reload is found too;
@@ -20,9 +25,12 @@ steps are the Godot web e2e's (tools/run_godot_web_e2e.py), plus one for the dow
      game's page closed, state.json is deleted from IndexedDB (what another Unity game on the same
      origin can do), and after the game loads again every receipt is back from the copy and saved
      to IndexedDB again;
-  5. download cap (phase-2 finding F14): a POST through the package's UnityWebRequestTransport to
-     an endpoint that streams far more than Coio.MaxResponseBytes fails with "response too large",
-     and the endpoint saw the download stop before it sent everything.
+  5. download cap (phase-2 finding F14): a POST through the facade's own UnityWebRequestTransport
+     (the one its RPC clients use, pumped by SCFG.Pump only) to an endpoint that streams far more
+     than Coio.MaxResponseBytes fails with "response too large", and the endpoint saw the download
+     stop before it sent everything; and the jslib says persistentDataPath is persistent;
+  6. blocked IndexedDB: in a page whose indexedDB.open throws, the jslib says persistentDataPath is
+     not persistent (the package's development-build warning).
 
 --family evm (default) pays USDC on Anvil (the mock token's code at the real Arbitrum USDC address,
 the built-in arbitrum entry with only `rpc_urls` configured, as the Godot web e2e); arc pays native
@@ -53,6 +61,7 @@ import threading
 import time
 import traceback
 from pathlib import Path
+from urllib.parse import urlsplit
 
 TOOLS = Path(__file__).resolve().parent
 sys.path.insert(0, str(TOOLS))
@@ -92,6 +101,7 @@ BAD_CONSOLE_TYPES = ("error", "warning")
 # Unity's own loader warns for every UnityWebRequest answer without a Content-Length (an RPC node's
 # chunked reply): Unity's advice to the server, not a fault of the game.
 UNITY_CHUNKED = re.escape("[UnityCache] Response is served without Content-Length header.")
+PERMISSIONS = ["local-network-access", "clipboard-read", "clipboard-write"]
 
 
 def idb_js(code: str) -> str:
@@ -257,6 +267,55 @@ def a_non_string_config_fails_hard(browser, url: str) -> None:
     print("0. a non-string window.scfgE2EConfig: the driver refuses it and does not start")
 
 
+def press_with_the_keyboard(page, target, tabs: int = 40) -> None:
+    """Tab to an overlay button and press Enter. The player's canvas would swallow every key of the
+    page (WebGLInput.captureAllKeyboardInput) if the package did not hand the keyboard to the page
+    while the overlay shows: Tab would not move and Enter would not press."""
+    page.wait_for_function("(e) => !e.disabled", arg=target.element_handle(), timeout=20_000)
+    for _ in range(tabs):
+        if target.evaluate("(e) => e.getRootNode().activeElement === e"):
+            break
+        page.keyboard.press("Tab")
+    else:
+        raise E2EError(f"{tabs} Tabs did not reach the overlay's button: the page has no keyboard")
+    page.keyboard.press("Enter")
+
+
+def is_local(url: str) -> bool:
+    return urlsplit(url).hostname in ("127.0.0.1", "localhost")
+
+
+def explorer_link_opens_without_opener(game: WebGame, tx: str) -> str:
+    """The done step's explorer link: ScfgWebPage.OpenUrl, window.open(url, "_blank", "noopener"),
+    a frame after the click. The explorer itself is answered locally (no internet)."""
+    page = game.page
+    context = page.context
+
+    def offline(route) -> None:
+        route.fulfill(status=200, content_type="text/html", body="<!doctype html><title>x</title>")
+
+    def external(url: str) -> bool:
+        return not is_local(url)
+
+    context.route(external, offline)
+    try:
+        with context.expect_page(timeout=20_000) as opened:
+            game.click("explorer")
+        tab = opened.value
+        tab.wait_for_load_state()
+        url = tab.url
+        opener = tab.evaluate("() => window.opener")
+        tab.close()
+    finally:
+        context.unroute(external, offline)
+    page.bring_to_front()
+    if not url.startswith("https://") or tx not in url:
+        raise E2EError(f"the explorer link opened {url!r}, not the transaction {tx}")
+    if opener is not None:
+        raise E2EError(f"the explorer tab has a window.opener: {opener!r}")
+    return url
+
+
 def pay_unlock_with_overlay(game: WebGame, fam) -> None:
     page = game.page
     wait_for(game, "the Unlock button", lambda s: button(s["game"], "Unlock") is not None, 180)
@@ -268,11 +327,17 @@ def pay_unlock_with_overlay(game: WebGame, fam) -> None:
     game.click("method_browser")
     wait_for(game, "the wallet step", has_button("forward", "Open wallet"))
     game.click("forward")
-    fam.connect(page).click()  # the overlay: "Pay with Mock Wallet", then "Pay 1.0000NN USDC"
+    # the overlay: "Pay with Mock Wallet" (clicked), then "Pay 1.0000NN USDC" with the keyboard
+    press_with_the_keyboard(page, fam.connect(page))
     wait_for(game, "the payment to be confirmed", shows(CONFIRMED), 120, fam.tick)
     if not game.call("owns", item=ITEM):
         raise E2EError('the sheet says paid but SCFG.Owns("chapter2") is false')
     overlay_hidden(page)
+    state = wait_state(
+        game, "the unlock receipt", lambda s: any(r["item"] == ITEM for r in receipts_of(s))
+    )
+    paid = next(r["tx_hash"] for r in receipts_of(state) if r["item"] == ITEM)
+    link = explorer_link_opens_without_opener(game, paid)
     game.click("continue")
     wait_for(game, "the sheet to close", no_screen)
     snap = wait_for(game, "the unlocked chapter", lambda s: UNLOCKED in s["game"]["texts"])
@@ -282,11 +347,45 @@ def pay_unlock_with_overlay(game: WebGame, fam) -> None:
     if len(found) != 1:
         raise E2EError(f"state.json should hold one unlock receipt: {game.state()}")
     check_mined(fam, found[0]["tx_hash"])
-    print(f"1. browser wallet: the overlay paid, chapter2 owned (tx {found[0]['tx_hash']})")
+    print(
+        f"1. browser wallet: the overlay paid with the keyboard, chapter2 owned "
+        f"(tx {found[0]['tx_hash']}); the explorer link opened {link} without an opener"
+    )
 
 
 def copy_value(game: WebGame, name: str) -> str:
     return gweb.copy_value(game, name)
+
+
+PASTE = "  0xC0FFEE!12 and more\n"  # what the player has on the clipboard
+PASTED = "0xC0FFEE12"  # SCFG.CleanPaste: the first word, hash characters only
+
+
+def paste_into_the_hash_field(game: WebGame) -> None:
+    """Paste (ScfgWebPage.RequestPaste / TakePaste: navigator.clipboard.readText, answered a frame
+    or more later), then the same with the clipboard permission taken away: paste_blocked."""
+    page = game.page
+    page.evaluate("(t) => navigator.clipboard.writeText(t)", PASTE)
+    game.click("paste")
+    snap = wait_for(
+        game,
+        "the pasted hash",
+        lambda s: ((sheet(s) or {}).get("fields") or {}).get("tx_input") == PASTED,
+        20,
+    )
+    if sheet(snap)["error"] is not None:
+        raise E2EError(f"the paste left an error: {sheet(snap)}")
+    context = page.context
+    context.clear_permissions()
+    try:
+        game.click("paste")
+        snap = wait_for(
+            game, "paste_blocked", lambda s: (sheet(s) or {}).get("error") == "paste_blocked", 20
+        )
+    finally:
+        context.grant_permissions(PERMISSIONS)
+    if sheet(snap)["fields"].get("tx_input") != PASTED:
+        raise E2EError(f"a refused paste should keep the field: {sheet(snap)}")
 
 
 def tip_by_manual_transfer(game: WebGame, fam) -> None:
@@ -303,6 +402,7 @@ def tip_by_manual_transfer(game: WebGame, fam) -> None:
     if not any(t.startswith(amount + " ") for t in texts) or recipient not in texts:
         raise E2EError(f"copied {amount!r} / {recipient!r}, which the sheet does not show: {texts}")
     fam.check_manual(recipient, token)
+    paste_into_the_hash_field(game)
     game.click("forward")  # I've sent it
     wait_for(
         game,
@@ -334,7 +434,8 @@ def tip_by_manual_transfer(game: WebGame, fam) -> None:
             f"state.json should hold the unlock and the {shown} USDC tip {tx}: {receipts}"
         )
     print(
-        f"2. manual transfer: copied {amount} USDC to {recipient}, paid from the chain side, found"
+        f"2. manual transfer: pasted {PASTED} (and paste_blocked without the permission); copied "
+        f"{amount} USDC to {recipient}, paid from the chain side, found"
     )
 
 
@@ -499,10 +600,39 @@ def the_download_cap_stops_a_flood(game: WebGame) -> None:
             )
     finally:
         httpd.shutdown()
+    persistent = game.call("fs_persistent")
+    if persistent is not True:
+        raise E2EError(f"the jslib says persistentDataPath is not persistent: {persistent!r}")
     print(
         f"5. download cap: {result['error']}; the download stopped after {flood.sent // 1024} KiB "
-        f"of {CAP_OFFER // 1024} KiB (cap {CAP_BYTES // 1024} KiB)"
+        f"of {CAP_OFFER // 1024} KiB (cap {CAP_BYTES // 1024} KiB); IndexedDB is persistent"
     )
+
+
+BLOCK_IDB = (
+    "IDBFactory.prototype.open = function () {"
+    " throw new DOMException('the e2e blocks IndexedDB', 'SecurityError'); };"
+)
+
+
+def a_blocked_indexeddb_is_not_persistent(browser, url: str, fam) -> None:
+    """A browser that has indexedDB but refuses its database (blocked site data, a partitioned
+    iframe): Unity runs persistentDataPath on memory, and the jslib must say so. In a context of
+    its own."""
+    context = browser.new_context(viewport={"width": 1280, "height": 720})
+    try:
+        page = context.new_page()
+        page.add_init_script(BLOCK_IDB)
+        page.add_init_script(f"window.scfgE2EConfig = {json.dumps(json.dumps(fam.config()))};")
+        page.goto(url)
+        game = WebGame(page)
+        game.wait_hook(180_000)
+        persistent = game.call("fs_persistent")
+        if persistent is not False:
+            raise E2EError(f"with IndexedDB blocked the jslib answered {persistent!r}, not false")
+    finally:
+        context.close()
+    print("6. blocked IndexedDB: the jslib says persistentDataPath is not persistent")
 
 
 # --- the run ---------------------------------------------------------------------------------
@@ -562,8 +692,7 @@ def run(unity: str | None, family: str, player: str | None, headed: bool) -> int
             )
             a_non_string_config_fails_hard(browser, url)
             context = browser.new_context(
-                permissions=["local-network-access", "clipboard-read", "clipboard-write"],
-                viewport={"width": 1280, "height": 720},
+                permissions=PERMISSIONS, viewport={"width": 1280, "height": 720}
             )
             page = context.new_page()
             page.on("console", lambda m: console.append((m.type, m.text)))
@@ -582,6 +711,7 @@ def run(unity: str | None, family: str, player: str | None, headed: bool) -> int
             saved = [x for x in idb["paths"] if x.endswith("/" + STATE)]
             print(f"   IndexedDB: databases {idb['dbs']}, {len(idb['paths'])} entries, {saved}")
             reported = game.problems()
+            a_blocked_indexeddb_is_not_persistent(browser, url, fam)
             browser.close()
         if reported:
             raise E2EError("the player reported errors or warnings:\n" + "\n".join(reported))
