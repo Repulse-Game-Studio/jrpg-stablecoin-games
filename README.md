@@ -15,11 +15,13 @@ watches the blockchain itself.
 | **Ren'Py 8.2+** | `game/scfg/` and its Python core | Released: desktop and web builds | [Install](docs/developers/install.md) |
 | **Godot 4.3+** | the `addons/scfg/` addon, pure GDScript | Preview: tested on 4.3 and 4.7.2, desktop and web exports | [Install](docs/developers/godot/install.md), [showcase](godot/showcase/README.md) |
 | **RPG Maker MZ** | one plugin file, `js/plugins/SCFG.js` | Preview: tested on an in-repo MZ stand-in, **not yet in real RPG Maker MZ** | [Install](docs/developers/rpgmaker/install.md) |
+| **Unity 6.3 LTS+** | the `com.repulse.scfg` UPM package (git URL or `.tgz`), C# | Preview: tested on 6000.6.9f1, Linux (Mono and IL2CPP) and WebGL players; 6.3 LTS, Windows and macOS not yet checked | [Install](docs/developers/unity/install.md), [samples](unity/Packages/com.repulse.scfg/Samples~/Showcase/README.md) |
 
-The three share one payment core: the Ren'Py plugin's Python is the reference, and the TypeScript (RPG Maker)
-and GDScript (Godot) ports replay the same [conformance vectors](conformance/README.md). `tools/package.py` builds
-`scfg-renpy-<version>.zip`, `scfg-godot-<version>.zip` and `scfg-rpgmaker-mz-<version>.zip`; each release
-carries all three. Mobile builds are best effort and unverified on every engine.
+They share one payment core: the Ren'Py plugin's Python is the reference, and the TypeScript (RPG Maker),
+GDScript (Godot) and C# (Unity) ports replay the same [conformance vectors](conformance/README.md).
+`tools/package.py` builds `scfg-renpy-<version>.zip`, `scfg-godot-<version>.zip`,
+`scfg-rpgmaker-mz-<version>.zip` and `scfg-unity-<version>.tgz`; each release carries all four. Mobile builds are
+best effort and unverified on every engine.
 
 ![A player tips 3 USDC on Arc in Ruby Dreams: pick an amount, pick a network, scan the QR code, payment confirmed](.github/media/tip-arc.gif)
 
@@ -79,9 +81,9 @@ Players can read how paying works, which wallets work and how to restore a purch
 | `rpgmaker/` | The RPG Maker MZ plugin: the TypeScript port of the payment core (`src/core/`, dependency-free, Node 22.18+), the MZ glue (`src/mz/`: plugin header, commands, `window.SCFG`, the HTML payment sheet, the NW.js checkout server), the esbuild build to `js/plugins/SCFG.js`, an MZ stand-in (`test/mz_shim/`) its tests run on, the demo kit (`demo/`) and the JSON-lines driver for the integration tests. See [its README](rpgmaker/README.md) |
 | `tests/rpgmaker_ui/`, `tests/server_security/` | The RPG Maker sheet in headless Chrome on the MZ stand-in; the localhost checkout server's security suite (Python, GDScript, Node and C# servers) |
 | `godot/` | Godot 4.3+ addon (`addons/scfg/`: the `Scfg` autoload, payment sheet, localhost/web checkout and the pure-GDScript payment core in `core/`), the runnable `showcase/` (a one-screen tour of the API) and `demo/` (the game the e2e tests play), its headless test runner and the JSON-lines driver for the integration tests. See [its README](godot/README.md) |
-| `unity/` | The Unity port, in development: the C# payment core (`Scfg.Core`, with the worker and the checkout, restore and overlay controllers) under `Packages/com.repulse.scfg/Runtime/Core/`, the localhost checkout server (`Scfg.Desktop`) under `Runtime/Desktop/`, the Unity glue (the `SCFG` facade, UI Toolkit screens, store and transport) under `Runtime/Unity/` with its Unity Test Framework tests, the dev project (`Project/`, with the Linux e2e driver), their NUnit tests (`core-tests/`) and the JSON-lines drivers for the integration tests (`core-driver/`) and the server security suite (`server-driver/`). Desktop and WebGL (the WebGL checkout is the shared page shown over the game). See [its README](unity/README.md) |
+| `unity/` | The Unity port (Preview): the C# payment core (`Scfg.Core`, with the worker and the checkout, restore and overlay controllers) under `Packages/com.repulse.scfg/Runtime/Core/`, the localhost checkout server (`Scfg.Desktop`) under `Runtime/Desktop/`, the Unity glue (the `SCFG` facade, UI Toolkit screens, store and transport) under `Runtime/Unity/` with its Unity Test Framework tests, the `ScfgSettings` asset, the Showcase and Demo samples (`Samples~/`), the dev project (`Project/`, with the Linux and WebGL e2e driver), their NUnit tests (`core-tests/`) and the JSON-lines drivers for the integration tests (`core-driver/`) and the server security suite (`server-driver/`). Desktop and WebGL (the WebGL checkout is the shared page shown over the game). See [its README](unity/README.md) |
 | `tests/godot_showcase/` | Boots the Godot showcase headless and presses its chain-free buttons (needs `SCFG_GODOT`) |
-| `tools/` | `package.py` (release zip), `sync_demo.py` (copies the plugin into the demos and the Godot showcase), `check_rpcs.py`, `run_renpy_e2e.py`, `run_renpy_web_e2e.py`, `make_ui_assets.py` (screen corner images), `gen_vectors.py` (conformance vectors), `fetch_godot.py` (download a verified Godot binary or web export templates), `run_godot_tests.py` (the GDScript runner, failing closed), `run_godot_e2e.py` / `run_godot_web_e2e.py` (the Godot demo against a local chain), `make_pot.py`, `sync_web_page.py`, `check_text_ids.py` (RPG Maker text ids), `run_rpgmaker_web_e2e.py` / `run_rpgmaker_desktop_e2e.py` (the RPG Maker plugin against a local chain) |
+| `tools/` | `package.py` (release zips and the Unity `.tgz`), `sync_demo.py` (copies the plugin into the demos and the Godot showcase), `check_rpcs.py`, `run_renpy_e2e.py`, `run_renpy_web_e2e.py`, `make_ui_assets.py` (screen corner images), `gen_vectors.py` (conformance vectors), `fetch_godot.py` (download a verified Godot binary or web export templates), `run_godot_tests.py` (the GDScript runner, failing closed), `run_godot_e2e.py` / `run_godot_web_e2e.py` (the Godot demo against a local chain), `make_pot.py`, `sync_web_page.py`, `check_text_ids.py` (RPG Maker text ids), `run_rpgmaker_web_e2e.py` / `run_rpgmaker_desktop_e2e.py` (the RPG Maker plugin against a local chain), `run_unity_e2e.py` / `run_unity_web_e2e.py` (the Unity e2e players against a local chain), `check_unity_meta.py` / `check_unity_samples.py` (the Unity package's `.meta` files and samples) |
 | `contracts/` | `MockToken.sol` (6-decimal mock token) and the Arc stand-ins `ArcMockUsdc.sol` / `ArcSystemEmitter.sol`, used by integration tests |
 
 ## Development
@@ -126,6 +128,7 @@ uv run pytest -m integration tests/integration/test_cs_core.py
 "$UNITY" -batchmode -nographics -projectPath unity/Project -runTests -testPlatform EditMode -testResults /tmp/em.xml
 uv run python tools/run_unity_e2e.py --unity "$UNITY" --backend mono --family solana   # or il2cpp; evm, arc
 uv run python tools/run_unity_web_e2e.py --unity "$UNITY" --family solana   # or evm, arc
+uv run python tools/check_unity_samples.py --unity "$UNITY"   # the samples compile and their scenes open
 
 uv run python tools/gen_vectors.py        # regenerate conformance/vectors/ (--check: fail if stale)
 # GDScript core (Godot 4.3+): unit tests and the conformance vectors; its local-chain twins
@@ -148,6 +151,7 @@ uv run python tools/check_rpcs.py         # are the built-in public RPCs alive?
 uv run python tools/package.py            # build dist/scfg-renpy-<version>.zip
 uv run python tools/package.py --engine godot   # build dist/scfg-godot-<version>.zip
 uv run python tools/package.py --engine rpgmaker   # build dist/scfg-rpgmaker-mz-<version>.zip (runs npm run build; needs npm ci)
+uv run python tools/package.py --engine unity   # build dist/scfg-unity-<version>.tgz (the UPM package, without its tests)
 
 # docs site (Node 20+)
 cd website && npm ci && npm start         # live preview at http://localhost:3000/stablecoinforgames/docs/
