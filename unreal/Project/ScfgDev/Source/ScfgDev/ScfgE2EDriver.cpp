@@ -322,34 +322,49 @@ TSharedPtr<FScfgE2EDriver> FScfgE2EDriver::Create(const FString& Path, UScfgShow
 	{
 		return Bad(TEXT("not a JSON object"));
 	}
-	const TSharedPtr<FJsonObject>* Configure = nullptr;
-	if (!Config->TryGetObjectField(TEXT("configure"), Configure))
+	if (Config->HasField(TEXT("own_config")))
 	{
-		return Bad(TEXT("\"configure\" must be an object"));
-	}
-	if (const FString Why = ReadOptions(**Configure, D->ConfigOptions); !Why.IsEmpty())
-	{
-		return Bad(Why);
-	}
-	const TSharedPtr<FJsonObject>* Items = nullptr;
-	if (!Config->TryGetObjectField(TEXT("items"), Items))
-	{
-		return Bad(TEXT("\"items\" must be an object"));
-	}
-	for (const auto& Item : (*Items)->Values)
-	{
-		const FString Id(Item.Key.ToView());
-		const TSharedPtr<FJsonObject>* Fields = nullptr;
-		if (!Item.Value->TryGetObject(Fields))
+		// the showcase's own configuration: nothing of the config's may reach it
+		if (!Config->TryGetBoolField(TEXT("own_config"), D->bOwnConfig) || !D->bOwnConfig)
 		{
-			return Bad(FString::Printf(TEXT("items[%s] must be an object"), *Id));
+			return Bad(TEXT("\"own_config\" must be true (or absent)"));
 		}
-		FScfgItem Out;
-		if (const FString Why = ReadItem(Id, **Fields, Out); !Why.IsEmpty())
+		if (Config->HasField(TEXT("configure")) || Config->HasField(TEXT("items")) || Config->HasField(TEXT("chain")))
+		{
+			return Bad(TEXT("\"own_config\" goes without \"configure\", \"items\" and \"chain\""));
+		}
+	}
+	else
+	{
+		const TSharedPtr<FJsonObject>* Configure = nullptr;
+		if (!Config->TryGetObjectField(TEXT("configure"), Configure))
+		{
+			return Bad(TEXT("\"configure\" must be an object"));
+		}
+		if (const FString Why = ReadOptions(**Configure, D->ConfigOptions); !Why.IsEmpty())
 		{
 			return Bad(Why);
 		}
-		D->ConfigItems.Add(Id, Out);
+		const TSharedPtr<FJsonObject>* Items = nullptr;
+		if (!Config->TryGetObjectField(TEXT("items"), Items))
+		{
+			return Bad(TEXT("\"items\" must be an object"));
+		}
+		for (const auto& Item : (*Items)->Values)
+		{
+			const FString Id(Item.Key.ToView());
+			const TSharedPtr<FJsonObject>* Fields = nullptr;
+			if (!Item.Value->TryGetObject(Fields))
+			{
+				return Bad(FString::Printf(TEXT("items[%s] must be an object"), *Id));
+			}
+			FScfgItem Out;
+			if (const FString Why = ReadItem(Id, **Fields, Out); !Why.IsEmpty())
+			{
+				return Bad(Why);
+			}
+			D->ConfigItems.Add(Id, Out);
+		}
 	}
 	const TSharedPtr<FJsonObject>* Control = nullptr;
 	int32 Port = 0;
@@ -1150,11 +1165,11 @@ void FScfgE2EDriver::Run(int64 Id, const TSharedRef<FJsonObject>& Command)
 		Command->TryGetStringField(TEXT("what"), What);
 		if (What == TEXT("unlock"))
 		{
-			G->Unlock();
+			G->Unlock(UScfgShowcaseGameInstance::ITEM);
 		}
 		else if (What == TEXT("tip"))
 		{
-			G->Tip();
+			G->Tip(UScfgShowcaseGameInstance::TIP_AMOUNT);
 		}
 		else if (What == TEXT("restore"))
 		{

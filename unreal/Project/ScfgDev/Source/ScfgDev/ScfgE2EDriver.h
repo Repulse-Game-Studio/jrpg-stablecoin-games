@@ -5,6 +5,9 @@
 // The config (JSON object, written by the runner):
 //   configure  {wallet?, solana_wallet?, testnet?, chains?, tokens?}: Configure()'s options (Python's keyword names)
 //   items      {id: {code, price, token?, title?, min_price?}}: AddItem() for each
+//   own_config true, in place of configure and items (and of chain): the showcase configures itself, from the project
+//              settings or in code (ScfgShowcase.h, CONFIGURATION), as it does without the driver: the tour of its
+//              chain-free buttons (tools/run_unreal_e2e.py --showcase)
 //   chain      {network: "mainnet"|"testnet", key, rpc: [url], confirmations?, tokens?: {name: address}} (optional):
 //              the built-in chain entry is pointed at the local test node and its mock token, as the integration
 //              driver's override (unreal/core-driver/Main.cpp, apply_override) and the Godot driver's SCFG_E2E_CHAIN do
@@ -41,8 +44,8 @@
 //   input_mode {mode}    the game's input mode: "ui" (the cursor shown, game and UI: the showcase's own), "game"
 //                        (game only: the cursor hidden, the mouse captured permanently), "lock_always" (the cursor
 //                        shown and locked to the window)
-//   open {what}          the showcase's Unlock / Tip / Restore action (for the input modes whose cursor cannot click
-//                        the HUD)
+//   open {what}          the showcase's Unlock (of UScfgShowcaseGameInstance::ITEM) / Tip (of TIP_AMOUNT) / Restore
+//                        action (for the input modes whose cursor cannot click the HUD)
 //   sheet_visibility {shown}  the newest open screen hidden (Collapsed) or shown again, its flow left waiting, as a
 //                        game that collapses it does; replies the input state a frame later
 //   activation_cycle     a real native window opens over the game (the game window is deactivated), then closes (the
@@ -87,6 +90,8 @@ public:
 
 	const FScfgOptions& Options() const { return ConfigOptions; }
 	const TMap<FString, FScfgItem>& Items() const { return ConfigItems; }
+	// The config's own_config: the showcase configures itself (Options() and Items() are empty).
+	bool OwnConfig() const { return bOwnConfig; }
 	// Connects to the runner and serves it from the core ticker; false (logged) when it cannot connect.
 	bool Start();
 
@@ -118,6 +123,7 @@ private:
 
 	FScfgOptions ConfigOptions;
 	TMap<FString, FScfgItem> ConfigItems;
+	bool bOwnConfig = false;
 	int32 ControlPort = 0;
 	// The config's draw_world (default true); false: the game viewport draws no world (set once it exists).
 	bool bDrawWorld = true;

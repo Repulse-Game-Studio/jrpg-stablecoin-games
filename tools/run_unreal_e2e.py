@@ -31,6 +31,11 @@ shows. Per run (godot/demo's scenarios, tools/run_godot_e2e.py):
      checked to show the drawn sheet.
   4. Restart the game: Chapter 2 is still owned.
 
+--showcase runs the showcase's boot test instead (tests/unreal_showcase, the twin of
+tests/godot_showcase; see "the showcase tour" below): no chain, no browser. The showcase
+configures itself (from the project settings, then in code with -scfg-showcase-code), and its
+chain-free buttons are pressed with real clicks and their readouts checked.
+
 --family evm (default) pays USDC on Anvil (the arbitrum entry pointed at a mock token); arc pays
 native USDC on Anvil dressed as Arc; solana pays USDC on solana-test-validator. They need `anvil`
 or `solana-test-validator` on PATH, Playwright's Chromium and `solders` (run it with `uv run`).
@@ -74,6 +79,7 @@ an accepted test-time exposure (ruling R2-16; the foreign MCP's TCP 127.0.0.1:80
 touched). Screenshots of the sheet (one per run) go to --screenshots.
 
     uv run python tools/run_unreal_e2e.py --family solana [--packaged] [--screenshots DIR]
+    uv run python tools/run_unreal_e2e.py --showcase [--no-build] [--screenshots DIR]
 """
 
 from __future__ import annotations
@@ -112,7 +118,10 @@ DESKTOP_VARS = ("DISPLAY", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_R
 ITEM = "chapter2"
 ITEMS = {ITEM: {"code": 1, "price": "1.00", "token": "USDC", "title": "Chapter 2: The Fall"}}
 CONFIRMED = "Payment confirmed. Thank you!"
-UNLOCKED = "Chapter 2: unlocked. Thank you for supporting the game!"
+# The showcase's HUD (ScfgShowcase.h): its buttons by name, and its readout of the owned items.
+UNLOCK = f"Unlock.{ITEM}"
+TIP = "Tip.1.00"
+UNLOCKED = "Owned: Chapter 2: The Fall"
 READY_LINE = "showcase: ready"
 # Seconds: a first start compiles the shaders on the CPU (minutes); a command may wait on a frame.
 START_TIMEOUT = 900.0
@@ -840,8 +849,8 @@ def sheet_drawn(path: Path, view: dict) -> str | None:
 
 
 def unlock_by_manual_transfer(game: Game, fam, state_file: Path, shots: Path, family: str) -> None:
-    wait_for(game, "the Unlock button", lambda s: button(s["game"], "Unlock") is not None, 120)
-    game.click("Unlock", "game")
+    wait_for(game, "the Unlock button", lambda s: button(s["game"], UNLOCK) is not None, 120)
+    game.click(UNLOCK, "game")
     # The only enabled network is chosen by itself, so the sheet opens on the method step.
     snap = wait_for(game, "the method step", has_button("method_manual"))
     expect(snap["paused"], "the showcase should pause the game while the sheet is open")
@@ -876,7 +885,7 @@ def unlock_by_manual_transfer(game: Game, fam, state_file: Path, shots: Path, fa
     game.key("Enter")
     wait_for(game, "the sheet to close", no_screen)
     snap = wait_for(game, "the unlocked chapter", lambda s: UNLOCKED in s["game"]["texts"])
-    expect(button(snap["game"], "Unlock") is None, "the Unlock button is still shown")
+    expect(button(snap["game"], UNLOCK) is None, "the Unlock button is still shown")
     expect(not snap["paused"], "the game is still paused after the sheet closed")
     receipts = json.loads(state_file.read_text())["receipts"]
     found = [r for r in receipts.values() if r["item"] == ITEM and r["kind"] == "unlock"]
@@ -890,7 +899,7 @@ def tip_by_browser_wallet(game: Game, fam, browser, state_file: Path) -> None:
     expect(before["input"]["captor"] == "none",
            "after the close nothing should hold the mouse in the cursor-showing game",
            before["input"])
-    game.click("Tip", "game")  # right after a close: the click must reach the HUD, not the world
+    game.click(TIP, "game")  # right after a close: the click must reach the HUD, not the world
     snap = wait_for(game, "the amount step", has_button("forward", "Next"))
     expect(snap["world_clicks"] == before["world_clicks"],
            "the HUD click after the close reached the world", snap)
@@ -1123,7 +1132,7 @@ def real_window_input(game: Game) -> dict:
 
 def still_owned_after_restart(game: Game) -> None:
     snap = wait_for(game, "the unlocked chapter", lambda s: UNLOCKED in s["game"]["texts"], 120)
-    expect(button(snap["game"], "Unlock") is None and game.call("owns", item=ITEM),
+    expect(button(snap["game"], UNLOCK) is None and game.call("owns", item=ITEM),
            "Chapter 2 is not owned after the restart")
     print("  restarted: Chapter 2 is still owned")
 
@@ -1159,6 +1168,225 @@ def bad_configs_quit_at_once(make_game, work: Path, control: Control) -> None:
                            f"({reason!r}) and quit with code 1 (it exited with {code}):\n"
                            + "\n".join(out.splitlines()[-40:]))
     print(f"0. bad e2e configs: the showcase quits with code 1 ({len(BAD_CONFIGS)} cases)")
+
+
+# --- the showcase tour (--showcase): the chain-free buttons ---------------------------------------
+#
+# tests/unreal_showcase's run, the twin of tests/godot_showcase: the showcase configures itself
+# (own_config), from the project settings and then, in a second start, in code; the buttons that
+# need no chain are pressed with real clicks and the readouts checked. Testnet, a fresh user dir:
+# no receipt to re-verify and no Solana wallet, so the start asks no chain anything, and the
+# sheets are closed on their first step, before a network is chosen (no session is started).
+
+TOUR_BUTTONS = ("Unlock.chapter2", "Unlock.soundtrack", "Unlock.supporter", "Pay.supporter",
+                "Tip.0.50", TIP, "Tip.3.00", "Restore", "Export", "Clear", "Notify")
+FROM_SETTINGS = "Configured from: the project settings (Config/DefaultGame.ini)"
+FROM_CODE = "Configured from: code (ConfigureInCode)"
+CODE_SWITCH = "-scfg-showcase-code"
+# What the readouts say before anything was paid.
+NOTHING_YET = ("Supported: yes", "Owned: nothing yet", "Tips: 0 USDC",
+               "Payments still being watched: 0",
+               "None yet. Pay for something, or restore a payment.")
+
+
+def write_tour_config(path: Path, port: int, token: str) -> dict:
+    """The driver's config for the tour: the showcase's own configuration, the control socket."""
+    config = {"own_config": True, "control": {"port": port, "token": token}, "draw_world": False}
+    path.write_text(json.dumps(config, indent=1), encoding="utf-8")
+    path.chmod(0o600)
+    return config
+
+
+def hud(snap: dict) -> list:
+    return snap["game"]["texts"]
+
+
+def logged(text: str):
+    """The event log (or any HUD line) has a line containing `text`."""
+    return lambda snap: any(text in t for t in hud(snap))
+
+
+def hud_button(snap: dict, name: str) -> dict | None:
+    return button(snap["game"], name)
+
+
+def closed_on_first_step(game: Game, press: str, what: str, first_step) -> dict:
+    """Clicks the HUD button `press`, waits for the screen on its first step (game paused), and
+    closes it with Escape; returns the snapshot after the close."""
+    game.click(press, "game")
+    snap = wait_for(game, f"the {what} on its first step", first_step)
+    expect(snap["paused"], f"the showcase should pause the game while the {what} is open", snap)
+    game.key("Escape")
+    snap = wait_for(game, f"the {what} to close", no_screen)
+    return wait_for(game, "the game to run again", lambda s: not s["paused"], 10)
+
+
+def showcase_tour(game: Game, saved: Path, shots: Path) -> dict:
+    """The tour of the showcase configured from the project settings. Returns what it read."""
+    seen = {}
+    snap = wait_for(game, "the showcase's shop", lambda s: hud_button(s, UNLOCK) is not None, 120)
+    names = tuple(b["name"] for b in snap["game"]["buttons"])
+    expect(names == TOUR_BUTTONS, f"the HUD's buttons are {names}, not {TOUR_BUTTONS}", snap)
+    texts = hud(snap)
+    for line in (FROM_SETTINGS, *NOTHING_YET):
+        expect(line in texts, f"the HUD should show {line!r}", texts)
+    expect(logged("Ready. Configured from the project settings")(snap),
+           "the event log should say where the configuration came from", texts)
+    seen["buttons"] = list(names)
+    print(f"  shop: {len(names)} buttons; {FROM_SETTINGS}; {', '.join(NOTHING_YET[:4])}")
+
+    # Export receipts: the file is written under the game's Saved/, an empty list
+    game.click("Export", "game")
+    snap = wait_for(game, "ExportReceipts' line", logged("ExportReceipts() wrote "))
+    line = next(t for t in hud(snap) if "ExportReceipts() wrote " in t)
+    exported = Path(line.split("ExportReceipts() wrote ", 1)[1])
+    expect(exported.resolve().is_relative_to(saved.resolve()),
+           f"the receipts were exported to {exported}, outside the game's Saved/ ({saved})")
+    expect(json.loads(exported.read_text()) == [], f"{exported} should hold no receipt")
+    print(f"  Export receipts: wrote {exported.name} (no receipt)")
+
+    # Clear local data
+    game.click("Clear", "game")
+    wait_for(game, "ClearLocalData's line",
+             logged("ClearLocalData(): receipts forgotten on this device."))
+    print("  Clear local data: logged")
+
+    # Notifications off and on again
+    game.click("Notify", "game")
+    snap = wait_for(game, "notifications off", lambda s: logged("SetNotify(false)")(s)
+                    and (hud_button(s, "Notify") or {}).get("text") == "Notify: off")
+    game.click("Notify", "game")
+    snap = wait_for(game, "notifications on", lambda s: logged("SetNotify(true)")(s)
+                    and (hud_button(s, "Notify") or {}).get("text") == "Notify: on")
+    print("  Notify: off, then on")
+
+    # Restore purchases: the restore screen, closed with Escape
+    closed_on_first_step(game, "Restore", "restore screen",
+                         lambda s: any(v["kind"] == "restore" for v in s["screens"]))
+    snap = wait_for(game, "the restore result", lambda s: "Restore: cancelled" in hud(s)
+                    and logged("restore result: cancelled")(s))
+    # (at the start the engine gives the viewport the focus when the window is activated)
+    expect(snap["input"]["focus"] == "hud", "after a flow the HUD's first button should have "
+           "the focus", snap["input"])
+    print("  Restore purchases: cancelled; the HUD has the focus back")
+
+    # A tip: the sheet on its amount step, closed with Escape
+    closed_on_first_step(game, TIP, "tip sheet", has_button("forward", "Next"))
+    snap = wait_for(game, "the tip result", lambda s: "Tip: cancelled" in hud(s)
+                    and logged("PayAsync(Tip, Amount 1.00, Token USDC)")(s)
+                    and logged("tip result: cancelled")(s))
+    print("  Tip 1.00 USDC: cancelled on the amount step")
+
+    # An unlock: the sheet on its network step (the testnets), closed with Escape
+    def network_step(s):
+        view = sheet(s)
+        return view is not None and any(b["name"].startswith("network_") for b in view["buttons"])
+
+    game.click(UNLOCK, "game")
+    snap = wait_for(game, "the unlock sheet on its network step", network_step)
+    networks = [b["text"] for b in sheet(snap)["buttons"] if b["name"].startswith("network_")]
+    expect(any("Sepolia" in n for n in networks),
+           f"the unlock sheet should offer the testnets, not {networks}", snap)
+    expect(snap["paused"], "the showcase should pause the game while the sheet is open", snap)
+    seen["networks"] = networks
+    game.key("Escape")
+    wait_for(game, "the unlock sheet to close", no_screen)
+    snap = wait_for(game, "the unlock result",
+                    lambda s: "Maybe later. (Status: cancelled)" in hud(s)
+                    and logged("unlock result: cancelled")(s) and not s["paused"])
+    print(f"  Unlock Chapter 2: cancelled on the network step ({len(networks)} testnets)")
+
+    # nothing was paid, nothing reached the world
+    shot = shots / "unreal-showcase.png"
+    game.call("screenshot", path=str(shot), timeout=180)
+    print(f"  screenshot {shot}")
+    texts = hud(snap)
+    for line in NOTHING_YET:
+        expect(line in texts, f"after the tour the HUD should still show {line!r}", texts)
+    expect(not game.call("owns", item=ITEM), "Owns('chapter2') after a cancelled unlock")
+    expect(snap["world_clicks"] == 0, "a HUD click reached the world", snap)
+    expect(hud_button(snap, UNLOCK) is not None, "the Unlock button is gone", snap)
+    seen["texts"] = texts
+    return seen
+
+
+def showcase_from_code(game: Game, tour: dict) -> None:
+    """The second start, with -scfg-showcase-code: configured in code, the same shop."""
+    snap = wait_for(game, "the showcase's shop", lambda s: hud_button(s, UNLOCK) is not None, 120)
+    names = [b["name"] for b in snap["game"]["buttons"]]
+    expect(names == tour["buttons"], f"configured in code the HUD has {names}", snap)
+    expect(FROM_CODE in hud(snap) and logged("Ready. Configured from code")(snap),
+           f"the HUD should show {FROM_CODE!r}", hud(snap))
+    for line in NOTHING_YET:
+        expect(line in hud(snap), f"the HUD should show {line!r}", hud(snap))
+    print(f"  {FROM_CODE}: the same {len(names)} buttons and readouts")
+
+
+def run_showcase(args, started: float) -> int:
+    """--showcase: the tour, in the inner run (own_xvfb already checked)."""
+    work = Path(tempfile.mkdtemp(prefix="scfg-unreal-showcase-"))
+    shots = Path(args.screenshots).resolve() if args.screenshots else work
+    shots.mkdir(parents=True, exist_ok=True)
+    engine = Path(args.engine)
+    games = []
+    control = Control()
+    times = {}
+    try:
+        print(f"Unreal showcase tour, DISPLAY {os.environ['DISPLAY']} (Xvfb of this run), "
+              f"work {work}")
+        t = time.monotonic()
+        if not args.no_build:
+            build_editor(engine, work)
+        times["build"] = time.monotonic() - t
+        user_dir = work / "userdir"
+        env = game_env(os.environ, work / "home")
+        config = work / "showcase_config.json"
+        write_tour_config(config, control.port, control.token)
+        outputs = []
+        tour = None
+        for label, extra in (("settings", []), ("code", [CODE_SWITCH])):
+            t = time.monotonic()
+            game = Game(game_command(engine, config, user_dir) + extra, env,
+                        work / f"showcase_{label}.log", control, f"showcase ({label})")
+            games.append(game)
+            start = game.connect()
+            game.focus()
+            saved = Path(game.call("saved_dir"))
+            if not saved.resolve().is_relative_to(work.resolve()):
+                raise E2EError(f"the game's saved data is not isolated: {saved}")
+            if tour is None:
+                print(f"1. configured from the project settings (started in {start:.1f} s)")
+                tour = showcase_tour(game, saved, shots)
+            else:
+                print(f"2. configured in code, {CODE_SWITCH} (started in {start:.1f} s)")
+                showcase_from_code(game, tour)
+            code = game.quit()
+            outputs.append(game.output())
+            game.close()
+            if code != 0:
+                raise E2EError(f"the showcase exited with {code}:\n{game.tail()}")
+            times[label] = time.monotonic() - t
+        bad = [line for out in outputs for line in problems(out)]
+        if bad:
+            raise E2EError("the game logged errors or warnings (not in ALLOWED), or crashed:\n"
+                           + "\n".join(bad))
+        (work / "tour.json").write_text(json.dumps(tour, indent=1))
+    except Exception as e:
+        print(e if isinstance(e, E2EError) else traceback.format_exc())
+        print(f"Unreal showcase tour FAILED after {time.monotonic() - started:.1f} s "
+              f"(logs in {work})")
+        return 1
+    finally:
+        for game in games:
+            game.close()
+        control.close()
+    shown = ", ".join(f"{k} {v:.1f} s" for k, v in times.items())
+    kept = work if args.keep else None
+    if kept is None:
+        remove_work(work)
+    print(f"Unreal showcase tour PASSED in {time.monotonic() - started:.1f} s ({shown}); "
+          + (f"logs in {kept}" if kept else "work directory removed (--keep keeps it)"))
+    return 0
 
 
 # --- building --------------------------------------------------------------------------------
@@ -1306,6 +1534,8 @@ def run_inner(args) -> int:
     if why is not None:
         print(f"Unreal e2e: refusing to start a game: {why}")
         return 2
+    if args.showcase:
+        return run_showcase(args, started)
     sys.path.insert(0, str(TOOLS))
     import run_godot_e2e as godot  # noqa: E402  (the chain families and the browser launch)
 
@@ -1467,7 +1697,13 @@ def main(argv=None) -> int:
                     help="keep the whole work directory (logs, the game's user data, the "
                     "packaged archive); without it a passed run removes it and a failed one "
                     "removes only the archive")
+    ap.add_argument("--showcase", action="store_true",
+                    help="the showcase tour instead of the payments: its chain-free buttons, "
+                    "configured from the project settings, then in code (no chain, no browser; "
+                    "tests/unreal_showcase); --family does not apply, --packaged is refused")
     args = ap.parse_args(argv)
+    if args.showcase and args.packaged:
+        ap.error("--showcase runs the editor build only (not --packaged)")
     if os.environ.get(INNER_ENV):
         return run_inner(args)
     return run_outer(argv)

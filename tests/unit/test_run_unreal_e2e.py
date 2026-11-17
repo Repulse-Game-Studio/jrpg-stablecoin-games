@@ -129,6 +129,28 @@ def test_the_config_names_the_control_socket_and_the_chain_and_is_private(tmp_pa
     assert "chain" not in json.loads(path.read_text())
 
 
+def test_the_tour_config_leaves_the_configuration_to_the_showcase_and_is_private(tmp_path):
+    path = tmp_path / "tour.json"
+    e2e.write_tour_config(path, 4321, "secret")
+    assert json.loads(path.read_text()) == {"own_config": True, "draw_world": False,
+                                            "control": {"port": 4321, "token": "secret"}}
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_the_tour_presses_the_e2es_buttons_too():
+    """The e2e's HUD buttons (ScfgShowcase.h's names) are among the tour's, which checks the shop
+    has exactly these."""
+    assert e2e.UNLOCK == "Unlock.chapter2" and e2e.TIP == "Tip.1.00"
+    assert {e2e.UNLOCK, e2e.TIP, "Restore"} <= set(e2e.TOUR_BUTTONS)
+    assert len(set(e2e.TOUR_BUTTONS)) == len(e2e.TOUR_BUTTONS)
+
+
+def test_the_tour_runs_the_editor_build_only(capsys):
+    with pytest.raises(SystemExit) as raised:
+        e2e.main(["--showcase", "--packaged"])
+    assert raised.value.code == 2 and "--packaged" in capsys.readouterr().err
+
+
 def test_the_game_command_renders_on_the_cpu_and_never_headless(tmp_path):
     engine = Path("/ue")
     cmd = e2e.game_command(engine, tmp_path / "c.json", tmp_path / "user")
@@ -368,6 +390,8 @@ def test_the_inner_run_refuses_a_display_that_is_not_its_own(monkeypatch, capsys
     monkeypatch.setattr(e2e.tempfile, "mkdtemp", must_not_run)
     monkeypatch.setattr(e2e.subprocess, "Popen", must_not_run)
     assert e2e.main(["--family", "solana"]) == 2
+    assert "refusing to start a game" in capsys.readouterr().out
+    assert e2e.main(["--showcase"]) == 2  # the tour too
     assert "refusing to start a game" in capsys.readouterr().out
 
 

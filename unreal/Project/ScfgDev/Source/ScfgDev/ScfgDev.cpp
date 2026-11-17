@@ -9,6 +9,8 @@
 #include "Modules/ModuleManager.h"
 #include "Scfg/Amounts.h"
 #include "Scfg/Json.h"
+#include "ScfgSettings.h"
+#include "ScfgShowcase.h"
 
 IMPLEMENT_PRIMARY_GAME_MODULE(FDefaultGameModuleImpl, ScfgDev, "ScfgDev");
 
@@ -54,6 +56,32 @@ bool FScfgDevNoTelemetryTest::RunTest(const FString& Parameters)
 	{
 		TestFalse(TEXT("no Home panel (no connectivity check to www.google.com)"), HomeScreen->GetBool());
 	}
+	return true;
+}
+
+// The showcase's configuration without code (Config/DefaultGame.ini, [/Script/Scfg.ScfgSettings]) is what the plugin
+// applies at start: valid as Validate() checks it, with a wallet (so it is applied), on testnet, and with the item the
+// e2e unlocks. tests/unreal_showcase plays it.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FScfgDevShowcaseSettingsTest, "ScfgDev.ShowcaseSettings",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FScfgDevShowcaseSettingsTest::RunTest(const FString& Parameters)
+{
+	const UScfgSettings* Settings = GetDefault<UScfgSettings>();
+	for (const FScfgSettingsProblem& Problem : Settings->Validate())
+	{
+		AddError(FString::Printf(TEXT("the project settings: %s: %s"), *Problem.Code, *Problem.Message));
+	}
+	TestFalse(TEXT("they have a wallet, so the plugin applies them"), Settings->IsEmpty());
+	TestTrue(TEXT("testnet: no real money moves"), Settings->Options.bTestnet);
+	TestTrue(TEXT("no Solana wallet: the start checks nothing over the network"), Settings->Options.SolanaWallet.IsEmpty());
+	TArray<FString> Ids;
+	for (const FScfgSettingsItem& Item : Settings->Items)
+	{
+		Ids.Add(Item.Id);
+	}
+	TestEqual(TEXT("the showcase's three items"), FString::Join(Ids, TEXT(",")), FString(TEXT("chapter2,soundtrack,supporter")));
+	TestTrue(TEXT("the e2e's item among them"), Ids.Contains(UScfgShowcaseGameInstance::ITEM));
 	return true;
 }
 

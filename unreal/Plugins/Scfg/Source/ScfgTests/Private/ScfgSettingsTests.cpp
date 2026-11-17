@@ -100,10 +100,23 @@ FScfgSettingsItem ItemRow(const FString& Id, int32 Code, const FString& Price, c
 	return Row;
 }
 
+// New settings without the project's values: what UScfgSettings() makes (testnet on, nothing else). NewObject copies
+// the class default, which holds the project's own settings from its DefaultGame.ini (the dev project has the
+// showcase's: unreal/Project/ScfgDev/Config/DefaultGame.ini), so each test starts from these instead.
+TStrongObjectPtr<UScfgSettings> Blank()
+{
+	TStrongObjectPtr<UScfgSettings> S(NewObject<UScfgSettings>(GetTransientPackage()));
+	S->Options = FScfgOptions();
+	S->Options.bTestnet = true;
+	S->Chains.Reset();
+	S->Items.Reset();
+	return S;
+}
+
 // Unity's Make(): valid settings (a mainnet wallet on Arbitrum and the developer's own chain, one item), edited.
 TStrongObjectPtr<UScfgSettings> Make(TFunction<void(UScfgSettings&)> Edit = nullptr)
 {
-	TStrongObjectPtr<UScfgSettings> S(NewObject<UScfgSettings>(GetTransientPackage()));
+	TStrongObjectPtr<UScfgSettings> S = Blank();
 	S->Options.Wallet = UTF8_TO_TCHAR(kDev);
 	S->Options.bTestnet = false;
 	S->Options.Chains = {TEXT("arbitrum"), TEXT("myl2")};
@@ -177,9 +190,15 @@ bool FScfgSettingsValidTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("with a reminder"), Lines(S->Verdict({})),
 		FString(TEXT("Valid: the configuration, 0 chains and 2 items pass the checks SCFG runs when the game starts. | "
 					 "Testnet is on: players pay with test tokens. Turn it off for the release.")));
+	// New settings copy the class default: the constructor's values (testnet on, as Unity's asset), then the project's
+	// DefaultGame.ini over them. In this project the ini has the showcase's settings (testnet on too), so the
+	// constructor's own default is seen through Blank() only.
 	const TStrongObjectPtr<UScfgSettings> Fresh(NewObject<UScfgSettings>(GetTransientPackage()));
-	TestTrue(TEXT("new settings start on testnet, as Unity's asset"), Fresh->Options.bTestnet);
-	TestTrue(TEXT("and empty"), Fresh->IsEmpty() && !Fresh->HasRows());
+	const UScfgSettings* Project = GetDefault<UScfgSettings>();
+	TestTrue(TEXT("new settings start on testnet, as Unity's asset"), Fresh->Options.bTestnet && Blank()->Options.bTestnet);
+	TestTrue(TEXT("and copy the project's settings"), Fresh->Options.Wallet == Project->Options.Wallet &&
+		Fresh->Items.Num() == Project->Items.Num() && Fresh->Chains.Num() == Project->Chains.Num());
+	TestTrue(TEXT("blank settings are empty"), Blank()->IsEmpty() && !Blank()->HasRows());
 	TestEqual(TEXT("where they are"), Fresh->GetContainerName().ToString() + TEXT("/") + Fresh->GetCategoryName().ToString() +
 		TEXT("/") + Fresh->GetSectionName().ToString(), FString(TEXT("Project/Plugins/SCFG")));
 	TestEqual(TEXT("saved to DefaultGame.ini"), UScfgSettings::StaticClass()->ClassConfigName, FName(TEXT("Game")));
@@ -328,7 +347,7 @@ bool FScfgSettingsEveryProblemTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("the configuration's"), Problems.Num() == 2 && Problems[1].Code == TEXT("address.invalid") &&
 		!Problems[1].Message.StartsWith(TEXT("item")));
 	// Empty settings: the core says wallet.missing, the verdict that they are not applied.
-	const TStrongObjectPtr<UScfgSettings> Empty(NewObject<UScfgSettings>(GetTransientPackage()));
+	const TStrongObjectPtr<UScfgSettings> Empty = Blank();
 	Problems = Empty->Validate();
 	TestTrue(TEXT("empty: wallet.missing"), Problems.Num() == 1 && Problems[0].Code == TEXT("wallet.missing"));
 	const TArray<FString> Verdict = Empty->Verdict(Problems);
@@ -426,7 +445,7 @@ bool FScfgSettingsEmptyTest::RunTest(const FString& Parameters)
 	using namespace ScfgSettingsTests;
 	{
 		FWorld W;
-		const TStrongObjectPtr<UScfgSettings> S(NewObject<UScfgSettings>(GetTransientPackage()));
+		const TStrongObjectPtr<UScfgSettings> S = Blank();
 		FGame G(W, S.Get());
 		TestNull(TEXT("new settings: nothing is configured"), G.F().GetConfig());
 		TestEqual(TEXT("silently"), W.Reports().Errors.Num() + W.Reports().Warnings.Num(), 0);
@@ -651,7 +670,7 @@ bool FScfgSettingsMessageLogTest::RunTest(const FString& Parameters)
 		Got[0].StartsWith(TEXT("error item.invalid_price: item \"chapter2\": ")) &&
 		Got[1].StartsWith(TEXT("error item.invalid_title: item \"chapter3\": ")) &&
 		Got[2] == TEXT("warning Testnet is on: players pay with test tokens. Turn it off for the release."));
-	const TStrongObjectPtr<UScfgSettings> Empty(NewObject<UScfgSettings>(GetTransientPackage()));
+	const TStrongObjectPtr<UScfgSettings> Empty = Blank();
 	ScfgEditor::ValidateSettings(*Empty, /*bNotify=*/false);
 	const TArray<FString> EmptyGot = Messages();
 	TestTrue(TEXT("empty: the core's wallet.missing and the note"), EmptyGot.Num() == 2 &&
