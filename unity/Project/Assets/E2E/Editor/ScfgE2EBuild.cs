@@ -6,7 +6,8 @@
 // A release (non-development) StandaloneLinux64 player of the empty Assets/E2E/E2E.unity scene (the driver bootstraps
 // itself from SCFG_E2E_CONFIG). IL2CPP builds use Managed Stripping Level High, to prove the core and the glue survive
 // it with only the package's link.xml (handed over by Scfg.Editor.ScfgLinkXml). The player settings it changes are put
-// back afterwards, so ProjectSettings.asset stays as committed. Exit code 0 on success, 1 otherwise.
+// back afterwards, so ProjectSettings.asset stays as committed. Exit code 0 on success, 1 otherwise; a success also logs
+// "Build succeeded!" for GameCI (GameCiSuccess).
 #nullable enable
 using System;
 using System.IO;
@@ -26,6 +27,12 @@ namespace Scfg.E2E
         public const string Company = "Repulse";
         public const string Executable = "scfg-e2e.x86_64";
 
+        /// <summary>
+        /// Logged on success only. CI builds through game-ci/unity-builder, whose game-ci/cli fails any build whose log
+        /// lacks this exact text (UnityBuildValidation.validateBuild, CLI v0.1.76), as GameCI's own build script prints it.
+        /// </summary>
+        public const string GameCiSuccess = "Build succeeded!";
+
         private static string? Arg(string name)
         {
             var args = Environment.GetCommandLineArgs();
@@ -44,6 +51,7 @@ namespace Scfg.E2E
             {
                 Debug.LogException(e);
             }
+            if (code == 0) Debug.Log(GameCiSuccess);
             EditorApplication.Exit(code);
         }
 
@@ -63,6 +71,7 @@ namespace Scfg.E2E
             {
                 Debug.LogException(e);
             }
+            if (code == 0) Debug.Log(GameCiSuccess);
             EditorApplication.Exit(code);
         }
 

@@ -59,6 +59,9 @@ public static class ScfgSamplesCheck
             }
             Debug.Log("scfg-samples: " + name + " ok");
         }
+        // CI runs Check as game-ci/unity-builder's build method, and game-ci/cli fails any build whose log lacks this
+        // exact text (UnityBuildValidation.validateBuild, CLI v0.1.76). Only on success.
+        if (failures == 0) Debug.Log("Build succeeded!");
         EditorApplication.Exit(failures == 0 ? 0 : 1);
     }
 
