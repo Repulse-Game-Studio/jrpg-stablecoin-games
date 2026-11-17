@@ -37,8 +37,25 @@ def test_the_indexeddb_helpers_read_unitys_database():
 
 def test_the_families():
     assert set(web.FAMILIES) == {"evm", "arc", "solana"}
-    config = web.Solana.config.__qualname__
-    assert config == "Solana.config"
+    assert issubclass(web.FAMILIES["solana"], web.desk.Solana)
+
+
+def test_the_web_solana_family_carries_its_chain_override_in_the_config():
+    """A browser has no SCFG_E2E_CHAIN: the override must travel in window.scfgE2EConfig."""
+    fam = object.__new__(web.Solana)  # no validator: the attributes config() and chain() read
+    fam.dev = "Dev1111111111111111111111111111111111111111"
+    fam.mint = "Mint111111111111111111111111111111111111111"
+    fam.cluster = type("Cluster", (), {"url": "http://127.0.0.1:8899"})()
+    config = fam.config()
+    assert config["chain"] == fam.chain()
+    assert config["chain"] == {
+        "network": "testnet",
+        "key": "solana",
+        "rpc": ["http://127.0.0.1:8899"],
+        "tokens": {"USDC": fam.mint},
+    }
+    base = web.desk.Solana.config(fam)
+    assert {k: v for k, v in config.items() if k != "chain"} == base
 
 
 def test_console_problems_are_errors_warnings_and_page_errors():
