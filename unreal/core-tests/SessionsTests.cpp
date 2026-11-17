@@ -1,7 +1,7 @@
 // No Python twin: tests of scfg::sessions (sessions.py has no vector topic of its own; normalize_tx_hash's vectors
-// are tier1/tx_ids.json, task 11): create_session's record and draw order, list_sessions' order and its TypeErrors
-// (the C# port gave a KeyError for a record that is not a dict), set_hint, set_ui_status, the is_past_* arithmetic
-// and session_price. Every expectation is scfg_core's own output (python3 with plugin/game/python-packages, its
+// are tier1/tx_ids.json, which the Tier1 group runs): create_session's record and draw order, list_sessions' order
+// and its TypeErrors (the C# port gave a KeyError for a record that is not a dict), set_hint, set_ui_status, the
+// is_past_* arithmetic and session_price. Every expectation is scfg_core's own output (python3 with plugin/game/python-packages, its
 // `secrets` replaced by a script that records the draws).
 #include "support/Test.h"
 

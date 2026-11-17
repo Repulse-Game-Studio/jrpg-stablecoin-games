@@ -1,8 +1,8 @@
 // No Python twin: checks of Reverify.cpp below what the Tier 2 vectors pin. Every expectation is the Python
 // reference's (scfg_core.engine.Engine.reverify through conformance's replay.build_engine and ReplayTransport) on the
 // same setup and node answers, printed by the script quoted in full above each test: a stored log_index (or block)
-// of any size is valid and judged against what the node sent, as Python's int is unbounded (carried item from task
-// 5), and an invalid entry's report names its reason as Python's repr of the exception.
+// of any size is valid and judged against what the node sent, as Python's int is unbounded, and an invalid entry's
+// report names its reason as Python's repr of the exception.
 #include "support/JsonEq.h"
 #include "support/Test.h"
 #include "support/Tier2.h"

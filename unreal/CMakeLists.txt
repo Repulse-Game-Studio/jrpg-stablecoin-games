@@ -66,24 +66,19 @@ add_executable(scfg_core_driver
 target_link_libraries(scfg_core_driver PRIVATE scfg_core)
 target_include_directories(scfg_core_driver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core-tests)
 
-# One ctest test per group. Each task that adds a test group appends it here; RunnerTests.EveryGroupIsRegistered
-# fails if the binary has a group that is not in SCFG_TEST_GROUPS. SCFG_PENDING_GROUPS held the vector groups that
-# existed before every topic was ported (ruling R1); it is empty now, and EveryGroupIsRegistered requires it to stay
-# empty.
+# One ctest test per group. A new test group is added here: RunnerTests.EveryGroupIsRegistered fails if the binary
+# has a group that is not in SCFG_TEST_GROUPS, or SCFG_TEST_GROUPS one the binary does not have.
 set(SCFG_TEST_GROUPS LintTests RunnerTests ErrTests BigIntTests BytesTests JsonTests PyTests PyFloatTests IntsTests
   LocaleTests Tier1Tests DecTests AmountsTests Sha256Tests KeccakTests EvmTests
   Base58Tests Ed25519Tests ChainsTests ConfigTests PaymentsTests ReceiptsTests SessionsTests EntropyTests
   PdaTests SolanaTxTests QrTests PaylinksTests CoTests CoioTests RpcTests SolanaRpcTests Tier2Tests EngineTests
   SolanaBackendTests ReverifyTests Tier1 Tier2 Tier2Deferred)
-set(SCFG_PENDING_GROUPS)
 
 cmake_path(GET CMAKE_CURRENT_SOURCE_DIR PARENT_PATH SCFG_REPO_ROOT)
 string(JOIN "," SCFG_TEST_GROUPS_CSV ${SCFG_TEST_GROUPS})
-string(JOIN "," SCFG_PENDING_GROUPS_CSV ${SCFG_PENDING_GROUPS})
 target_compile_definitions(scfg_core_tests PRIVATE
   SCFG_REPO_ROOT="${SCFG_REPO_ROOT}"
-  SCFG_CTEST_GROUPS="${SCFG_TEST_GROUPS_CSV}"
-  SCFG_PENDING_GROUPS="${SCFG_PENDING_GROUPS_CSV}")
+  SCFG_CTEST_GROUPS="${SCFG_TEST_GROUPS_CSV}")
 
 enable_testing()
 foreach(group IN LISTS SCFG_TEST_GROUPS)

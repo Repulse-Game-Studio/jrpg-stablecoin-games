@@ -80,7 +80,7 @@ SCFG_TEST(BigIntTests, Int64Bounds) {
     SCFG_CHECK(t, !over.ok() && over.err().is_a("OverflowError"));
 }
 
-// Python's int(s) for 4300 digits (its default str-digits limit; the limit itself is py::py_int's, task 3):
+// Python's int(s) for 4300 digits (its default str-digits limit; the limit itself is py::py_int's):
 //   s = "1234567890" * 430; v = int(s); v.bit_length() == 14282; v % 1000000007 == 816191493
 SCFG_TEST(BigIntTests, DecimalRoundTripOf4300Digits) {
     std::string s;

@@ -399,7 +399,7 @@ SCFG_TEST(LintTests, FileChecksBite) {
 }
 
 // Every macro UnrealMacroPoison.h defines expands to SCFG_UE_POISON_<name>::unreal_macro, and none of the names
-// this task's brief lists has gone missing.
+// below (the Unreal and Windows macros known to break plain C++) has gone missing.
 SCFG_TEST(LintTests, PoisonHeaderIsWellFormed) {
     std::ifstream in(std::string(SCFG_REPO_ROOT) + "/unreal/core-tests/support/UnrealMacroPoison.h");
     std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());

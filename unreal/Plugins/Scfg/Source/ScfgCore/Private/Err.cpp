@@ -17,10 +17,10 @@ struct Kind {
     std::string_view bases;
 };
 
-// godot/addons/scfg/core/err.gd's BASES, whole, plus NotImplementedError: Python built-ins, the decimal module's
+// godot/addons/scfg/core/err.gd's BASES, whole: Python built-ins, the decimal module's
 // signals, the QR generator's DataTooLongError, scfg_core's own, and asyncio's CancelledError (a BaseException,
 // so an `except Exception` around a session step does not swallow a cancellation).
-constexpr std::array<Kind, 28> kKinds = {{
+constexpr std::array<Kind, 27> kKinds = {{
     {"BaseException", ""},
     {"Exception", "BaseException"},
     {"ValueError", "Exception BaseException"},
@@ -43,8 +43,6 @@ constexpr std::array<Kind, 28> kKinds = {{
     {"AssertionError", "Exception BaseException"},
     // coio.run_sync's "no transport to reach <url>"
     {"RuntimeError", "Exception BaseException"},
-    // not in err.gd: what a stub would raise (none is left; the Tier 2 runner refuses it as any Python exception)
-    {"NotImplementedError", "RuntimeError Exception BaseException"},
     {"ScfgError", "Exception BaseException"},
     {"ConfigError", "ScfgError ValueError Exception BaseException"},
     {"RestoreError", "Exception BaseException"},

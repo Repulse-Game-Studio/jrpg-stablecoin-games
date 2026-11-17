@@ -719,7 +719,7 @@ Result<Json> snapshot_json(const engine::Engine& eng) {
 }
 
 bool stands_for_python(const Err& e) {
-    return e.is_a("Exception") && !e.is_a("NotImplementedError") && !e.is_a("HostGone");
+    return e.is_a("Exception") && !e.is_a("HostGone");
 }
 
 std::optional<Json> raises_json(const Err& e) {

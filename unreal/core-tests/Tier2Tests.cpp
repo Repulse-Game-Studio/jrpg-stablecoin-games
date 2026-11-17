@@ -180,7 +180,7 @@ SCFG_TEST(Tier2Tests, OnlyPythonExceptionsStandForOther) {
     std::optional<Json> restore_e = tier2::raises_json(Err::restore_error("tx_not_found", "tx_not_found"));
     t.check(restore_e && scfg_test::json_eq(*restore_e, Json::dict({{"type", "RestoreError"}, {"code", "tx_not_found"}})),
             "a RestoreError keeps its code");
-    for (const char* kind : {"NotImplementedError", "CancelledError", "HostGone"}) {
+    for (const char* kind : {"CancelledError", "HostGone"}) {
         t.check(!tier2::raises_json(Err::make(kind, "x")).has_value(), std::string(kind) + " stands for a recorded raise");
         t.check(!tier2::stands_for_python(Err::make(kind, "x")), std::string(kind) + " stands for a contained error");
     }
@@ -260,7 +260,7 @@ SCFG_TEST(Tier2Tests, OnlyAPythonExceptionStandsForAContainedError) {
                              "ConfigError", "InvalidOperation"}) {
         t.check(tier2::stands_for_python(Err::make(kind, "x")), std::string(kind) + " stands for Python's");
     }
-    for (const char* kind : {"NotImplementedError", "HostGone", "CancelledError"}) {
+    for (const char* kind : {"HostGone", "CancelledError"}) {
         t.check(!tier2::stands_for_python(Err::make(kind, "x")), std::string(kind) + " stands for nothing of Python's");
     }
 }

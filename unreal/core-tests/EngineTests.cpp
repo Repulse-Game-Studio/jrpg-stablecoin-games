@@ -339,7 +339,7 @@ SCFG_TEST(EngineTests, TheBackendsRegistry) {
     t.check(!no_urls.ok() && no_urls.err().kind == "ValueError", "no urls");
 }
 
-// ---- a node's log index beyond str()'s 4300-digit limit (review finding T13-1) ----
+// ---- a node's log index beyond str()'s 4300-digit limit ----
 
 namespace scfg_test::engine_tests {
 

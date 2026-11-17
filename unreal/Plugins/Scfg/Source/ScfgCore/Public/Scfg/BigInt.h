@@ -6,7 +6,7 @@
 // truncating division cannot be mistaken for Python's. A zero divisor is Python's ZeroDivisionError.
 //
 // Text: from_decimal/from_hex take ASCII digits only (Python's int() with Unicode digits, underscores, spaces
-// and its 4300-digit limit is py::py_int, task 3, built on these).
+// and its 4300-digit limit is py::py_int, built on these).
 #pragma once
 
 #include "Scfg/Result.h"

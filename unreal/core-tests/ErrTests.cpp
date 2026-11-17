@@ -1,5 +1,5 @@
 // No Python twin: tests of scfg::Err (Python's exception classes as values), Result and SCFG_TRY.
-// SCFG_CO_TRY and SCFG_CO_TRY_VOID are tested in task 10, with the coroutine type they return through.
+// SCFG_CO_TRY and SCFG_CO_TRY_VOID are tested in CoTests.cpp, with the coroutine type they return through.
 #include "support/Test.h"
 
 #include "Scfg/Err.h"
@@ -62,8 +62,7 @@ SCFG_TEST(ErrTests, BuiltinFactoriesAndTheirBases) {
     SCFG_CHECK(t, Err::make("InvalidOperation", "d").is_a("ArithmeticError"));
     SCFG_CHECK(t, !Err::make("InvalidOperation", "d").is_a("ValueError"));
     SCFG_CHECK(t, Err::make("DataTooLongError", "q").is_a("ValueError"));
-    SCFG_CHECK(t, Err::make("NotImplementedError", "n").is_a("RuntimeError"));
-    SCFG_CHECK(t, Err::make("NotImplementedError", "n").is_a("Exception"));
+    SCFG_CHECK(t, Err::make("RuntimeError", "r").is_a("Exception"));
     SCFG_CHECK(t, Err::make("RpcUnavailable", "u").is_a("Exception"));
     SCFG_CHECK(t, !Err::make("RpcUnavailable", "u").is_a("RpcError"));
 

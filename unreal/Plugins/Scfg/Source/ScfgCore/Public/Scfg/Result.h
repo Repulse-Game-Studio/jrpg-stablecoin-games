@@ -109,6 +109,6 @@ inline Status ok() { return Status(); }
 #define SCFG_TRY(decl, expr) SCFG_DETAIL_TRY(SCFG_DETAIL_CAT(scfg_try_, __COUNTER__), decl, expr, return)
 // Evaluates expr (a Status, or a Result whose value is dropped) and returns its Err if it failed.
 #define SCFG_TRY_VOID(expr) SCFG_DETAIL_TRY_VOID(SCFG_DETAIL_CAT(scfg_try_, __COUNTER__), expr, return)
-// The same inside a coroutine (Co<T>, task 10): the Err leaves through co_return. Tested in task 10.
+// The same inside a coroutine (Co<T>): the Err leaves through co_return. Tested in CoTests.cpp.
 #define SCFG_CO_TRY(decl, expr) SCFG_DETAIL_TRY(SCFG_DETAIL_CAT(scfg_try_, __COUNTER__), decl, expr, co_return)
 #define SCFG_CO_TRY_VOID(expr) SCFG_DETAIL_TRY_VOID(SCFG_DETAIL_CAT(scfg_try_, __COUNTER__), expr, co_return)

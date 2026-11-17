@@ -3,7 +3,8 @@
 // snapshot_json, candidate_from_json, ScriptedEntropy, ReplayTransport, replay) and of unity/core-tests/Tier2.cs;
 // conformance/README.md's "Tier 2" section is the contract.
 //
-// This file and JsonEq do not depend on the test runner (ruling R6): the console driver (task 14) links them too.
+// This file and JsonEq do not depend on the test runner (ruling R6): the console driver (core-driver/) links them
+// too.
 // replay() returns the first difference as a string (nullopt when the vector passes) and the *Tests.cpp files
 // assert on it. Malformed recorded data is a difference too, never an abort.
 //
@@ -11,10 +12,9 @@
 // Deferred (it queues them, and the runner pumps one queued request per loop turn until the action's Job is done,
 // as Unreal's HTTP callbacks complete them on a later tick; a step that recorded calls must have suspended).
 //
-// What a recorded {"type": "other"} accepts, and what may be counted as an internal error: an Err of a Python kind
-// (Err.cpp's table) other than NotImplementedError (no Python core path raises one; a port's stub would),
-// CancelledError and HostGone (Godot's). An Err of a kind outside the table already fails the test through
-// errors::misuse().
+// What a recorded {"type": "other"} accepts, and what may be counted as an internal error: an Err of a Python
+// Exception kind (Err.cpp's table), so not CancelledError (a BaseException) nor HostGone (Godot's). An Err of a kind
+// outside the table already fails the test through errors::misuse().
 #pragma once
 
 #include "Scfg/Coio.h"
@@ -141,7 +141,7 @@ scfg::Result<scfg::Json> snapshot_json(const scfg::engine::Engine& engine);
 
 // run_action's except clauses for an Err the action raised: {"type": "ConfigError", "code"}, {"type":
 // "RestoreError", "code"}, {"type": "other"} for any other Python exception; nullopt for an Err no recorded raise
-// stands for (NotImplementedError, CancelledError, HostGone).
+// stands for (CancelledError, HostGone).
 std::optional<scfg::Json> raises_json(const scfg::Err& e);
 // The Err may be an Exception Python's core raised or contained (raises "other", internal_errors).
 bool stands_for_python(const scfg::Err& e);

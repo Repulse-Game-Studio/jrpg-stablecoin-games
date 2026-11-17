@@ -183,10 +183,9 @@ SCFG_TEST(RunnerTests, ChecksReportBothValues) {
     SCFG_CHECK(t, contains(c.messages()[3], "1 + 1 == 3"));
 }
 
-// Every group in the binary is run by ctest, and none is pending any more (ruling R1: task 13 emptied the list).
+// The binary's groups are exactly the ones ctest runs (SCFG_TEST_GROUPS in unreal/CMakeLists.txt).
 SCFG_TEST(RunnerTests, EveryGroupIsRegistered) {
-    std::set<std::string> ctest = split(SCFG_CTEST_GROUPS), pending = split(SCFG_PENDING_GROUPS);
-    t.check(pending.empty(), "SCFG_PENDING_GROUPS must be empty: every group is run by ctest");
+    std::set<std::string> ctest = split(SCFG_CTEST_GROUPS);
     std::vector<std::string> groups = scfg_test::registry().groups();
     for (const std::string& g : groups) {
         t.check(ctest.count(g) != 0, "group " + g + " is not run by ctest: add it to SCFG_TEST_GROUPS in unreal/CMakeLists.txt");
