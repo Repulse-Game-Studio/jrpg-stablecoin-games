@@ -64,6 +64,7 @@ GODOT_ADDON = ROOT / "godot" / "addons" / "scfg"
 GODOT_SKIP_PARTS = {"__pycache__", ".godot", "tests", "demo", "e2e"}
 GODOT_SKIP_SUFFIXES = {".uid", ".pyc"}
 RPGMAKER_PAGES = "developers/rpgmaker/"
+UNREAL_PAGES = "developers/unreal/"
 RPGMAKER_GUIDE_TITLE = "# Stablecoin for Games: RPG Maker MZ Developer Guide"
 RPGMAKER_DIR = ROOT / "rpgmaker"
 RPGMAKER_VERSION_SOURCE = RPGMAKER_DIR / "src" / "mz" / "version.ts"
@@ -109,6 +110,9 @@ def developer_guide(
     page outside the joined ones fails. With `intro`, the first page is the guide's intro
     (its title line is replaced by `title`); without, every page is a section under `title`.
     """
+    # The Unreal pages are a guide of their own: a guide that would take them in skips them.
+    if not prefix.startswith(UNREAL_PAGES):
+        skip = (*skip, UNREAL_PAGES)
     sidebar = json.loads(SIDEBARS.read_text(encoding="utf-8"))["docs"]
     depth = {
         p: level
