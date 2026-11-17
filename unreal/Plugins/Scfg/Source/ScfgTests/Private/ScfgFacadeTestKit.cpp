@@ -398,7 +398,10 @@ FScfgFacadeOptions FWorld::Options()
 		scfg::backends::base::client_of(Rpc).clock = [Ticks]() { return *Ticks += 86400.0; };
 		return Rpc;
 	};
-	Out.WorkerInterval = []() { return 1e9; };  // Godot's ManualTimer: no pass unless RunOnce()
+	if (bManualWorker)
+	{
+		Out.WorkerInterval = []() { return 1e9; };  // Godot's ManualTimer: no pass unless RunOnce()
+	}
 	Out.bQuiet = true;
 	Out.Platform = Platform;
 	if (bRecordingServer)
@@ -596,10 +599,15 @@ FScfgCheckout& FWorld::Session(FAutomationTestBase& Test)
 
 void FWorld::PayOnChain(FScfgCheckout& Checkout)
 {
+	const Json& Session = Checkout.Core().session();
+	if (!Session.is_dict() || !Session.as_dict().get("units").is_int64())
+	{
+		return;  // no session: the caller's assertions fail, the editor does not abort
+	}
 	FFakeChain& Arbitrum = Chains->Chain("arbitrum");
 	const int64_t Block = Arbitrum.Head + 1;
-	Arbitrum.Logs.push_back(TransferLog(UsdcArbitrum(), kPayer, kDev,
-		Checkout.Core().session().as_dict().get("units").as_int64(), Block, kTx));
+	Arbitrum.Logs.push_back(TransferLog(UsdcArbitrum(), kPayer, kDev, Session.as_dict().get("units").as_int64(), Block,
+		kTx));
 	Arbitrum.Head = Block;
 	Pass();
 	Arbitrum.Head = Block + 19;

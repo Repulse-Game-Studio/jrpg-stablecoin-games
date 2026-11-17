@@ -22,6 +22,7 @@
 #include "Scfg/Rpc.h"
 #include "Scfg/Watcher.h"
 
+#include <algorithm>
 #include <cmath>
 #include <deque>
 #include <functional>
@@ -197,6 +198,36 @@ SCFG_TEST(EngineTests, MakeTakesWhatTheConstructorTakes) {
     t.check(transport.methods == std::vector<std::string>{"eth_blockNumber"}, "the given transport");
     eng.on_error(scfg::Err::make("ValueError", "x"));
     SCFG_CHECK_EQ(t, errors.size(), 1);
+}
+
+// Python's Engine shares the game's Config: an item added after the Engine was built can be sold and owned. The C++
+// Engine holds a copy, and add_item applies config::add_item to it (same validation, same codes).
+SCFG_TEST(EngineTests, AnItemAddedLaterCanBeSoldAndOwned) {
+    HeadTransport transport;
+    const std::string key = "base:0x" + std::string(64, 'a') + ":1";
+    const Json receipts = Json::dict({{key, Json::dict({{"chain", "base"}, {"tx_hash", "0x" + std::string(64, 'a')},
+                                                        {"log_index", 1}, {"block", 900}, {"kind", "unlock"},
+                                                        {"item", "chapter3"}, {"amount", "2.00"}, {"token", "USDC"},
+                                                        {"payer", Json()}, {"recipient", "0x0"}, {"source", "payment"}})}});
+    engine::Engine eng(base_config(), transport, Json(), receipts, [] { return int64_t{1700000000}; });
+    const Json kwargs = Json::dict({{"code", 38}, {"price", "2.00"}, {"token", "USDC"}, {"title", "Chapter 3"}});
+    std::optional<Result<Json>> before = run_now(eng.start_session("unlock", "base", Json::dict({{"item", "chapter3"}})));
+    t.check(before && !before->ok() && before->err().code == "item.unknown", "unknown before add_item");
+    Result<scfg::models::Item> added = eng.add_item("chapter3", kwargs);
+    if (!t.check(added.ok(), "add_item")) return;
+    SCFG_CHECK_EQ(t, added.value().code, 38);
+    t.check(eng.config().items.contains("chapter3"), "the Engine's own config has it");
+    Result<engine::Snapshot> snap = eng.snapshot();
+    t.check(snap.ok() && std::find(snap.value().owned.begin(), snap.value().owned.end(), "chapter3") !=
+                             snap.value().owned.end(),
+            "its stored receipt is owned now");
+    std::optional<Result<Json>> after = run_now(eng.start_session("unlock", "base", Json::dict({{"item", "chapter3"}})));
+    t.check(after && after->ok(), "and it can be sold");
+    Result<scfg::models::Item> twice = eng.add_item("chapter3", kwargs);
+    t.check(!twice.ok() && twice.err().code == "item.duplicate_id", "config::add_item's codes");
+    Result<scfg::models::Item> bad = eng.add_item("chapter4", Json::dict({{"code", 0}, {"price", "2.00"}, {"token", "USDC"},
+                                                                         {"title", "x"}}));
+    t.check(!bad.ok() && bad.err().code == "item.invalid_code", "and validation");
 }
 
 SCFG_TEST(EngineTests, ACrashIsContainedAndCounted) {

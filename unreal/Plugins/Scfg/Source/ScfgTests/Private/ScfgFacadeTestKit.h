@@ -186,6 +186,8 @@ struct FWorld
 	FFakeNodeTransport* Transport = nullptr;  // owned by the worker
 	TSharedPtr<FScfgFacade> Facade;
 	bool bRecordingServer = false;
+	// The worker never ticks by itself (Godot's ManualTimer); false keeps the facade's own interval wiring.
+	bool bManualWorker = true;
 	double TickerOwed = 0;  // seconds the clock moved that the ticker has not yet
 
 	// A new directory under Saved/ScfgTests (Dir); no facade yet.

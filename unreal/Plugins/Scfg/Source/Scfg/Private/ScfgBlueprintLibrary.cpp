@@ -19,17 +19,34 @@ UScfgSubsystem* UScfgBlueprintLibrary::GetSubsystem(const UObject* WorldContextO
 namespace ScfgLibraryDetail
 {
 
+// The node kinds that logged "no subsystem" this session (game thread only).
+TSet<FString>& Logged()
+{
+	static TSet<FString> Names;
+	return Names;
+}
+
 UScfgSubsystem* Find(const UObject* WorldContextObject, const TCHAR* What)
 {
 	UScfgSubsystem* Scfg = UScfgBlueprintLibrary::GetSubsystem(WorldContextObject);
 	if (!Scfg)
 	{
-		UE_LOG(LogScfg, Error, TEXT("scfg: %s: no SCFG subsystem here (it needs a game instance)"), What);
+		bool bLogged = false;
+		Logged().Add(What, &bLogged);
+		if (!bLogged)
+		{
+			UE_LOG(LogScfg, Error, TEXT("scfg: %s: no SCFG subsystem here (it needs a game instance)"), What);
+		}
 	}
 	return Scfg;
 }
 
 }  // namespace ScfgLibraryDetail
+
+void UScfgBlueprintLibrary::ResetLogOnceForTests()
+{
+	ScfgLibraryDetail::Logged().Reset();
+}
 
 bool UScfgBlueprintLibrary::Owns(const UObject* WorldContextObject, const FString& ItemId)
 {

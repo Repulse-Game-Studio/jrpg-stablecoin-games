@@ -6,7 +6,8 @@
 // player kept playing through) also reach the subsystem's OnPaymentResolved: a handler of both must be idempotent.
 //
 // When the game instance shuts down with the screen open, the call resolves without delivering anything: OnResolved
-// does not fire (no Blueprint runs during the teardown), and the node is released.
+// does not fire (no Blueprint runs during the teardown, garbage collection included), and the node is released.
+// A node made without any subsystem (no game instance) resolves Failed "RuntimeError" at once.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -40,6 +41,9 @@ private:
 	void Finish(const FScfgPaymentResult& Result);
 
 	TWeakObjectPtr<UScfgSubsystem> Subsystem;
+	// It was made with a subsystem: one gone by the time the result comes means the game instance went away (no pin),
+	// not "no subsystem" (a Failed pin).
+	bool bHadSubsystem = false;
 	EScfgPayKind Kind = EScfgPayKind::Unlock;
 	FScfgPayRequest Request;
 };
@@ -66,4 +70,5 @@ private:
 	void Finish(const FScfgRestoreResult& Result);
 
 	TWeakObjectPtr<UScfgSubsystem> Subsystem;
+	bool bHadSubsystem = false;
 };

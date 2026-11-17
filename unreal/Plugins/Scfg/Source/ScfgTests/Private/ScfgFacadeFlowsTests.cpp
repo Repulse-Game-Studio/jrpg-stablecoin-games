@@ -16,7 +16,8 @@
 //   test_misused_pay_resolves_failed_with_code               -> same name. Godot only: the unknown option ("colour")
 //       and the callback that is not a Callable, which typed requests and callbacks cannot express; "gift" is an
 //       EScfgPayKind value outside the enum
-//   test_interval_is_3s_while_a_sheet_is_open                -> same name (PollInterval(), the worker's interval)
+//   test_interval_is_3s_while_a_sheet_is_open                -> same name: the worker's own interval (GetInterval()),
+//       with the facade's wiring kept (no ManualTimer stand-in)
 //   test_a_sheet_freed_without_closing_counts_as_cancel      -> same name (the host releases the screen)
 //   test_a_sheet_never_in_the_tree_or_reparented             -> Godot only: the scene tree (a screen outside it, a
 //       reparented one); a screen released without Close is the test above
@@ -38,9 +39,12 @@
 //       what the pump reads, as Godot's test sets worker.snapshot)
 //   test_the_snapshot_is_read_before_the_outcomes_are_drained -> same name (DrainForTests plays RacingWorker)
 // C++ only:
-//   TheDesktopPathWorksWithoutAPageServer                    -> the default facade has no page server until task 6
-//       (server_factory None, which the controller allows): the browser method is still offered on a desktop, as in
-//       Python, and opening it starts nothing and opens nothing; the QR link and the manual hash work
+//   TheDesktopPathWorksWithoutAPageServer                    -> the default facade has no page server until task 6:
+//       its default factory fails (warned once), so the browser method shows "browser_unavailable" and drops out;
+//       the QR link and the manual hash work
+//   AnItemAddedAfterTheStartCanBeSoldAndOwned                -> AddItem after the worker started reaches the Engine
+//       (Python's Engine shares the game's Config): paid on chain, then owned
+//   ClearLocalDataWithAPaymentSheetOpen                      -> the wipe while a sheet watches its session
 #include "Misc/AutomationTest.h"
 
 #include "HAL/PlatformTime.h"
@@ -377,19 +381,21 @@ bool FScfgFlowsIntervalTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgFacadeFlowsTests;
 	FWorld W;
-	FScfgFacade& S = W.Started(*this);
-	TestEqual(TEXT("15 s with nothing open"), S.PollInterval(), 15.0);
+	W.bManualWorker = false;  // the worker reads the facade's PollInterval(); frames with no time pass tick nothing
+	W.Started(*this);
+	FScfgWorker& Worker = W.Worker();
+	TestEqual(TEXT("15 s with nothing open"), Worker.GetInterval(), 15.0);
 	W.Pay(EScfgPayKind::Unlock, Unlock());
-	TestEqual(TEXT("3 s while the payment sheet is open"), S.PollInterval(), 3.0);
+	TestEqual(TEXT("3 s while the payment sheet is open"), Worker.GetInterval(), 3.0);
 	W.Session(*this);
 	W.Host->CloseSheet(-1, TEXT("keep_playing"));
 	W.Pump();
-	TestEqual(TEXT("15 s again for a background payment"), S.PollInterval(), 15.0);
+	TestEqual(TEXT("15 s again for a background payment"), Worker.GetInterval(), 15.0);
 	W.Restore();
-	TestEqual(TEXT("3 s while the restore screen is open"), S.PollInterval(), 3.0);
+	TestEqual(TEXT("3 s while the restore screen is open"), Worker.GetInterval(), 3.0);
 	W.Host->CloseSheet(-1, TEXT("close"));
 	W.Pump();
-	TestEqual(TEXT("15 s once it is closed"), S.PollInterval(), 15.0);
+	TestEqual(TEXT("15 s once it is closed"), Worker.GetInterval(), 15.0);
 	return true;
 }
 
@@ -942,11 +948,17 @@ bool FScfgFlowsNoPageServerTest::RunTest(const FString& Parameters)
 	const TSharedRef<TOptional<FScfgPaymentResult>> Box = W.Pay(EScfgPayKind::Unlock, Unlock());
 	FScfgCheckout& Ctl = W.Session(*this);
 	const std::vector<std::string> Methods = Ctl.Core().methods();
-	TestTrue(TEXT("the desktop rule: every method is offered"),
+	TestTrue(TEXT("the desktop rule: every method is offered until the page is tried"),
 		Methods == std::vector<std::string>{"browser", "qr", "manual"});
 	Ctl.OpenBrowser();
-	TestTrue(TEXT("Open checkout in browser starts no page and opens nothing"),
-		W.Platform->Opened.Num() == 0 && !Ctl.Core().start_browser().has_value() && !Ctl.Core().browser_failed());
+	TestTrue(TEXT("Open checkout in browser: the default factory fails, so the browser is unavailable"),
+		W.Platform->Opened.Num() == 0 && Ctl.Core().browser_failed() &&
+			Ctl.Core().error == std::optional<std::string>("browser_unavailable"));
+	TestTrue(TEXT("and drops out of the methods"),
+		Ctl.Core().methods() == std::vector<std::string>{"qr", "manual"});
+	TestEqual(TEXT("the factory's Err is reported once, as a warning"), W.Reports().Warnings.Num(), 1);
+	Ctl.Core().start_browser();
+	TestEqual(TEXT("once"), W.Reports().Warnings.Num(), 1);
 	const scfg::Result<std::optional<std::string>> Uri = Ctl.Core().payment_uri();
 	TestTrue(TEXT("the QR's payment link"), Uri.ok() && Uri.value() && Uri.value()->rfind("ethereum:", 0) == 0);
 	const scfg::Result<bool> Sent = Ctl.Core().submit_hash(kTx);
@@ -958,6 +970,62 @@ bool FScfgFlowsNoPageServerTest::RunTest(const FString& Parameters)
 	W.Host->CloseSheet(-1, TEXT("cancel"));
 	W.Pump();
 	TestTrue(TEXT("and the sheet closes as any other"), Is(*Box, EScfgPaymentStatus::Cancelled));
+	return true;
+}
+
+SCFG_FACADE_FLOWS_TEST(FScfgFlowsLateItemTest, "AnItemAddedAfterTheStartCanBeSoldAndOwned")
+
+bool FScfgFlowsLateItemTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeFlowsTests;
+	FWorld W;
+	FScfgFacade& S = W.Started(*this);  // Configure, AddItem("chapter2"), the first pump: the worker runs
+	FScfgItem Chapter3;
+	Chapter3.Code = 38;
+	Chapter3.Price = TEXT("2.00");
+	Chapter3.Token = TEXT("USDC");
+	Chapter3.Title = TEXT("Chapter 3");
+	TestFalse(TEXT("AddItem after the start"), S.AddItem(TEXT("chapter3"), Chapter3).IsSet());
+	const TSharedRef<FResults> Called = NewResults();
+	const TSharedRef<TOptional<FScfgPaymentResult>> Box = W.Pay(EScfgPayKind::Unlock, Unlock(TEXT("chapter3")), Called);
+	FScfgCheckout& Ctl = W.Session(*this);  // the Engine's own prepare_payment knows chapter3
+	TestEqual(TEXT("no worker error"), W.Reports().Errors.Num(), 0);
+	W.PayOnChain(Ctl);
+	TestEqual(TEXT("the payment is detected"), FString(UTF8_TO_TCHAR(Ctl.Core().state().c_str())), TEXT("paid"));
+	TestEqual(TEXT("the callback gets it"), Statuses(*Called), TEXT("Paid"));
+	TestTrue(TEXT("chapter3 is owned"), S.Owns(TEXT("chapter3")));
+	TestFalse(TEXT("chapter2 is not"), S.Owns(TEXT("chapter2")));
+	W.Host->CloseSheet(-1, TEXT("finish"));
+	W.Pump();
+	TestTrue(TEXT("pay() resolves paid"), Is(*Box, EScfgPaymentStatus::Paid) && (*Box)->Item == TEXT("chapter3"));
+	const TSharedRef<TOptional<FScfgPaymentResult>> Again = W.Pay(EScfgPayKind::Unlock, Unlock(TEXT("chapter3")));
+	TestTrue(TEXT("and a second Pay is already_owned"), Is(*Again, EScfgPaymentStatus::AlreadyOwned));
+	return true;
+}
+
+SCFG_FACADE_FLOWS_TEST(FScfgFlowsClearWithSheetTest, "ClearLocalDataWithAPaymentSheetOpen")
+
+bool FScfgFlowsClearWithSheetTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeFlowsTests;
+	FWorld W;
+	FScfgFacade& S = W.Started(*this);
+	const TSharedRef<TOptional<FScfgPaymentResult>> Box = W.Pay(EScfgPayKind::Unlock, Unlock());
+	FScfgCheckout& Ctl = W.Session(*this);
+	const FString Sid = SessionIdOf(Ctl);
+	TestTrue(TEXT("a pending session"), S.Pending().as_dict().contains(ScfgString::ToUtf8(Sid)));
+	S.ClearLocalData();
+	TestTrue(TEXT("forgotten at once"), S.Pending().as_dict().empty());
+	W.Pass();
+	TestTrue(TEXT("the Engine is wiped too"), W.Worker().GetSnapshot().pending.as_dict().empty());
+	TestTrue(TEXT("and the file"), Same(W.OnDiskPending(), Json::dict()));
+	TestEqual(TEXT("the sheet is still open"), S.NumCheckouts(), 1);
+	W.Host->CloseSheet(-1, TEXT("cancel"));
+	W.Pump();
+	W.Pass();
+	TestTrue(TEXT("the cancel resolves as usual"), Is(*Box, EScfgPaymentStatus::Cancelled) && (*Box)->SessionId == Sid);
+	TestTrue(TEXT("and marks nothing back (the session is gone)"), S.Pending().as_dict().empty());
+	TestEqual(TEXT("no worker error"), W.Reports().Errors.Num(), 0);
 	return true;
 }
 

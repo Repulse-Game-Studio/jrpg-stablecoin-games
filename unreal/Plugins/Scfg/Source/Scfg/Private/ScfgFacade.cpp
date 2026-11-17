@@ -8,6 +8,7 @@
 #include "ScfgSubmitter.h"
 
 #include "HAL/FileManager.h"
+#include "HAL/PlatformMisc.h"
 #include "HAL/PlatformTime.h"
 #include "Misc/App.h"
 #include "Misc/DateTime.h"
@@ -57,6 +58,18 @@ double Number(const scfg::Json& V)
 		return static_cast<double>(V.as_int64());
 	}
 	return V.is_float() ? V.as_float() : 0.0;
+}
+
+// A call from another thread is misuse: one ensure (logged with its callstack), then the caller's Failed result or
+// neutral value. Nothing of the facade is touched off the game thread.
+bool OffGameThread(const TCHAR* What)
+{
+	return !ensureMsgf(IsInGameThread(), TEXT("scfg: %s must be called on the game thread"), What);
+}
+
+scfg::Err WrongThread(const TCHAR* What)
+{
+	return scfg::Err::make("RuntimeError", ScfgString::ToUtf8(FString::Printf(TEXT("%s must be called on the game thread"), What)));
 }
 
 FScfgPaymentResult Result(EScfgPaymentStatus Status, EScfgPayKind Kind, const FString& Item, const FString& Token)
@@ -160,6 +173,23 @@ FScfgFacade::FScfgFacade(FScfgFacadeOptions InOptions) : Options(MoveTemp(InOpti
 	{
 		Options.Platform = MakeShared<FScfgDesktopPlatform>();
 	}
+	if (!Options.ServerFactory)
+	{
+		// No localhost page server yet (task 6 replaces this): the factory fails, so the controller marks the browser
+		// method unavailable (error "browser_unavailable") instead of offering a button that does nothing. Its Err is
+		// reported here, once (Checkout.h: the factory reports its own Err).
+		Options.ServerFactory = [Reporter = Reporter, Warned = MakeShared<bool>(false)](scfg::checkout::ServerArgs)
+			-> scfg::Result<std::unique_ptr<scfg::checkout::Server>>
+		{
+			if (!*Warned)
+			{
+				*Warned = true;
+				Reporter->Warning(TEXT("scfg: this version of the plugin has no checkout page server yet: the browser "
+									   "method is unavailable (players can pay with the QR code or by hand)"));
+			}
+			return scfg::Err::make("RuntimeError", "no checkout page server");
+		};
+	}
 }
 
 FScfgFacade::~FScfgFacade()
@@ -174,7 +204,10 @@ FTSTicker& FScfgFacade::Ticker() const
 
 void FScfgFacade::Start()
 {
-	check(IsInGameThread());
+	if (ScfgFacadeDetail::OffGameThread(TEXT("Start()")))
+	{
+		return;
+	}
 	if (PumpHandle.IsValid() || bShuttingDown || !Options.bPumpOnTicker)
 	{
 		return;
@@ -288,6 +321,10 @@ scfg::Result<const scfg::config::Config*> FScfgFacade::RequireConfig(bool bRepor
 
 TOptional<scfg::Err> FScfgFacade::AddChain(const FString& Key, const FScfgChain& Chain)
 {
+	if (ScfgFacadeDetail::OffGameThread(TEXT("AddChain()")))
+	{
+		return ScfgFacadeDetail::WrongThread(TEXT("AddChain()"));
+	}
 	if (Config)
 	{
 		return ConfigMisuse("configure.after_add_chain", "call AddChain() before Configure()");
@@ -303,6 +340,10 @@ TOptional<scfg::Err> FScfgFacade::AddChain(const FString& Key, const FScfgChain&
 
 TOptional<scfg::Err> FScfgFacade::Configure(const FScfgOptions& InOptions)
 {
+	if (ScfgFacadeDetail::OffGameThread(TEXT("Configure()")))
+	{
+		return ScfgFacadeDetail::WrongThread(TEXT("Configure()"));
+	}
 	if (Worker || StartError || bShuttingDown)
 	{
 		return ConfigMisuse(
@@ -333,16 +374,35 @@ TOptional<scfg::Err> FScfgFacade::Configure(const FScfgOptions& InOptions)
 
 TOptional<scfg::Err> FScfgFacade::AddItem(const FString& ItemId, const FScfgItem& Item)
 {
+	if (ScfgFacadeDetail::OffGameThread(TEXT("AddItem()")))
+	{
+		return ScfgFacadeDetail::WrongThread(TEXT("AddItem()"));
+	}
 	scfg::Result<const scfg::config::Config*> Cfg = RequireConfig(true);
 	if (!Cfg.ok())
 	{
 		return Cfg.err();
 	}
-	scfg::Result<scfg::models::Item> Added =
-		scfg::config::add_item(*Config, scfg::Json(ScfgString::ToUtf8(ItemId)), ScfgConvert::ItemKwargs(Item));
+	const scfg::Json Id(ScfgString::ToUtf8(ItemId));
+	const scfg::Json Kwargs = ScfgConvert::ItemKwargs(Item);
+	scfg::Result<scfg::models::Item> Added = scfg::config::add_item(*Config, Id, Kwargs);
 	if (!Added.ok())
 	{
 		return Misuse(Added.err());
+	}
+	if (Worker)
+	{
+		// Python's Engine shares the game's Config; this one holds a copy made when the worker started, so the item
+		// goes to it too, in the worker's turn (before any Pay submitted after this call). The same add_item on the
+		// same items cannot fail differently; if it did, the worker reports the Err.
+		Worker->Run(
+			[Id, Kwargs](scfg::engine::Engine& E) -> scfg::Result<scfg::Json>
+			{
+				SCFG_TRY(scfg::models::Item Same, E.add_item(Id, Kwargs));
+				(void)Same;
+				return scfg::Json();
+			},
+			nullptr);
 	}
 	return {};
 }
@@ -532,7 +592,7 @@ TOptional<scfg::receipts::Ownership> FScfgFacade::Ownership()
 
 bool FScfgFacade::Owns(const FString& ItemId)
 {
-	if (!RequireConfig(true).ok())
+	if (ScfgFacadeDetail::OffGameThread(TEXT("Owns()")) || !RequireConfig(true).ok())
 	{
 		return false;
 	}
@@ -548,7 +608,7 @@ bool FScfgFacade::Owns(const FString& ItemId)
 
 bool FScfgFacade::HasTipped()
 {
-	if (!RequireConfig(true).ok())
+	if (ScfgFacadeDetail::OffGameThread(TEXT("HasTipped()")) || !RequireConfig(true).ok())
 	{
 		return false;
 	}
@@ -558,7 +618,7 @@ bool FScfgFacade::HasTipped()
 
 FString FScfgFacade::TipTotal()
 {
-	if (!RequireConfig(true).ok())
+	if (ScfgFacadeDetail::OffGameThread(TEXT("TipTotal()")) || !RequireConfig(true).ok())
 	{
 		return TEXT("0");
 	}
@@ -568,17 +628,25 @@ FString FScfgFacade::TipTotal()
 
 scfg::Json FScfgFacade::Receipts()
 {
+	if (ScfgFacadeDetail::OffGameThread(TEXT("Receipts()")))
+	{
+		return scfg::Json::dict();
+	}
 	return scfg::deep_copy(SourceReceipts());
 }
 
 scfg::Json FScfgFacade::Pending()
 {
+	if (ScfgFacadeDetail::OffGameThread(TEXT("Pending()")))
+	{
+		return scfg::Json::dict();
+	}
 	return scfg::deep_copy(SourcePending());
 }
 
 void FScfgFacade::ClearLocalData()
 {
-	if (bShuttingDown)
+	if (ScfgFacadeDetail::OffGameThread(TEXT("ClearLocalData()")) || bShuttingDown)
 	{
 		return;
 	}
@@ -615,16 +683,24 @@ void FScfgFacade::ClearLocalData()
 	PersistedPending = scfg::Json::dict();
 	PersistedReceipts = scfg::Json::dict();
 	Stored().Save(PersistedPending, PersistedReceipts);
-	if (bHadReceipts)
+	// Once: a receipts change mirrored this frame and not yet announced by the pump is announced by this one.
+	if (bHadReceipts || bReceiptsChangedPending)
 	{
+		bReceiptsChangedPending = false;
 		EmitReceiptsChanged();
 	}
 }
 
 scfg::Result<FString> FScfgFacade::ExportReceipts(const FString& Path)
 {
-	const FString Target = FPaths::ConvertRelativePathToFull(
-		Path.IsEmpty() ? FPaths::ProjectSavedDir() / TEXT("scfg-receipts.json") : Path);
+	if (ScfgFacadeDetail::OffGameThread(TEXT("ExportReceipts()")))
+	{
+		return ScfgFacadeDetail::WrongThread(TEXT("ExportReceipts()"));
+	}
+	// Empty: Saved/scfg-receipts.json; a relative path is under Saved/ too (not the process's working directory).
+	const FString Target = FPaths::ConvertRelativePathToFull(Path.IsEmpty() ? FPaths::ProjectSavedDir() / TEXT("scfg-receipts.json")
+			: FPaths::IsRelative(Path)                                       ? FPaths::ProjectSavedDir() / Path
+																			  : Path);
 	scfg::Json::List Values;
 	const scfg::Json All = Receipts();
 	if (All.is_dict())
@@ -646,9 +722,21 @@ scfg::Result<FString> FScfgFacade::ExportReceipts(const FString& Path)
 	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Target), true);
 	const std::string& Bytes = Text.value();
 	TArray<uint8> Data(reinterpret_cast<const uint8*>(Bytes.data()), static_cast<int32>(Bytes.size()));
-	if (IFileManager::Get().DirectoryExists(*Target) || !FFileHelper::SaveArrayToFile(Data, *Target))
+	FString Why;
+	if (IFileManager::Get().DirectoryExists(*Target))
 	{
-		scfg::Err Error = scfg::Err::make("RuntimeError", "cannot write " + ScfgString::ToUtf8(Target));
+		Why = TEXT("it is a directory");
+	}
+	else if (!FFileHelper::SaveArrayToFile(Data, *Target))
+	{
+		const uint32 Code = FPlatformMisc::GetLastError();
+		TCHAR Message[512] = {};
+		FPlatformMisc::GetSystemErrorMessage(Message, UE_ARRAY_COUNT(Message), static_cast<int32>(Code));
+		Why = Message[0] != 0 ? FString(Message) : FString::Printf(TEXT("error %u"), Code);
+	}
+	if (!Why.IsEmpty())
+	{
+		scfg::Err Error = scfg::Err::make("RuntimeError", ScfgString::ToUtf8(FString::Printf(TEXT("cannot write %s: %s"), *Target, *Why)));
 		Misuse(Error);
 		return Error;
 	}
@@ -665,12 +753,19 @@ scfg::Result<scfg::payments::PaymentSpec> FScfgFacade::PaymentSpec(EScfgPayKind 
 
 void FScfgFacade::Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, FScfgPayCallback Callback, FPayDone Done)
 {
-	check(IsInGameThread());
-	const TSharedRef<FScfgFacade> Self = AsShared();
 	if (!Done)
 	{
 		Done = [](const FScfgPaymentResult&) {};
 	}
+	if (ScfgFacadeDetail::OffGameThread(TEXT("Pay()")))
+	{
+		FScfgPaymentResult R = ScfgFacadeDetail::Result(EScfgPaymentStatus::Failed, Kind, Request.Item, Request.Token);
+		R.Error = TEXT("RuntimeError");
+		Call(Callback, R);
+		Done(R);
+		return;
+	}
+	const TSharedRef<FScfgFacade> Self = AsShared();
 	scfg::Result<scfg::payments::PaymentSpec> Spec = PaymentSpec(Kind, Request);
 	if (!Spec.ok())
 	{
@@ -741,12 +836,20 @@ void FScfgFacade::Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, FScfgPa
 
 void FScfgFacade::Restore(FScfgRestoreCallback Callback, FRestoreDone Done)
 {
-	check(IsInGameThread());
-	const TSharedRef<FScfgFacade> Self = AsShared();
 	if (!Done)
 	{
 		Done = [](const FScfgRestoreResult&) {};
 	}
+	if (ScfgFacadeDetail::OffGameThread(TEXT("Restore()")))
+	{
+		FScfgRestoreResult R;
+		R.Status = EScfgRestoreStatus::Failed;
+		R.Error = TEXT("RuntimeError");
+		Call(Callback, R);
+		Done(R);
+		return;
+	}
+	const TSharedRef<FScfgFacade> Self = AsShared();
 	scfg::Result<const scfg::config::Config*> Cfg = RequireConfig(false);
 	if (!Cfg.ok())
 	{
@@ -1069,8 +1172,7 @@ double FScfgFacade::PollInterval() const
 
 void FScfgFacade::Pump()
 {
-	check(IsInGameThread());
-	if (!Config || bShuttingDown)
+	if (ScfgFacadeDetail::OffGameThread(TEXT("Pump()")) || !Config || bShuttingDown)
 	{
 		return;
 	}

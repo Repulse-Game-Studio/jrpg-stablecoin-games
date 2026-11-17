@@ -26,10 +26,18 @@
 //   test_plugin_registers_the_storage_id_setting            -> Godot only: the web storage id and its editor plugin
 //   test_plugin_registers_the_scfg_autoload                 -> Godot only: the editor plugin's autoload (Unreal
 //       creates the subsystem with the game instance)
+// C++ only:
+//   ExportReceiptsWritesPythonsJson                         -> the exact text (json.dumps(indent=2, sort_keys=True)),
+//       a relative path under Saved/, the default Saved/scfg-receipts.json, and the reason of a failed write
+//   AReceiptsChangeThenClearIsAnnouncedOnce                 -> OnReceiptsChanged once when ClearLocalData follows a
+//       change the pump has not announced yet
+//   TheDefaultOptionsWireTheRealParts                       -> a facade with only its store directory and ticker
+//       replaced: the real transport, clock, platform and interval wiring (no pass runs: no network)
 #include "Misc/AutomationTest.h"
 
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
+#include "Misc/App.h"
 #include "Misc/Paths.h"
 
 #include "ScfgConvert.h"
@@ -696,6 +704,120 @@ bool FScfgFacadeResolvedTest::RunTest(const FString& Parameters)
 	S.DeliverForTests(Paid);
 	TestTrue(TEXT("a session's callback gets it instead"), *Called == TArray<FString>{TEXT("paid")} && Got->Num() == 1);
 	TestFalse(TEXT("a final result drops the callback"), S.CallbackSessionIds().Contains(TEXT("ps_2")));
+	return true;
+}
+
+SCFG_FACADE_API_TEST(FScfgFacadeExportTextTest, "ExportReceiptsWritesPythonsJson")
+
+bool FScfgFacadeExportTextTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeApiTests;
+	FWorld W;
+	FScfgFacade& S = W.Configured(*this);
+	W.Start();
+	(void)W.AddReceipt(Hash("ab"));
+	const std::string Expected = "[\n  {\n    \"amount\": \"4.99\",\n    \"block\": 990,\n    \"chain\": \"arbitrum\",\n"
+		"    \"item\": \"chapter2\",\n    \"kind\": \"unlock\",\n    \"log_index\": 3,\n"
+		"    \"payer\": \"0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed\",\n"
+		"    \"recipient\": \"0x52908400098527886e0f7030069857d2e4169ee7\",\n    \"source\": \"payment\",\n"
+		"    \"token\": \"USDC\",\n    \"tx_hash\": \"" + Hash("ab") + "\"\n  }\n]";
+	const FString Saved = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir());
+	FString Relative = W.Dir / TEXT("rel/receipts.json");
+	TestTrue(TEXT("the test directory is under Saved/"), FPaths::MakePathRelativeTo(Relative, *(Saved / TEXT(""))));
+	const scfg::Result<FString> Written = S.ExportReceipts(Relative);
+	TestTrue(*FString::Printf(TEXT("a relative path is under Saved/ (%s)"), Written.ok() ? *Written.value() : TEXT("-")),
+		Written.ok() && Written.value() == W.Dir / TEXT("rel/receipts.json"));
+	TArray<uint8> Bytes;
+	FFileHelper::LoadFileToArray(Bytes, *(W.Dir / TEXT("rel/receipts.json")));
+	const std::string Text(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num());
+	TestEqual(TEXT("json.dumps(values, indent=2, sort_keys=True)"), ScfgString::FromUtf8(Text),
+		ScfgString::FromUtf8(Expected));
+	// The default path: Saved/scfg-receipts.json (put back as it was).
+	const FString Default = Saved / TEXT("scfg-receipts.json");
+	TArray<uint8> Before;
+	const bool bExisted = FFileHelper::LoadFileToArray(Before, *Default, FILEREAD_Silent);
+	const scfg::Result<FString> Plain = S.ExportReceipts();
+	TestTrue(TEXT("the default file"), Plain.ok() && Plain.value() == Default && IFileManager::Get().FileExists(*Default));
+	if (bExisted)
+	{
+		FFileHelper::SaveArrayToFile(Before, *Default);
+	}
+	else
+	{
+		IFileManager::Get().Delete(*Default);
+	}
+	const scfg::Result<FString> Failed = S.ExportReceipts(W.Dir / TEXT("rel"));
+	TestTrue(*FString::Printf(TEXT("a failed write says why (%s)"),
+				 Failed.ok() ? TEXT("-") : *ScfgString::FromUtf8(Failed.err().message)),
+		!Failed.ok() && Failed.err().message == ScfgString::ToUtf8(TEXT("cannot write ") + W.Dir / TEXT("rel: it is a directory")));
+	return true;
+}
+
+SCFG_FACADE_API_TEST(FScfgFacadeClearAnnouncesOnceTest, "AReceiptsChangeThenClearIsAnnouncedOnce")
+
+bool FScfgFacadeClearAnnouncesOnceTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeApiTests;
+	FWorld W;
+	FScfgFacade& S = W.Configured(*this);
+	W.Start();
+	TSharedRef<int32> Changed = MakeShared<int32>(0);
+	S.OnReceiptsChanged = [Changed]() { ++*Changed; };
+	W.Worker().Run(
+		[](scfg::engine::Engine& E) -> scfg::Result<Json>
+		{
+			Json Receipts = E.receipts();
+			SCFG_TRY(bool Added, scfg::receipts::add_receipt(Receipts.as_dict(), ReceiptFor(Hash("ab"))));
+			return Json(Added);
+		},
+		nullptr);
+	W.RunOnce();  // mirrored, not yet announced (no pump)
+	TestEqual(TEXT("not announced yet"), *Changed, 0);
+	S.ClearLocalData();
+	TestEqual(TEXT("the clear announces it"), *Changed, 1);
+	W.Pump();
+	W.Pass();
+	TestEqual(TEXT("once"), *Changed, 1);
+	return true;
+}
+
+SCFG_FACADE_API_TEST(FScfgFacadeDefaultOptionsTest, "TheDefaultOptionsWireTheRealParts")
+
+bool FScfgFacadeDefaultOptionsTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeApiTests;
+	FWorld W;  // for its directory only
+	FTSTicker Ticker;  // never ticked: the worker's first pass would go to the network
+	FScfgFacadeOptions Options;
+	Options.StoreDirectory = W.Dir;
+	Options.Ticker = &Ticker;
+	Options.bQuiet = true;
+	const TSharedRef<FScfgFacade> S = MakeShared<FScfgFacade>(Options);
+	S->SheetHost = W.Host;
+	S->Start();
+	TestFalse(TEXT("configure"), S->Configure(Wallet(UTF8_TO_TCHAR(kDev))).IsSet());
+	TestFalse(TEXT("add_item"), S->AddItem(TEXT("chapter2"), Chapter2()).IsSet());
+	S->Pump();
+	TestNotNull(TEXT("the pump starts the worker over the real transport"), S->GetWorker());
+	if (S->GetWorker())
+	{
+		TestEqual(TEXT("its interval is the facade's: 15 s with nothing open"), S->GetWorker()->GetInterval(), 15.0);
+	}
+	TestEqual(TEXT("the store is in the given directory"), S->GetStore() ? S->GetStore()->GetPath() : FString(),
+		W.Dir / TEXT("state.json"));
+	TestFalse(TEXT("the desktop platform"), S->IsMobile());
+	S->Pay(EScfgPayKind::Unlock, Unlock(), FScfgPayCallback(), nullptr);  // several networks: no session starts
+	if (TestEqual(TEXT("a sheet"), W.Host->Kinds.Num(), 1))
+	{
+		const scfg::checkout::CheckoutController& Core = W.Host->CheckoutOf(-1).Core();
+		TestEqual(TEXT("the game's name is the project's"), ScfgString::FromUtf8(Core.game_name),
+			FString(FApp::GetProjectName()));
+		TestFalse(TEXT("not mobile"), Core.mobile);
+		TestEqual(TEXT("3 s while it is open"), S->GetWorker()->GetInterval(), 3.0);
+		TestEqual(TEXT("no session was started"), FString(UTF8_TO_TCHAR(Core.state().c_str())), TEXT("choose"));
+	}
+	S->Shutdown();
+	TestTrue(TEXT("nothing was reported"), S->GetReporter().Errors.Num() == 0 && S->GetReporter().Warnings.Num() == 0);
 	return true;
 }
 

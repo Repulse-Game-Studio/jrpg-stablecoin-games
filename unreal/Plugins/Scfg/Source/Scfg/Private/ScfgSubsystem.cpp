@@ -46,6 +46,12 @@ void UScfgSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
+void UScfgSubsystem::BeginDestroy()
+{
+	StopFacade();
+	Super::BeginDestroy();
+}
+
 void UScfgSubsystem::StartFacade(const FScfgFacadeOptions& Options)
 {
 	StopFacade();
@@ -94,7 +100,12 @@ FScfgFacade* UScfgSubsystem::Live(const TCHAR* What) const
 	{
 		return Facade.Get();
 	}
-	UE_LOG(LogScfg, Error, TEXT("scfg: %s: the SCFG subsystem is not running (outside its game instance)"), What);
+	bool bLogged = false;
+	LoggedOutside.Add(What, &bLogged);
+	if (!bLogged)
+	{
+		UE_LOG(LogScfg, Error, TEXT("scfg: %s: the SCFG subsystem is not running (outside its game instance)"), What);
+	}
 	return nullptr;
 }
 
@@ -176,10 +187,19 @@ void UScfgSubsystem::Restore(const FOnScfgRestored& OnRestored)
 		Callback.Fn = [OnRestored](const FScfgRestoreResult& Result) { OnRestored.ExecuteIfBound(Result); };
 		Callback.IsValid = [OnRestored]() { return OnRestored.IsBound(); };
 	}
-	if (FScfgFacade* F = Live(TEXT("Restore()")))
+	FScfgFacade* F = Live(TEXT("Restore()"));
+	if (!F)
 	{
-		F->Restore(MoveTemp(Callback), nullptr);
+		FScfgRestoreResult R;
+		R.Status = EScfgRestoreStatus::Failed;
+		R.Error = TEXT("RuntimeError");
+		if (Callback.Valid())
+		{
+			Callback.Fn(R);
+		}
+		return;
 	}
+	F->Restore(MoveTemp(Callback), nullptr);
 }
 
 void UScfgSubsystem::RestoreAsync(

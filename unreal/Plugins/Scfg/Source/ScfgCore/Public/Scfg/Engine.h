@@ -93,6 +93,11 @@ public:
     Engine& operator=(const Engine&) = delete;
 
     const config::Config& config() const { return config_; }
+    // config.add_item(self.config, item_id, **kwargs) on the Engine's own config: Python's Engine and the game share
+    // one Config object, so an item added after the Engine was built is one it can sell and own. Here the Engine
+    // holds a copy, so the glue applies each later add_item to it too (config::add_item's validation and ConfigError
+    // codes). Not while a command's coroutine runs: a step reads the items.
+    Result<models::Item> add_item(const Json& item_id, const Json& kwargs);
     // The Engine's own stores (dicts, shared handles: a change through them is the Engine's state).
     const Json& pending() const { return pending_; }
     const Json& receipts() const { return receipts_; }

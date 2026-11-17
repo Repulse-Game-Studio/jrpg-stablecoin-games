@@ -193,6 +193,8 @@ public:
 	int32 NumQueued() const { return Queue.Num(); }
 	bool IsBusy() const { return Current.IsValid(); }
 	bool IsTickPending() const { return PendingTick.IsValid(); }
+	// The seconds the next tick will wait (Interval(), read now; the tests check the facade's wiring).
+	double GetInterval() const { return Options.Interval ? Options.Interval() : POLL_INTERVAL; }
 	// Valid and true while the worker exists: a holder that may outlive it (the Submitter adapter) checks it before
 	// every call.
 	TWeakPtr<bool> GetLifetime() const { return Alive; }

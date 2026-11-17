@@ -36,7 +36,9 @@
 // Done gets the same result. Done gets the call's result once, when the screen closes (or at once). Handlers must be
 // idempotent.
 //
-// TEARDOWN (Shutdown, from UScfgSubsystem::Deinitialize, or the destructor), in this order:
+// TEARDOWN (Shutdown, from UScfgSubsystem::Deinitialize, BeginDestroy, or the destructor; game thread only, checked)
+// is, exactly: controllers; the worker, which owns the transport and destroys it last in its own destructor; the
+// store; the pump. Step by step:
 //   1. Every flow still waiting on a screen ends: its controller is closed (finish()), the host's Close() is called for
 //      a screen that still exists, and Done gets the result; no callback, event or notification is delivered, and the
 //      session is not marked cancelled (the Engine watches it again on the next launch). Then every open and
@@ -64,7 +66,8 @@
 //   detaches its handlers): nothing calls back afterwards.
 // - No web build: no IndexedDB warning, no receipts mirror in localStorage, no page clipboard bridge.
 //
-// Game thread only.
+// Game thread only: a public call from another thread is an ensure (logged once with its callstack) and a Failed
+// result or a neutral value, never a crash. Shutdown and the destructor stay checked: the engine runs them.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -132,7 +135,8 @@ struct FScfgFacadeOptions
 	bool bQuiet = false;
 	// Default: FScfgDesktopPlatform.
 	TSharedPtr<IScfgPlatform> Platform;
-	// The checkout controllers' server_factory (the browser page). Default: none (task 6's localhost server).
+	// The checkout controllers' server_factory (the browser page). Default, until task 6's localhost server: one that
+	// fails (warned once), so the browser method shows "browser_unavailable" and drops out.
 	scfg::checkout::ServerFactory ServerFactory;
 	// The directory a configured logo is relative to. Default: FPaths::ProjectDir().
 	FString ProjectDir;
@@ -172,6 +176,9 @@ public:
 	TOptional<scfg::Err> AddChain(const FString& Key, const FScfgChain& Chain);
 	// The payout wallet and options; again until payments have started (the pump after a successful one).
 	TOptional<scfg::Err> Configure(const FScfgOptions& InOptions);
+	// A paid unlock, at any time after Configure(): once the worker runs, the item is added to the Engine's config
+	// too, in the worker's turn (Python's Engine shares the game's Config object), so it can be sold and owned. Until
+	// that command ran (the next worker frame), Owns() of it reads the snapshot taken before.
 	TOptional<scfg::Err> AddItem(const FString& ItemId, const FScfgItem& Item);
 
 	// --- flows ---
@@ -199,8 +206,9 @@ public:
 	// Testing helper: forget every receipt and pending payment on this device (the payments are still on chain, and
 	// Restore brings them back).
 	void ClearLocalData();
-	// Support helper: the receipts as readable JSON (a list, sorted keys, indented) at Path (default
-	// Saved/scfg-receipts.json); the file's absolute path, or the RuntimeError it reported.
+	// Support helper: the receipts as readable JSON (a list of them, keys sorted, two spaces per level: Python's
+	// json.dumps(values, indent=2, sort_keys=True)) at Path. Empty: Saved/scfg-receipts.json; a relative Path is under
+	// Saved/ as well. Returns the file's absolute path, or the RuntimeError it reported ("cannot write <path>: <why>").
 	scfg::Result<FString> ExportReceipts(const FString& Path = FString());
 
 	// --- events, notifications, the host ---

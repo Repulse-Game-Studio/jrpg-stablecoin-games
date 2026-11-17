@@ -397,6 +397,10 @@ Result<Json> Engine::restore_apply(const std::vector<restore::RestoreCandidate>&
     return restore::apply(receipts_.as_dict(), candidates, choices);
 }
 
+Result<models::Item> Engine::add_item(const Json& item_id, const Json& kwargs) {
+    return config::add_item(config_, item_id, kwargs);
+}
+
 Result<Snapshot> Engine::snapshot() const {
     SCFG_TRY(receipts::Ownership own, receipts::compute_ownership(receipts_.as_dict(), config_.items));
     Snapshot s;

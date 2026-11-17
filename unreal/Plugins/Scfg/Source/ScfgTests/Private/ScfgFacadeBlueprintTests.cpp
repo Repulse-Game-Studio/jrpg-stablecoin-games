@@ -5,7 +5,10 @@
 #include "Misc/AutomationTest.h"
 #include "UObject/StrongObjectPtr.h"
 
+#include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
+#include "Engine/World.h"
+#include "UObject/UObjectGlobals.h"
 
 #include "ScfgBlueprintLibrary.h"
 #include "ScfgFacade.h"
@@ -135,9 +138,15 @@ bool FScfgBlueprintSubsystemTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("ClearLocalData raises OnReceiptsChanged"), G.Receiver->ReceiptsChanged, 2);
 		TestEqual(TEXT("and forgets them"), S.Receipts().Num(), 0);
 	}
-	// Without a game instance the library's nodes answer their neutral value and log once.
-	AddExpectedMessagePlain(TEXT("no SCFG subsystem here"), ELogVerbosity::Error, EAutomationExpectedMessageFlags::Contains, 1);
+	// Without a game instance the library's nodes answer their neutral value and log once per node kind.
+	UScfgBlueprintLibrary::ResetLogOnceForTests();
+	AddExpectedMessagePlain(TEXT("scfg: Owns: no SCFG subsystem here"), ELogVerbosity::Error,
+		EAutomationExpectedMessageFlags::Contains, 1);
+	AddExpectedMessagePlain(TEXT("scfg: TipTotal: no SCFG subsystem here"), ELogVerbosity::Error,
+		EAutomationExpectedMessageFlags::Contains, 1);
 	TestFalse(TEXT("Owns without a subsystem"), UScfgBlueprintLibrary::Owns(nullptr, TEXT("chapter2")));
+	TestFalse(TEXT("again (not logged again)"), UScfgBlueprintLibrary::Owns(nullptr, TEXT("chapter2")));
+	TestEqual(TEXT("TipTotal without a subsystem"), UScfgBlueprintLibrary::TipTotal(nullptr), TEXT("0"));
 	TestNull(TEXT("GetSubsystem without a world"), UScfgBlueprintLibrary::GetSubsystem(nullptr));
 	return true;
 }
@@ -259,14 +268,128 @@ bool FScfgBlueprintShutdownTest::RunTest(const FString& Parameters)
 		G.Receiver->Paid.Num() == 0 && G.Receiver->Restored.Num() == 0 && G.Receiver->Resolved.Num() == 0);
 	TestNull(TEXT("the facade is gone"), G.Scfg->GetFacade());
 	TestEqual(TEXT("both screens were closed"), W.Host->Closes, 2);
-	// After Deinitialize, a call fails (logged once) and never crashes.
-	AddExpectedMessagePlain(TEXT("the SCFG subsystem is not running"), ELogVerbosity::Error,
+	// After Deinitialize, a call fails and never crashes; each call site logs once for this subsystem.
+	AddExpectedMessagePlain(TEXT("scfg: Pay(): the SCFG subsystem is not running"), ELogVerbosity::Error,
+		EAutomationExpectedMessageFlags::Contains, 1);
+	AddExpectedMessagePlain(TEXT("scfg: Restore(): the SCFG subsystem is not running"), ELogVerbosity::Error,
 		EAutomationExpectedMessageFlags::Contains, 1);
 	FOnScfgPaid OnPaid;
 	OnPaid.BindDynamic(G.Receiver.Get(), &UScfgTestReceiver::OnPaid);
 	G.Scfg->Pay(EScfgPayKind::Unlock, Unlock(), OnPaid);
-	TestTrue(TEXT("a Pay after Deinitialize fails"), G.Receiver->Paid.Num() == 1 &&
+	G.Scfg->Pay(EScfgPayKind::Unlock, Unlock(), OnPaid);
+	TestTrue(TEXT("a Pay after Deinitialize fails, every time"), G.Receiver->Paid.Num() == 2 &&
 		G.Receiver->Paid[0].Status == EScfgPaymentStatus::Failed && G.Receiver->Paid[0].Error == TEXT("RuntimeError"));
+	FOnScfgRestored OnRestored;
+	OnRestored.BindDynamic(G.Receiver.Get(), &UScfgTestReceiver::OnRestored);
+	G.Scfg->Restore(OnRestored);
+	TestTrue(TEXT("so does a Restore: its callback gets Failed"), G.Receiver->Restored.Num() == 1 &&
+		G.Receiver->Restored[0].Status == EScfgRestoreStatus::Failed &&
+		G.Receiver->Restored[0].Error == TEXT("RuntimeError"));
+	return true;
+}
+
+SCFG_FACADE_BP_TEST(FScfgBlueprintStaleCallbackTest, "ADynamicCallbackWhoseObjectIsGoneFallsBackToTheEvent")
+
+bool FScfgBlueprintStaleCallbackTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeBlueprintTests;
+	FWorld W;
+	FGame G(W);
+	G.Configure(*this);
+	G.Scfg->OnPaymentResolved.AddDynamic(G.Receiver.Get(), &UScfgTestReceiver::OnResolved);
+	W.Start();
+	UScfgTestReceiver* Gone = NewObject<UScfgTestReceiver>();
+	FOnScfgPaid OnPaid;
+	OnPaid.BindDynamic(Gone, &UScfgTestReceiver::OnPaid);
+	G.Scfg->Pay(EScfgPayKind::Unlock, Unlock(), OnPaid);
+	W.Session(*this);
+	Gone->MarkAsGarbage();  // the widget that asked is destroyed while the sheet is open
+	W.Host->CloseSheet(-1, TEXT("cancel"));
+	W.Pump();
+	TestEqual(TEXT("the stale callback is not called"), Gone->Paid.Num(), 0);
+	TestTrue(TEXT("the cancel reaches OnPaymentResolved instead (Godot's invalid Callable)"),
+		G.Receiver->Resolved.Num() == 1 && G.Receiver->Resolved[0].Status == EScfgPaymentStatus::Cancelled);
+	return true;
+}
+
+SCFG_FACADE_BP_TEST(FScfgBlueprintRestoreCallbackTest, "RestoreWithADynamicCallback")
+
+bool FScfgBlueprintRestoreCallbackTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeBlueprintTests;
+	FWorld W;
+	FGame G(W);
+	G.Configure(*this);
+	W.Start();
+	const std::string Tx = Hash("cd");
+	W.Chains->Chain("arbitrum").TxReceipts[Tx] = Json::dict({{"status", "0x1"},
+		{"logs", Json::list({TransferLog(UsdcArbitrum(), kPayer, kDev, 4993742, 10, Tx)})}});
+	FOnScfgRestored OnRestored;
+	OnRestored.BindDynamic(G.Receiver.Get(), &UScfgTestReceiver::OnRestored);
+	G.Scfg->Restore(OnRestored);
+	TestTrue(TEXT("a transaction hash"), W.Host->RestoreOf(-1).Core().check_tx(Tx).ok());
+	W.Pass();
+	W.Pass();
+	TestTrue(TEXT("the callback gets the restore, the screen still open"), G.Receiver->Restored.Num() == 1 &&
+		G.Receiver->Restored[0].Status == EScfgRestoreStatus::Restored && G.Receiver->Restored[0].Restored.Num() == 1);
+	W.Host->CloseSheet(-1, TEXT("close"));
+	W.Pump();
+	TestEqual(TEXT("once"), G.Receiver->Restored.Num(), 1);
+	TestTrue(TEXT("owned"), G.Scfg->Owns(TEXT("chapter2")));
+	return true;
+}
+
+// The Blueprint entry points: a real game instance (InitializeStandalone: its world, its subsystem collection, so
+// UScfgSubsystem::Initialize runs), the nodes found from a world context, kept alive by RegisterWithGameInstance
+// while they wait, and released by SetReadyToDestroy.
+SCFG_FACADE_BP_TEST(FScfgBlueprintWorldContextTest, "TheNodesRunFromAWorldContextAndAreReleased")
+
+bool FScfgBlueprintWorldContextTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeBlueprintTests;
+	FWorld W;
+	TStrongObjectPtr<UGameInstance> Instance(NewObject<UGameInstance>(GEngine));
+	Instance->InitializeStandalone();
+	UWorld* World = Instance->GetWorld();
+	UScfgSubsystem* Scfg = Instance->GetSubsystem<UScfgSubsystem>();
+	TestNotNull(TEXT("the collection made the subsystem"), Scfg);
+	TestTrue(TEXT("its Initialize started a facade"), Scfg && Scfg->GetFacade() != nullptr);
+	TStrongObjectPtr<UScfgTestReceiver> Receiver(NewObject<UScfgTestReceiver>());
+	if (Scfg && World)
+	{
+		TestTrue(TEXT("the library finds it from the world"), UScfgBlueprintLibrary::GetSubsystem(World) == Scfg);
+		FScfgSubsystemTestAccess::Start(*Scfg, W.Options());  // the fakes from here on
+		W.Facade = Scfg->GetFacade()->AsShared();
+		Scfg->SetSheetHost(W.Host);
+		FScfgOptions Options;
+		Options.Wallet = UTF8_TO_TCHAR(kDev);
+		TestEqual(TEXT("configure"), Scfg->Configure(Options), FString());
+		W.Start();
+		TWeakObjectPtr<UScfgPayAsyncAction> Pay(UScfgPayAsyncAction::Pay(World, EScfgPayKind::Tip, Tip(TEXT("3.00"), TEXT("USDC"))));
+		TWeakObjectPtr<UScfgRestoreAsyncAction> Restore(UScfgRestoreAsyncAction::Restore(World));
+		Pay->OnResolved.AddDynamic(Receiver.Get(), &UScfgTestReceiver::OnPaid);
+		Restore->OnResolved.AddDynamic(Receiver.Get(), &UScfgTestReceiver::OnRestored);
+		Pay->Activate();
+		Restore->Activate();
+		TestEqual(TEXT("both screens open"), W.Host->Kinds.Num(), 2);
+		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+		TestTrue(TEXT("a waiting node is kept alive by its game instance"), Pay.IsValid() && Restore.IsValid());
+		W.Host->CloseSheet(0, TEXT("cancel"));
+		W.Host->CloseSheet(1, TEXT("close"));
+		W.Pump();
+		TestTrue(TEXT("each pin once"), Receiver->Paid.Num() == 1 && Receiver->Restored.Num() == 1);
+		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+		TestTrue(TEXT("a resolved node is released"), !Pay.IsValid() && !Restore.IsValid());
+	}
+	W.Facade.Reset();
+	W.Transport = nullptr;
+	Instance->Shutdown();  // Deinitialize
+	TestTrue(TEXT("Shutdown deinitialized it"), !Scfg || Scfg->GetFacade() == nullptr);
+	if (World)
+	{
+		GEngine->DestroyWorldContext(World);
+		World->DestroyWorld(false);
+	}
 	return true;
 }
 

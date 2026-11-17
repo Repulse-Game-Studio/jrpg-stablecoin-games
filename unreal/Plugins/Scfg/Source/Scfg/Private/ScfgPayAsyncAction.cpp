@@ -29,6 +29,7 @@ UScfgPayAsyncAction* UScfgPayAsyncAction::PayWith(
 {
 	UScfgPayAsyncAction* Action = NewObject<UScfgPayAsyncAction>();
 	Action->Subsystem = Subsystem;
+	Action->bHadSubsystem = Subsystem != nullptr;
 	Action->Kind = Kind;
 	Action->Request = Request;
 	if (Subsystem && Subsystem->GetGameInstance())
@@ -41,6 +42,11 @@ UScfgPayAsyncAction* UScfgPayAsyncAction::PayWith(
 void UScfgPayAsyncAction::Activate()
 {
 	UScfgSubsystem* Scfg = Subsystem.Get();
+	if (!Scfg && bHadSubsystem)
+	{
+		SetReadyToDestroy();  // its game instance went away before the node ran: nothing to deliver
+		return;
+	}
 	if (!Scfg)
 	{
 		UE_LOG(LogScfg, Error, TEXT("%s"), ScfgAsyncDetail::NoSubsystem);
@@ -66,8 +72,11 @@ void UScfgPayAsyncAction::Activate()
 
 void UScfgPayAsyncAction::Finish(const FScfgPaymentResult& Result)
 {
+	// A subsystem that is shutting down, or gone although the node had one: the teardown (maybe inside garbage
+	// collection) resolves the call without delivering anything.
 	const UScfgSubsystem* Scfg = Subsystem.Get();
-	if (!(Scfg && Scfg->IsShuttingDown()))
+	const bool bTeardown = bHadSubsystem && (!Scfg || Scfg->IsShuttingDown());
+	if (!bTeardown)
 	{
 		OnResolved.Broadcast(Result);
 	}
@@ -88,6 +97,7 @@ UScfgRestoreAsyncAction* UScfgRestoreAsyncAction::RestoreWith(UScfgSubsystem* Su
 {
 	UScfgRestoreAsyncAction* Action = NewObject<UScfgRestoreAsyncAction>();
 	Action->Subsystem = Subsystem;
+	Action->bHadSubsystem = Subsystem != nullptr;
 	if (Subsystem && Subsystem->GetGameInstance())
 	{
 		Action->RegisterWithGameInstance(Subsystem->GetGameInstance());
@@ -98,6 +108,11 @@ UScfgRestoreAsyncAction* UScfgRestoreAsyncAction::RestoreWith(UScfgSubsystem* Su
 void UScfgRestoreAsyncAction::Activate()
 {
 	UScfgSubsystem* Scfg = Subsystem.Get();
+	if (!Scfg && bHadSubsystem)
+	{
+		SetReadyToDestroy();
+		return;
+	}
 	if (!Scfg)
 	{
 		UE_LOG(LogScfg, Error, TEXT("%s"), ScfgAsyncDetail::NoSubsystem);
@@ -120,8 +135,11 @@ void UScfgRestoreAsyncAction::Activate()
 
 void UScfgRestoreAsyncAction::Finish(const FScfgRestoreResult& Result)
 {
+	// A subsystem that is shutting down, or gone although the node had one: the teardown (maybe inside garbage
+	// collection) resolves the call without delivering anything.
 	const UScfgSubsystem* Scfg = Subsystem.Get();
-	if (!(Scfg && Scfg->IsShuttingDown()))
+	const bool bTeardown = bHadSubsystem && (!Scfg || Scfg->IsShuttingDown());
+	if (!bTeardown)
 	{
 		OnResolved.Broadcast(Result);
 	}

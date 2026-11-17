@@ -25,10 +25,10 @@
 // sheet open resolves the call without delivering anything. Until task 7's Slate sheet there is no default sheet host:
 // Pay and Restore resolve Failed "sheet.unavailable" unless SetSheetHost() gave one.
 //
-// Deinitialize tears down in ScfgFacade.h's TEARDOWN order: 1. the open sheets and controllers are closed; 2. the
-// worker is stopped and destroyed (its destructor destroys its Jobs, then the Engine, then its transport); 3. the
-// store flushes what it owes and is destroyed (its OnError, which that flush may call, only logs); 4. the pump leaves
-// the ticker.
+// Deinitialize (or BeginDestroy, if Deinitialize never ran) tears down in ScfgFacade.h's TEARDOWN order, exactly:
+// 1. the open sheets and controllers are closed; 2. the worker is stopped and destroyed (its destructor destroys its
+// Jobs, then the Engine, then the transport it owns); 3. the store flushes what it owes and is destroyed (its OnError,
+// which that flush may call, only logs); 4. the pump leaves the ticker.
 //
 // TODO(phase 4): UScfgSettings (a UDeveloperSettings under Project Settings -> Plugins -> SCFG, saved to
 // DefaultGame.ini) applied in Initialize through the same Configure / AddItem path; a code call made after it wins.
@@ -54,6 +54,9 @@ class SCFG_API UScfgSubsystem : public UGameInstanceSubsystem
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
+	// A subsystem destroyed without Deinitialize (its game instance collected without Shutdown) tears down here,
+	// before garbage collection reaches the facade's destructor.
+	virtual void BeginDestroy() override;
 
 	// --- configuration: each returns "" or the ConfigError code (the Err kind for another error), logged once ---
 
@@ -75,7 +78,7 @@ public:
 	// Cancelled, and every later result of the payment (Paid, Underpaid, Expired), also one confirmed after the
 	// player kept playing. OnPaymentResolved is not raised for it. Without OnPaid bound, a cancel and the later
 	// results reach OnPaymentResolved. (The Pay async node is the form that resolves once, when the sheet closes.)
-	UFUNCTION(BlueprintCallable, Category = "SCFG")
+	UFUNCTION(BlueprintCallable, Category = "SCFG", meta = (AutoCreateRefTerm = "OnPaid"))
 	void Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, const FOnScfgPaid& OnPaid);
 	// The same with a C++ callback (null: none).
 	void Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, TFunction<void(const FScfgPaymentResult&)> Callback);
@@ -86,7 +89,7 @@ public:
 		TFunction<void(const FScfgPaymentResult&)> OnResolved);
 	// Show the restore screen (the player pastes a transaction hash); OnRestored gets the result once a restore
 	// finishes, while the screen is still open.
-	UFUNCTION(BlueprintCallable, Category = "SCFG")
+	UFUNCTION(BlueprintCallable, Category = "SCFG", meta = (AutoCreateRefTerm = "OnRestored"))
 	void Restore(const FOnScfgRestored& OnRestored);
 	// Show the restore screen; OnResolved gets the call's result when the screen is closed: Restored, NothingFound,
 	// Cancelled (closed before a restore finished) or Failed. Callback, if given, as Restore's OnRestored.
@@ -144,9 +147,11 @@ private:
 	// Builds the facade (Initialize: the defaults; the tests: their hooks) and binds the events.
 	void StartFacade(const FScfgFacadeOptions& Options);
 	void StopFacade();
-	// The facade, or null with one LogScfg error naming What (called outside Initialize..Deinitialize).
+	// The facade, or null outside Initialize..Deinitialize: then one LogScfg error per call site (What) for this
+	// subsystem, not one per call (a UMG binding would log every frame).
 	FScfgFacade* Live(const TCHAR* What) const;
 
 	TSharedPtr<FScfgFacade> Facade;
 	bool bStopping = false;
+	mutable TSet<FString> LoggedOutside;
 };
