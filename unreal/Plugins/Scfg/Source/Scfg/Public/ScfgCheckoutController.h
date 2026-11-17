@@ -7,13 +7,22 @@
 //
 //     class FMySheetHost : public IScfgSheetHost
 //     {
+//         TWeakObjectPtr<UMySheetWidget> MyWidget;   // weak: the host must not keep (or revive) a UObject
+//
 //         virtual TSharedPtr<FScfgScreen> OpenPayment(const TSharedRef<FScfgCheckout>& Checkout) override
 //         {
 //             TSharedRef<FScfgScreen> Screen = MakeShared<FScfgScreen>();
-//             MyWidget->Bind(FScfgCheckoutController(Checkout), Screen);   // reads it every frame, calls its actions
-//             return Screen;                                               // MyWidget calls Screen->Close("cancel")
+//             UMySheetWidget* Made = CreateWidget<UMySheetWidget>(PlayerController);
+//             Made->Bind(FScfgCheckoutController(Checkout), Screen);   // reads it every frame, calls its actions
+//             Made->AddToViewport(10000);                               // it calls Screen->Close("cancel")
+//             MyWidget = Made;
+//             return Screen;
 //         }
-//         virtual void Close(const TSharedRef<FScfgScreen>& Screen) override { MyWidget->RemoveFromParent(); }
+//         // May run at game-instance shutdown, inside garbage collection: check the widget, create no UObject.
+//         virtual void Close(const TSharedRef<FScfgScreen>& Screen) override
+//         {
+//             if (UMySheetWidget* Shown = MyWidget.Get()) { Shown->RemoveFromParent(); }
+//         }
 //     };
 //     GetGameInstance()->GetSubsystem<UScfgSubsystem>()->SetSheetHost(MakeShared<FMySheetHost>());
 //
@@ -62,7 +71,7 @@ struct FScfgRestoreCandidateView
 {
 	FString Chain;
 	FString Token;
-	FString Amount;  // format_units of the transfer ("4.99")
+	FString Amount;  // format_units of the transfer, six decimals ("5.000000")
 	TArray<FString> Choices;  // item ids, then "tip"
 };
 

@@ -5,6 +5,7 @@ the RPG Maker branch, which does)."""
 
 import importlib.util
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -139,6 +140,22 @@ def test_the_unreal_branch_runs_without_node(tool, monkeypatch, capsys):
     assert tool.main(["--check"]) == 1
     err = capsys.readouterr().err
     assert "the RPG Maker branch cannot run: node is not installed" in err
+    assert "Traceback" not in err
+
+
+def test_a_node_too_old_for_the_ts_file_skips_only_the_rpg_maker_comparison(tool, monkeypatch, capsys):
+    # Node 18 / 20 cannot run texts_dump.ts: exit 1 with a SyntaxError on stderr
+    def old_node(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, ["node"], output="", stderr="SyntaxError: Unexpected token ':'\n")
+    monkeypatch.setattr(tool.shutil, "which", lambda name: "/usr/bin/node")
+    monkeypatch.setattr(tool.subprocess, "run", old_node)
+    assert tool.main(["--check", "--engine", "unreal"]) == 0
+    out = capsys.readouterr()
+    assert "skipped: `node rpgmaker/src/mz/texts_dump.ts` exited with 1" in out.out
+    assert "SyntaxError" in out.out
+    assert tool.main(["--check"]) == 1
+    err = capsys.readouterr().err
+    assert "the RPG Maker branch cannot run: `node rpgmaker/src/mz/texts_dump.ts` exited with 1" in err
     assert "Traceback" not in err
 
 

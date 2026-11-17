@@ -3,6 +3,7 @@
 
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Application/SlateUser.h"
+#include "GenericPlatform/GenericApplication.h"
 #include "InputCoreTypes.h"
 #include "Layout/WidgetPath.h"
 #include "Rendering/DrawElements.h"
@@ -185,11 +186,81 @@ TArray<TSharedRef<SScfgScreen>> SScfgScreen::OpenScreens()
 	return Out;
 }
 
+void SScfgScreen::TakeMouse()
+{
+	FSlateApplication& App = FSlateApplication::Get();
+	const int32 MouseUser = App.GetUserIndexForMouse();
+	const TSharedPtr<FSlateUser> User = App.GetUser(MouseUser);
+	if (!User.IsValid())
+	{
+		return;
+	}
+	const TSharedPtr<SWidget> Captor = User->HasCursorCapture() ? User->GetCursorCaptor() : nullptr;
+	if (Captor.IsValid() && !ScfgScreenDetail::IsInside(Captor.ToSharedRef(), AsShared()))
+	{
+		const TSharedPtr<GenericApplication> Platform = App.GetPlatformApplication();
+		MouseCaptor = Captor;
+		bMouseHeld = true;
+		bMouseHighPrecision = Platform.IsValid() && Platform->IsUsingHighPrecisionMouseMode();
+		bMouseLocked = CaptorLocks.Get(bMouseHighPrecision);
+	}
+	// The reply releases the capture, high-precision mode and the cursor lock as an event would (SlateApplication.cpp's
+	// ProcessReply); on a path to this screen, which is on top of the viewport now.
+	FWidgetPath Path;
+	if (!App.FindPathToWidget(AsShared(), Path) || !Path.IsValid())
+	{
+		if (Captor.IsValid())
+		{
+			App.FindPathToWidget(Captor.ToSharedRef(), Path);
+		}
+	}
+	if (Path.IsValid())
+	{
+		App.ProcessReply(Path, FReply::Handled().ReleaseMouseCapture().ReleaseMouseLock(), nullptr, nullptr, MouseUser);
+	}
+	else
+	{
+		App.ReleaseAllPointerCapture(MouseUser);
+	}
+}
+
+void SScfgScreen::GiveMouseBack()
+{
+	if (!bMouseHeld)
+	{
+		return;
+	}
+	bMouseHeld = false;
+	const TSharedPtr<SWidget> Captor = MouseCaptor.Pin();
+	MouseCaptor.Reset();
+	FSlateApplication& App = FSlateApplication::Get();
+	FWidgetPath Path;
+	if (!Captor.IsValid() || !App.FindPathToWidget(Captor.ToSharedRef(), Path) || !Path.IsValid())
+	{
+		return;  // the captor is gone (the level changed): nothing to give back
+	}
+	FReply Reply = FReply::Handled();
+	if (bMouseHighPrecision)
+	{
+		Reply.UseHighPrecisionMouseMovement(Captor.ToSharedRef());
+	}
+	else
+	{
+		Reply.CaptureMouse(Captor.ToSharedRef());
+	}
+	if (bMouseLocked)
+	{
+		Reply.LockMouseToWidget(Captor.ToSharedRef());
+	}
+	App.ProcessReply(Path, Reply, nullptr, nullptr, App.GetUserIndexForMouse());
+}
+
 void SScfgScreen::OnShown()
 {
 	const TSharedRef<SScfgScreen> Self = StaticCastSharedRef<SScfgScreen>(AsShared());
 	if (FSlateApplication::IsInitialized())
 	{
+		TakeMouse();
 		FSlateApplication::Get().ForEachUser([this](FSlateUser& User)
 		{
 			const TSharedPtr<SWidget> Had = User.GetFocusedWidget();
@@ -215,6 +286,11 @@ void SScfgScreen::OnShown()
 	ScfgScreenDetail::Registry().RemoveAll([this](const TWeakPtr<SScfgScreen>& W) { return !W.IsValid() || W.Pin().Get() == this; });
 	ScfgScreenDetail::Registry().Add(Self);
 	Refresh();
+	// shown again (a UMG host re-adding its widget): nothing to rebuild, but the focus is taken all the same
+	if (!bEnded && LastSignature.IsSet() && !Covered())
+	{
+		FocusKeyOrPrimary(CurrentKey);
+	}
 }
 
 void SScfgScreen::OnHidden(bool bRestoreFocus)
@@ -237,6 +313,14 @@ void SScfgScreen::OnHidden(bool bRestoreFocus)
 				Top->BackScreen = BackScreen;
 				Top->BackKey = BackKey;
 			}
+			if (!Top->bMouseHeld && bMouseHeld)
+			{
+				Top->MouseCaptor = MouseCaptor;
+				Top->bMouseHeld = true;
+				Top->bMouseHighPrecision = bMouseHighPrecision;
+				Top->bMouseLocked = bMouseLocked;
+				bMouseHeld = false;
+			}
 			return;
 		}
 	}
@@ -252,17 +336,32 @@ void SScfgScreen::OnHidden(bool bRestoreFocus)
 			bRestored |= Back.Key == 0;
 		}
 	}
-	if (bRestored)
+	if (!bRestored)
 	{
-		return;
+		// The control is gone (the screen below rebuilt meanwhile): the same key in its new build.
+		const TSharedPtr<SScfgScreen> Below = BackScreen.Pin();
+		if (Below.IsValid() && !Below->bEnded && ScfgScreenDetail::Registry().ContainsByPredicate(
+				[&Below](const TWeakPtr<SScfgScreen>& W) { return W.Pin() == Below; }))
+		{
+			Below->FocusKeyOrPrimary(BackKey);
+		}
 	}
-	// The control is gone (the screen below rebuilt meanwhile): the same key in its new build.
-	const TSharedPtr<SScfgScreen> Below = BackScreen.Pin();
-	if (Below.IsValid() && !Below->bEnded && ScfgScreenDetail::Registry().ContainsByPredicate(
-			[&Below](const TWeakPtr<SScfgScreen>& W) { return W.Pin() == Below; }))
+	// Nowhere to give it back to (the game's widget is gone too): a focus left on this screen, which is leaving the
+	// viewport, would keep the keys from everyone.
+	App.ForEachUser([this, &App](FSlateUser& User)
 	{
-		Below->FocusKeyOrPrimary(BackKey);
-	}
+		if (HasFocusWithin(User.GetUserIndex()))
+		{
+			App.ClearUserFocus(User.GetUserIndex(), EFocusCause::SetDirectly);
+		}
+	});
+	GiveMouseBack();
+}
+
+bool SScfgScreen::IsOpen() const
+{
+	return ScfgScreenDetail::Registry().ContainsByPredicate(
+		[this](const TWeakPtr<SScfgScreen>& W) { return W.Pin().Get() == this; });
 }
 
 void SScfgScreen::CloseWith(const FString& How)
@@ -317,6 +416,10 @@ void SScfgScreen::Tick(const FGeometry& AllottedGeometry, const double InCurrent
 {
 	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 	LastSize = FVector2D(AllottedGeometry.GetLocalSize());
+	if (bShowWhenPainted && !bEnded && !IsOpen())
+	{
+		OnShown();
+	}
 	Refresh();
 	if (bFocusPending && !bEnded && !Covered())
 	{
@@ -812,11 +915,14 @@ bool SScfgScreen::HandleKey(const FKeyEvent& Event)
 		Action = FSlateApplication::Get().GetNavigationActionFromKey(Event);
 		Direction = FSlateApplication::Get().GetNavigationDirectionFromKey(Event);
 	}
-	// back
+	// back: once per press, never on a held key's repeats (Godot's ui_cancel with allow_echo false)
 	if (Key == EKeys::Escape || Key == EKeys::Gamepad_FaceButton_Right
 		|| (!bField && Action == EUINavigationAction::Back))
 	{
-		OnBack();
+		if (!Event.IsRepeat())
+		{
+			OnBack();
+		}
 		return true;
 	}
 	// confirm
@@ -956,6 +1062,11 @@ FReply SScfgScreen::OnMouseWheel(const FGeometry& MyGeometry, const FPointerEven
 FReply SScfgScreen::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	return FReply::Handled();
+}
+
+FCursorReply SScfgScreen::OnCursorQuery(const FGeometry& MyGeometry, const FPointerEvent& CursorEvent) const
+{
+	return FCursorReply::Cursor(EMouseCursor::Default);  // shown over the screen, whatever the game's viewport says
 }
 
 // --- readers --------------------------------------------------------------------------------------------------------

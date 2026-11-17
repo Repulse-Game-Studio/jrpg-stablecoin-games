@@ -17,8 +17,22 @@
 // (a test) keeps its own.
 //
 // INPUT. While the screen is open the game gets no keys, characters, gamepad buttons or sticks, mouse buttons, wheel
-// or moves that reach it: they are consumed here (the confirm and back keys first of all). Keys are handled in the
-// tunnelling phase (OnPreviewKeyDown), before the focused button sees them, so a press is never doubled.
+// or moves that reach it: they are consumed here (the confirm and back keys first of all), the engine's own viewport
+// keys too (the console key, Alt+Enter, the screenshot and debug keys do nothing while it is open). Keys are handled
+// in the tunnelling phase (OnPreviewKeyDown), before the focused button sees them, so a press is never doubled. A
+// held key's repeats move the focus but never press or go back (Godot's allow_echo false): holding Escape goes back
+// one step, not out of the checkout.
+//
+// THE MOUSE. A game viewport that captured the mouse (a game that hides the cursor: the default capture mode, high
+// precision movement, the cursor locked to the window) would keep every click and move, and hide the cursor over the
+// sheet. OnShown therefore releases the mouse user's capture and lock (through FSlateApplication::ProcessReply, which
+// also leaves high-precision mode), remembering who held the capture, whether in high precision, and whether the cursor
+// was locked with it (SetMouseLockHint: the viewport client's LockDuringCapture; else assumed with high precision);
+// OnCursorQuery shows the default cursor over the screen. OnHidden, after giving the keyboard focus back, gives the
+// capture, high precision and lock back exactly so, by a reply on the captor's path: this does not depend on the focus
+// cause, so a PIE viewport (which re-captures only on a mouse focus) gets its capture back too. A screen closing below
+// another hands the mouse over with the focus; a game that hid the platform cursor itself
+// (SetPlatformCursorVisibility) is left as it is.
 //
 // FOCUS AND OTHER SCREENS. The focus the game had (every Slate user's) goes back to it when the screen closes
 // (OnHidden). Several screens can be open at once, the later one on top: a rebuild never takes the focus from a
@@ -28,6 +42,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Input/CursorReply.h"
 #include "Input/Events.h"
 #include "Input/NavigationReply.h"
 #include "Input/Reply.h"
@@ -59,6 +74,16 @@ public:
 	// The widget is about to leave the layer: give the focus back (Godot's _exit_tree). bRestoreFocus false: only
 	// forget the screen (a teardown inside garbage collection must not run focus handlers of game widgets).
 	void OnHidden(bool bRestoreFocus = true);
+	// Whether the captor's viewport locks the cursor while it captures (UGameViewportClient::LockDuringCapture), set by
+	// the host before OnShown; unset: locked when the capture was a high-precision one.
+	void SetMouseLockHint(bool bLocks) { CaptorLocks = bLocks; }
+	// Shown (OnShown) and not hidden since.
+	bool IsOpen() const;
+	// A screen in a host that cannot say when it is shown again (UScfgSheetWidget: UMG may keep or replace its Slate
+	// wrapper): the first Tick after it is painted again calls OnShown.
+	void SetShowWhenPainted(bool bShow) { bShowWhenPainted = bShow; }
+	// Who held the mouse capture when the screen opened (null: nobody, or the screen gave it back).
+	TSharedPtr<SWidget> HeldMouseCaptor() const { return bMouseHeld ? MouseCaptor.Pin() : nullptr; }
 	// The player is done: once, FScfgScreen::Close(How).
 	void CloseWith(const FString& How);
 	bool IsEnded() const { return bEnded; }
@@ -105,6 +130,7 @@ public:
 	virtual FReply OnMouseButtonDoubleClick(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual FCursorReply OnCursorQuery(const FGeometry& MyGeometry, const FPointerEvent& CursorEvent) const override;
 
 protected:
 	// Builds the frame (dim, docked sheet, empty layout); the subclass's Construct calls it.
@@ -209,6 +235,15 @@ private:
 	TMap<int32, TWeakPtr<SWidget>> BackFocus;
 	TWeakPtr<SScfgScreen> BackScreen;
 	FString BackKey;
+	// The mouse capture released in OnShown (see THE MOUSE).
+	void TakeMouse();
+	void GiveMouseBack();
+	TWeakPtr<SWidget> MouseCaptor;
+	bool bMouseHeld = false;
+	bool bMouseHighPrecision = false;
+	bool bMouseLocked = false;
+	TOptional<bool> CaptorLocks;
+	bool bShowWhenPainted = false;
 	// The left stick moved past the threshold on an axis (one step per push).
 	bool bStickX = false;
 	bool bStickY = false;

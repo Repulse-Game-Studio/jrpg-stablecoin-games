@@ -6,6 +6,7 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/Application/SlateUser.h"
 #include "HAL/PlatformMisc.h"
 #include "Input/HittestGrid.h"
 #include "Interfaces/IPluginManager.h"
@@ -34,6 +35,18 @@ FReply SGameSink::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyE
 FReply SGameSink::OnKeyChar(const FGeometry& MyGeometry, const FCharacterEvent& InCharacterEvent)
 {
 	Got.Add(FString(TEXT("char:")) + InCharacterEvent.GetCharacter());
+	return FReply::Handled();
+}
+
+FReply SGameSink::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	Got.Add(TEXT("mouse down"));
+	return FReply::Handled();
+}
+
+FReply SGameSink::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	Got.Add(TEXT("mouse up"));
 	return FReply::Handled();
 }
 
@@ -104,6 +117,7 @@ FSheetRig::~FSheetRig()
 	Instance.Reset();
 	Viewport.Reset();
 	FSlateApplication& App = FSlateApplication::Get();
+	App.ReleaseAllPointerCapture(0);
 	App.UnregisterVirtualWindow(Window.ToSharedRef());
 	FWidgetPath Before;
 	if (FocusBefore.IsValid() && App.FindPathToWidget(FocusBefore.ToSharedRef(), Before))
@@ -180,6 +194,59 @@ void FSheetRig::Stick(const FKey& Axis, float Value)
 	App.ProcessAnalogInputEvent(FAnalogInputEvent(Axis, FModifierKeysState(), 0, false, 0, 0, Value));
 	App.ProcessAnalogInputEvent(FAnalogInputEvent(Axis, FModifierKeysState(), 0, false, 0, 0, 0.f));
 	Frame();
+}
+
+void FSheetRig::Click(const TSharedRef<SWidget>& Widget)
+{
+	FSlateApplication& App = FSlateApplication::Get();
+	const TSharedPtr<FSlateUser> User = App.GetUser(0);
+	const FVector2D At = FVector2D(Widget->GetTickSpaceGeometry().GetAbsolutePositionAtCoordinates(FVector2f(0.5f, 0.5f)));
+	const uint32 Pointer = FSlateApplication::CursorPointerIndex;
+	const FPointerEvent Down(0, Pointer, At, At, TSet<FKey>{EKeys::LeftMouseButton}, EKeys::LeftMouseButton, 0.f,
+		FModifierKeysState());
+	const FPointerEvent Up(0, Pointer, At, At, TSet<FKey>(), EKeys::LeftMouseButton, 0.f, FModifierKeysState());
+	// the pointer moves there first (a button clicks only while hovered)
+	const FPointerEvent Move(0, Pointer, At, At - FVector2D(1, 1), TSet<FKey>(), EKeys::Invalid, 0.f, FModifierKeysState());
+	if (User.IsValid() && User->HasCapture(Pointer))
+	{
+		App.ProcessMouseMoveEvent(Move);
+	}
+	else
+	{
+		TArray<FWidgetAndPointer> Bubble = Window->GetHittestGrid().GetBubblePath(At, 0.f, false, 0);
+		App.RoutePointerMoveEvent(FWidgetPath(Bubble), Move, false);
+	}
+	for (const bool bDown : {true, false})
+	{
+		const FPointerEvent& Event = bDown ? Down : Up;
+		if (User.IsValid() && User->HasCapture(Pointer))
+		{
+			bDown ? App.ProcessMouseButtonDownEvent(nullptr, Event) : App.ProcessMouseButtonUpEvent(Event);
+		}
+		else
+		{
+			TArray<FWidgetAndPointer> Bubble = Window->GetHittestGrid().GetBubblePath(At, 0.f, false, 0);
+			const FWidgetPath Path(Bubble);
+			bDown ? App.RoutePointerDownEvent(Path, Event) : App.RoutePointerUpEvent(Path, Event);
+		}
+	}
+	Frame();
+}
+
+void FSheetRig::GameCapturesTheMouse()
+{
+	FWidgetPath Path;
+	FSlateApplication& App = FSlateApplication::Get();
+	if (App.FindPathToWidget(Game.ToSharedRef(), Path))
+	{
+		App.ProcessReply(Path, FReply::Handled().CaptureMouse(Game.ToSharedRef()), nullptr, nullptr, 0);
+	}
+}
+
+TSharedPtr<SWidget> FSheetRig::MouseCaptor() const
+{
+	const TSharedPtr<FSlateUser> User = FSlateApplication::Get().GetUser(0);
+	return User.IsValid() && User->HasCursorCapture() ? User->GetCursorCaptor() : nullptr;
 }
 
 TSharedPtr<SWidget> FSheetRig::Focused() const

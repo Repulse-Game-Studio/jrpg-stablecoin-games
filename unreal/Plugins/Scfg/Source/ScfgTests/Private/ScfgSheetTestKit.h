@@ -48,6 +48,8 @@ public:
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 	virtual FReply OnKeyChar(const FGeometry& MyGeometry, const FCharacterEvent& InCharacterEvent) override;
 	virtual FReply OnAnalogValueChanged(const FGeometry& MyGeometry, const FAnalogInputEvent& InAnalogInputEvent) override;
+	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
 	TArray<FString> Got;
 };
@@ -86,6 +88,14 @@ struct FSheetRig
 	void Type(const FString& Text);
 	// The left stick's axis at Value (then back to 0).
 	void Stick(const FKey& Axis, float Value);
+	// A left click at the middle of Widget, routed as FSlateApplication routes it: to the mouse captor through
+	// ProcessMouseButtonDown/UpEvent while a widget has the capture (the engine's own path), else to the widgets the
+	// virtual window's hittest grid finds there (RoutePointerDown/UpEvent: a virtual window is not located under the
+	// cursor by ProcessMouseButtonDownEvent).
+	void Click(const TSharedRef<SWidget>& Widget);
+	// The game's widget takes the mouse capture, as a game viewport that hides the cursor does.
+	void GameCapturesTheMouse();
+	TSharedPtr<SWidget> MouseCaptor() const;
 	TSharedPtr<SWidget> Focused() const;
 	// The newest screen the host shows, as a payment sheet / restore screen, or null.
 	TSharedPtr<SScfgPaymentSheet> Sheet() const;

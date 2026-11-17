@@ -19,7 +19,8 @@
 //   override, see TheStyleOverrideWins), test_the_focused_field_is_scrolled_into_view_after_a_rebuild (layout of a
 //   rendered frame; the null renderer lays out but nothing scrolls visibly; FocusEntry asks the scroll box).
 // Unreal only: SlateRunsHeadless, EscapeAndGamepadBack, GamepadConfirmAndStick, ToastsFadeInRealTime,
-// WorksWhilePausedAndDilated, TheDefaultHostIsUsedWhenTheGameSetsNone, TheGameInstanceEndsWithASheetOpen.
+// WorksWhilePausedAndDilated, TheDefaultHostIsUsedWhenTheGameSetsNone, TheGameInstanceEndsWithASheetOpen,
+// TheMouseIsTheSheetsWhileItIsOpen, ASheetTheGameRemovesCountsAsCancel.
 #include "ScfgSheetTestKit.h"
 
 #include "Blueprint/UserWidget.h"
@@ -226,7 +227,7 @@ bool FScfgSheetTipByKeysTest::RunTest(const FString& Parameters)
 	R.Pass();
 	TestEqual(TEXT("the session started: the method step"), Sheet->ShownStep(), FString(TEXT("method")));
 	TestTrue(TEXT("the method step has the focus"), R.FocusInside(*Sheet));
-	TestTrue(TEXT("Down reaches the browser wallet"), R.KeyTo(*Sheet, TEXT("method_browser"), EKeys::Up));
+	TestTrue(TEXT("Up reaches the browser wallet"), R.KeyTo(*Sheet, TEXT("method_browser"), EKeys::Up));
 	R.Key(EKeys::Enter);
 	TestEqual(TEXT("the browser step"), Sheet->ShownStep(), FString(TEXT("browser")));
 	TestTrue(TEXT("its forward button has the focus"), R.HasFocus(*Sheet, TEXT("forward")));
@@ -299,8 +300,15 @@ bool FScfgSheetUnlockByKeysTest::RunTest(const FString& Parameters)
 	R.Key(EKeys::Enter);
 	TestEqual(TEXT("the manual step"), Sheet->ShownStep(), FString(TEXT("manual")));
 	TestTrue(TEXT("the back arrow on the manual step"), Sheet->IsShown(TEXT("back")));
+	R.Key(EKeys::Escape, false, true);
+	R.Key(EKeys::Gamepad_FaceButton_Right, false, true);
+	TestEqual(TEXT("a key's repeats are not back (allow_echo false)"), Sheet->ShownStep(), FString(TEXT("manual")));
 	R.Key(EKeys::Escape);
-	TestEqual(TEXT("Escape is back"), Sheet->ShownStep(), FString(TEXT("method")));
+	for (int32 I = 0; I < 3; ++I)
+	{
+		R.Key(EKeys::Escape, false, true);  // Escape held past the repeat delay
+	}
+	TestEqual(TEXT("Escape held is back one step, not out of the checkout"), Sheet->ShownStep(), FString(TEXT("method")));
 	TestTrue(TEXT("the chosen method has the focus"), R.HasFocus(*Sheet, TEXT("method_manual")));
 	R.Key(EKeys::Enter);
 	TestEqual(TEXT("the manual step again"), Sheet->ShownStep(), FString(TEXT("manual")));
@@ -1153,17 +1161,29 @@ public:
 	{
 		Widget.Reset(CreateWidget<UScfgSheetWidget>(Rig->Instance.Get()));
 		const TSharedRef<FScfgScreen> Screen = Widget->BindPayment(Checkout);
-		Slate = Widget->TakeWidget();
-		Rig->Layer->AddSlot(FScfgDefaultSheetHost::ZORDER)[Slate.ToSharedRef()];
+		Add();
 		return Screen;
 	}
 	virtual void Close(const TSharedRef<FScfgScreen>& Screen) override
 	{
 		FCreations During;
-		Rig->Layer->RemoveSlot(Slate.ToSharedRef());
+		Remove();
+		CreatedInClose = During.Count;
+	}
+	// A UMG host moving the widget: off its parent (its Slate wrapper destroyed), then added again.
+	void Remove()
+	{
+		if (Slate.IsValid())
+		{
+			Rig->Layer->RemoveSlot(Slate.ToSharedRef());
+		}
 		Widget->RemoveFromParent();
 		Slate.Reset();
-		CreatedInClose = During.Count;
+	}
+	void Add()
+	{
+		Slate = Widget->TakeWidget();
+		Rig->Layer->AddSlot(FScfgDefaultSheetHost::ZORDER)[Slate.ToSharedRef()];
 	}
 };
 
@@ -1190,11 +1210,112 @@ bool FScfgSheetUmgTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TestTrue(TEXT("constructed: it took the focus"), R.FocusInside(*Screen));
+	Host->Remove();
+	R.Frame(2);
+	TestTrue(TEXT("removed: the focus went back to the game"), R.Focused() == R.Game);
+	TestFalse(TEXT("and the flow still waits"), Box->IsSet());
+	Host->Add();
+	R.Frame(2);
+	TestTrue(TEXT("added again: the same screen"), Host->Widget->GetSlateScreen() == Screen);
+	TestTrue(TEXT("in the new Slate wrapper"), Screen->GetParentWidget().IsValid());
+	TestTrue(TEXT("shown: in the open screens"), SScfgScreen::OpenScreens().Contains(Screen.ToSharedRef()));
+	TestTrue(TEXT("with the focus"), R.FocusInside(*Screen));
 	R.Key(EKeys::Escape);
 	R.Frame(2);
 	TestTrue(TEXT("Escape cancels through it"), Box->IsSet() && (*Box)->Status == EScfgPaymentStatus::Cancelled);
 	TestEqual(TEXT("Close created no UObject"), Host->CreatedInClose, 0);
-	S.SheetHost = nullptr;
+	FTSTicker::GetCoreTicker().Tick(0.f);  // the widget's check: off every window (UMG may still hold its wrapper)
+	TestFalse(TEXT("hidden once it left the window"), Screen->IsOpen());
+	TestTrue(TEXT("the focus is the game's again"), R.Focused() == R.Game);
+
+	// the facade's teardown with a UMG-hosted sheet open (the subsystem's Deinitialize / BeginDestroy path; a real
+	// collection cannot reach it: the widget's Slate wrapper references it, and it the game instance, its outer)
+	Host->CreatedInClose = -1;
+	const TSharedRef<TOptional<FScfgPaymentResult>> Second = R.W.Pay(EScfgPayKind::Unlock, Unlock());
+	R.Frame(2);
+	TestTrue(TEXT("a second sheet"), Host->Widget.IsValid() && Host->Slate.IsValid());
+	R.W.Drop();
+	TestTrue(TEXT("teardown: resolved"), Second->IsSet());
+	TestEqual(TEXT("teardown: Close created no UObject"), Host->CreatedInClose, 0);
+	TestTrue(TEXT("teardown: off the viewport"), !Host->Slate.IsValid() && R.NumLayered() == 0);
+	return true;
+}
+
+// Ruling R2-15 (I1): a game viewport that captured the mouse (the game hides the cursor) keeps neither the clicks
+// nor the cursor while the sheet is open: the sheet releases the capture on show, shows the default cursor, takes
+// the clicks, and gives the capture back to its holder on close.
+SCFG_SHEET_TEST(FScfgSheetMouseTest, "TheMouseIsTheSheetsWhileItIsOpen")
+
+bool FScfgSheetMouseTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSheetTestsDetail;
+	FSheetRig R(*this);
+	if (!R.bReady)
+	{
+		return false;
+	}
+	R.Started(*this);
+	R.GameCapturesTheMouse();
+	if (!TestTrue(TEXT("the game's widget has the mouse capture"), R.MouseCaptor() == R.Game))
+	{
+		return false;
+	}
+	R.Click(R.Game.ToSharedRef());
+	TestEqual(TEXT("before the sheet a click is the game's"), FString::Join(R.Game->Got, TEXT(",")),
+		FString(TEXT("mouse down,mouse up")));
+	R.Game->Got.Reset();
+	const TSharedRef<TOptional<FScfgPaymentResult>> Box = R.W.Pay(EScfgPayKind::Tip, Tip(TEXT("3.00"), TEXT("USDC")));
+	R.Frame(2);
+	const TSharedPtr<SScfgPaymentSheet> Sheet = R.Sheet();
+	if (!TestTrue(TEXT("the sheet"), Sheet.IsValid()))
+	{
+		return false;
+	}
+	TestFalse(TEXT("the sheet released the game's capture"), R.MouseCaptor() == R.Game);
+	TestTrue(TEXT("and remembers who had it"), Sheet->HeldMouseCaptor() == R.Game);
+	TestEqual(TEXT("the default cursor over the sheet"),
+		int32(Sheet->OnCursorQuery(Sheet->GetTickSpaceGeometry(), FPointerEvent()).GetCursorType()), int32(EMouseCursor::Default));
+	R.Click(Sheet->Control(TEXT("preset_5.00")).ToSharedRef());
+	TestEqual(TEXT("a click on a preset is the sheet's"), Sheet->TextOf(TEXT("price")), FString(TEXT("5.00")));
+	R.Click(Sheet->Control(TEXT("cancel")).ToSharedRef());
+	R.Frame(2);
+	TestTrue(TEXT("a click on Cancel closes it"), Box->IsSet() && (*Box)->Status == EScfgPaymentStatus::Cancelled);
+	TestEqual(TEXT("the game got no click while the sheet was open"), FString::Join(R.Game->Got, TEXT(",")), FString());
+	TestTrue(TEXT("the capture is the game's again"), R.MouseCaptor() == R.Game);
+	TestTrue(TEXT("and so is the focus"), R.Focused() == R.Game);
+	R.Click(R.Game.ToSharedRef());
+	TestEqual(TEXT("and the clicks"), FString::Join(R.Game->Got, TEXT(",")), FString(TEXT("mouse down,mouse up")));
+	return true;
+}
+
+// Ruling R2-15 (M1): a sheet the game takes off the viewport itself ("Remove All Widgets") is released on the host's
+// next frame: the flow resolves as cancel, the focus goes back, nothing is left open.
+SCFG_SHEET_TEST(FScfgSheetRemovedTest, "ASheetTheGameRemovesCountsAsCancel")
+
+bool FScfgSheetRemovedTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSheetTestsDetail;
+	FSheetRig R(*this);
+	if (!R.bReady)
+	{
+		return false;
+	}
+	R.Started(*this);
+	const TSharedRef<TOptional<FScfgPaymentResult>> Box = R.W.Pay(EScfgPayKind::Tip, Tip(TEXT("3.00"), TEXT("USDC")));
+	R.Frame(2);
+	const TSharedPtr<SScfgPaymentSheet> Sheet = R.Sheet();
+	if (!TestTrue(TEXT("the sheet has the focus"), Sheet.IsValid() && R.FocusInside(*Sheet)))
+	{
+		return false;
+	}
+	R.Viewport->RemoveAllViewportWidgets();
+	TestEqual(TEXT("the game cleared its viewport"), R.Layer->GetNumWidgets(), 0);
+	R.Host->Tick();
+	R.Frame(2);
+	TestTrue(TEXT("the flow resolved as cancel"), Box->IsSet() && (*Box)->Status == EScfgPaymentStatus::Cancelled);
+	TestEqual(TEXT("the host shows nothing"), R.Host->Screens().Num(), 0);
+	TestEqual(TEXT("no screen left open"), SScfgScreen::OpenScreens().Num(), 0);
+	TestFalse(TEXT("the focus is not left on the removed sheet"), R.FocusInside(*Sheet));
 	return true;
 }
 

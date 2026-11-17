@@ -28,6 +28,10 @@ bool FScfgDefaultSheetHost::CanRestoreFocus() const
 
 FScfgDefaultSheetHost::~FScfgDefaultSheetHost()
 {
+	if (TickHandle.IsValid())
+	{
+		FTSTicker::RemoveTicker(TickHandle);
+	}
 	const bool bFocus = CanRestoreFocus();
 	for (const FShown& S : Shown)
 	{
@@ -74,9 +78,12 @@ TSharedPtr<FScfgScreen> FScfgDefaultSheetHost::Show(const TSharedRef<SScfgScreen
 	}
 	const TSharedRef<FScfgScreen> Handle = MakeShared<FScfgScreen>();
 	Widget->BindScreen(Handle);
+	// the viewport locks the cursor with its capture unless its lock mode says not to: given back so on close
+	Widget->SetMouseLockHint(Client->LockDuringCapture());
 	Client->AddViewportWidgetContent(Widget, ZORDER);
 	Shown.Add(FShown{Handle, Widget, Client});
 	Widget->OnShown();
+	EnsureTicking();
 	return Handle;
 }
 
@@ -114,36 +121,53 @@ void FScfgDefaultSheetHost::Notify(const FString& Text)
 	{
 		return;
 	}
-	TWeakPtr<FScfgDefaultSheetHost> Weak = AsShared();
 	const TSharedRef<FScfgStyle> Style =
 		FScfgStyle::Create(ScfgString::FromUtf8(scfg::config::DEFAULT_ACCENT), FString(), StyleOverride);
-	const TSharedRef<SScfgToast> Toast = SNew(SScfgToast, Style)
-		.Text(Text)
-		.OnFinished_Lambda([Weak]()
-		{
-			// Not from inside the toast's own tick (a paint pass): the next core-ticker frame removes it.
-			const TSharedPtr<FScfgDefaultSheetHost> Host = Weak.Pin();
-			if (!Host.IsValid() || Host->bSweepQueued)
-			{
-				return;
-			}
-			Host->bSweepQueued = true;
-			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak](float)
-			{
-				if (const TSharedPtr<FScfgDefaultSheetHost> Again = Weak.Pin())
-				{
-					Again->RemoveFinishedToasts();
-				}
-				return false;
-			}));
-		});
+	// removed by Tick once it has faded, not from inside its own tick (a paint pass)
+	const TSharedRef<SScfgToast> Toast = SNew(SScfgToast, Style).Text(Text);
 	Client->AddViewportWidgetContent(Toast, ZORDER + 1);
 	Toasts.Add(FToast{Toast, Client});
+	EnsureTicking();
+}
+
+void FScfgDefaultSheetHost::EnsureTicking()
+{
+	if (TickHandle.IsValid())
+	{
+		return;
+	}
+	TWeakPtr<FScfgDefaultSheetHost> Weak = AsShared();
+	TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak](float)
+	{
+		const TSharedPtr<FScfgDefaultSheetHost> Host = Weak.Pin();
+		if (!Host.IsValid())
+		{
+			return false;
+		}
+		Host->Tick();
+		return true;
+	}));
+}
+
+void FScfgDefaultSheetHost::Tick()
+{
+	// A screen someone else took off the viewport (a "Remove All Widgets" node, a level script) no longer ticks or
+	// takes input: it counts as released without Close, so its flow ends as "cancel" at the next pump (the handle
+	// goes with it), and the focus and the mouse it holds go back.
+	for (int32 I = Shown.Num() - 1; I >= 0; --I)
+	{
+		if (!Shown[I].Widget->GetParentWidget().IsValid())
+		{
+			const FShown Gone = Shown[I];
+			Shown.RemoveAt(I);
+			Gone.Widget->OnHidden(CanRestoreFocus());
+		}
+	}
+	RemoveFinishedToasts();
 }
 
 void FScfgDefaultSheetHost::RemoveFinishedToasts()
 {
-	bSweepQueued = false;
 	for (int32 I = Toasts.Num() - 1; I >= 0; --I)
 	{
 		if (Toasts[I].Widget->IsFinished())

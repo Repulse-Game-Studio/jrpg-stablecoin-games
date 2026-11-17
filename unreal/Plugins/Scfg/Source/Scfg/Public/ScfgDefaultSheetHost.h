@@ -13,11 +13,15 @@
 // while garbage is being collected or once the game instance is unreachable (focus handlers of the game's widgets
 // could reach objects being destroyed). The host holds no UObject strongly.
 //
+// The mouse: a screen releases the viewport's mouse capture and cursor lock while it is open and gives them back on
+// close (SScfgScreen.h, THE MOUSE); the host tells it whether this viewport locks the cursor with its capture.
+//
 // Look: the screens' FScfgStyle, with the configured accent and logo; SetStyleOverride() supplies an ISlateStyle whose
 // widget styles and brushes win by name (ScfgStyle.h lists the names).
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Containers/Ticker.h"
 #include "Styling/ISlateStyle.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
@@ -51,7 +55,11 @@ public:
 	TArray<TSharedRef<SScfgScreen>> Screens() const;
 	int32 NumToasts() const { return Toasts.Num(); }
 	TArray<FString> ToastTexts() const;
-	// Finished toasts are removed on the next core-ticker frame; this does it now.
+	// Every core-ticker frame while something is shown: a screen that left the viewport by another hand (it has no
+	// parent widget any more) is released, so its flow resolves as "cancel" and its focus and mouse go back; faded
+	// toasts are removed.
+	void Tick();
+	// The faded toasts leave the viewport (Tick does it).
 	void RemoveFinishedToasts();
 
 private:
@@ -77,6 +85,8 @@ private:
 	TSharedPtr<const ISlateStyle> StyleOverride;
 	TArray<FShown> Shown;
 	TArray<FToast> Toasts;
+	void EnsureTicking();
+
+	FTSTicker::FDelegateHandle TickHandle;
 	bool bWarnedNoViewport = false;
-	bool bSweepQueued = false;
 };

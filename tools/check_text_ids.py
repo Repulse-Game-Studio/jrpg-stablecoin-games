@@ -7,7 +7,8 @@ Unreal screens (unreal/Plugins/Scfg/Source/Scfg/Private/UI/ScfgTexts.cpp).
 
 THE RPG MAKER BRANCH (`--engine rpgmaker`) needs Node: the RM default texts are read as JSON from
 `node rpgmaker/src/mz/texts_dump.ts` (the module's own DEFAULT_TEXTS, Node 22.6+ strips the types;
-no node_modules needed), never parsed out of TypeScript. Without Node it fails with that reason.
+no node_modules needed), never parsed out of TypeScript. Without Node, or with one too old to run
+the .ts file, it fails with that reason (one line, no traceback).
 Checked:
   - the RM ids include every id of conformance/vectors/messages.json (with the same English);
   - every id the sheet code passes to `text("...")` / `.text("...")` / `_notify("...")` (the
@@ -29,8 +30,8 @@ Node. The ids are RPG Maker's id scheme (texts.ts). Checked:
     `ScfgTexts::Format(TEXT("..."), ...)` (the .cpp/.h files of the Scfg module) exists;
   - BY VALUE, every other text (the `dev_` developer lines aside: Godot does not translate those)
     is a string of the Godot template (scfg.pot), so the engines show the same words;
-  - when Node is installed, BY ID: every id is an RM id with the same English. Without Node this
-    part is skipped, with the reason printed.
+  - when Node is installed, BY ID: every id is an RM id with the same English. Without Node (or
+    with one that cannot run texts_dump.ts) this part is skipped, with the reason printed.
 `%d` and `%s` count as the same.
 """
 
@@ -260,6 +261,18 @@ def unreal_problems(rm_texts: dict[str, str] | None, unreal: dict[str, str] | No
     return found
 
 
+def _why(e: Exception) -> str:
+    """Why the RPG Maker texts could not be read, in one line."""
+    if isinstance(e, subprocess.CalledProcessError):
+        detail = (e.stderr or "").strip().splitlines()
+        tail = f": {detail[-1]}" if detail else ""
+        return (f"`node {DUMP.relative_to(ROOT)}` exited with {e.returncode} "
+                f"(Node 22.6+ runs a .ts file){tail}")
+    if isinstance(e, ValueError):
+        return f"`node {DUMP.relative_to(ROOT)}` printed no JSON ({e})"
+    return str(e)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="exit 1 on problems (the default)")
@@ -270,11 +283,12 @@ def main(argv: list[str] | None = None) -> int:
     rm_texts: dict[str, str] | None = None
     try:
         rm_texts = default_texts()
-    except NodeMissing as e:
+    except (NodeMissing, subprocess.CalledProcessError, OSError, ValueError) as e:
+        reason = _why(e)
         if args.engine in ("all", "rpgmaker"):
-            found.append(f"the RPG Maker branch cannot run: {e}")
+            found.append(f"the RPG Maker branch cannot run: {reason}")
         else:
-            print(f"Unreal ids not compared with RPG Maker's (skipped: {e})")
+            print(f"Unreal ids not compared with RPG Maker's (skipped: {reason})")
     if rm_texts is not None and args.engine in ("all", "rpgmaker"):
         found.extend(problems(texts=rm_texts))
     if args.engine in ("all", "unreal"):
