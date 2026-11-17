@@ -86,7 +86,8 @@ set(SCFG_TEST_GROUPS LintTests RunnerTests ErrTests BigIntTests BytesTests JsonT
   LocaleTests Tier1Tests DecTests AmountsTests Sha256Tests KeccakTests EvmTests
   Base58Tests Ed25519Tests ChainsTests ConfigTests PaymentsTests ReceiptsTests SessionsTests EntropyTests
   PdaTests SolanaTxTests QrTests PaylinksTests CoTests CoioTests RpcTests SolanaRpcTests Tier2Tests EngineTests
-  SolanaBackendTests ReverifyTests Tier1 Tier2 Tier2Deferred)
+  SolanaBackendTests ReverifyTests CheckoutTests CheckoutStepsTests CheckoutSolanaTests CheckoutAbandonedStartTests
+  RestoreFlowTests Tier1 Tier2 Tier2Deferred)
 
 cmake_path(GET CMAKE_CURRENT_SOURCE_DIR PARENT_PATH SCFG_REPO_ROOT)
 string(JOIN "," SCFG_TEST_GROUPS_CSV ${SCFG_TEST_GROUPS})
