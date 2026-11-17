@@ -72,7 +72,7 @@ Players can read how paying works, which wallets work and how to restore a purch
 | `docs/` | The docs: `players/` for players, `developers/` for the Ren'Py developer guide (joined into one `scfg-README.md` in the zip), `developers/godot/` for the Godot one (the Godot zip's `addons/scfg/README.md`), `developers/rpgmaker/` for the RPG Maker MZ one (the RPG Maker zip's `scfg-README.md`) |
 | `website/` | Docusaurus site built from `docs/`, sidebar in `sidebars.json`. `.github/workflows/docs.yml` checks that it builds |
 | `tests/unit/` | Fast unit tests |
-| `tests/integration/` | Local Anvil chain (also dressed as Arc), local Solana validator and headless Chrome tests (`-m integration`), also driving the JS, GDScript and C# cores (`test_js_core.py`, `test_gd_core.py`, `test_cs_core.py`) |
+| `tests/integration/` | Local Anvil chain (also dressed as Arc), local Solana validator and headless Chrome tests (`-m integration`), also driving the JS, GDScript, C# and C++ cores (`test_js_core.py`, `test_gd_core.py`, `test_cs_core.py`, `test_cpp_core.py`) |
 | `tests/live/` | Read-only checks of pinned real Arc mainnet payments (`-m live`, needs internet) |
 | `tests/renpy_e2e/`, `tests/renpy_web_e2e/` | Real Ren'Py runs (desktop and web build) driving a payment through the screens |
 | `conformance/` | Language-neutral JSON vectors recorded from `scfg_core` (the reference for the JS and GDScript ports), the generator, a Python replay runner and the receipt schema. See [its README](conformance/README.md) |
@@ -80,6 +80,7 @@ Players can read how paying works, which wallets work and how to restore a purch
 | `tests/rpgmaker_ui/`, `tests/server_security/` | The RPG Maker sheet in headless Chrome on the MZ stand-in; the localhost checkout server's security suite (Python, GDScript and Node servers) |
 | `godot/` | Godot 4.3+ addon (`addons/scfg/`: the `Scfg` autoload, payment sheet, localhost/web checkout and the pure-GDScript payment core in `core/`), the runnable `showcase/` (a one-screen tour of the API) and `demo/` (the game the e2e tests play), its headless test runner and the JSON-lines driver for the integration tests. See [its README](godot/README.md) |
 | `unity/` | The C# payment core (`Scfg.Core`), the start of the Unity port, which is in development: the core under `Packages/com.repulse.scfg/Runtime/Core/`, its NUnit tests (`core-tests/`) and the JSON-lines driver for the integration tests (`core-driver/`). See [its README](unity/README.md) |
+| `unreal/` | The C++ payment core (`ScfgCore`), the start of the Unreal port, which is in development: the core in plain C++20 under `Plugins/Scfg/Source/ScfgCore/` (no Unreal glue yet), its tests, lints and conformance runners (`core-tests/`) and the JSON-lines driver for the integration tests (`core-driver/`), built with CMake. See [its README](unreal/README.md) |
 | `tests/godot_showcase/` | Boots the Godot showcase headless and presses its chain-free buttons (needs `SCFG_GODOT`) |
 | `tools/` | `package.py` (release zip), `sync_demo.py` (copies the plugin into the demos and the Godot showcase), `check_rpcs.py`, `run_renpy_e2e.py`, `run_renpy_web_e2e.py`, `make_ui_assets.py` (screen corner images), `gen_vectors.py` (conformance vectors), `fetch_godot.py` (download a verified Godot binary or web export templates), `run_godot_tests.py` (the GDScript runner, failing closed), `run_godot_e2e.py` / `run_godot_web_e2e.py` (the Godot demo against a local chain), `make_pot.py`, `sync_web_page.py`, `check_text_ids.py` (RPG Maker text ids), `run_rpgmaker_web_e2e.py` / `run_rpgmaker_desktop_e2e.py` (the RPG Maker plugin against a local chain) |
 | `contracts/` | `MockToken.sol` (6-decimal mock token) and the Arc stand-ins `ArcMockUsdc.sol` / `ArcSystemEmitter.sol`, used by integration tests |
@@ -121,6 +122,13 @@ uv run python tools/run_rpgmaker_desktop_e2e.py --family evm      # or arc, sola
 # (on PATH, in $DOTNET_ROOT or in ~/.dotnet); see unity/README.md
 dotnet test unity/Scfg.sln -c Release
 uv run pytest -m integration tests/integration/test_cs_core.py
+
+# C++ core (CMake 3.25+, Ninja, a C++20 compiler; the start of the Unreal port, in development): tests, lints and
+# the conformance vectors, also under ASan/UBSan; its local-chain twins (tests/integration/test_cpp_core.py) run with
+# the integration tests above when cmake and a compiler are found; see unreal/README.md
+(cd unreal && cmake --preset release && cmake --build --preset release && ctest --preset release)
+(cd unreal && cmake --preset asan && cmake --build --preset asan && ctest --preset asan)
+uv run pytest -m integration tests/integration/test_cpp_core.py
 
 uv run python tools/gen_vectors.py        # regenerate conformance/vectors/ (--check: fail if stale)
 # GDScript core (Godot 4.3+): unit tests and the conformance vectors; its local-chain twins

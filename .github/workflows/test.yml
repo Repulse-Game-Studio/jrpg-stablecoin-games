@@ -109,6 +109,34 @@ jobs:
       - name: The core builds without warnings with nullable off, as Unity compiles it
         run: dotnet build unity/core/Scfg.Core.csproj -c Release -p:Nullable=disable -warnaserror
 
+  cpp-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30   # a hung test fails here, not after GitHub's 6 h default (the asan leg is the slowest)
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [release, asan, clang-libcxx]   # unreal/CMakePresets.json
+        include:
+          - preset: clang-libcxx   # Unreal's Linux, Mac and Android toolchains are all Clang with libc++
+            packages: clang libc++-dev libc++abi-dev
+    env:
+      SCFG_REQUIRE_LOCALES: "1"   # LocaleTests fails, rather than falls back to another locale, without tr_TR.UTF-8 and de_DE.UTF-8
+    defaults:
+      run:
+        working-directory: unreal
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Ninja and the locales LocaleTests reruns both tiers under
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build locales ${{ matrix.packages }}
+          sudo locale-gen tr_TR.UTF-8 de_DE.UTF-8
+      - run: cmake --preset ${{ matrix.preset }}
+      - name: The core, its tests, the driver and the compile-only checks (poisoned Unreal macros, unity build) build without warnings
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: C++ core tests against the conformance vectors, the lints, the locale reruns and the deferred replay
+        run: ctest --preset ${{ matrix.preset }}
+
   rpgmaker-ui:
     runs-on: ubuntu-latest
     timeout-minutes: 20   # a hung browser fails here, not after GitHub's 6 h default
@@ -184,6 +212,7 @@ jobs:
       SCFG_REQUIRE_JS: "1"   # test_js_core.py fails, rather than skips, if Node or rpgmaker/node_modules is missing
       SCFG_REQUIRE_GD: "1"   # test_gd_core.py fails, rather than skips, if SCFG_GODOT is missing
       SCFG_REQUIRE_CS: "1"   # test_cs_core.py fails, rather than skips, if dotnet is missing or the driver does not build
+      SCFG_REQUIRE_CPP: "1"   # test_cpp_core.py fails, rather than skips, if cmake 3.25+, a C++20 compiler or ninja/make is missing
       SCFG_GODOT: /tmp/godot/Godot_v4.3-stable_linux.x86_64   # the supported floor
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -201,6 +230,8 @@ jobs:
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: 8.0.x   # test_cs_core.py drives the C# core through unity/core-driver
+      - name: Install Ninja (test_cpp_core.py builds the C++ core's driver, unreal/core-driver, with it)
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
       - name: Install the JS core's dev dependencies (test_js_core.py drives it through Node)
         run: npm ci
         working-directory: rpgmaker
