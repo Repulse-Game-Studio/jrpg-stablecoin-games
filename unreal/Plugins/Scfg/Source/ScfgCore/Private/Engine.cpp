@@ -27,16 +27,18 @@ Json own_store(const Json& store) {
 }
 
 // One command at a time (Engine.h): a network command holds its Engine's flag for as long as its coroutine is alive
-// (a local of the coroutine, so it is released when the coroutine returns or its frame is destroyed).
+// (a local of the coroutine, so it is released when the coroutine returns or its frame is destroyed). The flag is
+// shared, not referenced: a frame destroyed after its Engine releases a flag nobody reads any more, instead of
+// writing into the freed Engine.
 class Running {
 public:
-    Running(bool& busy, std::string_view command) : busy_(busy) {
-        idle_or_abort(busy, command);
-        busy_ = true;
+    Running(std::shared_ptr<bool> busy, std::string_view command) : busy_(std::move(busy)) {
+        idle_or_abort(*busy_, command);
+        *busy_ = true;
     }
     Running(const Running&) = delete;
     Running& operator=(const Running&) = delete;
-    ~Running() { busy_ = false; }
+    ~Running() { *busy_ = false; }
 
     // A command started while another runs (re-entry from a callback, a click while a tick waits for HTTP):
     // Python's workers never interleave jobs, and the running one holds handles to the records the new one would
@@ -49,7 +51,7 @@ public:
     }
 
 private:
-    bool& busy_;
+    std::shared_ptr<bool> busy_;
 };
 
 SystemEntropy& system_entropy() {
@@ -189,7 +191,7 @@ Co<Json> Engine::build_solana_payment(Json sid, Json account) {
 }
 
 Status Engine::report_hint(const Json& sid, const Json& tx_hash) {
-    detail::Running::idle_or_abort(running_, "report_hint");
+    detail::Running::idle_or_abort(*running_, "report_hint");
     SCFG_TRY(std::string key, detail::pending_key(pending_, sid));
     Json rec = pending_.as_dict().get(key);
     SCFG_TRY(Json chain_key, py::get(rec, "chain"));
@@ -200,14 +202,14 @@ Status Engine::report_hint(const Json& sid, const Json& tx_hash) {
 }
 
 Status Engine::set_ui_status(const Json& sid, const Json& status) {
-    detail::Running::idle_or_abort(running_, "set_ui_status");
+    detail::Running::idle_or_abort(*running_, "set_ui_status");
     SCFG_TRY(std::optional<std::string> key, py::str_key(sid));  // `sid in self.pending`
     if (!key || !pending_.as_dict().contains(*key)) return ok();
     return sessions::set_ui_status(pending_.as_dict(), *key, status);
 }
 
 Status Engine::discard_session(const Json& sid) {
-    detail::Running::idle_or_abort(running_, "discard_session");
+    detail::Running::idle_or_abort(*running_, "discard_session");
     SCFG_TRY(std::optional<std::string> key, py::str_key(sid));  // self.pending.get(sid)
     if (!key) return ok();
     Json rec = pending_.as_dict().get(*key);
@@ -375,7 +377,7 @@ Co<std::vector<restore::RestoreCandidate>> Engine::restore_lookup(Json tx_hash) 
 
 Result<Json> Engine::restore_apply(const std::vector<restore::RestoreCandidate>& candidates,
                                    const std::optional<std::map<int64_t, Json>>& choices) {
-    detail::Running::idle_or_abort(running_, "restore_apply");
+    detail::Running::idle_or_abort(*running_, "restore_apply");
     return restore::apply(receipts_.as_dict(), candidates, choices);
 }
 

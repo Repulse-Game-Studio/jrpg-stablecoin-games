@@ -218,6 +218,43 @@ SCFG_TEST(EngineTests, DestroyingASuspendedTickIsSafe) {
     t.check(snap.ok() && snap.value().pending.as_dict().size() == 1, "state intact");
 }
 
+// Teardown in the other order: the Engine destroyed while a command's Job is suspended, then the Job. The frame's
+// busy guard shares its flag with the Engine (N1), so destroying the frame afterwards touches no freed memory (the
+// asan preset proves it); the transport, still alive, then answers into nothing.
+SCFG_TEST(EngineTests, DestroyingTheEngineBeforeASuspendedJobIsSafe) {
+    using Lookup = std::vector<scfg::restore::RestoreCandidate>;
+    const std::string tx = "0x" + std::string(64, 'a');
+    for (int command = 0; command < 3; ++command) {
+        HeldTransport transport;
+        bool finished = false;
+        std::optional<scfg::Job<std::vector<engine::StepOutcome>>> tick(std::in_place);
+        std::optional<scfg::Job<Json>> session(std::in_place);
+        std::optional<scfg::Job<Lookup>> lookup(std::in_place);
+        {
+            auto eng = std::make_unique<engine::Engine>(base_config(), transport,
+                                                        Json::dict({{"ps_a", awaiting("base", 1700000000)}}), Json(),
+                                                        [] { return int64_t{1700000100}; });
+            if (command == 0) {
+                tick->start(eng->tick(), [&finished](Result<std::vector<engine::StepOutcome>>) { finished = true; });
+            } else if (command == 1) {
+                session->start(eng->start_session("unlock", "base", Json::dict({{"item", "chapter2"}})),
+                               [&finished](Result<Json>) { finished = true; });
+            } else {
+                lookup->start(eng->restore_lookup(tx), [&finished](Result<Lookup>) { finished = true; });
+            }
+            if (!t.check(eng->running() && transport.held.size() == 1,
+                         "command " + std::to_string(command) + " suspended")) {
+                return;
+            }
+        }  // the Engine goes first
+        tick.reset();
+        session.reset();
+        lookup.reset();
+        transport.held.front().complete(Json::dict({{"result", "0x3e8"}}));
+        t.check(!finished, "a destroyed command never reports");
+    }
+}
+
 // One command at a time: running() is set while a network command's coroutine is alive, released when it returns
 // (before its Job's on_done, which may start the next command) or when its frame is destroyed. Starting a command
 // while it is set aborts (programming_error); that path is not run here, as the runner has no death tests.

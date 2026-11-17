@@ -13,11 +13,13 @@
 // from the finished one's Job on_done, which runs after its coroutine has returned.
 //
 // Lifetime: the Engine's coroutines refer to it (member coroutines) and to the transport, so the caller keeps both
-// alive, and does not move the Engine, while one runs; destroy every Job or Co running an Engine coroutine before
-// the Engine and before the transport (Co.h, "Teardown order"). Destroying a suspended Co is always safe and touches
-// nothing. If the transport is torn down first anyway, its dropped promises resume the waiting coroutine with
-// CancelledError: that is a BaseException, which no step contains, so it leaves tick() (and every other method) at
-// once, without another request and without touching the session it was stepping.
+// alive, and does not move the Engine, while one runs (Co.h, "Teardown order": destroy the Jobs first). Destroying a
+// suspended Co is safe before or after the Engine: it only runs its frames' destructors, and the one that writes
+// Engine state (the busy flag) writes a flag it shares with the Engine, so an Engine already gone is not touched.
+// What must not happen is a resume after the Engine is gone: destroy the Job before the transport answers or drops
+// its request. If the transport is torn down first (the Engine alive), its dropped promises resume the waiting
+// coroutine with CancelledError: that is a BaseException, which no step contains, so it leaves tick() (and every
+// other method) at once, without another request and without touching the session it was stepping.
 //
 // Errors: a crash while stepping one session (or, later, checking one receipt or classifying one transfer) is
 // reported to on_error and counted, never propagated, exactly where Python has `except Exception`; a BaseException
@@ -44,6 +46,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -90,7 +93,7 @@ public:
     std::function<void(const Err&)> on_error;
 
     // A network command's coroutine is alive (it is running or suspended): no other command may start.
-    bool running() const { return running_; }
+    bool running() const { return *running_; }
 
     // --- chains & RPC ---
 
@@ -158,7 +161,8 @@ private:
     Entropy* entropy_;
     OrderedMap<backends::base::Rpc> rpcs_;
     std::set<std::pair<std::string, std::string>> unready_;
-    bool running_ = false;
+    // Shared with the running command's guard, which may outlive the Engine (see Lifetime above).
+    std::shared_ptr<bool> running_ = std::make_shared<bool>(false);
 };
 
 }  // namespace scfg::engine
