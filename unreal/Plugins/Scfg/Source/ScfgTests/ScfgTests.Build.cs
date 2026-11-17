@@ -13,6 +13,6 @@ public class ScfgTests : ModuleRules
 		// SCFG_API for this module.
 		PrivateIncludePaths.Add(Path.GetFullPath(Path.Combine(ModuleDirectory, "..", "Scfg", "Private")));
 		// HTTPServer only for the local JSON-RPC endpoint of the real HTTP test (bound to 127.0.0.1).
-		PrivateDependencyModuleNames.AddRange(new string[] { "Core", "HTTP", "HTTPServer", "Scfg", "ScfgCore" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "HTTP", "HTTPServer", "Scfg", "ScfgCore" });
 	}
 }

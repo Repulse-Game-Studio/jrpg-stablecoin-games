@@ -1,0 +1,152 @@
+// Twin of godot/addons/scfg/scfg.gd's API (the Scfg autoload) and Unity's SCFG facade: the SCFG game-instance
+// subsystem, one per game instance, created and torn down with it (it survives level loads).
+//
+//     UScfgSubsystem* Scfg = GetGameInstance()->GetSubsystem<UScfgSubsystem>();
+//     Scfg->AddChain(TEXT("myl2"), Chain);                        // optional: your own EVM chain, before Configure
+//     FScfgOptions Options;
+//     Options.Wallet = TEXT("0x...");
+//     Options.bTestnet = true;
+//     Scfg->Configure(Options);
+//     FScfgItem Item;
+//     Item.Code = 1; Item.Price = TEXT("4.99"); Item.Token = TEXT("USDC"); Item.Title = TEXT("Chapter 2");
+//     Scfg->AddItem(TEXT("chapter2"), Item);
+//
+//     if (Scfg->Owns(TEXT("chapter2"))) { ... }
+//     FScfgPayRequest Request;
+//     Request.Item = TEXT("chapter2");
+//     Scfg->PayAsync(EScfgPayKind::Unlock, Request, [](const FScfgPaymentResult& R) { ... });   // shows the sheet
+//
+// Blueprint: the Pay and Restore async nodes (ScfgPayAsyncAction.h), the pure nodes of UScfgBlueprintLibrary, and the
+// BlueprintCallable functions below.
+//
+// The behaviour is ScfgFacade.h's (the engine-object-free part this wraps): misuse never crashes (one "LogScfg: Error:
+// scfg: ..." line and a Failed result with the code), AlreadyOwned comes back at once, keep playing resolves Pending,
+// callbacks and the event fire once per payment (handlers must be idempotent), and a game-instance shutdown with a
+// sheet open resolves the call without delivering anything. Until task 7's Slate sheet there is no default sheet host:
+// Pay and Restore resolve Failed "sheet.unavailable" unless SetSheetHost() gave one.
+//
+// Deinitialize tears down in ScfgFacade.h's TEARDOWN order: 1. the open sheets and controllers are closed; 2. the
+// worker is stopped and destroyed (its destructor destroys its Jobs, then the Engine, then its transport); 3. the
+// store flushes what it owes and is destroyed (its OnError, which that flush may call, only logs); 4. the pump leaves
+// the ticker.
+//
+// TODO(phase 4): UScfgSettings (a UDeveloperSettings under Project Settings -> Plugins -> SCFG, saved to
+// DefaultGame.ini) applied in Initialize through the same Configure / AddItem path; a code call made after it wins.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "Templates/Function.h"
+
+#include "IScfgSheetHost.h"
+#include "ScfgTypes.h"
+
+#include "ScfgSubsystem.generated.h"
+
+class FScfgFacade;
+struct FScfgFacadeOptions;
+
+UCLASS()
+class SCFG_API UScfgSubsystem : public UGameInstanceSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
+
+	// --- configuration: each returns "" or the ConfigError code (the Err kind for another error), logged once ---
+
+	// Add an EVM chain that isn't built in (Optimism, Avalanche, your own L2). Call it before Configure(); the key can
+	// then be used in Configure()'s Chains, RpcUrls and Confirmations.
+	UFUNCTION(BlueprintCallable, Category = "SCFG")
+	FString AddChain(const FString& Key, const FScfgChain& Chain);
+	// Set the payout wallet and options. Call it before the first frame that needs payments; it can be called again
+	// until payments have started (the frame after a successful Configure()).
+	UFUNCTION(BlueprintCallable, Category = "SCFG")
+	FString Configure(const FScfgOptions& Options);
+	// Declare a paid unlock (after Configure()).
+	UFUNCTION(BlueprintCallable, Category = "SCFG")
+	FString AddItem(const FString& ItemId, const FScfgItem& Item);
+
+	// --- payments ---
+
+	// Show the payment sheet, with a callback: OnPaid gets this call's own result when it is AlreadyOwned, Failed or
+	// Cancelled, and every later result of the payment (Paid, Underpaid, Expired), also one confirmed after the
+	// player kept playing. OnPaymentResolved is not raised for it. Without OnPaid bound, a cancel and the later
+	// results reach OnPaymentResolved. (The Pay async node is the form that resolves once, when the sheet closes.)
+	UFUNCTION(BlueprintCallable, Category = "SCFG")
+	void Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, const FOnScfgPaid& OnPaid);
+	// The same with a C++ callback (null: none).
+	void Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, TFunction<void(const FScfgPaymentResult&)> Callback);
+	// Show the payment sheet; OnResolved gets this call's result once, when the player closes the sheet (or at once:
+	// AlreadyOwned, Failed). Without a callback, a cancel and the later results (a payment the player kept playing
+	// through) also reach OnPaymentResolved: a handler of both must be idempotent. Unity's awaited Pay.
+	void PayAsync(EScfgPayKind Kind, const FScfgPayRequest& Request,
+		TFunction<void(const FScfgPaymentResult&)> OnResolved);
+	// Show the restore screen (the player pastes a transaction hash); OnRestored gets the result once a restore
+	// finishes, while the screen is still open.
+	UFUNCTION(BlueprintCallable, Category = "SCFG")
+	void Restore(const FOnScfgRestored& OnRestored);
+	// Show the restore screen; OnResolved gets the call's result when the screen is closed: Restored, NothingFound,
+	// Cancelled (closed before a restore finished) or Failed. Callback, if given, as Restore's OnRestored.
+	void RestoreAsync(TFunction<void(const FScfgRestoreResult&)> OnResolved,
+		TFunction<void(const FScfgRestoreResult&)> Callback = nullptr);
+
+	// --- queries (the Blueprint library has them as pure nodes) ---
+
+	// A verified receipt unlocks ItemId. Instant and offline. An unknown item is a developer error (logged; false).
+	bool Owns(const FString& ItemId);
+	bool HasTipped();
+	// The sum of the player's tips as a decimal string ("0", "2.50").
+	FString TipTotal();
+	// The stored receipts, by receipt key.
+	TMap<FString, FScfgReceipt> Receipts();
+	// The payments still being watched for, by session id.
+	TMap<FString, FScfgPendingPayment> Pending();
+	// True where payments can run: every platform the plugin builds for.
+	bool Supported() const;
+
+	// Support helper: write the receipts as readable JSON (a list, sorted keys, indented) to Path (empty:
+	// Saved/scfg-receipts.json). Returns the file's absolute path, or "" when it cannot be written (logged).
+	UFUNCTION(BlueprintCallable, Category = "SCFG")
+	FString ExportReceipts(const FString& Path);
+	// Testing helper: forget every receipt and pending payment on THIS device, to see your paywall again after a test
+	// purchase. Real purchases are not lost: the payments are still on the blockchain and Restore brings them back.
+	UFUNCTION(BlueprintCallable, Category = "SCFG")
+	void ClearLocalData();
+
+	// Show a short notification (through the sheet host) when a payment confirms or purchases are restored.
+	UFUNCTION(BlueprintCallable, Category = "SCFG")
+	void SetNotify(bool bInNotify);
+	UFUNCTION(BlueprintPure, Category = "SCFG")
+	bool GetNotify() const;
+
+	// How the payment sheet and the restore screen are shown (IScfgSheetHost.h).
+	void SetSheetHost(TSharedPtr<IScfgSheetHost> Host);
+	TSharedPtr<IScfgSheetHost> GetSheetHost() const;
+
+	// A final result of a payment that has no Pay callback (a cancel too).
+	UPROPERTY(BlueprintAssignable, Category = "SCFG")
+	FOnScfgPaymentResolved OnPaymentResolved;
+	// The stored receipts changed (a payment confirmed, a restore, ClearLocalData()).
+	UPROPERTY(BlueprintAssignable, Category = "SCFG")
+	FOnScfgReceiptsChanged OnReceiptsChanged;
+
+	// The flows (for the screens, task 7); null outside Initialize..Deinitialize.
+	FScfgFacade* GetFacade() const { return Facade.Get(); }
+	// Deinitialize has begun: the flows resolve without delivering anything.
+	bool IsShuttingDown() const;
+
+private:
+	friend struct FScfgSubsystemTestAccess;
+
+	// Builds the facade (Initialize: the defaults; the tests: their hooks) and binds the events.
+	void StartFacade(const FScfgFacadeOptions& Options);
+	void StopFacade();
+	// The facade, or null with one LogScfg error naming What (called outside Initialize..Deinitialize).
+	FScfgFacade* Live(const TCHAR* What) const;
+
+	TSharedPtr<FScfgFacade> Facade;
+	bool bStopping = false;
+};
