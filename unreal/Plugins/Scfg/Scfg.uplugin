@@ -16,7 +16,19 @@
 			"PlatformAllowList": [ "Win64", "Mac", "Linux" ]
 		},
 		{
+			"Name": "Scfg",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [ "Win64", "Mac", "Linux" ]
+		},
+		{
 			"Name": "ScfgCoreTests",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [ "Win64", "Mac", "Linux" ]
+		},
+		{
+			"Name": "ScfgTests",
 			"Type": "UncookedOnly",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [ "Win64", "Mac", "Linux" ]
