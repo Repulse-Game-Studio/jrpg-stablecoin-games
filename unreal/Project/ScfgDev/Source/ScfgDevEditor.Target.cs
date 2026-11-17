@@ -12,6 +12,10 @@ public class ScfgDevEditorTarget : TargetRules
 		// reaches the modules UBT compiles here, which are ours.
 		bWarningsAsErrors = true;
 		bOverrideBuildEnvironment = true;
+		// A unity build is a unity build. UBT's adaptive unity takes the files it thinks are being edited out of the
+		// unity file; with an installed engine and no .git in the project's folder or its parent it takes every
+		// writable file, so without this no core file would ever be built in Module.ScfgCore.cpp.
+		bUseAdaptiveUnityBuild = false;
 		ExtraModuleNames.Add("ScfgDev");
 	}
 }
