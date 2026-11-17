@@ -177,6 +177,9 @@ public:
 	// A tick as soon as the queued commands are done (Python's wake()), joining the pending one if any. OnDone, if
 	// given, gets that tick's outcomes (all of them) or its Err.
 	void Tick(TOnDone<FOutcomes> OnDone = nullptr);
+	// worker.py's submit(fn) for a plain function: Fn runs on the Engine in its turn, as any command (the facade's
+	// ClearLocalData wipes the stores this way, and the tests change the Engine's state). Fn must not start a coroutine.
+	void Run(TUniqueFunction<scfg::Result<scfg::Json>(scfg::engine::Engine&)> Fn, TOnDone<scfg::Json> OnDone);
 
 	// --- readers ---
 
@@ -190,6 +193,9 @@ public:
 	int32 NumQueued() const { return Queue.Num(); }
 	bool IsBusy() const { return Current.IsValid(); }
 	bool IsTickPending() const { return PendingTick.IsValid(); }
+	// Valid and true while the worker exists: a holder that may outlive it (the Submitter adapter) checks it before
+	// every call.
+	TWeakPtr<bool> GetLifetime() const { return Alive; }
 
 	// After every command that started (one cancelled while it ran included), once the Snapshot is refreshed. Shared,
 	// so a subscriber can hold it weakly (see ONSTATECHANGED'S HANDLERS above).

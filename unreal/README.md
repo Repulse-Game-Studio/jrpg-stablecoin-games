@@ -179,7 +179,7 @@ Two compile-only targets check the core as Unreal will build it, and one link ch
 
 ## Known divergences from Python
 
-Deliberate or accepted differences. None is reachable with valid, schema-conforming data. Python here is the reference's 3.9: messages follow CPython 3.9 where 3.12 changed them.
+Deliberate or accepted differences. Most are reachable only with data that breaks the schema, or a node or a caller that misbehaves; the rows on a cancelled checkout or restore command and on destroying a `CheckoutController` are reached in normal operation (the worker stops, a screen goes away), and are deliberate. Python here is the reference's 3.9: messages follow CPython 3.9 where 3.12 changed them.
 
 | Area | C++ | Python |
 |---|---|---|

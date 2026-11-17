@@ -34,11 +34,13 @@
 // - A method Python can raise from returns a Result (select_chain's ValueError, a parse_amount Err that is neither a
 //   TypeError nor a ValueError, the paylinks' Errs).
 //
-// Divergences (README, "Known divergences from Python"), none reachable with the Engine's own results:
+// Divergences (README, "Known divergences from Python"). A cancelled start and the destructor are reached in normal
+// operation (the worker stops, the screen goes away) and are deliberate; the others only with results the Engine never
+// gives:
 // - poll() accepts a started session only when it is a dict with a str "id", an int "units" and, on Solana, a str
 //   "reference"; anything else is a failed start (start_failed), where Python would fail later reading it. So
 //   session_id(), pay_amount_text() and start_browser() cannot fail. The session such a start may have created is
-//   not discarded (there is no id to discard).
+//   not discarded, even when it has a str id.
 // - A cancelled start (CancelledError: the worker was stopped) is a failed start too (start_failed, back to the
 //   network step); in Python fut.exception() raises CancelledError out of poll().
 // - enabled_chains(config), the methods options (config.methods) and text_on(accent) are read once, in make(), so

@@ -139,7 +139,6 @@ StepOutcome outcome(std::string sid, std::string status) {
 
 const Json& info_of(const Setup& s) { return s.servers->front()->args.session_info; }
 
-// A submitter whose start_session is answered by the test.
 // A submitter whose start_session is answered by the test; it records every command by name.
 struct HeldSubmitter final : scfg::worker::Submitter {
     std::vector<scfg::worker::OnDone<Json>> starts;

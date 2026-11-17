@@ -428,6 +428,12 @@ void FScfgWorker::RestoreApply(std::vector<scfg::restore::RestoreCandidate> Cand
 		MoveTemp(OnDone)));
 }
 
+void FScfgWorker::Run(
+	TUniqueFunction<scfg::Result<scfg::Json>(scfg::engine::Engine&)> Fn, TOnDone<scfg::Json> OnDone)
+{
+	Submit(MakeUnique<ScfgWorkerDetail::TPlainCommand<scfg::Json>>(MoveTemp(Fn), MoveTemp(OnDone)));
+}
+
 FScfgWorker::FOutcomes FScfgWorker::DrainOutcomes()
 {
 	FOutcomes Out = std::move(Outcomes);
