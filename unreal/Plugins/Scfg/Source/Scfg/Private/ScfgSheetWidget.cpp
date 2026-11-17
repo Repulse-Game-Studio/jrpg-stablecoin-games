@@ -10,6 +10,7 @@
 
 #include "ScfgCheckoutController.h"
 #include "ScfgControllers.h"
+#include "ScfgDefaultSheetHost.h"
 #include "UI/SScfgPaymentSheet.h"
 #include "UI/SScfgRestoreScreen.h"
 #include "UI/ScfgStyle.h"
@@ -92,6 +93,7 @@ void UScfgSheetWidget::Show()
 	if (UGameViewportClient* Client = Instance ? Instance->GetGameViewportClient() : nullptr)
 	{
 		Screen->SetMouseLockHint(Client->LockDuringCapture());
+		Screen->SetMouseWish(ScfgDefaultSheetHostDetail::WishOf(Client, const_cast<UGameInstance*>(Instance)));
 	}
 	Screen->OnShown();
 }

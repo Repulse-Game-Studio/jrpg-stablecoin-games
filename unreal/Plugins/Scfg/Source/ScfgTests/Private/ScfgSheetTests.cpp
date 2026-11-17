@@ -1277,14 +1277,118 @@ bool FScfgSheetMouseTest::RunTest(const FString& Parameters)
 		int32(Sheet->OnCursorQuery(Sheet->GetTickSpaceGeometry(), FPointerEvent()).GetCursorType()), int32(EMouseCursor::Default));
 	R.Click(Sheet->Control(TEXT("preset_5.00")).ToSharedRef());
 	TestEqual(TEXT("a click on a preset is the sheet's"), Sheet->TextOf(TEXT("price")), FString(TEXT("5.00")));
-	R.Click(Sheet->Control(TEXT("cancel")).ToSharedRef());
+
+	// The window activated again (Alt+Tab back from the wallet): the engine gives the viewport the focus and the
+	// capture, as FSceneViewport::OnViewportActivated's AcquireFocusAndCapture does (a SetInputMode(GameOnly) too).
+	auto Activate = [&R]()
+	{
+		FWidgetPath Path;
+		FSlateApplication& App = FSlateApplication::Get();
+		App.FindPathToWidget(R.Game.ToSharedRef(), Path);
+		App.ProcessReply(Path, FReply::Handled().SetUserFocus(R.Game.ToSharedRef(), EFocusCause::WindowActivate)
+			.CaptureMouse(R.Game.ToSharedRef()), nullptr, nullptr, 0);
+	};
+	Activate();
+	TestTrue(TEXT("activation: the game took the focus and the mouse"), R.Focused() == R.Game && R.MouseCaptor() == R.Game);
+	R.Frame();
+	TestTrue(TEXT("within one tick the sheet has the mouse again"), R.MouseCaptor() != R.Game);
+	TestTrue(TEXT("and the keyboard focus"), R.FocusInside(*Sheet));
+	R.Click(Sheet->Control(TEXT("preset_10.00")).ToSharedRef());
+	TestEqual(TEXT("and the clicks"), Sheet->TextOf(TEXT("price")), FString(TEXT("10.00")));
+	R.Key(EKeys::Escape);
 	R.Frame(2);
-	TestTrue(TEXT("a click on Cancel closes it"), Box->IsSet() && (*Box)->Status == EScfgPaymentStatus::Cancelled);
-	TestEqual(TEXT("the game got no click while the sheet was open"), FString::Join(R.Game->Got, TEXT(",")), FString());
+	TestTrue(TEXT("a key is the sheet's too (Escape on the first step closes it)"), Box->IsSet());
+	TestTrue(TEXT("closing gave the capture back to the game"), R.MouseCaptor() == R.Game);
+	R.Game->Got.Reset();
+
+	// two screens stacked: only the one on top takes the focus back
+	const TSharedRef<TOptional<FScfgPaymentResult>> Below = R.W.Pay(EScfgPayKind::Unlock, Unlock());
+	R.Frame(2);
+	const TSharedRef<TOptional<FScfgRestoreResult>> Above = R.W.Restore();
+	R.Frame(2);
+	const TSharedPtr<SScfgPaymentSheet> Lower = R.Sheet();
+	const TSharedPtr<SScfgRestoreScreen> Top = R.RestoreScreen();
+	if (!TestTrue(TEXT("both screens"), Lower.IsValid() && Top.IsValid()))
+	{
+		return false;
+	}
+	Activate();
+	R.Frame(3);
+	TestTrue(TEXT("stacked: the top screen took the focus back"), R.HasFocus(*Top, TEXT("tx_input")));
+	TestFalse(TEXT("and the one below did not fight it"), R.FocusInside(*Lower));
+	TestTrue(TEXT("and the mouse is no one's"), R.MouseCaptor() != R.Game);
+	R.Key(EKeys::Escape);
+	R.Frame(2);
+	R.Key(EKeys::Escape);
+	R.Frame(2);
+	TestTrue(TEXT("both closed"), Above->IsSet() && Below->IsSet());
 	TestTrue(TEXT("the capture is the game's again"), R.MouseCaptor() == R.Game);
-	TestTrue(TEXT("and so is the focus"), R.Focused() == R.Game);
-	R.Click(R.Game.ToSharedRef());
-	TestEqual(TEXT("and the clicks"), FString::Join(R.Game->Got, TEXT(",")), FString(TEXT("mouse down,mouse up")));
+	TestEqual(TEXT("the game got no click or key while a screen was open"), FString::Join(R.Game->Got, TEXT(",")), FString());
+	return true;
+}
+
+// Ruling R2-15 follow-up (N1, N2): the mouse goes back as the game wants it at the close, not as it was at the open,
+// and a cursor lock without a capture is given back too.
+SCFG_SHEET_TEST(FScfgSheetMouseWishTest, "TheMouseGoesBackAsTheGameWantsItNow")
+
+bool FScfgSheetMouseWishTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSheetTestsDetail;
+	FSheetRig R(*this);
+	if (!R.bReady)
+	{
+		return false;
+	}
+	R.Started(*this);
+	for (const bool bWantsCapture : {false, true})
+	{
+		R.GameCapturesTheMouse();
+		const TSharedRef<TOptional<FScfgPaymentResult>> Box = R.W.Pay(EScfgPayKind::Tip, Tip(TEXT("3.00"), TEXT("USDC")));
+		R.Frame(2);
+		const TSharedPtr<SScfgPaymentSheet> Sheet = R.Sheet();
+		if (!TestTrue(TEXT("the sheet"), Sheet.IsValid()))
+		{
+			return false;
+		}
+		TestFalse(TEXT("open: the capture released"), R.MouseCaptor() == R.Game);
+		// meanwhile the game changed its input mode: a cursor shown and no capture (a UI-only menu), or not
+		TSharedPtr<SWidget> Game = R.Game;
+		Sheet->SetMouseWish([Game, bWantsCapture]()
+		{
+			FScfgMouseWish Wish;
+			Wish.Viewport = Game;
+			Wish.bCapture = bWantsCapture;
+			return Wish;
+		});
+		R.Key(EKeys::Escape);
+		R.Frame(2);
+		TestTrue(TEXT("closed"), Box->IsSet());
+		TestEqual(bWantsCapture ? TEXT("the game wants the capture: given back") : TEXT("the game no longer captures: not forced on it"),
+			R.MouseCaptor() == R.Game, bWantsCapture);
+		FSlateApplication::Get().ReleaseAllPointerCapture(0);
+	}
+	// a lock without a capture (a LockAlways viewport): recorded at the take, so it is given back at the close
+	R.W.Pay(EScfgPayKind::Tip, Tip(TEXT("3.00"), TEXT("USDC")));
+	R.Frame(2);
+	const TSharedPtr<SScfgPaymentSheet> Sheet = R.Sheet();
+	if (!TestTrue(TEXT("a third sheet"), Sheet.IsValid()))
+	{
+		return false;
+	}
+	TSharedPtr<SWidget> Game = R.Game;
+	Sheet->SetMouseWish([Game]()
+	{
+		FScfgMouseWish Wish;
+		Wish.Viewport = Game;
+		Wish.bLock = true;
+		return Wish;
+	});
+	TestFalse(TEXT("no capture anywhere"), R.MouseCaptor().IsValid());
+	Sheet->OnShown();  // the take again (as on a re-show): the lock it releases is recorded
+	TestTrue(TEXT("the lock is held for the viewport, with no capture"), Sheet->HeldMouseCaptor() == R.Game);
+	R.Key(EKeys::Escape);
+	R.Frame(2);
+	TestFalse(TEXT("given back as a lock only: no capture forced"), R.MouseCaptor().IsValid());
 	return true;
 }
 

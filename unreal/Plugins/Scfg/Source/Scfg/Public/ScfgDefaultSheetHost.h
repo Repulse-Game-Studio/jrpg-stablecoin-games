@@ -33,6 +33,14 @@ class SWidget;
 class UGameInstance;
 class UGameViewportClient;
 
+struct FScfgMouseWish;
+
+namespace ScfgDefaultSheetHostDetail
+{
+// What Client's game viewport wants of the mouse now, read when it is called (ScfgDefaultSheetHost.cpp).
+SCFG_API TFunction<FScfgMouseWish()> WishOf(UGameViewportClient* Client, TWeakObjectPtr<UGameInstance> GameInstance);
+}
+
 class SCFG_API FScfgDefaultSheetHost : public IScfgSheetHost, public TSharedFromThis<FScfgDefaultSheetHost>
 {
 public:

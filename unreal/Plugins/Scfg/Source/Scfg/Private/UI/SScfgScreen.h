@@ -30,9 +30,15 @@
 // was locked with it (SetMouseLockHint: the viewport client's LockDuringCapture; else assumed with high precision);
 // OnCursorQuery shows the default cursor over the screen. OnHidden, after giving the keyboard focus back, gives the
 // capture, high precision and lock back exactly so, by a reply on the captor's path: this does not depend on the focus
-// cause, so a PIE viewport (which re-captures only on a mouse focus) gets its capture back too. A screen closing below
-// another hands the mouse over with the focus; a game that hid the platform cursor itself
-// (SetPlatformCursorVisibility) is left as it is.
+// cause, so a PIE viewport (which re-captures only on a mouse focus) gets its capture back too. It gives back what the
+// game wants then (SetMouseWish: the viewport client's capture mode, cursor and lock mode, and the player controller's
+// cursor), not what it recorded, so a game that changed its input mode meanwhile keeps its new one; only without a
+// wish is the recorded state replayed. The lock is recorded and given back with or without a capture (a LockAlways
+// viewport). While it is open and the topmost screen, every Tick takes the mouse and the keyboard focus again when it
+// finds them outside: the engine gives both to the game viewport when the window is activated again (Alt+Tab back
+// from the wallet: FSceneViewport::OnViewportActivated), and so does a SetInputMode(GameOnly) under the sheet. A screen
+// below another never takes them, so two stacked screens do not fight. A screen closing below another hands the mouse
+// over with the focus; a game that hid the platform cursor itself (SetPlatformCursorVisibility) is left as it is.
 //
 // FOCUS AND OTHER SCREENS. The focus the game had (every Slate user's) goes back to it when the screen closes
 // (OnHidden). Several screens can be open at once, the later one on top: a rebuild never takes the focus from a
@@ -59,6 +65,17 @@ class SScrollBox;
 class STextBlock;
 class SVerticalBox;
 
+// What the game's viewport wants of the mouse now (FScfgDefaultSheetHost and UScfgSheetWidget read it from the game
+// viewport client and its player controller): the screen gives the mouse back by it, not by what it recorded at open.
+struct FScfgMouseWish
+{
+	// The viewport's widget (the captor and the lock target); null: unknown, the recorded state is replayed.
+	TSharedPtr<SWidget> Viewport;
+	bool bCapture = false;
+	bool bHighPrecision = false;
+	bool bLock = false;
+};
+
 class SCFG_API SScfgScreen : public SCompoundWidget
 {
 public:
@@ -77,6 +94,8 @@ public:
 	// Whether the captor's viewport locks the cursor while it captures (UGameViewportClient::LockDuringCapture), set by
 	// the host before OnShown; unset: locked when the capture was a high-precision one.
 	void SetMouseLockHint(bool bLocks) { CaptorLocks = bLocks; }
+	// What the game's viewport wants of the mouse at a given moment (see FScfgMouseWish), set by the host.
+	void SetMouseWish(TFunction<FScfgMouseWish()> InWish) { MouseWish = MoveTemp(InWish); }
 	// Shown (OnShown) and not hidden since.
 	bool IsOpen() const;
 	// A screen in a host that cannot say when it is shown again (UScfgSheetWidget: UMG may keep or replace its Slate
@@ -243,6 +262,11 @@ private:
 	bool bMouseHighPrecision = false;
 	bool bMouseLocked = false;
 	TOptional<bool> CaptorLocks;
+	TFunction<FScfgMouseWish()> MouseWish;
+	// The open screen drawn over all others (the one that takes the mouse and the focus back).
+	bool IsTopmost() const;
+	// Tick: on top, open, and the mouse capture or the keyboard focus is outside: take them again.
+	void KeepInput();
 	bool bShowWhenPainted = false;
 	// The left stick moved past the threshold on an axis (one step per push).
 	bool bStickX = false;

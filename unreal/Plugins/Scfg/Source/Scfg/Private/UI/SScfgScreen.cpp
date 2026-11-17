@@ -196,13 +196,24 @@ void SScfgScreen::TakeMouse()
 		return;
 	}
 	const TSharedPtr<SWidget> Captor = User->HasCursorCapture() ? User->GetCursorCaptor() : nullptr;
+	const TOptional<FScfgMouseWish> Wish = MouseWish ? TOptional<FScfgMouseWish>(MouseWish()) : TOptional<FScfgMouseWish>();
 	if (Captor.IsValid() && !ScfgScreenDetail::IsInside(Captor.ToSharedRef(), AsShared()))
 	{
 		const TSharedPtr<GenericApplication> Platform = App.GetPlatformApplication();
 		MouseCaptor = Captor;
 		bMouseHeld = true;
 		bMouseHighPrecision = Platform.IsValid() && Platform->IsUsingHighPrecisionMouseMode();
-		bMouseLocked = CaptorLocks.Get(bMouseHighPrecision);
+		bMouseLocked = bMouseLocked || CaptorLocks.Get(bMouseHighPrecision);
+	}
+	// A cursor locked without a capture (a LockAlways viewport): released below, so given back too.
+	if (Wish.IsSet() && Wish->bLock && Wish->Viewport.IsValid())
+	{
+		bMouseHeld = true;
+		bMouseLocked = true;
+		if (!MouseCaptor.IsValid())
+		{
+			MouseCaptor = Wish->Viewport;
+		}
 	}
 	// The reply releases the capture, high-precision mode and the cursor lock as an event would (SlateApplication.cpp's
 	// ProcessReply); on a path to this screen, which is on top of the viewport now.
@@ -231,26 +242,44 @@ void SScfgScreen::GiveMouseBack()
 		return;
 	}
 	bMouseHeld = false;
-	const TSharedPtr<SWidget> Captor = MouseCaptor.Pin();
+	TSharedPtr<SWidget> Target = MouseCaptor.Pin();
 	MouseCaptor.Reset();
+	const bool bLockedWhenTaken = bMouseLocked;
+	bMouseLocked = false;
+	// What the game wants now, if its viewport can say (it may have changed its input mode while the screen was open);
+	// else what was recorded.
+	bool bCapture = Target.IsValid();
+	bool bHighPrecision = bMouseHighPrecision;
+	bool bLock = bLockedWhenTaken;
+	if (MouseWish)
+	{
+		const FScfgMouseWish Wish = MouseWish();
+		if (Wish.Viewport.IsValid() && (!Target.IsValid() || Target == Wish.Viewport))
+		{
+			Target = Wish.Viewport;
+			bCapture = Wish.bCapture;
+			bHighPrecision = Wish.bHighPrecision;
+			bLock = Wish.bLock;
+		}
+	}
 	FSlateApplication& App = FSlateApplication::Get();
 	FWidgetPath Path;
-	if (!Captor.IsValid() || !App.FindPathToWidget(Captor.ToSharedRef(), Path) || !Path.IsValid())
+	if (!Target.IsValid() || (!bCapture && !bLock) || !App.FindPathToWidget(Target.ToSharedRef(), Path) || !Path.IsValid())
 	{
-		return;  // the captor is gone (the level changed): nothing to give back
+		return;  // the game wants neither now, or its widget is gone (the level changed)
 	}
 	FReply Reply = FReply::Handled();
-	if (bMouseHighPrecision)
+	if (bCapture && bHighPrecision)
 	{
-		Reply.UseHighPrecisionMouseMovement(Captor.ToSharedRef());
+		Reply.UseHighPrecisionMouseMovement(Target.ToSharedRef());
 	}
-	else
+	else if (bCapture)
 	{
-		Reply.CaptureMouse(Captor.ToSharedRef());
+		Reply.CaptureMouse(Target.ToSharedRef());
 	}
-	if (bMouseLocked)
+	if (bLock)
 	{
-		Reply.LockMouseToWidget(Captor.ToSharedRef());
+		Reply.LockMouseToWidget(Target.ToSharedRef());
 	}
 	App.ProcessReply(Path, Reply, nullptr, nullptr, App.GetUserIndexForMouse());
 }
@@ -425,7 +454,40 @@ void SScfgScreen::Tick(const FGeometry& AllottedGeometry, const double InCurrent
 	{
 		FocusKeyOrPrimary(CurrentKey);
 	}
+	KeepInput();
 	ResyncFocus();
+}
+
+bool SScfgScreen::IsTopmost() const
+{
+	const TArray<TSharedRef<SScfgScreen>> Open = OpenScreens();
+	for (int32 I = Open.Num() - 1; I >= 0; --I)
+	{
+		if (!Open[I]->bEnded)
+		{
+			return &Open[I].Get() == this;
+		}
+	}
+	return false;
+}
+
+void SScfgScreen::KeepInput()
+{
+	if (bEnded || !FSlateApplication::IsInitialized() || !IsOpen() || !IsTopmost())
+	{
+		return;
+	}
+	FSlateApplication& App = FSlateApplication::Get();
+	const TSharedPtr<FSlateUser> Mouse = App.GetUser(App.GetUserIndexForMouse());
+	const TSharedPtr<SWidget> Captor = Mouse.IsValid() && Mouse->HasCursorCapture() ? Mouse->GetCursorCaptor() : nullptr;
+	if (Captor.IsValid() && !ScfgScreenDetail::IsInside(Captor.ToSharedRef(), AsShared()))
+	{
+		TakeMouse();  // the game viewport captured again (window activated, SetInputMode under the sheet)
+	}
+	if (!HasFocusWithin(0) && !bFocusPending)
+	{
+		FocusKeyOrPrimary(CurrentKey);
+	}
 }
 
 TSharedRef<STextBlock> SScfgScreen::Label(const FString& Text, FName StyleName, bool bWrap)
