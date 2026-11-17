@@ -1,4 +1,4 @@
-// Builds the e2e's Linux player (tools/run_unity_e2e.py):
+// Builds the e2e's Linux player (tools/run_unity_e2e.py) and its WebGL player (tools/run_unity_web_e2e.py, BuildWebGL):
 //
 //     Unity -batchmode -nographics -quit -projectPath unity/Project -executeMethod Scfg.E2E.ScfgE2EBuild.BuildLinux \
 //           -scfgBackend mono|il2cpp -scfgOut <dir> -logFile <log>
@@ -47,13 +47,89 @@ namespace Scfg.E2E
             EditorApplication.Exit(code);
         }
 
+        /// <summary>
+        /// The e2e's WebGL player (tools/run_unity_web_e2e.py): <c>-executeMethod Scfg.E2E.ScfgE2EBuild.BuildWebGL -scfgOut &lt;dir&gt;</c>.
+        /// IL2CPP (WebGL's only backend) with Managed Stripping Level High, uncompressed (any static server serves it), no
+        /// data caching, single-threaded; the editor's default template. Exit code 0 on success, 1 otherwise.
+        /// </summary>
+        public static void BuildWebGL()
+        {
+            int code = 1;
+            try
+            {
+                code = BuildWeb(Arg("-scfgOut") ?? Path.GetFullPath("Build/e2e-web")) ? 0 : 1;
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
+            EditorApplication.Exit(code);
+        }
+
+        public static bool BuildWeb(string outDir)
+        {
+            EnsureScene();
+            var target = NamedBuildTarget.WebGL;
+            var oldStripping = PlayerSettings.GetManagedStrippingLevel(target);
+            var oldProduct = PlayerSettings.productName;
+            var oldCompany = PlayerSettings.companyName;
+            var oldCompression = PlayerSettings.WebGL.compressionFormat;
+            var oldCaching = PlayerSettings.WebGL.dataCaching;
+            var oldThreads = PlayerSettings.WebGL.threadsSupport;
+            var oldFallback = PlayerSettings.WebGL.decompressionFallback;
+            try
+            {
+                PlayerSettings.SetManagedStrippingLevel(target, ManagedStrippingLevel.High);
+                PlayerSettings.productName = Product;
+                PlayerSettings.companyName = Company;
+                PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+                PlayerSettings.WebGL.decompressionFallback = false;
+                PlayerSettings.WebGL.dataCaching = false;
+                PlayerSettings.WebGL.threadsSupport = false;
+                Directory.CreateDirectory(outDir);
+                var options = new BuildPlayerOptions
+                {
+                    scenes = new[] { Scene },
+                    locationPathName = outDir,
+                    target = BuildTarget.WebGL,
+                    options = BuildOptions.None,
+                };
+                return Report(BuildPipeline.BuildPlayer(options), "webgl", outDir);
+            }
+            finally
+            {
+                PlayerSettings.SetManagedStrippingLevel(target, oldStripping);
+                PlayerSettings.productName = oldProduct;
+                PlayerSettings.companyName = oldCompany;
+                PlayerSettings.WebGL.compressionFormat = oldCompression;
+                PlayerSettings.WebGL.decompressionFallback = oldFallback;
+                PlayerSettings.WebGL.dataCaching = oldCaching;
+                PlayerSettings.WebGL.threadsSupport = oldThreads;
+                AssetDatabase.SaveAssets();
+            }
+        }
+
+        private static void EnsureScene()
+        {
+            if (File.Exists(Scene)) return;
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            EditorSceneManager.SaveScene(scene, Scene);
+        }
+
+        private static bool Report(BuildReport report, string what, string where)
+        {
+            var summary = report.summary;
+            Debug.Log("scfg-e2e build: " + summary.result + " (" + what + ", " + summary.totalErrors + " errors, "
+                      + summary.totalWarnings + " warnings) -> " + where);
+            foreach (var step in report.steps)
+            foreach (var m in step.messages.Where(m => m.type == LogType.Error || m.type == LogType.Exception))
+                Debug.Log("scfg-e2e build error: " + m.content);
+            return summary.result == BuildResult.Succeeded;
+        }
+
         public static bool Build(string backend, string outDir)
         {
-            if (!File.Exists(Scene))
-            {
-                var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-                EditorSceneManager.SaveScene(scene, Scene);
-            }
+            EnsureScene();
             var target = NamedBuildTarget.Standalone;
             var il2cpp = backend == "il2cpp";
             var oldBackend = PlayerSettings.GetScriptingBackend(target);
@@ -75,14 +151,7 @@ namespace Scfg.E2E
                     target = BuildTarget.StandaloneLinux64,
                     options = BuildOptions.None,
                 };
-                var report = BuildPipeline.BuildPlayer(options);
-                var summary = report.summary;
-                Debug.Log("scfg-e2e build: " + summary.result + " (" + backend + ", " + summary.totalErrors + " errors, "
-                          + summary.totalWarnings + " warnings) -> " + options.locationPathName);
-                foreach (var step in report.steps)
-                foreach (var m in step.messages.Where(m => m.type == LogType.Error || m.type == LogType.Exception))
-                    Debug.Log("scfg-e2e build error: " + m.content);
-                return summary.result == BuildResult.Succeeded;
+                return Report(BuildPipeline.BuildPlayer(options), backend, options.locationPathName);
             }
             finally
             {

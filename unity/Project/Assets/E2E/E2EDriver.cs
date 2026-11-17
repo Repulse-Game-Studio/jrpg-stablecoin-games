@@ -1,5 +1,6 @@
 // The Unity e2e's demo game and its driver (twin of godot/demo/e2e/e2e_driver.gd), run by tools/run_unity_e2e.py in a
-// Linux player (Mono or IL2CPP). Nothing here runs unless SCFG_E2E_CONFIG is set, so the dev project's play-mode tests
+// Linux player (Mono or IL2CPP) and by tools/run_unity_web_e2e.py in a WebGL player. Nothing here runs unless
+// SCFG_E2E_CONFIG is set (desktop) or the page defines window.scfgE2EConfig (web), so the dev project's play-mode tests
 // never see it.
 //
 // THE GAME. A one-screen demo: "Chapter 2" (locked, or the thank-you once owned) with an Unlock button, and a Tip
@@ -16,13 +17,25 @@
 // events. Every error, exception, assert and warning the game logs is also printed as "SCFG-PROBLEM <type>: <text>",
 // and "SCFG-QUITTING" is printed when the game quits on its own. The platform is a recording one: Copy and Open go to
 // the snapshot's "copied" and "opened" lists (no real browser or clipboard).
+//
+// THE WEB DRIVER (WebGL players; Plugins/ScfgE2E.jslib). The config is window.scfgE2EConfig, a JSON string of the same
+// document plus an optional "chain" (SCFG_E2E_CHAIN's override); anything but a string is refused ("e2e config
+// window.scfgE2EConfig: not a string but <type>") and the driver does not start. Once started it defines
+// window.scfgE2E(line), which queues a command, and window.scfgE2EReplies, where each reply is pushed (the driver takes
+// one command per frame); problems go to window.scfgE2EProblems. The platform stays the real one, so Copy, Paste and
+// links go through the page's bridge (the runner reads the browser's clipboard). A click with "press": false does not
+// press: it answers {"at": [x, y]}, the button's centre in canvas pixels from the top left, for the runner's mouse.
+// Extra commands: state (persistentDataPath/scfg/state.json as JSON, or null), post {url, payload, timeout} (a POST
+// through the package's UnityWebRequestTransport) and post_result (null while it runs, then {"value"} or {"error"}).
 #nullable enable
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using Scfg.Core;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -53,11 +66,43 @@ namespace Scfg.E2E
         private readonly RecordingPlatform _platform = new RecordingPlatform();
         private string? _thanks;
         private bool _quitting;
+        private static string? _webConfig; // web: the config text the page gave
+        private Task<object?>? _post;
+        private UnityWebRequestTransport? _postTransport;
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+        private static readonly bool Web = true;
+        [DllImport("__Internal")] private static extern string ScfgE2EConfigType();
+        [DllImport("__Internal")] private static extern string ScfgE2EConfig();
+        [DllImport("__Internal")] private static extern void ScfgE2EStart();
+        [DllImport("__Internal")] private static extern string ScfgE2ETake();
+        [DllImport("__Internal")] private static extern void ScfgE2EReply(string text);
+        [DllImport("__Internal")] private static extern void ScfgE2EProblem(string text);
+#else
+        private static readonly bool Web = false;
+        private static string ScfgE2EConfigType() => "undefined";
+        private static string ScfgE2EConfig() => "";
+        private static void ScfgE2EStart() { }
+        private static string? ScfgE2ETake() => null;
+        private static void ScfgE2EReply(string text) { }
+        private static void ScfgE2EProblem(string text) { }
+#endif
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Boot()
         {
-            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SCFG_E2E_CONFIG"))) return;
+            if (Web)
+            {
+                var type = ScfgE2EConfigType();
+                if (type == "undefined") return;
+                if (type != "string")
+                {
+                    Debug.LogError("e2e config window.scfgE2EConfig: not a string but " + type);
+                    return;
+                }
+                _webConfig = ScfgE2EConfig();
+            }
+            else if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SCFG_E2E_CONFIG"))) return;
             var go = new GameObject("SCFG E2E");
             DontDestroyOnLoad(go);
             go.AddComponent<E2EDriver>();
@@ -69,6 +114,12 @@ namespace Scfg.E2E
         /// </summary>
         internal static void Out(string line)
         {
+            if (Web)
+            {
+                if (line.StartsWith("SCFG-REPLY ", StringComparison.Ordinal)) ScfgE2EReply(line.Substring("SCFG-REPLY ".Length));
+                else if (line.StartsWith("SCFG-PROBLEM ", StringComparison.Ordinal)) ScfgE2EProblem(line.Substring("SCFG-PROBLEM ".Length));
+                return;
+            }
             lock (OutLock)
             {
                 try
@@ -101,6 +152,11 @@ namespace Scfg.E2E
                 Quit(1);
                 return;
             }
+            if (Web)
+            {
+                ScfgE2EStart();
+                return;
+            }
             var reader = new Thread(ReadStdin) { IsBackground = true, Name = "scfg-e2e-stdin" };
             reader.Start();
         }
@@ -128,7 +184,7 @@ namespace Scfg.E2E
             if (_quitting) return;
             _quitting = true;
             Out("SCFG-QUITTING");
-            Application.Quit(code);
+            if (!Web) Application.Quit(code); // a WebGL player has nothing to quit: the driver stops answering
         }
 
         // --- the game ----------------------------------------------------------------------------------
@@ -139,7 +195,7 @@ namespace Scfg.E2E
             object? doc;
             try
             {
-                doc = Json.Loads(File.ReadAllText(Environment.GetEnvironmentVariable("SCFG_E2E_CONFIG")!));
+                doc = Json.Loads(Web ? _webConfig! : File.ReadAllText(Environment.GetEnvironmentVariable("SCFG_E2E_CONFIG")!));
             }
             catch (Exception e)
             {
@@ -147,7 +203,7 @@ namespace Scfg.E2E
             }
             if (!(doc is JsonObject config) || !(config.Get("configure") is JsonObject kw) || !(config.Get("items") is JsonObject items))
                 return "the e2e config is not a JSON object with configure and items";
-            var chain = Environment.GetEnvironmentVariable("SCFG_E2E_CHAIN");
+            var chain = Web ? (config.Get("chain") is JsonObject c ? Json.Dumps(c) : null) : Environment.GetEnvironmentVariable("SCFG_E2E_CHAIN");
             if (!string.IsNullOrEmpty(chain))
             {
                 try
@@ -159,7 +215,7 @@ namespace Scfg.E2E
                     return "SCFG_E2E_CHAIN: " + e.Message;
                 }
             }
-            SCFG.Current.Platform = _platform;
+            if (!Web) SCFG.Current.Platform = _platform; // on the web the page's clipboard and window.open are the real ones
             var options = new ScfgOptions
             {
                 Wallet = kw.Get("wallet") as string,
@@ -168,6 +224,16 @@ namespace Scfg.E2E
                 Chains = Strings(kw.Get("chains")),
                 Tokens = Strings(kw.Get("tokens")),
             };
+            if (kw.Get("rpc_urls") is JsonObject urls)
+            {
+                options.RpcUrls = new Dictionary<string, IList<string>>();
+                foreach (var kv in urls) options.RpcUrls[kv.Key] = Strings(kv.Value)!;
+            }
+            if (kw.Get("confirmations") is JsonObject conf)
+            {
+                options.Confirmations = new Dictionary<string, int>();
+                foreach (var kv in conf) options.Confirmations[kv.Key] = (int)(long)kv.Value!;
+            }
             if (SCFG.Configure(options) is string code) return "scfg: configure() refused the e2e config: " + code;
             foreach (var kv in items)
             {
@@ -235,6 +301,12 @@ namespace Scfg.E2E
 
         private void Update()
         {
+            _postTransport?.Pump();
+            if (Web && !_quitting)
+            {
+                var next = ScfgE2ETake();
+                if (!string.IsNullOrEmpty(next)) _commands.Enqueue(next);
+            }
             if (_quitting || !_commands.TryDequeue(out var line)) return;
             object? reply;
             try
@@ -269,6 +341,7 @@ namespace Scfg.E2E
                         return true;
                     }
                     var view = Views().LastOrDefault() ?? throw new InvalidOperationException("no screen is open");
+                    if (cmd.Get("press") is bool press && !press) return new JsonObject { { "at", Where(view, name) } };
                     if (!view.Press(name)) throw new InvalidOperationException("no enabled button " + name + " on the screen");
                     return true;
                 }
@@ -292,6 +365,29 @@ namespace Scfg.E2E
                     return SCFG.Owns((string)cmd["item"]!);
                 case "user_dir":
                     return Application.persistentDataPath;
+                case "state":
+                {
+                    var path = Path.Combine(Application.persistentDataPath, "scfg", "state.json");
+                    return File.Exists(path) ? Json.Loads(File.ReadAllText(path)) : null;
+                }
+                case "post":
+                {
+                    _postTransport ??= new UnityWebRequestTransport();
+                    var payload = cmd.Get("payload") as JsonObject ?? new JsonObject();
+                    _post = _postTransport.PostJson((string)cmd["url"]!, payload, cmd.Get("timeout") is long t ? t : 30);
+                    return true;
+                }
+                case "post_result":
+                {
+                    if (_post == null) throw new InvalidOperationException("no post was started");
+                    if (!_post.IsCompleted) return null;
+                    var done = _post;
+                    _post = null;
+                    var e = done.Exception?.InnerException;
+                    return e != null
+                        ? new JsonObject { { "error", e.GetType().Name + ": " + e.Message } }
+                        : new JsonObject { { "value", done.Result } };
+                }
                 case "quit":
                     Quit(0);
                     return true;
@@ -325,6 +421,22 @@ namespace Scfg.E2E
                 { "screens", screens }, { "game", GameView() }, { "paused", Time.timeScale == 0 },
                 { "copied", _platform.Copied.Cast<object?>().ToList() }, { "opened", _platform.Opened.Cast<object?>().ToList() },
             };
+        }
+
+        /// <summary>A control's centre in the player's screen pixels, from the top left (where the runner's mouse clicks).</summary>
+        private static List<object?> Where(ScfgScreenView view, string name)
+        {
+            if (!(view.Control(name) is VisualElement control) || control.style.display == DisplayStyle.None || !control.enabledInHierarchy)
+                throw new InvalidOperationException("no enabled button " + name + " on the screen");
+            control.Focus(); // scrolls it into view, as a player tabbing to it
+            var panel = control.panel ?? throw new InvalidOperationException(name + " is not on a panel");
+            var centre = control.worldBound.center;
+            // RuntimePanelUtils maps screen positions (origin top left, as the panel's) to the panel: invert its linear map
+            var p0 = RuntimePanelUtils.ScreenToPanel(panel, Vector2.zero);
+            var p1 = RuntimePanelUtils.ScreenToPanel(panel, new Vector2(Screen.width, Screen.height));
+            double sx = (centre.x - p0.x) / (p1.x - p0.x) * Screen.width;
+            double sy = (centre.y - p0.y) / (p1.y - p0.y) * Screen.height;
+            return new List<object?> { sx, sy, (long)Screen.width, (long)Screen.height };
         }
 
         private static string ButtonText(Button b)
