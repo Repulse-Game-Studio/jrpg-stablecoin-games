@@ -5,14 +5,18 @@ Protocol: rpgmaker/test/integration/engine_driver.ts (stdout carries only replie
 the Python Engine's names and return the decoded JSON (Tier 2 `returns` encoding): plain dicts and
 lists, amounts as Decimal strings.
 
-cmake comes from PATH, then ~/.local/bin; the compiler is $CXX, else c++, g++ or clang++ on PATH;
-Ninja is used when it is found the same way. The driver is built once per Python process
-(`cmake -S unreal -B unreal/build/integration -DCMAKE_BUILD_TYPE=Release`, then only the
-scfg_core_driver target) and its binary then run directly.
+cmake (3.25 or newer) comes from PATH, then ~/.local/bin; the compiler is $CXX when its program
+resolves (cmake then reads $CXX itself, arguments and all, as in CXX="ccache g++"), else c++, g++ or
+clang++ on PATH. Ninja is used when it is found the same way, else make (Unix Makefiles).
+The driver is built once per Python process (`cmake -S unreal -B unreal/build/integration
+-DCMAKE_BUILD_TYPE=Release`, then only the scfg_core_driver target, in parallel) and its binary then
+run directly.
 """
 import json
 import os
+import re
 import select
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -28,6 +32,7 @@ BINARY = BUILD_DIR / TARGET
 REPLY_TIMEOUT = 120
 BUILD_TIMEOUT = 900
 MISSING = "cmake or a C++20 compiler not found"
+CMAKE_MIN = (3, 25)  # unreal/CMakeLists.txt's cmake_minimum_required
 
 _built = None  # (binary, None, False) or (None, why not, broken): the build's outcome, kept for the session
 
@@ -44,15 +49,33 @@ def find_tool(name):
 
 
 def find_compiler():
-    """$CXX when it names a program, else c++, g++ or clang++ from PATH; else None."""
-    cxx = os.environ.get("CXX")
-    if cxx:
-        return shutil.which(cxx)
+    """(path, from_env): the program $CXX starts with (its first word: CXX may carry a launcher or
+    flags) when it resolves, with from_env True; else c++, g++ or clang++ from PATH, with from_env
+    False; else (None, False)."""
+    cxx = os.environ.get("CXX", "")
+    try:
+        words = shlex.split(cxx)
+    except ValueError:  # unbalanced quotes: not a usable command line
+        words = []
+    if words:
+        found = shutil.which(words[0])
+        if found:
+            return found, True
     for name in ("c++", "g++", "clang++"):
         found = shutil.which(name)
         if found:
-            return found
-    return None
+            return found, False
+    return None, False
+
+
+def cmake_version(cmake):
+    """(major, minor) that `cmake --version` reports, else None."""
+    try:
+        out = subprocess.run([cmake, "--version"], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = re.search(r"cmake version (\d+)\.(\d+)", out.stdout)
+    return (int(m.group(1)), int(m.group(2))) if out.returncode == 0 and m else None
 
 
 def build_driver():
@@ -65,18 +88,30 @@ def build_driver():
 
 
 def _build():
-    cmake, cxx = find_tool("cmake"), find_compiler()
+    # A missing or unusable toolchain is (None, why, False): a skip, or a failure under
+    # SCFG_REQUIRE_CPP=1. Once it is usable, a failed configure or build is a failure.
+    cmake, (cxx, cxx_from_env) = find_tool("cmake"), find_compiler()
     if cmake is None or cxx is None:
         return None, f"{MISSING} (cmake: {cmake or 'missing'}, compiler: {cxx or 'missing'})", False
+    version = cmake_version(cmake)
+    if version is None or version < CMAKE_MIN:
+        found = "no version" if version is None else f"{version[0]}.{version[1]}"
+        return None, (f"cmake {CMAKE_MIN[0]}.{CMAKE_MIN[1]} or newer needed "
+                      f"(found {found} at {cmake})"), False
+    ninja, make = find_tool("ninja"), find_tool("make")
+    if ninja is None and make is None:
+        return None, "no build tool for cmake: neither ninja nor make found", False
     configure = [cmake, "-S", str(SOURCE), "-B", str(BUILD_DIR), "-DCMAKE_BUILD_TYPE=Release"]
     if not (BUILD_DIR / "CMakeCache.txt").is_file():
         # The generator and the compiler are fixed when the tree is first configured: naming
         # others on a tree configured with different ones would be an error or a reset.
-        configure.append(f"-DCMAKE_CXX_COMPILER={cxx}")
-        ninja = find_tool("ninja")
+        if not cxx_from_env:
+            configure.append(f"-DCMAKE_CXX_COMPILER={cxx}")  # else cmake reads $CXX itself
         if ninja is not None:
             configure += ["-G", "Ninja", f"-DCMAKE_MAKE_PROGRAM={ninja}"]
-    steps = [configure, [cmake, "--build", str(BUILD_DIR), "--target", TARGET]]
+        else:
+            configure += ["-G", "Unix Makefiles", f"-DCMAKE_MAKE_PROGRAM={make}"]
+    steps = [configure, [cmake, "--build", str(BUILD_DIR), "--target", TARGET, "--parallel"]]
     for step in steps:
         try:
             out = subprocess.run(step, cwd=ROOT, capture_output=True, text=True,
@@ -92,11 +127,12 @@ def _build():
 
 
 def skip_unless_available():
-    """Build the driver; skip when cmake or a compiler is missing; with SCFG_REQUIRE_CPP=1 (CI)
-    fail instead."""
+    """Build the driver; skip when cmake (3.25 or newer), a compiler or a build tool (ninja or
+    make) is missing; with SCFG_REQUIRE_CPP=1 (CI) fail instead."""
     binary, why, broken = build_driver()
     if binary is None:
-        # A build that ran and failed is a failure whatever the flag says; only a missing toolchain skips.
+        # A build that ran and failed is a failure whatever the flag says; only a missing or
+        # unusable toolchain skips.
         give_up = pytest.fail if (broken or os.environ.get("SCFG_REQUIRE_CPP") == "1") else pytest.skip
         give_up(why)
     return binary
