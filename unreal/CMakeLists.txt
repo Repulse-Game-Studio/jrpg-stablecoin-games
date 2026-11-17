@@ -1,5 +1,5 @@
-# Builds the C++ core (ScfgCore), its test binary, the integration driver and the compile-only checks (poisoned,
-# unity).
+# Builds the C++ core (ScfgCore), its test binary, the integration driver, the compile-only checks (poisoned,
+# unity) and the export check (the core as a hidden-visibility shared library).
 cmake_minimum_required(VERSION 3.25)
 project(scfg_unreal LANGUAGES CXX)
 
@@ -34,11 +34,12 @@ target_include_directories(scfg_core PUBLIC ${SCFG_CORE_DIR}/Public)
 
 # The core as Unreal sees it: every source and every public header on its own (one generated TU each), with the
 # Unreal/Windows macros that break plain C++ defined to poison tokens first.
+# Each TU mirrors its header's path (header-tus/Scfg/Json.h.cpp), so two headers never share a TU (N2: a flattened
+# name such as MAKE_C_IDENTIFIER's Scfg_Json_h would give Scfg/A_B.h and Scfg/A/B.h the same one).
 set(SCFG_HEADER_TUS)
 foreach(header IN LISTS SCFG_CORE_HEADERS)
   file(RELATIVE_PATH included ${SCFG_CORE_DIR}/Public ${header})  # Scfg/Json.h
-  string(MAKE_C_IDENTIFIER ${included} stem)                       # Scfg_Json_h
-  set(tu ${CMAKE_CURRENT_BINARY_DIR}/header-tus/${stem}.cpp)
+  set(tu ${CMAKE_CURRENT_BINARY_DIR}/header-tus/${included}.cpp)
   file(CONFIGURE OUTPUT ${tu} CONTENT "#include \"${included}\"\n")
   list(APPEND SCFG_HEADER_TUS ${tu})
 endforeach()
@@ -51,6 +52,17 @@ target_compile_options(scfg_core_poisoned PRIVATE
 add_library(scfg_core_unity OBJECT ${SCFG_CORE_SOURCES})
 target_include_directories(scfg_core_unity PRIVATE ${SCFG_CORE_DIR}/Public)
 set_target_properties(scfg_core_unity PROPERTIES UNITY_BUILD ON UNITY_BUILD_BATCH_SIZE 0)
+
+# Ruling R2-3: the core as a shared library that exports only what carries SCFGCORE_API, as an Unreal module's .so
+# does (-fvisibility=hidden is stricter than UBT's -fvisibility-ms-compat: it hides classes too), and a program that
+# links against it and calls into several of its files. A declaration that lost its export fails this link.
+add_library(scfg_core_shared SHARED ${SCFG_CORE_SOURCES})
+target_include_directories(scfg_core_shared PUBLIC ${SCFG_CORE_DIR}/Public)
+target_compile_definitions(scfg_core_shared PUBLIC "SCFGCORE_API=__attribute__((visibility(\"default\")))")
+set_target_properties(scfg_core_shared PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
+add_executable(scfg_core_exports ${CMAKE_CURRENT_SOURCE_DIR}/core-exports/Main.cpp)
+target_link_libraries(scfg_core_exports PRIVATE scfg_core_shared)
+set_target_properties(scfg_core_exports PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 
 file(GLOB_RECURSE SCFG_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/core-tests/*.cpp)
 add_executable(scfg_core_tests ${SCFG_TEST_SOURCES})
@@ -86,3 +98,4 @@ enable_testing()
 foreach(group IN LISTS SCFG_TEST_GROUPS)
   add_test(NAME ${group} COMMAND scfg_core_tests --group ${group})
 endforeach()
+add_test(NAME SharedLibraryExports COMMAND scfg_core_exports)
