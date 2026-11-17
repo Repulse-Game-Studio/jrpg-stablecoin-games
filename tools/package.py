@@ -1,6 +1,6 @@
-"""Build the drop-in release zips: dist/scfg-renpy-<version>.zip (default),
-dist/scfg-godot-<version>.zip (--engine godot) and dist/scfg-rpgmaker-mz-<version>.zip
-(--engine rpgmaker).
+"""Build the drop-in release archives: dist/scfg-renpy-<version>.zip (default),
+dist/scfg-godot-<version>.zip (--engine godot), dist/scfg-rpgmaker-mz-<version>.zip
+(--engine rpgmaker) and dist/scfg-unity-<version>.tgz (--engine unity).
 
 The Ren'Py zip mirrors a Ren'Py project, so developers unzip it straight into their
 project folder:
@@ -33,17 +33,30 @@ The RPG Maker MZ zip unzips into an MZ project folder:
     scfg-LICENSE.txt                   (MIT license)
     scfg-NOTICES.txt                   (notices of the third-party code SCFG.js carries)
 
-Usage: uv run python tools/package.py [--engine renpy|godot|rpgmaker]
+The Unity tarball is a UPM package as `npm pack` lays it out (Package Manager: + > Add package from
+tarball), the package folder unity/Packages/com.repulse.scfg/ under package/:
+
+    package/package.json               (its "version" must be the core's, in semver form)
+    package/Runtime/, Editor/, Samples~/, Documentation~/ ... (the package, every .meta included)
+    package/Documentation~/scfg-unity-guide.md (Unity guide, joined from docs/developers/unity/)
+
+Tests/ stays out (it needs the dev project's test setup). The package's own LICENSE.md must be
+the repository's LICENSE, its .meta files complete and its checkout page copy current.
+
+Usage: uv run python tools/package.py [--engine renpy|godot|rpgmaker|unity]
 """
 
 from __future__ import annotations
 
 import argparse
+import gzip
+import io
 import json
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -77,6 +90,11 @@ payment sheet and on the browser checkout page.
 
 Leave the Logo parameter empty if you have no logo; this folder can then stay as it is.
 """
+UNITY_PAGES = "developers/unity/"
+UNITY_GUIDE_TITLE = "# Stablecoin for Games: Unity Developer Guide"
+UNITY_PACKAGE = ROOT / "unity" / "Packages" / "com.repulse.scfg"
+UNITY_SKIP_TOP = {"Tests", "Tests.meta"}
+UNITY_GUIDE_NAME = "Documentation~/scfg-unity-guide.md"
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 
 
@@ -99,7 +117,10 @@ def sidebar_pages(items, level=1):
 
 
 def developer_guide(
-    prefix="developers/", skip=(GODOT_PAGES, RPGMAKER_PAGES), title=GUIDE_TITLE, intro=True
+    prefix="developers/",
+    skip=(GODOT_PAGES, RPGMAKER_PAGES, UNITY_PAGES),
+    title=GUIDE_TITLE,
+    intro=True,
 ):
     """Join the docs pages under `prefix` (minus those under `skip`), in website/sidebars.json
     order, into one file.
@@ -345,6 +366,101 @@ def build_rpgmaker_zip(dist, plugin=None):
     return target
 
 
+def unity_guide():
+    """The Unity developer guide (docs/developers/unity/), joined like the Godot one."""
+    return developer_guide(UNITY_PAGES, (), UNITY_GUIDE_TITLE, intro=True)
+
+
+def semver(version):
+    """The core's PEP 440 version as the semver UPM wants: 0.3.0, 0.3.0rc1 -> 0.3.0-rc.1."""
+    m = re.fullmatch(r"(\d+\.\d+\.\d+)(?:(a|b|rc)(\d+))?", version)
+    if m is None:
+        raise ValueError(f"cannot write version {version!r} as semver")
+    if m.group(2) is None:
+        return m.group(1)
+    tag = {"a": "alpha", "b": "beta", "rc": "rc"}[m.group(2)]
+    return f"{m.group(1)}-{tag}.{m.group(3)}"
+
+
+def unity_package_manifest(package=UNITY_PACKAGE):
+    return json.loads((package / "package.json").read_text(encoding="utf-8"))
+
+
+def unity_problems(package=UNITY_PACKAGE):
+    """What stops the Unity tarball: the version, the license copy, .meta files, the page copy."""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import check_unity_meta
+    import check_unity_samples
+    import sync_web_page
+
+    out = []
+    manifest = unity_package_manifest(package)
+    if manifest.get("version") != semver(__version__):
+        out.append(
+            f"package.json version {manifest.get('version')} != scfg_core {__version__} "
+            f"(as semver: {semver(__version__)})"
+        )
+    license_copy = package / "LICENSE.md"
+    if not license_copy.is_file() or license_copy.read_text(encoding="utf-8") != (
+        ROOT / "LICENSE"
+    ).read_text(encoding="utf-8"):
+        out.append(f"{license_copy.name} is not a copy of LICENSE")
+    out += check_unity_meta.problems(package.parent)
+    out += check_unity_samples.problems(package / "Samples~", package / "package.json")
+    out += [f"checkout page copy: {x}" for x in sync_web_page.check(sync_web_page.SRC,
+                                                                     sync_web_page.UNITY_TARGET)]
+    return out
+
+
+def unity_files_to_ship(package=UNITY_PACKAGE):
+    """(path, name) for the tarball's files under package/, sorted: everything in the package
+    folder but Tests/ and hidden entries."""
+    for path in sorted(package.rglob("*")):
+        rel = path.relative_to(package)
+        if path.is_dir() or rel.parts[0] in UNITY_SKIP_TOP:
+            continue
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        yield path, "package/" + rel.as_posix()
+
+
+def _tar_add(tar, name, data, mode=0o644):
+    info = tarfile.TarInfo(name)
+    info.size = len(data)
+    info.mode = mode
+    info.mtime = 0
+    info.uid = info.gid = 0
+    info.uname = info.gname = ""
+    tar.addfile(info, io.BytesIO(data))
+
+
+def build_unity_tgz(dist, package=UNITY_PACKAGE):
+    """dist/scfg-unity-<version>.tgz (see the module docstring). Reproducible: sorted entries, no
+    timestamps or owners."""
+    problems = unity_problems(package)
+    if problems:
+        raise ValueError("the Unity package is not ready:\n  " + "\n  ".join(problems))
+    dist.mkdir(parents=True, exist_ok=True)
+    target = dist / f"scfg-unity-{__version__}.tgz"
+    raw = io.BytesIO()
+    with tarfile.open(fileobj=raw, mode="w", format=tarfile.PAX_FORMAT) as tar:
+        names = set()
+        for path, name in unity_files_to_ship(package):
+            if name == "package/" + UNITY_GUIDE_NAME:
+                raise ValueError(f"{path} would be overwritten by the generated guide")
+            _tar_add(tar, name, path.read_bytes())
+            names.add(name)
+            print(f"  {name}")
+        name = "package/" + UNITY_GUIDE_NAME
+        _tar_add(tar, name, unity_guide().encode("utf-8"))
+        print(f"  {name}")
+    with open(target, "wb") as out, gzip.GzipFile(
+        filename="", mode="wb", fileobj=out, mtime=0
+    ) as gz:
+        gz.write(raw.getvalue())
+    return target
+
+
 def build_renpy_zip(dist):
     dist.mkdir(exist_ok=True)
     target = dist / f"scfg-renpy-{__version__}.zip"
@@ -358,11 +474,18 @@ def build_renpy_zip(dist):
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="Build a release zip into dist/.")
-    parser.add_argument("--engine", choices=("renpy", "godot", "rpgmaker"), default="renpy")
+    parser = argparse.ArgumentParser(description="Build a release archive into dist/.")
+    parser.add_argument(
+        "--engine", choices=("renpy", "godot", "rpgmaker", "unity"), default="renpy"
+    )
     args = parser.parse_args(argv)
     dist = ROOT / "dist"
-    builders = {"renpy": build_renpy_zip, "godot": build_godot_zip, "rpgmaker": build_rpgmaker_zip}
+    builders = {
+        "renpy": build_renpy_zip,
+        "godot": build_godot_zip,
+        "rpgmaker": build_rpgmaker_zip,
+        "unity": build_unity_tgz,
+    }
     build = builders[args.engine]
     print(f"wrote {build(dist)}")
     return 0

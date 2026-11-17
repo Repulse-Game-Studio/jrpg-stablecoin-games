@@ -269,3 +269,91 @@ def test_rpgmaker_api_page_lists_every_text_id_with_its_english():
     page = (package.DOCS / "developers" / "rpgmaker" / "api.md").read_text(encoding="utf-8")
     for text_id, english in check.default_texts().items():
         assert f"| `{text_id}` | {english.replace('|', chr(92) + '|')} |" in page, text_id
+
+
+# --- Unity ------------------------------------------------------------------------------------
+
+import gzip  # noqa: E402
+import io  # noqa: E402
+import json  # noqa: E402
+import shutil  # noqa: E402
+import tarfile  # noqa: E402
+
+
+def test_semver_of_the_core_version():
+    assert package.semver("0.3.0") == "0.3.0"
+    assert package.semver("0.3.0rc1") == "0.3.0-rc.1"
+    assert package.semver("1.2.10b2") == "1.2.10-beta.2"
+    assert package.semver("0.4.0a1") == "0.4.0-alpha.1"
+    with pytest.raises(ValueError):
+        package.semver("0.3")
+
+
+def test_the_unity_package_is_ready_to_ship():
+    assert package.unity_problems() == []
+    manifest = package.unity_package_manifest()
+    assert manifest["version"] == package.semver(package.__version__)
+    assert manifest["name"] == "com.repulse.scfg"
+
+
+def test_unity_tgz_is_the_package_under_package_without_tests(tmp_path):
+    target = package.build_unity_tgz(tmp_path)
+    assert target.name == f"scfg-unity-{package.__version__}.tgz"
+    with tarfile.open(target, "r:gz") as tar:
+        names = tar.getnames()
+        manifest = json.loads(tar.extractfile("package/package.json").read())
+        guide = tar.extractfile("package/" + package.UNITY_GUIDE_NAME).read().decode()
+    assert all(n.startswith("package/") for n in names)
+    assert names[:-1] == sorted(names[:-1], key=lambda n: n.split("/")), "sorted by path"
+    assert names[-1] == "package/" + package.UNITY_GUIDE_NAME, "the generated guide last"
+    for must in ("package/package.json", "package/package.json.meta", "package/LICENSE.md",
+                 "package/LICENSE.md.meta", "package/Runtime/link.xml",
+                 "package/Runtime/Unity/SCFG.cs", "package/Runtime/Unity/Web/ScfgWeb.jslib",
+                 "package/Runtime/Unity/Resources/ScfgWeb/bridge.js.bytes",
+                 "package/Editor/ScfgSettingsEditor.cs", "package/Samples~/Showcase/ScfgShowcase.cs",
+                 "package/Samples~/Demo/ScfgDemo.cs", "package/Documentation~/index.md"):
+        assert must in names, must
+    assert not [n for n in names if n.startswith("package/Tests")]
+    assert not [n for n in names if "/." in n]
+    assert manifest["version"] == package.semver(package.__version__)
+    assert guide.startswith(package.UNITY_GUIDE_TITLE)
+    # every shipped asset (outside ~ folders) has its .meta: Unity ignores an asset without one
+    # in an immutable package
+    assets = [n for n in names if not n.endswith(".meta") and "~/" not in n]
+    for n in assets:
+        assert n + ".meta" in names, n
+
+
+def test_unity_tgz_is_reproducible(tmp_path):
+    a = package.build_unity_tgz(tmp_path / "a").read_bytes()
+    b = package.build_unity_tgz(tmp_path / "b").read_bytes()
+    assert a == b
+    with tarfile.open(fileobj=io.BytesIO(gzip.decompress(a))) as tar:
+        assert {(m.uid, m.gid, m.mtime) for m in tar.getmembers()} == {(0, 0, 0)}
+
+
+def test_unity_tgz_refuses_a_package_that_is_not_ready(tmp_path, monkeypatch):
+    copy = tmp_path / "Packages" / "com.repulse.scfg"
+    shutil.copytree(package.UNITY_PACKAGE, copy)
+    manifest = json.loads((copy / "package.json").read_text())
+    manifest["version"] = "9.9.9"
+    (copy / "package.json").write_text(json.dumps(manifest))
+    (copy / "LICENSE.md").write_text("not the license")
+    (copy / "Runtime" / "Unity" / "SCFG.cs.meta").unlink()
+    found = package.unity_problems(copy)
+    assert any("package.json version 9.9.9" in p for p in found)
+    assert any("LICENSE.md is not a copy of LICENSE" in p for p in found)
+    assert any("missing .meta" in p and "SCFG.cs" in p for p in found)
+    with pytest.raises(ValueError, match="not ready"):
+        package.build_unity_tgz(tmp_path / "dist", copy)
+
+
+def test_unity_guide_is_joined_from_its_docs():
+    guide = package.unity_guide()
+    assert guide.startswith(package.UNITY_GUIDE_TITLE)
+    assert "SCFG.Pay(" in guide
+
+
+def test_the_other_guides_do_not_include_the_unity_pages():
+    for guide in (package.developer_guide(), package.godot_guide(), package.rpgmaker_guide()):
+        assert "SCFG.Configure(new ScfgOptions" not in guide
