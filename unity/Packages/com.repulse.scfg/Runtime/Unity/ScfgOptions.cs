@@ -33,6 +33,12 @@ namespace Scfg
         public string? Accent { get; set; }
         /// <summary>The logo on the sheet and the checkout page (a raster texture).</summary>
         public Texture2D? Logo { get; set; }
+        /// <summary>
+        /// WebGL builds: tells two games with the same product name on one web origin apart in the receipts' copy in
+        /// localStorage (its key is "scfg:&lt;productName&gt;:&lt;sha256 of this, else of the product name&gt;"). Set it once and
+        /// never change it: a new value starts a new, empty copy.
+        /// </summary>
+        public string? WebStorageId { get; set; }
 
         internal JsonObject ToKwargs()
         {

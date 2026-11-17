@@ -173,6 +173,79 @@ namespace Scfg.Tests
         public string ClipboardGet() => Clipboard;
     }
 
+    /// <summary>
+    /// The page of a WebGL build (twin of godot/tests/fakes.gd's FakeJs): records the scripts loaded and every bridge call
+    /// (its arguments as the JSON array the jslib gets), answers from <see cref="Answers"/> (the raw JSON text the jslib
+    /// returns), and keeps a localStorage that can be missing (null), blocked or full.
+    /// </summary>
+    public sealed class FakeWebJs : IScfgWebJs
+    {
+        public readonly List<string> Loaded = new List<string>();
+        public readonly List<(string Function, string Args)> Calls = new List<(string, string)>();
+        /// <summary>Per bridge function, the answers to give in order (then the default).</summary>
+        public readonly Dictionary<string, Queue<string?>> Answers = new Dictionary<string, Queue<string?>>();
+        /// <summary>What hasWallet answers once Answers has none left.</summary>
+        public long Wallet = 1;
+        /// <summary>localStorage; null: the page has none. Shared between two fakes for two tabs of one origin.</summary>
+        public Dictionary<string, string>? LocalStorage = new Dictionary<string, string>();
+        /// <summary>Every storage call fails with this ("SecurityError: ..."), as a blocked localStorage.</summary>
+        public string? StorageThrows;
+        /// <summary>Every write fails with this ("QuotaExceededError: ..."), as a full localStorage.</summary>
+        public string? WriteThrows;
+        /// <summary>"get &lt;key&gt;" / "set &lt;key&gt;", in order.</summary>
+        public readonly List<string> StorageOps = new List<string>();
+        public int Syncs;
+        public bool Persistent = true;
+
+        public bool Load(string code)
+        {
+            Loaded.Add(code);
+            return true;
+        }
+
+        /// <summary>Queue answers for <paramref name="function"/>: each value as the jslib returns it (JSON of the answer).</summary>
+        public void Answer(string function, params object?[] values)
+        {
+            if (!Answers.TryGetValue(function, out var q)) Answers[function] = q = new Queue<string?>();
+            foreach (var v in values) q.Enqueue(Json.Dumps(v));
+        }
+
+        public string? Call(string function, string argsJson)
+        {
+            Calls.Add((function, argsJson));
+            if (Answers.TryGetValue(function, out var q) && q.Count > 0) return q.Dequeue();
+            switch (function)
+            {
+                case "hasWallet": return Json.Dumps(Wallet);
+                case "take": return Json.Dumps("[]");
+                case "takePaste": return Json.Dumps("null");
+                case "takeCopyFailed": return "0";
+                default: return "null";
+            }
+        }
+
+        /// <summary>The argument arrays of every call to <paramref name="function"/>, parsed.</summary>
+        public List<List<object?>> CallsTo(string function) =>
+            Calls.Where(c => c.Function == function).Select(c => (List<object?>)Json.Loads(c.Args)!).ToList();
+
+        public string? Storage(string op, string key, string? value)
+        {
+            StorageOps.Add(op + " " + key);
+            if (StorageThrows != null) return Json.Dumps(new JsonObject { { "error", StorageThrows } });
+            if (LocalStorage == null) return Json.Dumps(new JsonObject { { "error", "no localStorage" } });
+            if (op == "set")
+            {
+                if (WriteThrows != null) return Json.Dumps(new JsonObject { { "error", WriteThrows } });
+                LocalStorage[key] = value ?? "";
+                return "{}";
+            }
+            return Json.Dumps(new JsonObject { { "value", LocalStorage.TryGetValue(key, out var v) ? v : null } });
+        }
+
+        public void SyncFs() => Syncs++;
+        public bool FsPersistent() => Persistent;
+    }
+
     /// <summary>A browser page that records what the controller asks of it.</summary>
     public sealed class RecordingServer : ICheckoutServer
     {
@@ -212,6 +285,8 @@ namespace Scfg.Tests
         public readonly List<string> Journal = new List<string>();
         public readonly List<RecordingServer> Servers = new List<RecordingServer>();
         public double Now = 1000;
+        /// <summary>When set, the facade runs as a WebGL build on this page (kept across Restart).</summary>
+        public FakeWebJs? WebJs;
         public long Wall = 1_800_000_000;
         public string StorePath => Path.Combine(Dir, "scfg", "state.json");
 
@@ -237,6 +312,11 @@ namespace Scfg.Tests
             s.Scheduler = s.OwnScheduler;
             s.Platform = Platform;
             s.SheetHost = Host;
+            if (WebJs != null)
+            {
+                Platform.IsWeb = true;
+                s.Js = WebJs;
+            }
             if (fakeServers)
                 s.ServerFactory = args =>
                 {
@@ -244,6 +324,14 @@ namespace Scfg.Tests
                     Servers.Add(server);
                     return server;
                 };
+        }
+
+        /// <summary>The facade as a WebGL build on <paramref name="js"/> (the overlay checkout, no fake servers).</summary>
+        public FakeWebJs Web(FakeWebJs? js = null)
+        {
+            WebJs = js ?? new FakeWebJs();
+            Restart(false);
+            return WebJs;
         }
 
         public List<string> Reported => SCFG.Current.Reported;

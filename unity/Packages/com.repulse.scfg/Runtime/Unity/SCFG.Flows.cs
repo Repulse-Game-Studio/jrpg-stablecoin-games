@@ -83,7 +83,7 @@ namespace Scfg
             try
             {
                 core = new CheckoutController(S.Config!, spec, worker.Submit, S.Platform.IsMobile, ServerFactoryFor(),
-                    () => worker.Snapshot.Unready, Application.productName, null);
+                    () => worker.Snapshot.Unready, Application.productName, BrowserWalletFor());
             }
             catch (Exception e) when (IsMisuse(e))
             {
@@ -240,14 +240,16 @@ namespace Scfg
 
         // --- the browser checkout and the buttons that leave the game ------------------------------------
 
-        /// <summary>The checkout controllers' server factory: the localhost page on desktop (none on the web yet: phase 3).</summary>
+        /// <summary>The checkout controllers' server factory: the localhost page on desktop, the in-page overlay on the web.</summary>
         private static Func<ServerArgs, ICheckoutServer>? ServerFactoryFor()
         {
             if (S.ServerFactory != null) return S.ServerFactory;
+            if (S.Platform.IsWeb) return OverlayFactory();
 #if !UNITY_WEBGL || UNITY_EDITOR
-            if (!S.Platform.IsWeb) return ScfgDesktop.CreateServer;
-#endif
+            return ScfgDesktop.CreateServer;
+#else
             return null;
+#endif
         }
 
         private static bool IsOpen(ScfgCheckoutController ctl) =>
@@ -288,7 +290,9 @@ namespace Scfg
         {
             try
             {
-                S.Platform.OpenUrl(url);
+                var page = S.Platform.IsWeb ? WebPage() : null;
+                if (page != null) page.OpenUrl(url); // window.open with noopener (Application.OpenURL keeps the opener)
+                else S.Platform.OpenUrl(url);
             }
             catch (Exception e)
             {
@@ -300,6 +304,13 @@ namespace Scfg
         {
             try
             {
+                var page = S.Platform.IsWeb ? WebPage() : null;
+                if (page != null)
+                {
+                    S.CopyWatchUntil = S.Clock() + CopyWatchS;
+                    page.Copy(text ?? ""); // the browser may refuse: PumpPage tells the player
+                    return;
+                }
                 S.Platform.ClipboardSet(text ?? "");
             }
             catch (Exception e)
@@ -310,18 +321,33 @@ namespace Scfg
 
         internal static void PasteInto(ScfgCheckoutController ctl)
         {
-            if (!IsOpen(ctl)) return;
-            var cleaned = CleanPaste(ClipboardText());
-            if (cleaned.Length > 0) ctl.Core.TxInput = cleaned;
+            if (IsOpen(ctl)) Paste(ctl.Cid);
         }
 
         internal static void PasteInto(ScfgRestoreController ctl)
         {
-            if (!IsOpen(ctl) || ctl.Core.State != "input") return; // the player moved on: drop the paste
-            var cleaned = CleanPaste(ClipboardText());
-            if (cleaned.Length == 0) return;
-            ctl.Core.TxInput = cleaned;
-            ctl.Core.Error = null;
+            if (IsOpen(ctl)) Paste(ctl.Rid);
+        }
+
+        /// <summary>Godot's paste_into: the clipboard into the screen's hash field (on the web the page answers later).</summary>
+        private static void Paste(string id)
+        {
+            var page = S.Platform.IsWeb ? WebPage() : null;
+            if (page != null)
+            {
+                S.PasteTarget = id; // navigator.clipboard is asynchronous: PumpPage applies the answer
+                try
+                {
+                    page.RequestPaste();
+                }
+                catch (Exception e)
+                {
+                    S.PasteTarget = null;
+                    ReportError("cannot read the clipboard:", e);
+                }
+                return;
+            }
+            ApplyPaste(id, ClipboardText(), false);
         }
 
         private static string ClipboardText()

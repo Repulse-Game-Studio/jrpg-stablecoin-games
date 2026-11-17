@@ -32,6 +32,9 @@
 // failed save is retried at that interval and reported once until a save succeeds. A state file that exists but cannot
 // be read starts no payments this run and is never saved over.
 //
+// WEBGL. The browser checkout is the shared checkout page shown over the game, and receipts get a second copy in
+// localStorage: see SCFG.Web.cs.
+//
 // DOMAIN RELOAD OFF. Every static of this assembly lives in one State object; ResetStatics (SubsystemRegistration)
 // closes what the last play session left open and starts from a fresh State, events included.
 #nullable enable
@@ -128,6 +131,18 @@ namespace Scfg
             public bool ShuttingDown;
             public bool Pumping;
 
+            // the web (SCFG.Web.cs)
+            public string? WebStorageId;
+            public ScfgWebPage? Page;
+            public ScfgWebMirror? Mirror;
+            public bool MirrorMerged; // the copy was merged into the state (once configured)
+            public bool MirrorOff; // localStorage could not be read this run, so no copy is kept
+            public bool MirrorWarned; // a copy the browser refused was warned about (once a run)
+            public bool ClearMirrorAtMerge; // ClearLocalData ran before the merge: empty the copy instead
+            public HashSet<string>? OwnPrev; // the receipt keys this tab had at its last merge or write of the copy
+            public string? PasteTarget; // the cid or rid waiting for the page's clipboard answer
+            public double CopyWatchUntil = double.NegativeInfinity; // until when to ask the page whether a Copy failed
+
             // test hooks (Setup); not part of the API
             public string? StorePath;
             public Func<double> Clock = () => Time.realtimeSinceStartupAsDouble;
@@ -138,6 +153,7 @@ namespace Scfg
             public UnityScheduler? OwnScheduler;
             public IScfgPlatform Platform = new UnityPlatform();
             public Func<ServerArgs, ICheckoutServer>? ServerFactory;
+            public IScfgWebJs? Js; // the page (default: ScfgBrowserJs on a WebGL player)
             public bool Quiet;
             public bool? DevBuild;
             public readonly List<string> Reported = new List<string>();
@@ -242,6 +258,13 @@ namespace Scfg
                 return Misuse(e);
             }
             S.Config = cfg;
+            if (S.WebStorageId != options.WebStorageId)
+            {
+                // a new key: the copy under it is merged at the next read of the state
+                S.WebStorageId = options.WebStorageId;
+                S.Mirror = null;
+                S.MirrorMerged = false;
+            }
             S.Logo = options.Logo;
             S.LogoPng = null;
             S.LogoPngTried = false;
@@ -350,6 +373,7 @@ namespace Scfg
         {
             if (S.Config != null) EnsureRunner(); // also brings back a runner a game destroyed (say, wiping DontDestroyOnLoad objects)
             if (S.Worker != null || S.StartError != null || S.Config == null) return S.Worker;
+            WarnUnpersistentFs();
             Stored();
             if (S.StoreError != null)
             {
@@ -467,7 +491,9 @@ namespace Scfg
             try
             {
                 S.OwnScheduler?.Pump();
+                S.OwnTransport?.Pump();
                 PumpWaits();
+                PumpPage();
                 if (S.Config == null) return;
                 var worker = EnsureStarted();
                 if (worker == null) return;

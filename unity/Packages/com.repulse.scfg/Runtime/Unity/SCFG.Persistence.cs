@@ -12,16 +12,23 @@ namespace Scfg
 {
     public static partial class SCFG
     {
-        /// <summary>Loads the mirrored state from disk on first use.</summary>
+        /// <summary>
+        /// Loads the mirrored state from disk on first use; on the web, the first call once configured also merges the
+        /// receipts' copy in localStorage (SCFG.Web.cs).
+        /// </summary>
         private static void Stored()
         {
-            if (S.PersistedPending != null) return;
-            var got = ScfgStore.Load(StorePath);
-            if (got.Warning != null) Warn(got.Warning);
-            foreach (var p in got.ReceiptProblems) Warn("a stored receipt does not match the state schema (" + p + "); it is checked again and removed");
-            S.StoreError = got.Error;
-            S.PersistedPending = got.Pending;
-            S.PersistedReceipts = got.Receipts;
+            if (S.PersistedPending == null)
+            {
+                var got = ScfgStore.Load(StorePath);
+                if (got.Warning != null) Warn(got.Warning);
+                foreach (var p in got.ReceiptProblems) Warn("a stored receipt does not match the state schema (" + p + "); it is checked again and removed");
+                S.StoreError = got.Error;
+                S.PersistedPending = got.Pending;
+                S.PersistedReceipts = got.Receipts;
+            }
+            // an unreadable state file leaves the copy alone too: its receipts are unknown
+            if (!S.MirrorMerged && S.Config != null && S.StoreError == null && S.Platform.IsWeb) MergeMirror();
         }
 
         /// <summary>What must reach disk at once: which sessions exist, their state and tx hint.</summary>
@@ -68,12 +75,17 @@ namespace Scfg
             }
         }
 
-        /// <summary>Writes the state to disk; never over a file that could not be read.</summary>
-        private static void Save()
+        /// <summary>
+        /// Writes the state to disk, and on the web into the receipts' copy (<paramref name="clear"/>: the copy is emptied,
+        /// for ClearLocalData); never over a file that could not be read.
+        /// </summary>
+        private static void Save(bool clear = false)
         {
             Stored();
             if (S.StoreError != null) return;
             var err = ScfgStore.Save(StorePath, S.PersistedPending!, S.PersistedReceipts!);
+            if (err == null) SyncWebFs();
+            WriteMirror(clear); // also when the file failed: the copy is then the only place they are kept
             if (err != null)
             {
                 if (!S.SaveFailing) // once, not at every retry, until a save succeeds
@@ -196,10 +208,11 @@ namespace Scfg
                 }));
                 S.Wipe = wipe;
             }
+            if (S.Platform.IsWeb && !S.MirrorMerged) S.ClearMirrorAtMerge = true; // before Configure: the copy is emptied at the merge
             S.PersistedPending = new JsonObject();
             S.PersistedReceipts = new JsonObject();
             S.LastSave = S.Clock();
-            Save();
+            Save(true);
             if (hadReceipts) EmitReceiptsChanged();
         }
 
@@ -218,6 +231,7 @@ namespace Scfg
                 var dir = Path.GetDirectoryName(full);
                 if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
                 File.WriteAllText(full, Json.Dumps(list, sortKeys: true, indent: 2), new System.Text.UTF8Encoding(false));
+                SyncWebFs();
                 return full;
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is ArgumentException
