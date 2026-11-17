@@ -7,6 +7,7 @@
 #include "ScfgLog.h"
 #include "ScfgString.h"
 #include "ScfgSubmitter.h"
+#include "UI/ScfgTexts.h"
 
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
@@ -1345,8 +1346,8 @@ void FScfgFacade::Deliver(const scfg::models::PaymentResult& Result)
 	{
 		const scfg::models::Item* Item =
 			Config && Result.item.is_str() ? Config->items.find(Result.item.as_str()) : nullptr;
-		Notify(Item ? FString::Printf(TEXT("Payment confirmed: %s. Thank you!"), *ScfgFacadeDetail::Utf8(Item->title))
-					: FString(TEXT("Payment confirmed. Thank you for your support!")));
+		Notify(Item ? ScfgTexts::Format(TEXT("payment_confirmed_item"), {ScfgFacadeDetail::Utf8(Item->title)})
+					: ScfgTexts::Get(TEXT("payment_confirmed")));
 	}
 	Resolve(Callback.GetPtrOrNull(), Typed);
 }
@@ -1358,7 +1359,7 @@ void FScfgFacade::DeliverRestore(FScfgRestore& Flow)
 	const FScfgRestoreResult Typed = ScfgConvert::RestoreResult(Flow.Controller->result());
 	if (Typed.Restored.Num() > 0 && bNotify)
 	{
-		Notify(TEXT("Purchases restored."));
+		Notify(ScfgTexts::Get(TEXT("purchases_restored")));
 	}
 	Call(Callback, Typed);
 }
