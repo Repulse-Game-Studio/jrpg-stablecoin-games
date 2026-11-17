@@ -1,7 +1,7 @@
-"""The three localhost checkout servers behind one test interface, for test_server_security.py.
+"""The localhost checkout servers behind one test interface, for test_server_security.py.
 
-A server is described by a plain, JSON-able config (so the GDScript and the Node one can get it
-over a driver channel) and wrapped in a handle with the same members for every implementation:
+A server is described by a plain, JSON-able config (so the GDScript, the Node and the C++ one can
+get it over a driver channel) and wrapped in a handle with the same members for every implementation:
 
     port, secret, url        what the page URL is built from
     calls()                  the callbacks the server made, in order: [["on_tx", [tx, sender]],
@@ -24,6 +24,10 @@ godot/tests/integration/server_driver.gd in one headless Godot per test session;
 GodotServer is a fresh ScfgCheckoutServer in it (the driver stops the previous one first).
 NodeDriver runs rpgmaker/test/integration/server_driver.ts in one Node per test session, with the
 same protocol; each NodeServer is a fresh CheckoutServer of rpgmaker/src/mz/local_server.ts.
+CppDriver runs unreal/core-driver's scfg_server_driver (built once per session by
+tests/integration/cpp_driver.py) with the same protocol; each CppServer is a fresh
+scfg::local_server::CheckoutServer of the Unreal core (Plugins/Scfg/Source/ScfgCore, LocalServer.h)
+on POSIX sockets.
 """
 from __future__ import annotations
 
@@ -34,6 +38,7 @@ import re
 import select
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -46,6 +51,12 @@ import pytest
 from scfg_core import local_server
 
 ROOT = Path(__file__).resolve().parents[2]
+# tests/integration/cpp_driver.py builds the C++ drivers; importing it by its module name (as the
+# integration tests do) shares its once-per-session build.
+if str(ROOT / "tests" / "integration") not in sys.path:
+    sys.path.insert(0, str(ROOT / "tests" / "integration"))
+import cpp_driver  # noqa: E402
+
 PROJECT = ROOT / "godot"
 DRIVER = "res://tests/integration/server_driver.gd"
 RPGMAKER = ROOT / "rpgmaker"
@@ -97,6 +108,13 @@ def node_binary():
     if not (RPGMAKER / "node_modules").is_dir():
         give_up("rpgmaker/node_modules missing (cd rpgmaker && npm ci)")
     return node
+
+
+def cpp_server_binary():
+    """The C++ server driver (scfg_server_driver), built once per session. Skip when cmake (3.25 or
+    newer), a C++20 compiler or a build tool is missing; with SCFG_REQUIRE_CPP=1 (CI) fail instead.
+    A configure or compile failure always fails. (The same rule as tests/integration/cpp_driver.py.)"""
+    return cpp_driver.skip_unless_available(cpp_driver.SERVER_TARGET)
 
 
 class PythonServer:
@@ -252,8 +270,15 @@ def _b64(data):
     return base64.b64encode(data).decode("ascii")
 
 
+class CppDriver(LineDriver):
+    """One scfg_server_driver process (unreal/core-driver/ServerMain.cpp)."""
+
+    def __init__(self, binary):
+        super().__init__([binary], ROOT)
+
+
 class DriverServer:
-    """A server in a driver process (the GDScript or the Node one)."""
+    """A server in a driver process (the GDScript, the Node or the C++ one)."""
 
     def __init__(self, config, driver):
         self._driver = driver
@@ -294,3 +319,7 @@ class GodotServer(DriverServer):
 
 class NodeServer(DriverServer):
     """rpgmaker/src/mz/local_server.ts in the Node driver."""
+
+
+class CppServer(DriverServer):
+    """The Unreal core's scfg::local_server::CheckoutServer in the C++ driver."""

@@ -112,6 +112,26 @@ SCFG_TEST(EntropyTests, TokenHexIsTheHexOfTokenBytes) {
     SCFG_CHECK_EQ(t, f.token_hex(4), "001fa0ff");
 }
 
+// base64.urlsafe_b64encode(b).rstrip(b"=").decode() of the drawn bytes: Python's token_urlsafe.
+SCFG_TEST(EntropyTests, TokenUrlsafeIsUnpaddedBase64url) {
+    Fixed f;
+    // 0xfb 0xff 0xbf is "+/+/" in the standard alphabet; 16 bytes leave two padding characters to strip
+    f.draws = {{0xfb, 0xff, 0xbf}, std::vector<uint8_t>(16, 0xff), {0x00}};
+    SCFG_CHECK_EQ(t, f.token_urlsafe(3), "-_-_");
+    SCFG_CHECK_EQ(t, f.token_urlsafe(16), "_____________________w");
+    SCFG_CHECK_EQ(t, f.token_urlsafe(1), "AA");
+    scfg::SystemEntropy e;
+    const std::string secret = e.token_urlsafe(16);
+    SCFG_CHECK_EQ(t, secret.size(), 22);
+    bool alphabet = true;
+    for (char c : secret) {
+        alphabet = alphabet && ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+                                c == '-' || c == '_');
+    }
+    SCFG_CHECK(t, alphabet);
+    SCFG_CHECK(t, e.token_urlsafe(16) != secret);
+}
+
 SCFG_TEST(EntropyTests, SystemEntropySizes) {
     scfg::SystemEntropy e;
     SCFG_CHECK_EQ(t, e.token_bytes(32).size(), 32);

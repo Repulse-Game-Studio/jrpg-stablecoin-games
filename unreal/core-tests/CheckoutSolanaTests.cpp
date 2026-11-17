@@ -9,9 +9,9 @@
 //   test_evm_chain_still_uses_eip681                                   -> the same name
 //   test_pasting_the_wrong_family_is_an_invalid_hash                   -> the same name
 //   test_restore_accepts_signatures                                    -> the same name
-//   test_local_server_accepts_a_signature_hint                         -> python_only: it POSTs to
-//       local_server.CheckoutServer over HTTP, which the core does not have (the glue's checkout server, task 6, is
-//       its twin). The core's half, page_messages.parse_tx_message of a signature hint, is
+//   test_local_server_accepts_a_signature_hint                         -> the same name: the core's
+//       local_server::CheckoutServer over the in-memory sockets of support/FakeSockets.h (the shared suite
+//       tests/server_security runs it again over real loopback sockets). Its message half is
 //       test_a_signature_hint_message_parses below.
 //   test_transaction_that_never_landed_lets_the_player_pay_again       -> the same name
 //   test_status_names_the_signature_that_never_landed                  -> the same name
@@ -22,12 +22,14 @@
 // build_solana_payment for this session).
 // DEV is a fixed Solana account where Python draws a fresh Keypair.
 #include "support/CheckoutFakes.h"
+#include "support/FakeSockets.h"
 #include "support/Test.h"
 
 #include "Scfg/Chains.h"
 #include "Scfg/Checkout.h"
 #include "Scfg/Config.h"
 #include "Scfg/Json.h"
+#include "Scfg/LocalServer.h"
 #include "Scfg/PageMessages.h"
 #include "Scfg/Payments.h"
 #include "Scfg/RestoreFlow.h"
@@ -195,6 +197,32 @@ SCFG_TEST(CheckoutSolanaTests, test_restore_accepts_signatures) {
     scfg::restore_flow::RestoreController ctl(submitted);
     SCFG_CHECK(t, is_true(ctl.check_tx(SIG)) && !submitted->submitted.empty());
     SCFG_CHECK(t, is_false(ctl.check_tx("nonsense")) && show(ctl.error) == "invalid_hash");
+}
+
+SCFG_TEST(CheckoutSolanaTests, test_local_server_accepts_a_signature_hint) {
+    namespace ls = scfg::local_server;
+    namespace sk = scfg_test::sockets;
+    auto got = std::make_shared<std::vector<std::pair<std::string, std::optional<std::string>>>>();
+    auto net = std::make_shared<sk::Net>();
+    ls::Options o;
+    o.load_asset = [](const std::string&) -> std::optional<std::string> { return std::string(); };
+    o.session_info = Json::dict();
+    o.get_status = [] { return Json::dict(); };
+    o.on_tx = [got](std::string tx, std::optional<std::string> sender) { got->emplace_back(tx, sender); };
+    o.clock = [] { return 0.0; };
+    o.listen = sk::listen_on(net);
+    Result<std::unique_ptr<ls::CheckoutServer>> made = ls::CheckoutServer::make(std::move(o));
+    if (!t.check(made.ok(), "made")) return;
+    std::unique_ptr<ls::CheckoutServer> srv = made.take();
+    if (!t.check(srv->start().ok(), "started")) return;
+    std::shared_ptr<sk::Pipe> conn = net->connect();
+    const Result<std::string> body = scfg::json::dumps(Json::dict({{"tx_hash", SIG}, {"from", DEV}}));
+    conn->send(sk::head(*srv, "POST", "tx", body.value().size()) + body.value());
+    for (int i = 0; i < 5 && !sk::answer(conn->to_client); ++i) srv->pump();
+    const std::optional<sk::Answer> answer = sk::answer(conn->to_client);
+    SCFG_CHECK(t, answer && answer->status == 202);
+    srv->stop();
+    SCFG_CHECK(t, got->size() == 1 && got->front().first == SIG && got->front().second == std::optional<std::string>(DEV));
 }
 
 // The core's half of test_local_server_accepts_a_signature_hint: the page's {"tx_hash": SIG, "from": DEV}.

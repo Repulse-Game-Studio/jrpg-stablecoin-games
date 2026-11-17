@@ -24,6 +24,16 @@ namespace scfg {
 
 std::string Entropy::token_hex(int n) { return bytes::to_hex(token_bytes(n)); }
 
+std::string Entropy::token_urlsafe(int n) {
+    std::string out = bytes::b64encode(token_bytes(n));
+    while (!out.empty() && out.back() == '=') out.pop_back();
+    for (char& c : out) {
+        if (c == '+') c = '-';
+        if (c == '/') c = '_';
+    }
+    return out;
+}
+
 Result<int64_t> Entropy::randbelow(int64_t n) {
     if (n <= 0) return Err::value_error("Upper bound must be positive.");
     const uint64_t limit = static_cast<uint64_t>(n);

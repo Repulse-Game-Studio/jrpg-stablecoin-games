@@ -126,6 +126,7 @@ jobs:
         working-directory: unreal
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: Install Ninja and the locales LocaleTests reruns both tiers under
         run: |
           sudo apt-get update
@@ -136,6 +137,12 @@ jobs:
         run: cmake --build --preset ${{ matrix.preset }}
       - name: C++ core tests against the conformance vectors, the lints, the locale reruns and the deferred replay
         run: ctest --preset ${{ matrix.preset }}
+      - name: Localhost checkout server security suite, C++ server (the Unreal core's, on POSIX sockets)
+        if: matrix.preset == 'release'   # tests/integration/cpp_driver.py builds its own Release driver: once is enough
+        working-directory: .
+        env:
+          SCFG_REQUIRE_CPP: "1"   # fails, rather than skips, without cmake, a compiler or ninja
+        run: uv run pytest tests/server_security -m cpp_server
 
   rpgmaker-ui:
     runs-on: ubuntu-latest

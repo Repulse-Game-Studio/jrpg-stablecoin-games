@@ -1,7 +1,7 @@
 // No Python twin: the export check of ruling R2-3. Linked against scfg_core_shared, the core built as a shared
 // library with -fvisibility=hidden where only SCFGCORE_API is visible, as an Unreal module that depends on ScfgCore
 // links against libUnrealEditor-ScfgCore.so. It calls into several of the core's files (Json, Amounts, Config,
-// Engine, Co, Checkout, RestoreFlow); a symbol it needs that lost its export is an undefined reference, so the build fails before ctest
+// Engine, Co, Checkout, RestoreFlow, LocalServer); a symbol it needs that lost its export is an undefined reference, so the build fails before ctest
 // runs it. The run checks the answers too, so a link that succeeded by accident still fails the test.
 #include "Scfg/Amounts.h"
 #include "Scfg/Checkout.h"
@@ -12,6 +12,7 @@
 #include "Scfg/Engine.h"
 #include "Scfg/Err.h"
 #include "Scfg/Json.h"
+#include "Scfg/LocalServer.h"
 #include "Scfg/Payments.h"
 #include "Scfg/RestoreFlow.h"
 #include "Scfg/Result.h"
@@ -125,6 +126,19 @@ int main() {
     check(checked.ok() && checked.value() && restore.state() == "checking" && submit->others == 1,
           "RestoreController::check_tx");
     check(scfg::restore_flow::MESSAGES().size() == 7, "restore_flow::MESSAGES");
+
+    // The localhost checkout server: its handler answers a request fed to it, and the controller's factory makes one.
+    scfg::local_server::Options page;
+    page.clock = [] { return 0.0; };
+    Result<std::unique_ptr<scfg::local_server::Handler>> handler = scfg::local_server::Handler::make(page);
+    check(handler.ok() && handler.value()->secret().size() == 22, "local_server::Handler::make");
+    if (!handler.ok()) return 1;
+    scfg::local_server::Handler& h = *handler.value();
+    const scfg::local_server::Handler::Conn conn = h.open();
+    h.feed(conn, "GET / HTTP/1.1\r\n\r\n");
+    check(h.io(conn).write.rfind("HTTP/1.1 403 ", 0) == 0, "local_server::Handler::feed");
+    check(!scfg::local_server::CheckoutServer::make(page).ok(), "local_server::CheckoutServer::make");
+    check(!scfg::local_server::factory(page)(scfg::checkout::ServerArgs()).ok(), "local_server::factory");
 
     std::printf("%d failed\n", failures);
     return failures == 0 ? 0 : 1;

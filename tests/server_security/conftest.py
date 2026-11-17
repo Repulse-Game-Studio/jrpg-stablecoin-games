@@ -1,6 +1,7 @@
 """The shared localhost checkout server security suite: every test runs against the Python server
-(scfg_core/local_server.py), the GDScript one (godot/addons/scfg/local_server.gd) and the Node one
-(rpgmaker/src/mz/local_server.ts, RPG Maker MZ's desktop page).
+(scfg_core/local_server.py), the GDScript one (godot/addons/scfg/local_server.gd), the Node one
+(rpgmaker/src/mz/local_server.ts, RPG Maker MZ's desktop page) and the C++ one (the Unreal core's
+unreal/Plugins/Scfg/Source/ScfgCore LocalServer.h, through unreal/core-driver's scfg_server_driver).
 
 The `godot` half (marked `godot_server`) needs a Godot 4.3+ binary in SCFG_GODOT and an imported
 project (`$SCFG_GODOT --headless --path godot --import`). Without one it skips; with
@@ -10,6 +11,12 @@ version: `pytest tests/server_security -m godot_server`.
 The `node` half needs Node 22.18+ on PATH and rpgmaker/node_modules (`cd rpgmaker && npm ci`).
 Without them it skips; with SCFG_REQUIRE_JS=1 it fails instead. The node half is marked
 `node_server` and deselected by default; CI's rpgmaker-ui job runs it: `pytest -m node_server`.
+
+The `cpp` half (marked `cpp_server`, registered here: pyproject.toml is not touched) needs cmake
+3.25+, a C++20 compiler and ninja or make (tests/integration/cpp_driver.py builds the driver once
+per session into unreal/build/integration). Without them it skips; with SCFG_REQUIRE_CPP=1 it fails
+instead. It is deselected unless the `-m` expression names `cpp_server`; CI's cpp-core job runs it:
+`SCFG_REQUIRE_CPP=1 pytest tests/server_security -m cpp_server`.
 """
 import os
 from pathlib import Path
@@ -17,11 +24,14 @@ from pathlib import Path
 import pytest
 
 from server_handles import (
+    CppDriver,
+    CppServer,
     GodotDriver,
     GodotServer,
     NodeDriver,
     NodeServer,
     PythonServer,
+    cpp_server_binary,
     godot_binary,
     node_binary,
 )
@@ -37,6 +47,12 @@ def _engine_errors(text):
 def _node_errors(text):
     """Every line Node wrote to stderr: the driver writes nothing there, so a line is an uncaught
     exception or a warning from a socket handler."""
+    return [line for line in text.splitlines() if line.strip()]
+
+
+def _cpp_errors(text):
+    """Every line the C++ driver wrote to stderr: it writes nothing there unless something failed
+    (a socket call it did not expect to fail, a sanitizer report)."""
     return [line for line in text.splitlines() if line.strip()]
 
 
@@ -58,8 +74,18 @@ def node_driver():
     assert not errors, "the Node server driver logged errors:\n" + "\n".join(errors)
 
 
+@pytest.fixture(scope="session")
+def cpp_server_driver():
+    driver = CppDriver(cpp_server_binary())
+    yield driver
+    driver.close()
+    errors = _cpp_errors(driver.stderr_text())
+    assert not errors, "the C++ server driver logged errors:\n" + "\n".join(errors)
+
+
 @pytest.fixture(params=["python", pytest.param("godot", marks=pytest.mark.godot_server),
-                        pytest.param("node", marks=pytest.mark.node_server)])
+                        pytest.param("node", marks=pytest.mark.node_server),
+                        pytest.param("cpp", marks=pytest.mark.cpp_server)])
 def make_server(request, monkeypatch):
     """make_server(**config) -> a started server handle (see server_handles.py)."""
     made = []
@@ -68,6 +94,8 @@ def make_server(request, monkeypatch):
         driver, handle_class, errors_in = request.getfixturevalue("godot_driver"), GodotServer, _engine_errors
     elif request.param == "node":
         driver, handle_class, errors_in = request.getfixturevalue("node_driver"), NodeServer, _node_errors
+    elif request.param == "cpp":
+        driver, handle_class, errors_in = request.getfixturevalue("cpp_server_driver"), CppServer, _cpp_errors
     seen = len(driver.stderr_text()) if driver is not None else 0
 
     def make(**config):
@@ -97,9 +125,14 @@ def _explicit_markexpr(config):
 
 
 def pytest_configure(config):
-    """The default `-m` (pyproject addopts) deselects `node_server` tests, which have their own CI
+    """Registers the `cpp_server` marker (pyproject.toml registers the others).
+
+    The default `-m` (pyproject addopts) deselects `node_server` tests, which have their own CI
     job. Naming this directory (or a file in it) on the command line, or SCFG_REQUIRE_JS=1,
     runs them; an explicit `-m` from the command line is left alone."""
+    config.addinivalue_line(
+        "markers", "cpp_server: the C++ (Unreal core) half of tests/server_security (needs cmake and a "
+        "C++20 compiler); deselected unless -m names it: run with -m cpp_server")
     term = " and not node_server"
     if term not in (config.option.markexpr or "") or _explicit_markexpr(config):
         return
@@ -111,6 +144,18 @@ def pytest_configure(config):
             named = True
     if named or os.environ.get("SCFG_REQUIRE_JS") == "1":
         config.option.markexpr = config.option.markexpr.replace(term, "")
+
+
+def pytest_collection_modifyitems(config, items):
+    """Deselects the `cpp_server` tests unless the `-m` expression names `cpp_server` (pyproject's
+    addopts cannot name a marker this conftest registers), so a plain `pytest` never builds the
+    C++ driver."""
+    if "cpp_server" in (config.option.markexpr or ""):
+        return
+    dropped = [item for item in items if item.get_closest_marker("cpp_server") is not None]
+    if dropped:
+        config.hook.pytest_deselected(items=dropped)
+        items[:] = [item for item in items if item.get_closest_marker("cpp_server") is None]
 
 
 def pytest_terminal_summary(terminalreporter, config):

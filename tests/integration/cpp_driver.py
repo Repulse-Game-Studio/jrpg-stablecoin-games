@@ -10,7 +10,8 @@ resolves (cmake then reads $CXX itself, arguments and all, as in CXX="ccache g++
 clang++ on PATH. Ninja is used when it is found the same way, else make (Unix Makefiles).
 The driver is built once per Python process (`cmake -S unreal -B unreal/build/integration
 -DCMAKE_BUILD_TYPE=Release`, then only the scfg_core_driver target, one job per CPU) and its binary then
-run directly.
+run directly. tests/server_security builds the checkout server's driver (SERVER_TARGET,
+scfg_server_driver) through the same build_driver(), once per session too.
 """
 import json
 import os
@@ -28,13 +29,15 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "unreal"
 BUILD_DIR = SOURCE / "build" / "integration"
 TARGET = "scfg_core_driver"
+SERVER_TARGET = "scfg_server_driver"  # the localhost checkout server's driver (tests/server_security)
 BINARY = BUILD_DIR / TARGET
 REPLY_TIMEOUT = 120
 BUILD_TIMEOUT = 900
 MISSING = "cmake or a C++20 compiler not found"
 CMAKE_MIN = (3, 25)  # unreal/CMakeLists.txt's cmake_minimum_required
 
-_built = None  # (binary, None, False) or (None, why not, broken): the build's outcome, kept for the session
+# {target: (binary, None, False) or (None, why not, broken)}: each build's outcome, kept for the session
+_built = {}
 
 
 def find_tool(name):
@@ -78,16 +81,15 @@ def cmake_version(cmake):
     return (int(m.group(1)), int(m.group(2))) if out.returncode == 0 and m else None
 
 
-def build_driver():
-    """(binary path, None, False) once the driver is built, else (None, why not, whether a build
-    ran and failed). Builds at most once."""
-    global _built
-    if _built is None:
-        _built = _build()
-    return _built
+def build_driver(target=TARGET):
+    """(binary path, None, False) once `target` (TARGET or SERVER_TARGET) is built, else (None,
+    why not, whether a build ran and failed). Builds each target at most once."""
+    if target not in _built:
+        _built[target] = _build(target)
+    return _built[target]
 
 
-def _build():
+def _build(target):
     # A missing or unusable toolchain is (None, why, False): a skip, or a failure under
     # SCFG_REQUIRE_CPP=1. Once it is usable, a failed configure or build is a failure.
     cmake, (cxx, cxx_from_env) = find_tool("cmake"), find_compiler()
@@ -113,7 +115,7 @@ def _build():
             configure += ["-G", "Unix Makefiles", f"-DCMAKE_MAKE_PROGRAM={make}"]
     # A job count: a bare --parallel is make's unbounded -j (every compile at once).
     jobs = str(os.cpu_count() or 2)
-    steps = [configure, [cmake, "--build", str(BUILD_DIR), "--target", TARGET, "--parallel", jobs]]
+    steps = [configure, [cmake, "--build", str(BUILD_DIR), "--target", target, "--parallel", jobs]]
     for step in steps:
         try:
             out = subprocess.run(step, cwd=ROOT, capture_output=True, text=True,
@@ -121,17 +123,18 @@ def _build():
         except (OSError, subprocess.SubprocessError) as e:
             return None, f"cmake could not run ({' '.join(step[:2])}): {e}", True
         if out.returncode != 0:
-            return None, (f"building {TARGET} failed ({' '.join(step)}):\n"
+            return None, (f"building {target} failed ({' '.join(step)}):\n"
                           f"{out.stdout[-3000:]}{out.stderr[-2000:]}"), True
-    if not (BINARY.is_file() and os.access(BINARY, os.X_OK)):
-        return None, f"building {TARGET} made no {BINARY}", True
-    return str(BINARY), None, False
+    binary = BUILD_DIR / target
+    if not (binary.is_file() and os.access(binary, os.X_OK)):
+        return None, f"building {target} made no {binary}", True
+    return str(binary), None, False
 
 
-def skip_unless_available():
-    """Build the driver; skip when cmake (3.25 or newer), a compiler or a build tool (ninja or
+def skip_unless_available(target=TARGET):
+    """Build `target`; skip when cmake (3.25 or newer), a compiler or a build tool (ninja or
     make) is missing; with SCFG_REQUIRE_CPP=1 (CI) fail instead."""
-    binary, why, broken = build_driver()
+    binary, why, broken = build_driver(target)
     if binary is None:
         # A build that ran and failed is a failure whatever the flag says; only a missing or
         # unusable toolchain skips.
