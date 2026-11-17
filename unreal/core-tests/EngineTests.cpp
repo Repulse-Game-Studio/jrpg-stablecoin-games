@@ -150,6 +150,55 @@ SCFG_TEST(EngineTests, AnUnknownKeywordIsATypeError) {
     t.check(r && !r->ok() && r->err().code == "chain.token_unavailable", "a list chain");
 }
 
+// Engine::make: the constructor's store checks as a TypeError, for stores read from a file (the store of task 4),
+// where the constructor would abort.
+SCFG_TEST(EngineTests, MakeRefusesAStoreThatIsNotADict) {
+    HeadTransport transport;
+    const auto clock = [] { return int64_t{1700000000}; };
+    for (const Json& bad : {Json::list({1, 2}), Json("ab"), Json(int64_t{5}), Json(true)}) {
+        Result<std::unique_ptr<engine::Engine>> p = engine::Engine::make(base_config(), transport, bad, Json(), clock);
+        t.check(!p.ok() && p.err().kind == "TypeError", "pending " + scfg::py::type_name(bad));
+        if (!p.ok()) SCFG_CHECK_EQ(t, p.err().message, "an Engine's pending must be a dict or None, not " +
+                                                           scfg::py::type_name(bad));
+        Result<std::unique_ptr<engine::Engine>> r = engine::Engine::make(base_config(), transport, Json(), bad, clock);
+        t.check(!r.ok() && r.err().kind == "TypeError", "receipts " + scfg::py::type_name(bad));
+        if (!r.ok()) SCFG_CHECK_EQ(t, r.err().message, "an Engine's receipts must be a dict or None, not " +
+                                                           scfg::py::type_name(bad));
+    }
+    SCFG_CHECK(t, transport.methods.empty());
+}
+
+SCFG_TEST(EngineTests, MakeTakesWhatTheConstructorTakes) {
+    HeadTransport transport;
+    scfg_test::tier2::ScriptedEntropy entropy;
+    entropy.load(draws());
+    const Json receipt = Json::dict({{"k", Json::dict()}});
+    // None and the falsy values are empty stores, as Python's `dict(pending or {})`
+    for (const Json& empty : {Json(), Json(false), Json(int64_t{0}), Json(""), Json::list()}) {
+        Result<std::unique_ptr<engine::Engine>> e = engine::Engine::make(base_config(), transport, empty, empty,
+                                                                         [] { return int64_t{0}; });
+        if (!t.check(e.ok() && e.value(), "falsy " + scfg::py::type_name(empty))) continue;
+        SCFG_CHECK_EQ(t, e.value()->pending().as_dict().size(), 0);
+        SCFG_CHECK_EQ(t, e.value()->receipts().as_dict().size(), 0);
+    }
+    std::vector<scfg::Err> errors;
+    Result<std::unique_ptr<engine::Engine>> made =
+        engine::Engine::make(base_config(), transport, Json::dict(), receipt, [] { return int64_t{1700000000}; }, {},
+                             [&errors](const scfg::Err& e) { errors.push_back(e); }, &entropy);
+    if (!t.check(made.ok(), "make")) return;
+    engine::Engine& eng = *made.value();
+    SCFG_CHECK_EQ(t, eng.receipts().as_dict().size(), 1);
+    std::optional<Result<Json>> rec = run_now(eng.start_session("unlock", "base", Json::dict({{"item", "chapter2"}})));
+    t.check(rec && rec->ok(), "start_session through the given clock, entropy and transport");
+    if (rec && rec->ok()) {
+        SCFG_CHECK_EQ(t, rec->value().as_dict().get("id").as_str(), "ps_ea4702a60e526f21");
+        SCFG_CHECK_EQ(t, rec->value().as_dict().get("created_at").as_int64(), 1700000000);
+    }
+    t.check(transport.methods == std::vector<std::string>{"eth_blockNumber"}, "the given transport");
+    eng.on_error(scfg::Err::make("ValueError", "x"));
+    SCFG_CHECK_EQ(t, errors.size(), 1);
+}
+
 SCFG_TEST(EngineTests, ACrashIsContainedAndCounted) {
     HeadTransport transport;
     Json pending = Json::dict({{"ps_bad", Json::dict({{"chain", "base"}, {"state", "awaiting"}, {"ui_status", "cancelled"}})}});

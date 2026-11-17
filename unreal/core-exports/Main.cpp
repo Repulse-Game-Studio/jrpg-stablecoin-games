@@ -15,6 +15,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -70,6 +71,10 @@ int main() {
     check(job.done() && session && session->ok() && transport.posts == 1, "Engine::start_session");
     Result<scfg::engine::Snapshot> snap = engine.snapshot();
     check(snap.ok() && snap.value().pending.as_dict().size() == 1 && !engine.running(), "Engine::snapshot");
+
+    Result<std::unique_ptr<scfg::engine::Engine>> refused = scfg::engine::Engine::make(
+        engine.config(), transport, Json::list({1}), Json(), [] { return int64_t{0}; });
+    check(!refused.ok() && refused.err().kind == "TypeError", "Engine::make");
 
     std::printf("%d failed\n", failures);
     return failures == 0 ? 0 : 1;

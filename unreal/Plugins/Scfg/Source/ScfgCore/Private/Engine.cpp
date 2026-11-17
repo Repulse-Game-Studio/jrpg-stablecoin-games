@@ -26,6 +26,13 @@ Json own_store(const Json& store) {
     return deep_copy(store);
 }
 
+// make()'s check of a store: what own_store takes without aborting.
+Status check_store(const Json& store, std::string_view name) {
+    if (!py::truthy(store) || store.is_dict()) return ok();
+    return Err::make("TypeError", "an Engine's " + std::string(name) + " must be a dict or None, not " +
+                                      py::type_name(store));
+}
+
 // One command at a time (Engine.h): a network command holds its Engine's flag for as long as its coroutine is alive
 // (a local of the coroutine, so it is released when the coroutine returns or its frame is destroyed). The flag is
 // shared, not referenced: a frame destroyed after its Engine releases a flag nobody reads any more, instead of
@@ -71,6 +78,15 @@ Result<std::string> pending_key(const Json& pending, const Json& sid) {
 namespace scfg::engine {
 
 namespace base = backends::base;
+
+Result<std::unique_ptr<Engine>> Engine::make(config::Config config, coio::Transport& transport, Json pending,
+                                             Json receipts, std::function<int64_t()> clock, RpcFactory rpc_factory,
+                                             std::function<void(const Err&)> handler, Entropy* entropy) {
+    SCFG_TRY_VOID(detail::check_store(pending, "pending"));
+    SCFG_TRY_VOID(detail::check_store(receipts, "receipts"));
+    return std::make_unique<Engine>(std::move(config), transport, std::move(pending), std::move(receipts),
+                                    std::move(clock), std::move(rpc_factory), std::move(handler), entropy);
+}
 
 Engine::Engine(config::Config config, coio::Transport& transport, Json pending, Json receipts,
                std::function<int64_t()> clock, RpcFactory rpc_factory, std::function<void(const Err&)> handler,

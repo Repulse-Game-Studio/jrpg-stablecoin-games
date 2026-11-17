@@ -80,6 +80,15 @@ public:
     Engine(config::Config config, coio::Transport& transport, Json pending, Json receipts,
            std::function<int64_t()> clock, RpcFactory rpc_factory = {}, std::function<void(const Err&)> handler = {},
            Entropy* entropy = nullptr);
+    // The constructor for stores that were read from a file (the glue's state.json): a pending or receipts that is
+    // neither None, falsy nor a dict is a TypeError ("an Engine's pending must be a dict or None, not list") instead
+    // of the constructor's abort. Python's dict() would take a list of pairs, or fail with a TypeError or ValueError
+    // that depends on the value (README, "Known divergences").
+    static Result<std::unique_ptr<Engine>> make(config::Config config, coio::Transport& transport, Json pending,
+                                                Json receipts, std::function<int64_t()> clock,
+                                                RpcFactory rpc_factory = {},
+                                                std::function<void(const Err&)> handler = {},
+                                                Entropy* entropy = nullptr);
     Engine(const Engine&) = delete;
     Engine& operator=(const Engine&) = delete;
 
