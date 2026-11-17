@@ -34,6 +34,19 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+// FScfgStore's private file writer and its test hook (the store's friend).
+struct FScfgStoreTestAccess
+{
+	static scfg::Status SaveFile(const FString& Path, const scfg::Json& Pending, const scfg::Json& Receipts)
+	{
+		return FScfgStore::SaveFile(Path, Pending, Receipts);
+	}
+	static TFunction<scfg::Status(const FString&, const FString&)>& ReplaceHook()
+	{
+		return FScfgStore::ReplaceHookForTests();
+	}
+};
+
 namespace ScfgStoreTests
 {
 
@@ -150,11 +163,15 @@ struct FReports
 	TArray<FString> Warnings;
 };
 
-FScfgStore::FOptions Options(const FString& Dir, FTSTicker& Ticker, FReports& Reports)
+FScfgStore::FOptions Options(const FString& Dir, FTSTicker& Ticker, FReports& Reports, double* Clock = nullptr)
 {
 	FScfgStore::FOptions Out;
 	Out.Directory = Dir;
 	Out.Ticker = &Ticker;
+	if (Clock != nullptr)
+	{
+		Out.Clock = [Clock]() { return *Clock; };
+	}
 	Out.OnError = [&Reports](const scfg::Err& E) { Reports.Errors.Add(ScfgString::FromUtf8(E.str())); };
 	Out.OnWarning = [&Reports](const FString& W) { Reports.Warnings.Add(W); };
 	return Out;
@@ -218,7 +235,7 @@ void Frames(FTSTicker& Ticker, int32 N)
 }
 
 // FUnixPlatformFile logs a warning for each open() that fails other than with ENOENT (UnixPlatformFile.cpp:807,
-// :1315): expected wherever a test makes a read or a write fail.
+// :1315). The store makes its own calls on Linux, so only a test's own read through the engine (ReadAll) logs it.
 void ExpectFileWarnings(FAutomationTestBase& Test)
 {
 	Test.AddExpectedMessagePlain(TEXT("failed: errno="), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 0);
@@ -238,7 +255,7 @@ bool FScfgStoreRoundTripTest::RunTest(const FString& Parameters)
 	using namespace ScfgStoreTests;
 	FTempDir T;
 	const FString Path = T / TEXT("state.json");
-	TestTrue(TEXT("saved"), FScfgStore::SaveFile(Path, Pending(), StoredReceipts()).ok());
+	TestTrue(TEXT("saved"), FScfgStoreTestAccess::SaveFile(Path, Pending(), StoredReceipts()).ok());
 	const FScfgStoreLoad Got = FScfgStore::Load(Path);
 	TestEqual(TEXT("no warning"), Got.Warnings.Num(), 0);
 	TestFalse(TEXT("no error"), Got.Error.IsSet());
@@ -269,7 +286,7 @@ bool FScfgStoreMakesDirectoryTest::RunTest(const FString& Parameters)
 	using namespace ScfgStoreTests;
 	FTempDir T;
 	const FString Path = T / TEXT("deeper/scfg/state.json");
-	TestTrue(TEXT("saved"), FScfgStore::SaveFile(Path, Json::dict(), Json::dict()).ok());
+	TestTrue(TEXT("saved"), FScfgStoreTestAccess::SaveFile(Path, Json::dict(), Json::dict()).ok());
 	TestTrue(TEXT("written"), FileExists(Path));
 	return true;
 }
@@ -347,12 +364,11 @@ SCFG_STORE_TEST(FScfgStoreAtomicTest, "TheAtomicWriteLeavesTheOldFileOnFailure")
 bool FScfgStoreAtomicTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgStoreTests;
-	ExpectFileWarnings(*this);
 	FTempDir T;
 	const FString Path = T / TEXT("state.json");
-	TestTrue(TEXT("first save"), FScfgStore::SaveFile(Path, Pending(), StoredReceipts()).ok());
+	TestTrue(TEXT("first save"), FScfgStoreTestAccess::SaveFile(Path, Pending(), StoredReceipts()).ok());
 	IFileManager::Get().MakeDirectory(*(Path + TEXT(".tmp")), true);
-	const scfg::Status Failed = FScfgStore::SaveFile(Path, Json::dict(), Json::dict());
+	const scfg::Status Failed = FScfgStoreTestAccess::SaveFile(Path, Json::dict(), Json::dict());
 	TestTrue(TEXT("the failed write is a RuntimeError"), !Failed.ok() && Failed.err().kind == "RuntimeError" &&
 		Failed.err().message.rfind("cannot write", 0) == 0);
 	const FScfgStoreLoad Got = FScfgStore::Load(Path);
@@ -371,7 +387,7 @@ bool FScfgStoreFailedRenameTest::RunTest(const FString& Parameters)
 	const FString Path = T / TEXT("state.json");
 	IFileManager::Get().MakeDirectory(*Path, true);
 	WriteAll(Path / TEXT("keep.txt"), "old");
-	const scfg::Status Failed = FScfgStore::SaveFile(Path, Pending(), StoredReceipts());
+	const scfg::Status Failed = FScfgStoreTestAccess::SaveFile(Path, Pending(), StoredReceipts());
 	TestTrue(TEXT("the failed rename is a RuntimeError"), !Failed.ok() && Failed.err().kind == "RuntimeError");
 	TestTrue(TEXT("at the rename"), !Failed.ok() && Failed.err().message.rfind("cannot replace", 0) == 0);
 	TestEqual(TEXT("what was there is untouched"), ScfgString::FromUtf8(ReadAll(Path / TEXT("keep.txt")).value_or("")),
@@ -389,12 +405,14 @@ bool FScfgStoreTmpFallbackTest::RunTest(const FString& Parameters)
 	using namespace ScfgStoreTests;
 	FTempDir T;
 	const FString Path = T / TEXT("state.json");
-	TestTrue(TEXT("a complete file"), FScfgStore::SaveFile(T / TEXT("other.json"), Pending(), StoredReceipts()).ok());
+	TestTrue(TEXT("a complete file"), FScfgStoreTestAccess::SaveFile(T / TEXT("other.json"), Pending(), StoredReceipts()).ok());
 	IFileManager::Get().Move(*(Path + TEXT(".tmp")), *(T / TEXT("other.json")));
 	FScfgStoreLoad Got = FScfgStore::Load(Path);
 	TestTrue(TEXT("a save stopped before its rename: the .tmp is read"), Same(Got.Pending, Pending()) &&
 		Same(Got.Receipts, StoredReceipts()) && Got.Warnings.Num() == 0 && !Got.Error.IsSet());
-	TestTrue(TEXT("a later save"), FScfgStore::SaveFile(Path, Json::dict(), Json::dict()).ok());
+	TestTrue(TEXT("and becomes the file at once (the next save's .tmp never truncates the only copy)"),
+		FileExists(Path) && !FileExists(Path + TEXT(".tmp")) && Same(FScfgStore::Load(Path).Pending, Pending()));
+	TestTrue(TEXT("a later save"), FScfgStoreTestAccess::SaveFile(Path, Json::dict(), Json::dict()).ok());
 	WriteAll(Path + TEXT(".tmp"), "{\"version\": 1, \"pend");  // a torn write beside a good file
 	Got = FScfgStore::Load(Path);
 	TestTrue(TEXT("the file wins over a .tmp"), Same(Got.Pending, Json::dict()) && Same(Got.Receipts, Json::dict()) &&
@@ -412,7 +430,7 @@ bool FScfgStoreUnreadableTest::RunTest(const FString& Parameters)
 	ExpectFileWarnings(*this);
 	FTempDir T;
 	const FString Path = T / TEXT("state.json");
-	TestTrue(TEXT("a good file"), FScfgStore::SaveFile(Path, Pending(), StoredReceipts()).ok());
+	TestTrue(TEXT("a good file"), FScfgStoreTestAccess::SaveFile(Path, Pending(), StoredReceipts()).ok());
 	const std::optional<std::string> Before = ReadAll(Path);
 	if (!T.SetMode(Path, 0) || ReadAll(Path).has_value())
 	{
@@ -490,7 +508,6 @@ SCFG_STORE_TEST(FScfgStoreStuckTest, "AFileInAReadOnlyDirectory")
 bool FScfgStoreStuckTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgStoreTests;
-	ExpectFileWarnings(*this);
 	FTempDir T;
 	const FString Dir = T / TEXT("stuck");
 	const FString Path = Dir / TEXT("state.json");
@@ -520,21 +537,212 @@ bool FScfgStoreStuckTest::RunTest(const FString& Parameters)
 		TEXT("{\"version\": 1, \"pend"));
 	TestFalse(TEXT("and no copy was made"), FileExists(Path + TEXT(".corrupt")));
 
-	TestTrue(TEXT("a good file"), FScfgStore::SaveFile(Path, Pending(), StoredReceipts()).ok());
+	TestTrue(TEXT("a good file"), FScfgStoreTestAccess::SaveFile(Path, Pending(), StoredReceipts()).ok());
 	const std::optional<std::string> Good = ReadAll(Path);
+	WriteAll(Path + TEXT(".tmp"), "");  // a writable .tmp: the write succeeds and the rename over the file fails
 	T.SetMode(Dir, 0500);
 	Reports = FReports();
 	{
 		FScfgStore Store(Options(Dir, Ticker, Reports));
 		TestFalse(TEXT("readable: not blocked"), Store.IsBlocked());
 		TestFalse(TEXT("the save fails"), Store.Save(Json::dict(), Json::dict()));
+		TestTrue(TEXT("at the rename over the existing file"),
+			Reports.Errors.Num() == 1 && Reports.Errors[0].Contains(TEXT("cannot replace")));
 		TestTrue(TEXT("and is owed"), Store.IsSaveOwed());
 		Ticker.Tick(FScfgStore::RETRY_INTERVAL);
 		TestTrue(TEXT("still owed after a retry"), Store.IsSaveOwed());
 		TestEqual(TEXT("reported once"), Reports.Errors.Num(), 1);
 	}
 	T.SetMode(Dir, 0700);
-	TestTrue(TEXT("the file stays whole"), ReadAll(Path) == Good);
+	TestTrue(TEXT("the file stays whole, byte for byte"), ReadAll(Path) == Good);
+	return true;
+}
+
+SCFG_STORE_TEST(FScfgStoreFailedReplaceTest, "AFailedReplaceKeepsTheOldFile")
+
+// The save's last step, the rename over an existing state.json, fails (a test hook stands in for it): nothing was
+// deleted before it, so the old file is still there byte for byte, and the store reports and owes the save.
+bool FScfgStoreFailedReplaceTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgStoreTests;
+	FTempDir T;
+	const FString Path = T / TEXT("state.json");
+	TestTrue(TEXT("a good file"), FScfgStoreTestAccess::SaveFile(Path, Pending(), StoredReceipts()).ok());
+	const std::optional<std::string> Before = ReadAll(Path);
+	struct FHook
+	{
+		FHook()
+		{
+			FScfgStoreTestAccess::ReplaceHook() = [](const FString& From, const FString& To) -> scfg::Status
+			{
+				return scfg::Err::make("RuntimeError", ScfgString::ToUtf8(TEXT("cannot replace ") + To +
+					TEXT(": injected (the .tmp ") + From + TEXT(" is held)")));
+			};
+		}
+		~FHook() { FScfgStoreTestAccess::ReplaceHook() = nullptr; }
+	} Hook;
+	const scfg::Status Failed = FScfgStoreTestAccess::SaveFile(Path, Json::dict(), Json::dict());
+	TestTrue(TEXT("the replace failed"), !Failed.ok() && Failed.err().message.rfind("cannot replace", 0) == 0);
+	TestTrue(TEXT("the old file is still there, byte for byte"), ReadAll(Path) == Before);
+	FTSTicker Ticker;
+	FReports Reports;
+	{
+		FScfgStore Store(Options(T.Dir, Ticker, Reports));
+		TestFalse(TEXT("the store's save fails"), Store.Save(Json::dict(), Json::dict()));
+		TestTrue(TEXT("reported once, and owed"), Reports.Errors.Num() == 1 && Store.IsSaveOwed());
+		TestTrue(TEXT("a state equal to the old file owes nothing"), Store.Save(Pending(), StoredReceipts()) &&
+			!Store.IsSaveOwed());
+		TestTrue(TEXT("still byte for byte"), ReadAll(Path) == Before);
+	}
+	return true;
+}
+
+SCFG_STORE_TEST(FScfgStoreUnsearchableTest, "AnUnsearchableDirectoryBlocks")
+
+// A directory this process cannot search (no x bit): stat fails with EACCES, which is not "missing". The store
+// blocks instead of starting empty beside a file it cannot see.
+bool FScfgStoreUnsearchableTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgStoreTests;
+	FTempDir T;
+	const FString Dir = T / TEXT("hidden");
+	const FString Path = Dir / TEXT("state.json");
+	TestTrue(TEXT("a good file"), FScfgStoreTestAccess::SaveFile(Path, Pending(), StoredReceipts()).ok());
+	const std::optional<std::string> Before = ReadAll(Path);
+	if (!T.SetMode(Dir, 0600) || FileExists(Path))
+	{
+		T.SetMode(Dir, 0700);
+		AddInfo(TEXT("skipped: this process searches directories without permission (root), or has no chmod"));
+		return true;
+	}
+	FTSTicker Ticker;
+	FReports Reports;
+	{
+		FScfgStore Store(Options(Dir, Ticker, Reports));
+		TestTrue(TEXT("blocked, naming the file"), Store.IsBlocked() &&
+			ScfgString::FromUtf8(Store.GetBlockReason()->message).Contains(Path));
+		if (Store.IsBlocked())
+		{
+			AddInfo(ScfgString::FromUtf8(Store.GetBlockReason()->str()));
+		}
+		TestFalse(TEXT("no save"), Store.Save(Json::dict(), Json::dict()));
+	}
+	T.SetMode(Dir, 0700);
+	TestTrue(TEXT("the file is untouched"), ReadAll(Path) == Before);
+	return true;
+}
+
+SCFG_STORE_TEST(FScfgStoreOnErrorDestroysTest, "OnErrorMayDestroyTheStore")
+
+// The facade may tear everything down from OnError: from a failed save, and from a retry the ticker runs. The store
+// touches nothing after the report.
+bool FScfgStoreOnErrorDestroysTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgStoreTests;
+	FTempDir T;
+	const FString Path = T / TEXT("state.json");
+	FTSTicker Ticker;
+	FReports Reports;
+	double Clock = 1000;
+	TUniquePtr<FScfgStore> Store;
+	int32 Calls = 0;
+	FScfgStore::FOptions Opts = Options(T.Dir, Ticker, Reports, &Clock);
+	Opts.OnError = [&](const scfg::Err&)
+	{
+		++Calls;
+		Store.Reset();
+	};
+	Store = MakeUnique<FScfgStore>(Opts);
+	TestTrue(TEXT("a first save"), Store->Save(Pending(), StoredReceipts()));
+	IFileManager::Get().MakeDirectory(*(Path + TEXT(".tmp")), true);
+	TestFalse(TEXT("a failing save"), Store->Save(Json::dict(), StoredReceipts()));
+	TestTrue(TEXT("destroyed from OnError, once"), !Store.IsValid() && Calls == 1);
+	IFileManager::Get().DeleteDirectory(*(Path + TEXT(".tmp")), false, true);
+
+	Store = MakeUnique<FScfgStore>(Opts);
+	TestTrue(TEXT("a first save"), Store->Save(Json::dict(), StoredReceipts()));
+	Clock += 1;
+	Json Moved = Json::dict({{"ps_1", Session("ps_1", 901)}});
+	TestTrue(TEXT("a session"), Store->Save(Pending(), StoredReceipts()));
+	Clock += 1;
+	TestTrue(TEXT("scan progress is owed"), Store->Save(Moved, StoredReceipts()) && Store->IsSaveOwed());
+	IFileManager::Get().MakeDirectory(*(Path + TEXT(".tmp")), true);
+	Ticker.Tick(FScfgStore::RETRY_INTERVAL);
+	TestTrue(TEXT("destroyed from OnError during the retry"), !Store.IsValid() && Calls == 2);
+	Ticker.Tick(FScfgStore::RETRY_INTERVAL);
+	TestEqual(TEXT("nothing ran after"), Calls, 2);
+	IFileManager::Get().DeleteDirectory(*(Path + TEXT(".tmp")), false, true);
+	return true;
+}
+
+SCFG_STORE_TEST(FScfgStoreThrottleTest, "ScanProgressIsSavedAtMostEveryTenSeconds")
+
+// Godot's _sync rule: the receipts, the set of sessions, a session's state or hint_tx changing is written at once;
+// a change to anything else in pending (a cursor) at most every PENDING_SAVE_INTERVAL seconds, by the ticker or by
+// the next save that may write; what is owed is written when the store is destroyed.
+bool FScfgStoreThrottleTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgStoreTests;
+	FTempDir T;
+	const FString Path = T / TEXT("state.json");
+	FTSTicker Ticker;
+	FReports Reports;
+	double Clock = 1000;
+	auto At = [](int64_t Cursor, Json Hint = Json(), const char* State = "awaiting")
+	{
+		Json Record = Session("ps_1", Cursor);
+		Record.as_dict().set("hint_tx", std::move(Hint));
+		Record.as_dict().set("state", State);
+		return Json::dict({{"ps_1", Record}});
+	};
+	auto Cursor = [&Path]()
+	{
+		const Json Stored = FScfgStore::Load(Path).Pending;
+		return Stored.as_dict().contains("ps_1") ? Stored.as_dict().get("ps_1").as_dict().get("cursor").as_int64() : -1;
+	};
+	{
+		FScfgStore Store(Options(T.Dir, Ticker, Reports, &Clock));
+		TestTrue(TEXT("a new session: at once"), Store.Save(At(900), StoredReceipts()) && Store.NumWrites() == 1);
+		Clock = 1001;
+		TestTrue(TEXT("a cursor: owed"), Store.Save(At(901), StoredReceipts()) && Store.IsSaveOwed());
+		Clock = 1002;
+		Store.Save(At(902), StoredReceipts());
+		TestEqual(TEXT("not written yet"), Store.NumWrites(), 1);
+		Ticker.Tick(FScfgStore::RETRY_INTERVAL - 1.0f);
+		TestEqual(TEXT("not before the interval"), Store.NumWrites(), 1);
+		Ticker.Tick(1.0f);
+		TestTrue(TEXT("the ticker wrote the newest"), Store.NumWrites() == 2 && Cursor() == 902 && !Store.IsSaveOwed());
+		Clock = 1003;
+		TestTrue(TEXT("a cursor right after: owed"), Store.Save(At(903), StoredReceipts()) && Store.NumWrites() == 2);
+		TestTrue(TEXT("a hint_tx: at once (with the cursor)"), Store.Save(At(903, Json(kTx)), StoredReceipts()) &&
+			Store.NumWrites() == 3 && Cursor() == 903 && !Store.IsSaveOwed());
+		Clock = 1004;
+		Store.Save(At(904, Json(kTx), "confirming"), StoredReceipts());
+		TestEqual(TEXT("a state: at once"), Store.NumWrites(), 4);
+		Clock = 1005;
+		Store.Save(At(904, Json(kTx), "confirming"), Json::dict());
+		TestEqual(TEXT("the receipts: at once"), Store.NumWrites(), 5);
+		Clock = 1006;
+		Json Two = At(904, Json(kTx), "confirming");
+		Two.as_dict().set("ps_2", Session("ps_2"));
+		Store.Save(Two, Json::dict());
+		TestEqual(TEXT("another session: at once"), Store.NumWrites(), 6);
+		Clock = 1007;
+		Json Progress = At(905, Json(kTx), "confirming");
+		Progress.as_dict().set("ps_2", Session("ps_2"));
+		Store.Save(Progress, Json::dict());
+		TestEqual(TEXT("a cursor: owed"), Store.NumWrites(), 6);
+		Clock = 1016;
+		Progress.as_dict().get("ps_1").as_dict().set("cursor", 906);
+		Store.Save(Progress, Json::dict());
+		TestTrue(TEXT("ten seconds after the last write: at once"), Store.NumWrites() == 7 && Cursor() == 906);
+		Clock = 1017;
+		Progress.as_dict().get("ps_1").as_dict().set("cursor", 907);
+		Store.Save(Progress, Json::dict());
+		TestTrue(TEXT("owed at the end"), Store.NumWrites() == 7 && Store.IsSaveOwed());
+	}
+	TestEqual(TEXT("destroying the store wrote what it owed"), Cursor(), 907);
+	TestEqual(TEXT("nothing reported"), Reports.Errors.Num() + Reports.Warnings.Num(), 0);
 	return true;
 }
 
@@ -649,7 +857,8 @@ bool FScfgStoreBadRecordTest::RunTest(const FString& Parameters)
 			TestTrue(FString::Printf(TEXT("%s is named, with the file and its copy"), Sid),
 				Reports.Warnings.ContainsByPredicate([&](const FString& W)
 				{
-					return W.Contains(Sid) && W.Contains(Path) && W.Contains(Path + TEXT(".corrupt"));
+					return W.Contains(Sid) && W.Contains(Path) && W.Contains(Path + TEXT(".corrupt")) &&
+						W.Contains(TEXT("Restore"));
 				}));
 		}
 		for (const FString& W : Reports.Warnings)
@@ -699,8 +908,9 @@ bool FScfgStoreWorkerRoundTripTest::RunTest(const FString& Parameters)
 	FReports Reports;
 	TArray<FString> WorkerErrors;
 	std::string Sid;
+	double Clock = 1000;
 	{
-		TUniquePtr<FScfgStore> Store = MakeUnique<FScfgStore>(Options(T.Dir, Ticker, Reports));
+		TUniquePtr<FScfgStore> Store = MakeUnique<FScfgStore>(Options(T.Dir, Ticker, Reports, &Clock));
 		Result<TUniquePtr<FScfgWorker>> Made =
 			Store->CreateWorker(BaseConfig(), MakeUnique<FInstantTransport>(), WorkerOptions(Ticker, WorkerErrors));
 		if (!TestTrue(TEXT("created"), Made.ok()))
@@ -726,8 +936,12 @@ bool FScfgStoreWorkerRoundTripTest::RunTest(const FString& Parameters)
 			return false;
 		}
 		const FScfgStoreLoad Saved = FScfgStore::Load(Path);
-		TestTrue(TEXT("saved with its session"), Saved.Pending.as_dict().contains(Sid) && Saved.Warnings.Num() == 0);
-		TestTrue(TEXT("as the snapshot has it"), Same(Saved.Pending, Worker->GetSnapshot().pending));
+		TestTrue(TEXT("saved at once with its session"), Saved.Pending.as_dict().contains(Sid) &&
+			Saved.Warnings.Num() == 0);
+		Clock += FScfgStore::PENDING_SAVE_INTERVAL;
+		Ticker.Tick(FScfgStore::RETRY_INTERVAL);  // the scan progress of the ticks after it (the worker's next is later)
+		TestTrue(TEXT("then as the snapshot has it"), Same(FScfgStore::Load(Path).Pending, Worker->GetSnapshot().pending));
+		TestFalse(TEXT("nothing owed"), Store->IsSaveOwed());
 		const int32 Written = Store->NumWrites();
 		TestTrue(TEXT("written"), Written >= 1);
 		Worker->Stop();
@@ -772,7 +986,6 @@ SCFG_STORE_TEST(FScfgStoreRetryTest, "AFailedSaveIsRetriedEveryTenSeconds")
 bool FScfgStoreRetryTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgStoreTests;
-	ExpectFileWarnings(*this);
 	FTempDir T;
 	const FString Path = T / TEXT("state.json");
 	const FString Tmp = Path + TEXT(".tmp");
@@ -828,7 +1041,7 @@ bool FScfgStoreDumpsErrTest::RunTest(const FString& Parameters)
 	const std::optional<std::string> Before = ReadAll(Path);
 	const Json Huge = Json::dict({{"ps_h", Session("ps_h")}});
 	Huge.as_dict().get("ps_h").as_dict().set("cursor", Json(scfg::BigInt(10).pow(4400)));
-	const scfg::Status Direct = FScfgStore::SaveFile(Path, Huge, StoredReceipts());
+	const scfg::Status Direct = FScfgStoreTestAccess::SaveFile(Path, Huge, StoredReceipts());
 	TestTrue(TEXT("SaveFile returns dumps' ValueError"), !Direct.ok() && Direct.err().kind == "ValueError");
 	TestFalse(TEXT("the store's save fails"), Store.Save(Huge, StoredReceipts()));
 	TestTrue(TEXT("reported once, as the ValueError"),

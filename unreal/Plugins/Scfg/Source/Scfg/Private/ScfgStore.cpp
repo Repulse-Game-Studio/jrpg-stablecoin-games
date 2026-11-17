@@ -15,6 +15,24 @@
 #include <string_view>
 #include <utility>
 
+// The POSIX desktops: the store makes its own file calls (see ScfgStore.h, SAVING).
+#if PLATFORM_LINUX || PLATFORM_MAC
+#define SCFG_STORE_POSIX 1
+#include <cerrno>
+#include <cstring>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#else
+#define SCFG_STORE_POSIX 0
+#endif
+
+#if PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include "Windows/WindowsHWrapper.h"
+#include "Windows/HideWindowsPlatformTypes.h"
+#endif
+
 namespace ScfgStoreDetail
 {
 
@@ -159,8 +177,155 @@ scfg::Err RuntimeError(const FString& Message)
 	return scfg::Err::make("RuntimeError", ScfgString::ToUtf8(Message));
 }
 
-// The OS's text for the last failed call (captured right after it), e.g. "errno=13 (Permission denied)".
-FString LastError()
+enum class EKind
+{
+	Missing,
+	File,
+	Directory
+};
+
+#if SCFG_STORE_POSIX
+
+// The OS's text for an errno read right at the failing call, e.g. "errno=13 (Permission denied)".
+FString ErrnoText(int Code)
+{
+	return FString::Printf(TEXT("errno=%d (%s)"), Code, *ScfgString::FromUtf8(std::strerror(Code)));
+}
+
+// What is at P: stat(2), so a directory above it that cannot be searched is an error, not a missing file.
+scfg::Result<EKind> Stat(const FString& P)
+{
+	struct stat Info;
+	if (::stat(ScfgString::ToUtf8(P).c_str(), &Info) == 0)
+	{
+		return S_ISDIR(Info.st_mode) ? EKind::Directory : EKind::File;
+	}
+	const int Code = errno;
+	if (Code == ENOENT)
+	{
+		return EKind::Missing;
+	}
+	return RuntimeError(FString::Printf(TEXT("cannot read %s: %s"), *P, *ErrnoText(Code)));
+}
+
+scfg::Result<std::string> ReadBytes(const FString& Source)
+{
+	const int File = ::open(ScfgString::ToUtf8(Source).c_str(), O_RDONLY | O_CLOEXEC);
+	if (File < 0)
+	{
+		const int Code = errno;
+		return RuntimeError(FString::Printf(TEXT("cannot read %s: %s"), *Source, *ErrnoText(Code)));
+	}
+	std::string Bytes;
+	char Buffer[16384];
+	for (;;)
+	{
+		const ssize_t Got = ::read(File, Buffer, sizeof(Buffer));
+		if (Got > 0)
+		{
+			Bytes.append(Buffer, static_cast<size_t>(Got));
+			continue;
+		}
+		if (Got == 0)
+		{
+			break;
+		}
+		const int Code = errno;
+		if (Code == EINTR)
+		{
+			continue;
+		}
+		::close(File);
+		return RuntimeError(FString::Printf(TEXT("cannot read %s: %s"), *Source, *ErrnoText(Code)));
+	}
+	::close(File);
+	return Bytes;
+}
+
+// Writes Bytes to Target (created or truncated) and flushes them to the disk; Target is removed on a failure.
+scfg::Status WriteBytes(const FString& Target, const std::string& Bytes)
+{
+	const std::string Name = ScfgString::ToUtf8(Target);
+	const int File = ::open(Name.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0666);
+	if (File < 0)
+	{
+		const int Code = errno;
+		return RuntimeError(FString::Printf(TEXT("cannot write %s: %s"), *Target, *ErrnoText(Code)));
+	}
+	int Code = 0;
+	size_t Done = 0;
+	while (Done < Bytes.size() && Code == 0)
+	{
+		const ssize_t Put = ::write(File, Bytes.data() + Done, Bytes.size() - Done);
+		if (Put >= 0)
+		{
+			Done += static_cast<size_t>(Put);
+		}
+		else if (errno != EINTR)
+		{
+			Code = errno;
+		}
+	}
+#if PLATFORM_LINUX
+	if (Code == 0 && ::fdatasync(File) != 0)
+#else
+	if (Code == 0 && ::fsync(File) != 0)
+#endif
+	{
+		Code = errno;
+	}
+	if (::close(File) != 0 && Code == 0)
+	{
+		Code = errno;
+	}
+	if (Code != 0)
+	{
+		::unlink(Name.c_str());
+		return RuntimeError(FString::Printf(TEXT("cannot write %s: %s"), *Target, *ErrnoText(Code)));
+	}
+	return scfg::ok();
+}
+
+// mkdir -p.
+scfg::Status MakeDirs(const FString& Dir)
+{
+	const std::string Path = ScfgString::ToUtf8(Dir);
+	for (size_t End = 1; End <= Path.size(); ++End)
+	{
+		if (End != Path.size() && Path[End] != '/')
+		{
+			continue;
+		}
+		const std::string Part = Path.substr(0, End);
+		if (::mkdir(Part.c_str(), 0777) != 0)
+		{
+			const int Code = errno;
+			struct stat Info;
+			if (::stat(Part.c_str(), &Info) != 0 || !S_ISDIR(Info.st_mode))  // an existing directory is fine
+			{
+				return RuntimeError(FString::Printf(TEXT("cannot create %s: %s"), *Dir, *ErrnoText(Code)));
+			}
+		}
+	}
+	return scfg::ok();
+}
+
+// rename(2): replaces To in one step when it exists. Why gets the reason on a failure.
+bool Rename(const FString& From, const FString& To, bool bReplace, FString& Why)
+{
+	(void)bReplace;  // the callers that do not replace pick a free name first
+	if (::rename(ScfgString::ToUtf8(From).c_str(), ScfgString::ToUtf8(To).c_str()) == 0)
+	{
+		return true;
+	}
+	const int Code = errno;
+	Why = ErrnoText(Code);
+	return false;
+}
+
+#else  // !SCFG_STORE_POSIX: through IPlatformFile (Windows: MoveFileExW for the replace)
+
+FString LastErrorText()
 {
 	const uint32 Code = FPlatformMisc::GetLastError();
 	if (Code == 0)
@@ -169,54 +334,48 @@ FString LastError()
 	}
 	TCHAR Buffer[512];
 	FPlatformMisc::GetSystemErrorMessage(Buffer, UE_ARRAY_COUNT(Buffer), static_cast<int32>(Code));
-	return FString(Buffer);
+	return FString::Printf(TEXT("error %u (%s)"), Code, Buffer);
 }
 
-// A file or a directory is at P, readable or not (FileExists stats the file, so an unreadable one counts).
-bool Exists(const FString& P)
+// What is at P (here a failure to look is a missing file: unverified, no such platform builds here).
+scfg::Result<EKind> Stat(const FString& P)
 {
-	return IFileManager::Get().FileExists(*P) || IFileManager::Get().DirectoryExists(*P);
+	if (IFileManager::Get().DirectoryExists(*P))
+	{
+		return EKind::Directory;
+	}
+	return IFileManager::Get().FileExists(*P) ? EKind::File : EKind::Missing;
 }
 
-// The bytes of Source, or a RuntimeError naming it.
 scfg::Result<std::string> ReadBytes(const FString& Source)
 {
-	if (IFileManager::Get().DirectoryExists(*Source))
-	{
-		return RuntimeError(FString::Printf(TEXT("cannot read %s: it is a directory"), *Source));
-	}
 	IPlatformFile& Files = FPlatformFileManager::Get().GetPlatformFile();
 	TUniquePtr<IFileHandle> File(Files.OpenRead(*Source));
 	if (!File)
 	{
-		return RuntimeError(FString::Printf(TEXT("cannot read %s: %s"), *Source, *LastError()));
+		return RuntimeError(FString::Printf(TEXT("cannot read %s: %s"), *Source, *LastErrorText()));
 	}
 	const int64 Size = File->Size();
-	if (Size < 0)
+	std::string Bytes(static_cast<size_t>(Size > 0 ? Size : 0), '\0');
+	if (Size < 0 || (Size > 0 && !File->Read(reinterpret_cast<uint8*>(Bytes.data()), Size)))
 	{
-		return RuntimeError(FString::Printf(TEXT("cannot read %s: %s"), *Source, *LastError()));
-	}
-	std::string Bytes(static_cast<size_t>(Size), '\0');
-	if (Size > 0 && !File->Read(reinterpret_cast<uint8*>(Bytes.data()), Size))
-	{
-		return RuntimeError(FString::Printf(TEXT("cannot read %s: %s"), *Source, *LastError()));
+		return RuntimeError(FString::Printf(TEXT("cannot read %s: %s"), *Source, *LastErrorText()));
 	}
 	return Bytes;
 }
 
-// Writes Bytes to Target (created or truncated) and flushes them to the disk; Target is removed on a failure.
 scfg::Status WriteBytes(const FString& Target, const std::string& Bytes)
 {
 	IPlatformFile& Files = FPlatformFileManager::Get().GetPlatformFile();
 	TUniquePtr<IFileHandle> File(Files.OpenWrite(*Target));
 	if (!File)
 	{
-		return RuntimeError(FString::Printf(TEXT("cannot write %s: %s"), *Target, *LastError()));
+		return RuntimeError(FString::Printf(TEXT("cannot write %s: %s"), *Target, *LastErrorText()));
 	}
 	const bool bWritten = (Bytes.empty() || File->Write(reinterpret_cast<const uint8*>(Bytes.data()),
 		static_cast<int64>(Bytes.size()))) && File->Flush();
-	const FString Why = bWritten ? FString() : LastError();
-	File.Reset();  // closes it
+	const FString Why = bWritten ? FString() : LastErrorText();
+	File.Reset();
 	if (!bWritten)
 	{
 		Files.DeleteFile(*Target);
@@ -225,23 +384,67 @@ scfg::Status WriteBytes(const FString& Target, const std::string& Bytes)
 	return scfg::ok();
 }
 
-// The atomic save: <Target>.tmp written and flushed, then moved over Target (Move deletes Target first).
-scfg::Status WriteText(const FString& Target, const std::string& Text)
+scfg::Status MakeDirs(const FString& Dir)
 {
-	const FString Dir = FPaths::GetPath(Target);
-	if (!IFileManager::Get().DirectoryExists(*Dir) && !IFileManager::Get().MakeDirectory(*Dir, true))
+	if (IFileManager::Get().DirectoryExists(*Dir) || IFileManager::Get().MakeDirectory(*Dir, true))
 	{
-		return RuntimeError(FString::Printf(TEXT("cannot create %s: %s"), *Dir, *LastError()));
+		return scfg::ok();
 	}
-	const FString Tmp = Target + TEXT(".tmp");
-	SCFG_TRY_VOID(WriteBytes(Tmp, Text));
-	// bDoNotRetryOrError: no 0.5 s sleeps on the game thread and no engine log line; the failure is ours to report.
-	if (!IFileManager::Get().Move(*Target, *Tmp, /*Replace=*/true, /*EvenIfReadOnly=*/false, /*Attributes=*/false,
-			/*bDoNotRetryOrError=*/true))
+	return RuntimeError(FString::Printf(TEXT("cannot create %s: %s"), *Dir, *LastErrorText()));
+}
+
+bool Rename(const FString& From, const FString& To, bool bReplace, FString& Why)
+{
+#if PLATFORM_WINDOWS
+	// IPlatformFile has no replacing move (MoveFileW refuses an existing target, and IFileManager::Move deletes it
+	// first). Unverified: no Win64 build here.
+	const DWORD Flags = MOVEFILE_WRITE_THROUGH | (bReplace ? MOVEFILE_REPLACE_EXISTING : 0);
+	if (::MoveFileExW(*From, *To, Flags))
 	{
-		return RuntimeError(FString::Printf(TEXT("cannot replace %s: %s"), *Target, *LastError()));
+		return true;
+	}
+#else
+	(void)bReplace;
+	if (FPlatformFileManager::Get().GetPlatformFile().MoveFile(*To, *From))
+	{
+		return true;
+	}
+#endif
+	Why = LastErrorText();
+	return false;
+}
+
+#endif  // SCFG_STORE_POSIX
+
+// FScfgStore::ReplaceHookForTests(): empty in a game.
+TFunction<scfg::Status(const FString&, const FString&)>& ReplaceHook()
+{
+	static TFunction<scfg::Status(const FString&, const FString&)> Hook;
+	return Hook;
+}
+
+// The final step of a save: the test hook, else Rename.
+scfg::Status Replace(const FString& From, const FString& To)
+{
+	if (const TFunction<scfg::Status(const FString&, const FString&)>& Hook = ReplaceHook(); Hook)
+	{
+		return Hook(From, To);
+	}
+	FString Why;
+	if (!Rename(From, To, /*bReplace=*/true, Why))
+	{
+		return RuntimeError(FString::Printf(TEXT("cannot replace %s: %s"), *To, *Why));
 	}
 	return scfg::ok();
+}
+
+// The atomic save: <Target>.tmp written and flushed, then renamed over Target (nothing is deleted first).
+scfg::Status WriteText(const FString& Target, const std::string& Text)
+{
+	SCFG_TRY_VOID(MakeDirs(FPaths::GetPath(Target)));
+	const FString Tmp = Target + TEXT(".tmp");
+	SCFG_TRY_VOID(WriteBytes(Tmp, Text));
+	return Replace(Tmp, Target);
 }
 
 Json MakeDoc(const Json& Pending, const Json& Receipts)
@@ -249,15 +452,41 @@ Json MakeDoc(const Json& Pending, const Json& Receipts)
 	return Json::dict({{"version", FScfgStore::VERSION}, {"pending", Pending}, {"receipts", Receipts}});
 }
 
-// The first free name for a copy of a bad Target: <Target>.corrupt, then .corrupt.2, ...
+// Godot's _pending_key: what must reach the disk at once (which sessions exist, their state and hint_tx).
+Json PendingKey(const Json& Pending)
+{
+	Json Key = Json::dict();
+	if (Pending.is_dict())
+	{
+		for (const auto& [Sid, Record] : Pending.as_dict())
+		{
+			Key.as_dict().set(Sid, Record.is_dict() ?
+				Json::list({Record.as_dict().get("state"), Record.as_dict().get("hint_tx")}) : Record);
+		}
+	}
+	return Key;
+}
+
+std::string TextOf(const Json& V)
+{
+	scfg::Result<std::string> Got = scfg::json::dumps(V);
+	return Got.ok() ? Got.take() : std::string();
+}
+
+// The first free name for a copy of a bad Target: <Target>.corrupt, then .corrupt.2, ... (an error from stat counts
+// as taken).
 FString AsideName(const FString& Target)
 {
 	FString Aside = Target + TEXT(".corrupt");
-	for (int32 N = 2; Exists(Aside); ++N)
+	for (int32 N = 2;; ++N)
 	{
+		const scfg::Result<EKind> Kind = Stat(Aside);
+		if (!Kind.ok() || Kind.value() == EKind::Missing)
+		{
+			return Aside;  // a name that cannot be looked at: the move then fails with the reason
+		}
 		Aside = FString::Printf(TEXT("%s.corrupt.%d"), *Target, N);
 	}
-	return Aside;
 }
 
 }  // namespace ScfgStoreDetail
@@ -276,6 +505,11 @@ const scfg::Json& FScfgStore::Schema()
 		return Got.take();
 	}();
 	return Parsed;
+}
+
+TFunction<scfg::Status(const FString& From, const FString& To)>& FScfgStore::ReplaceHookForTests()
+{
+	return ScfgStoreDetail::ReplaceHook();
 }
 
 std::vector<std::string> FScfgStore::CheckPending(const std::string& Sid, const scfg::Json& Record)
@@ -297,14 +531,33 @@ FScfgStoreLoad FScfgStore::Load(const FString& Target)
 	using namespace ScfgStoreDetail;
 	FScfgStoreLoad Out;
 	FString Source = Target;
-	if (!Exists(Target))
+	scfg::Result<EKind> Kind = Stat(Target);
+	if (!Kind.ok())
 	{
-		// A save stopped between Move's delete and its rename: the complete .tmp is the newest state.
-		if (!Exists(Target + TEXT(".tmp")))
+		Out.Error = Kind.err();
+		return Out;
+	}
+	if (Kind.value() == EKind::Missing)
+	{
+		// A save stopped before its rename: the complete .tmp is the newest state.
+		const FString Tmp = Target + TEXT(".tmp");
+		scfg::Result<EKind> TmpKind = Stat(Tmp);
+		if (!TmpKind.ok())
+		{
+			Out.Error = TmpKind.err();
+			return Out;
+		}
+		if (TmpKind.value() == EKind::Missing)
 		{
 			return Out;
 		}
-		Source = Target + TEXT(".tmp");
+		Source = Tmp;
+		Kind = TmpKind;
+	}
+	if (Kind.value() == EKind::Directory)
+	{
+		Out.Error = RuntimeError(FString::Printf(TEXT("cannot read %s: it is a directory"), *Source));
+		return Out;
 	}
 	scfg::Result<std::string> Raw = ReadBytes(Source);
 	if (!Raw.ok())
@@ -339,18 +592,30 @@ FScfgStoreLoad FScfgStore::Load(const FString& Target)
 	if (!Why.IsEmpty())
 	{
 		const FString Aside = AsideName(Target);
-		if (!IFileManager::Get().Move(*Aside, *Source, /*Replace=*/false, /*EvenIfReadOnly=*/false,
-				/*Attributes=*/false, /*bDoNotRetryOrError=*/true))
+		FString Stuck;
+		if (!Rename(Source, Aside, /*bReplace=*/false, Stuck))
 		{
 			// Starting empty would let the next save replace it with nothing kept anywhere.
 			Out.Error = RuntimeError(FString::Printf(
-				TEXT("the payment state file %s %s, and it could not be moved aside (%s)"), *Source, *Why, *LastError()));
+				TEXT("the payment state file %s %s, and it could not be moved aside (%s)"), *Source, *Why, *Stuck));
 			return Out;
 		}
 		Out.Warnings.Add(FString::Printf(TEXT("the payment state file %s %s; starting with no receipts or pending "
 			"payments (the file was kept as %s). Players can bring purchases back with Restore."), *Source, *Why,
 			*Aside));
 		return Out;
+	}
+	if (Source != Target)
+	{
+		// The .tmp is the document: it becomes the file now, so the next save's .tmp never truncates the only copy.
+		FString Stuck;
+		if (!Rename(Source, Target, /*bReplace=*/true, Stuck))
+		{
+			Out.Error = RuntimeError(FString::Printf(
+				TEXT("the payment state file %s was read but could not be renamed to %s (%s)"), *Source, *Target, *Stuck));
+			return Out;
+		}
+		Source = Target;
 	}
 
 	// Record by record: a malformed pending session is dropped (the whole file copied aside first).
@@ -386,7 +651,8 @@ FScfgStoreLoad FScfgStore::Load(const FString& Target)
 		for (const FString& Each : Dropped)
 		{
 			Out.Warnings.Add(FString::Printf(TEXT("the payment state file %s has a malformed pending payment %s; it "
-				"was dropped (the file was kept as %s)"), *Source, *Each, *Aside));
+				"was dropped (the file was kept as %s). A payment made for it can be brought back with Restore."),
+				*Source, *Each, *Aside));
 		}
 		Out.bCleaned = true;
 	}
@@ -425,21 +691,24 @@ FScfgStore::FScfgStore(FOptions InOptions) : Options(MoveTemp(InOptions))
 		Save(Pending, Receipts);  // the dropped records are kept in the copy aside, not loaded again next launch
 		return;
 	}
-	scfg::Result<std::string> Text = scfg::json::dumps(ScfgStoreDetail::MakeDoc(Pending, Receipts));
-	if (Text.ok())
-	{
-		LastText = Text.take();
-	}
+	DiskText = ScfgStoreDetail::TextOf(ScfgStoreDetail::MakeDoc(Pending, Receipts));
+	DiskReceiptsText = ScfgStoreDetail::TextOf(Receipts);
+	DiskKeyText = ScfgStoreDetail::TextOf(ScfgStoreDetail::PendingKey(Pending));
 }
 
 FScfgStore::~FScfgStore()
 {
 	check(IsInGameThread());
+	*Alive = false;
 	Detach();
 	DisarmRetry();
 	if (Owed && !Blocked)
 	{
-		TrySave(*Owed);  // the last chance (the game quitting); a failure was reported already
+		// What is still owed (scan progress inside the interval, or a failed save): the game is quitting. A failure
+		// was reported already, or is reported now; OnError must not touch the store here.
+		const scfg::Json Doc = MoveTemp(*Owed);
+		Owed.Reset();
+		TrySave(Doc);
 	}
 }
 
@@ -455,7 +724,7 @@ scfg::Result<TUniquePtr<FScfgWorker>> FScfgStore::CreateWorker(scfg::config::Con
 		FScfgWorker::Create(MoveTemp(Config), MoveTemp(Transport), Pending, Receipts, MoveTemp(WorkerOptions));
 	if (!Made.ok())
 	{
-		ReportError(Made.err());
+		ReportError(Made.err());  // may destroy the store: only the local is touched after
 		return Made;
 	}
 	Attach(*Made.value());
@@ -494,6 +763,18 @@ void FScfgStore::OnStateChanged()
 	}
 }
 
+double FScfgStore::Now() const
+{
+	return Options.Clock ? Options.Clock() : FPlatformTime::Seconds();
+}
+
+bool FScfgStore::IsUrgent(const scfg::Json& InPending, const scfg::Json& InReceipts) const
+{
+	using namespace ScfgStoreDetail;
+	return DiskReceiptsText.empty() || TextOf(InReceipts) != DiskReceiptsText ||
+		TextOf(PendingKey(InPending)) != DiskKeyText;
+}
+
 bool FScfgStore::Save(const scfg::Json& InPending, const scfg::Json& InReceipts)
 {
 	check(IsInGameThread());
@@ -502,11 +783,32 @@ bool FScfgStore::Save(const scfg::Json& InPending, const scfg::Json& InReceipts)
 		return false;  // what is on disk could not be read: what is in memory must not replace it
 	}
 	const scfg::Json Doc = ScfgStoreDetail::MakeDoc(InPending, InReceipts);
+	const scfg::Result<std::string> Text = scfg::json::dumps(Doc);
+	if (Text.ok() && Text.value() == DiskText)
+	{
+		Owed.Reset();  // the file already holds it: nothing is owed
+		DisarmRetry();
+		bSaveFailing = false;
+		return true;
+	}
+	const double Time = Now();
+	if (Text.ok() && !IsUrgent(InPending, InReceipts) && Time - LastAttempt < PENDING_SAVE_INTERVAL)
+	{
+		Owed = scfg::deep_copy(Doc);  // scan progress only: the ticker writes it within RETRY_INTERVAL
+		ArmRetry();
+		return true;
+	}
+	LastAttempt = Time;
+	const TSharedRef<bool> StillAlive = Alive;
 	if (TrySave(Doc))
 	{
 		Owed.Reset();
 		DisarmRetry();
 		return true;
+	}
+	if (!*StillAlive)
+	{
+		return false;  // OnError destroyed the store
 	}
 	Owed = scfg::deep_copy(Doc);  // the newest state replaces an older one still owed
 	ArmRetry();
@@ -516,31 +818,25 @@ bool FScfgStore::Save(const scfg::Json& InPending, const scfg::Json& InReceipts)
 bool FScfgStore::TrySave(const scfg::Json& Doc)
 {
 	scfg::Result<std::string> Text = scfg::json::dumps(Doc);
-	scfg::Status Written = scfg::ok();
-	if (!Text.ok())
-	{
-		Written = Text.err();
-	}
-	else if (Text.value() == LastText)
+	if (Text.ok() && Text.value() == DiskText)
 	{
 		bSaveFailing = false;  // the file already holds it: nothing is owed
 		return true;
 	}
-	else
-	{
-		Written = ScfgStoreDetail::WriteText(Path, Text.value());
-	}
+	const scfg::Status Written = Text.ok() ? ScfgStoreDetail::WriteText(Path, Text.value()) : scfg::Status(Text.err());
 	if (!Written.ok())
 	{
 		if (!bSaveFailing)  // once, not at every retry, until a save succeeds
 		{
 			bSaveFailing = true;
-			ReportError(Written.err());
+			ReportError(Written.err());  // may destroy the store: nothing is touched after
 		}
 		return false;
 	}
 	++Writes;
-	LastText = Text.take();
+	DiskText = Text.take();
+	DiskReceiptsText = ScfgStoreDetail::TextOf(Doc.as_dict().get("receipts"));
+	DiskKeyText = ScfgStoreDetail::TextOf(ScfgStoreDetail::PendingKey(Doc.as_dict().get("pending")));
 	bSaveFailing = false;
 	return true;
 }
@@ -548,9 +844,15 @@ bool FScfgStore::TrySave(const scfg::Json& Doc)
 bool FScfgStore::Retry(float DeltaTime)
 {
 	(void)DeltaTime;
-	if (Owed && !Blocked && !TrySave(*Owed))
+	if (Owed && !Blocked)
 	{
-		return true;  // again in RETRY_INTERVAL seconds
+		LastAttempt = Now();
+		const TSharedRef<bool> StillAlive = Alive;
+		if (!TrySave(*Owed))
+		{
+			// Again in RETRY_INTERVAL seconds, unless OnError destroyed the store (its destructor removed this ticker).
+			return *StillAlive;
+		}
 	}
 	Owed.Reset();
 	RetryHandle.Reset();  // returning false removes this ticker
@@ -580,7 +882,9 @@ void FScfgStore::ReportError(const scfg::Err& Error) const
 {
 	if (Options.OnError)
 	{
-		Options.OnError(Error);
+		// A copy: a handler that destroys the store destroys Options with it.
+		const TFunction<void(const scfg::Err&)> Handler = Options.OnError;
+		Handler(Error);
 	}
 	else
 	{
@@ -592,7 +896,8 @@ void FScfgStore::ReportWarning(const FString& Warning) const
 {
 	if (Options.OnWarning)
 	{
-		Options.OnWarning(Warning);
+		const TFunction<void(const FString&)> Handler = Options.OnWarning;
+		Handler(Warning);
 	}
 	else
 	{
