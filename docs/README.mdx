@@ -19,10 +19,11 @@ payment is confirmed.
 |---|---|---|
 | **Ren'Py 8.2+** | the `scfg` plugin (`game/scfg/` and its Python core) | Released, desktop and web builds |
 | **Godot 4.3+** | the `addons/scfg/` addon, pure GDScript | Preview: tested on Godot 4.3 and 4.7.2, desktop and web exports |
+| **Unity 6.3+** | the UPM package `com.repulse.scfg`, plain C# | Preview: tested on Unity 6000.6.9f1, desktop (Mono and IL2CPP) and WebGL builds |
 | **RPG Maker MZ** | one plugin file, `js/plugins/SCFG.js` | Preview: tested on a stand-in for MZ, **not yet in real RPG Maker MZ** |
 
-All three share one payment core, ported from the Ren'Py plugin's Python and checked against the same test
-vectors, so they pay, verify and restore the same way. The players' guide below fits all three engines. Mobile
+All four share one payment core, ported from the Ren'Py plugin's Python and checked against the same test
+vectors, so they pay, verify and restore the same way. The players' guide below fits all four engines. Mobile
 builds are best effort and unverified.
 
 <div className="home-split">
@@ -43,10 +44,12 @@ builds are best effort and unverified.
   [API reference](developers/use/api-reference.md)
 - **Godot:** [Install](developers/godot/install.md), [API reference](developers/godot/api.md),
   [the showcase project](developers/godot/install.md#try-the-showcase-first)
+- **Unity:** [Install](developers/unity/install.md), [API reference](developers/unity/api.md),
+  [the samples](developers/unity/install.md#try-the-samples-first)
 - **RPG Maker MZ:** [Install](developers/rpgmaker/install.md), [API reference](developers/rpgmaker/api.md)
 - [Arc](developers/configure/arc.md), where USDC also pays the network fee
 - [Security and limitations](developers/security/README.md), for every engine
-- [Web builds](developers/security/web-builds.md): Ren'Py's HTML5 build and itch.io (Godot: [Web exports](developers/godot/api.md#web-exports), RPG Maker MZ: [Web deployment](developers/rpgmaker/api.md#web-deployment))
+- [Web builds](developers/security/web-builds.md): Ren'Py's HTML5 build and itch.io (Godot: [Web exports](developers/godot/api.md#web-exports), Unity: [WebGL builds](developers/unity/api.md#webgl-builds), RPG Maker MZ: [Web deployment](developers/rpgmaker/api.md#web-deployment))
 
 </div>
 </div>
@@ -73,6 +76,17 @@ Scfg.add_item("chapter2", {"code": 1, "price": "4.99", "token": "USDC", "title":
 var result := await Scfg.pay("unlock", {"item": "chapter2"})
 if Scfg.owns("chapter2"):
     start_chapter_two()
+```
+
+And in Unity (see the [Unity install page](developers/unity/install.md)):
+
+```csharp
+SCFG.Configure(new ScfgOptions { Wallet = "0xYourWallet", Testnet = true });
+SCFG.AddItem("chapter2", new ScfgItem { Code = 1, Price = "4.99", Token = "USDC", Title = "Chapter 2" });
+
+ScfgPaymentResult result = await SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
+if (SCFG.Owns("chapter2"))
+    StartChapterTwo();
 ```
 
 In RPG Maker MZ it is a plugin command, **SCFG > Unlock Item**, with the item set up in the Plugin Manager

@@ -11,7 +11,7 @@
 // UI Toolkit's geometric navigation. NavigationCancelEvent (Escape, gamepad B) calls OnCancel().
 //
 // Styling: the classes in Resources/ScfgUI/ScfgSheet.uss. The accent is the USS variable --scfg-accent when a style
-// sheet sets it (SCFG.SheetStyle), else Configure's Accent applied inline; --scfg-ink is the text color.
+// sheet sets it (ScfgDefaultSheetHost.SheetStyle), else Configure's Accent applied inline; --scfg-ink is the text color.
 #nullable enable
 using System;
 using System.Collections.Generic;
