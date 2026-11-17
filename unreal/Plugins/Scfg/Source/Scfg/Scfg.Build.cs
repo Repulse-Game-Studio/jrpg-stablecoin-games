@@ -17,14 +17,23 @@ public class Scfg : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "SlateCore", "UMG" });
 		// Sockets for the localhost checkout server's listener (ScfgLocalServer.h), Projects to find the plugin's
 		// Resources/Web/; Slate and InputCore for the screens (Private/UI), ImageWrapper to read the logo.
+		// The same list on every platform of Scfg.uplugin, Android and iOS included: each is an engine runtime module
+		// with an Android and an iOS implementation (Sockets: Private/Android and Private/IOS socket subsystems), and
+		// the glue's code is platform-neutral. On a phone the server is never started (no browser method: the
+		// controller's mobile flag), so only the page's files are left out there (below). Unverified: no Android or
+		// iOS SDK on the development machine (unreal/README.md, "Mobile").
 		PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "HTTP", "ImageWrapper", "InputCore", "Projects", "ScfgCore", "Slate", "Sockets" });
 		// bEnableExceptions and bUseRTTI keep their defaults (false).
 		// The checkout page's files the server serves (local_server::ASSETS; copies of plugin/game/scfg/web/, kept by
 		// tools/sync_web_page.py), staged with a packaged game as loose files at the plugin's own path, where
 		// FScfgLocalServer::WebDirectory() finds them. bridge.js is the web exports' bridge: never served, not staged.
-		foreach (string Asset in new string[] { "index.html", "app.js", "evm.js", "solana.js" })
+		// Desktop games only: a phone has no localhost page.
+		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Desktop))
 		{
-			RuntimeDependencies.Add(Path.Combine(PluginDirectory, "Resources", "Web", Asset), StagedFileType.NonUFS);
+			foreach (string Asset in new string[] { "index.html", "app.js", "evm.js", "solana.js" })
+			{
+				RuntimeDependencies.Add(Path.Combine(PluginDirectory, "Resources", "Web", Asset), StagedFileType.NonUFS);
+			}
 		}
 	}
 }

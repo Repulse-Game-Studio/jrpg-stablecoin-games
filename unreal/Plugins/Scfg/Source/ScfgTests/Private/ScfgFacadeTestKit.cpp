@@ -183,6 +183,21 @@ scfg::Result<Json> FFakeNodeTransport::Answer(const std::string& Url, const Json
 		}
 		return Envelope(Payload, Json(std::move(Out)));
 	}
+	// A Solana node, as far as the readiness check, a session start and a scan that finds nothing need it (the mobile
+	// tests' Solana Pay link): its slot is Head, every account exists, and no address has a signature.
+	if (Method == "getSlot")
+	{
+		return Envelope(Payload, Json(Chain.Head));
+	}
+	if (Method == "getAccountInfo")
+	{
+		return Envelope(Payload, Json::dict({{"context", Json::dict({{"slot", Json(Chain.Head)}})},
+			{"value", Json::dict({{"lamports", Json(int64_t{2039280})}})}}));
+	}
+	if (Method == "getSignaturesForAddress")
+	{
+		return Envelope(Payload, Json(Json::List()));
+	}
 	return Refuse("unknown method");
 }
 

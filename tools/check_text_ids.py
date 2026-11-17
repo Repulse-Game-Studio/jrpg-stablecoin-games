@@ -32,7 +32,8 @@ Node. The ids are RPG Maker's id scheme (texts.ts). Checked:
 
 Both branches run by default (`--engine all`, Node 22.6+ needed: it strips the .ts file's types,
 no node_modules); without Node, or with one too old to run the .ts file, the RPG Maker branch fails
-with that reason (one line, no traceback). `--engine rpgmaker` runs the RPG Maker branch alone.
+with that reason (one line, no traceback). `--engine rpgmaker` runs the RPG Maker branch alone, and
+fails the same way. Each run starts Node once.
 """
 
 from __future__ import annotations
@@ -88,7 +89,14 @@ def node_available() -> bool:
     return shutil.which("node") is not None
 
 
+# The RM texts main() already read through Node, which the next default_texts() call returns (once)
+# instead of running Node again: problems() reads the real table through default_texts() itself.
+_HANDED_OVER: list[dict[str, str]] = []
+
+
 def default_texts() -> dict[str, str]:
+    if _HANDED_OVER:
+        return _HANDED_OVER.pop()
     if not node_available():
         raise NodeMissing(
             f"{NO_NODE}: the RPG Maker texts come from `node {DUMP.relative_to(ROOT)}`")
@@ -274,6 +282,15 @@ def _why(e: Exception) -> str:
     return str(e)
 
 
+RM_UNREADABLE = (NodeMissing, subprocess.CalledProcessError, OSError, ValueError)
+
+
+def _hand_over(texts: dict[str, str]) -> None:
+    """The next default_texts() call (problems()'s own) returns `texts`: Node runs once per run."""
+    _HANDED_OVER.clear()
+    _HANDED_OVER.append(dict(texts))
+
+
 def _main_with_unreal(engine: str) -> int:
     """main() for `--engine all` and `--engine unreal`: the RPG Maker branch (with `all`) through
     problems() on the real RM table, and the Unreal branch, with the RM texts when Node gives
@@ -282,13 +299,14 @@ def _main_with_unreal(engine: str) -> int:
     rm_texts: dict[str, str] | None = None
     try:
         rm_texts = default_texts()
-    except (NodeMissing, subprocess.CalledProcessError, OSError, ValueError) as e:
+    except RM_UNREADABLE as e:
         reason = _why(e)
         if engine == "all":
             found.append(f"the RPG Maker branch cannot run: {reason}")
         else:
             print(f"Unreal ids not compared with RPG Maker's (skipped: {reason})")
     if rm_texts is not None and engine == "all":
+        _hand_over(rm_texts)
         found.extend(problems())
     found.extend(unreal_problems(rm_texts))
     for line in found:
@@ -307,6 +325,11 @@ def main(argv: list[str] | None = None) -> int:
     engine = parser.parse_args(argv).engine
     if engine != "rpgmaker":
         return _main_with_unreal(engine)
+    try:
+        _hand_over(default_texts())
+    except RM_UNREADABLE as e:
+        print(f"the RPG Maker branch cannot run: {_why(e)}", file=sys.stderr)
+        return 1
     found = problems()
     for line in found:
         print(line, file=sys.stderr)

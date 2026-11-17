@@ -59,8 +59,10 @@ Json TransferLog(const std::string& Token, const std::string& Sender, const std:
 bool Same(const Json& A, const Json& B);
 FString Text(const Json& V);
 
-// fakes.gd's FakeChain: an EVM node (head, logs, receipts). bHold keeps every request until Release(); BoomAfter > 0
-// fails every request with a RuntimeError after that many frames (test_scfg_api.gd's BoomChain).
+// fakes.gd's FakeChain: an EVM node (head, logs, receipts), or, for the Solana chain, a node whose slot is Head,
+// where every account exists and no address has a signature (the mobile tests' Solana Pay link). bHold keeps every request until
+// Release(); BoomAfter > 0 fails every request with a RuntimeError after that many frames (test_scfg_api.gd's
+// BoomChain).
 struct FFakeChain
 {
 	int64_t Head = 1000;

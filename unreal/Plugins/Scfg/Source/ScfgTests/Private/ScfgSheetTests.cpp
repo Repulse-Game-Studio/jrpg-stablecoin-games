@@ -251,6 +251,7 @@ bool FScfgSheetTipByKeysTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the phone wallet step"), Sheet->ShownStep(), FString(TEXT("qr")));
 	TestTrue(TEXT("a QR code"), Sheet->Control(TEXT("qr")).IsValid());
 	TestTrue(TEXT("the steps beside it"), Sheet->VisibleTexts().Contains(ScfgTexts::Get(TEXT("qr_step_open"))));
+	TestFalse(TEXT("no Open wallet app on a computer (ScfgMobileTests.cpp)"), Sheet->IsShown(TEXT("wallet_app")));
 	TestTrue(TEXT("I've sent it has the focus"), R.HasFocus(*Sheet, TEXT("forward")));
 	TestEqual(TEXT("forward: I've sent it"), Sheet->TextOf(TEXT("forward")), ScfgTexts::Get(TEXT("i_sent_it")));
 	R.Key(EKeys::Enter);

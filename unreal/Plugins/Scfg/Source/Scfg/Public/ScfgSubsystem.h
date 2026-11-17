@@ -100,7 +100,9 @@ public:
 	// Show the payment sheet; OnResolved gets this call's result once, when the player closes the sheet (or at once:
 	// AlreadyOwned, Failed). Without a callback, a cancel and the later results (a payment the player kept playing
 	// through) also reach OnPaymentResolved: a handler of both must be idempotent. Unity's awaited Pay. A game-instance
-	// shutdown with the sheet open drops OnResolved (it is not called), as it drops the Pay node's pin.
+	// shutdown with the sheet open drops OnResolved (it is not called), as it drops the Pay node's pin. The subsystem
+	// stays stopped after its teardown (Deinitialize or BeginDestroy): a PayAsync made then logs "not running" once
+	// per call site and drops OnResolved too, where Pay calls its callback with Failed "RuntimeError".
 	void PayAsync(EScfgPayKind Kind, const FScfgPayRequest& Request,
 		TFunction<void(const FScfgPaymentResult&)> OnResolved);
 	// Show the restore screen (the player pastes a transaction hash); OnRestored gets the result once a restore
@@ -109,7 +111,8 @@ public:
 	void Restore(const FOnScfgRestored& OnRestored);
 	// Show the restore screen; OnResolved gets the call's result when the screen is closed: Restored, NothingFound,
 	// Cancelled (closed before a restore finished) or Failed. Callback, if given, as Restore's OnRestored. A
-	// game-instance shutdown with the screen open drops both (neither is called).
+	// game-instance shutdown with the screen open drops both (neither is called), and so does a RestoreAsync made after
+	// the teardown (see PayAsync).
 	void RestoreAsync(TFunction<void(const FScfgRestoreResult&)> OnResolved,
 		TFunction<void(const FScfgRestoreResult&)> Callback = nullptr);
 

@@ -4,6 +4,7 @@ messages and template, and RPG Maker's ids. None of this needs Node (test_check_
 the RPG Maker branch, which does)."""
 
 import importlib.util
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -163,3 +164,33 @@ def test_a_node_too_old_for_the_ts_file_skips_only_the_rpg_maker_comparison(tool
 def test_the_repository_passes_against_rpg_maker(tool):
     assert tool.unreal_problems(tool.default_texts()) == []
     assert tool.main(["--check"]) == 0
+
+
+@pytest.mark.parametrize("node", ["missing", "too old"])
+def test_the_rpg_maker_branch_alone_fails_in_one_line(tool, monkeypatch, capsys, node):
+    # phase 2 final re-review N1: `--engine rpgmaker` ended in a NodeMissing traceback
+    def old_node(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, ["node"], output="", stderr="SyntaxError: Unexpected token ':'\n")
+    monkeypatch.setattr(tool.shutil, "which", lambda name: None if node == "missing" else "/usr/bin/node")
+    monkeypatch.setattr(tool.subprocess, "run", old_node)
+    assert tool.main(["--check", "--engine", "rpgmaker"]) == 1
+    out = capsys.readouterr()
+    assert out.err.startswith("the RPG Maker branch cannot run: ")
+    assert len(out.err.splitlines()) == 1 and "Traceback" not in out.err
+    assert out.out == ""
+
+
+@pytest.mark.parametrize("engine", ["all", "rpgmaker"])
+def test_each_run_starts_node_once(tool, monkeypatch, capsys, engine):
+    # phase 2 final re-review N1: `--engine all` ran Node for the Unreal branch and again in problems()
+    runs = []
+
+    def dump(*args, **kwargs):
+        runs.append(args[0])
+        return subprocess.CompletedProcess(args[0], 0, stdout=json.dumps({"cancel": "Cancel"}), stderr="")
+    monkeypatch.setattr(tool.shutil, "which", lambda name: "/usr/bin/node")
+    monkeypatch.setattr(tool.subprocess, "run", dump)
+    assert tool.main(["--check", "--engine", engine]) == 1  # a two-text RM table has problems
+    assert len(runs) == 1, runs
+    assert "has no RM default text" in capsys.readouterr().err
+    assert tool._HANDED_OVER == []  # nothing left for a later default_texts() call

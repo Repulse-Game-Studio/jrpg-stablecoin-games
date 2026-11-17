@@ -13,13 +13,13 @@
 			"Name": "ScfgCore",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64", "Mac", "Linux" ]
+			"PlatformAllowList": [ "Win64", "Mac", "Linux", "Android", "IOS" ]
 		},
 		{
 			"Name": "Scfg",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64", "Mac", "Linux" ]
+			"PlatformAllowList": [ "Win64", "Mac", "Linux", "Android", "IOS" ]
 		},
 		{
 			"Name": "ScfgCoreTests",

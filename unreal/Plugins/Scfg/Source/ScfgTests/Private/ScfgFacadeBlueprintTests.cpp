@@ -477,10 +477,18 @@ SCFG_FACADE_BP_TEST(FScfgBlueprintCppTeardownTest, "TheCppAsyncCallbacksAreDropp
 // The C++ PayAsync / RestoreAsync with their screens open when the game instance goes (final review F1), once by
 // Deinitialize and once by BeginDestroy without it: the game's OnResolved (and RestoreAsync's Callback) are dropped as
 // the nodes' pins are, so game code that would make a UObject there (a widget for the result) never runs, and the
-// teardown itself creates none. Before the teardown the same callbacks are called.
+// teardown itself creates none. Before the teardown the same callbacks are called. After it the subsystem stays
+// stopped (final re-review N3): a PayAsync or RestoreAsync made then drops its OnResolved as well, where Pay's callback
+// gets Failed; each call site logs "not running" once per subsystem (one per loop below).
 bool FScfgBlueprintCppTeardownTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgFacadeBlueprintTests;
+	AddExpectedMessagePlain(TEXT("scfg: PayAsync(): the SCFG subsystem is not running"), ELogVerbosity::Error,
+		EAutomationExpectedMessageFlags::Contains, 2);
+	AddExpectedMessagePlain(TEXT("scfg: RestoreAsync(): the SCFG subsystem is not running"), ELogVerbosity::Error,
+		EAutomationExpectedMessageFlags::Contains, 2);
+	AddExpectedMessagePlain(TEXT("scfg: Pay(): the SCFG subsystem is not running"), ELogVerbosity::Error,
+		EAutomationExpectedMessageFlags::Contains, 2);
 	for (const bool bBeginDestroy : {false, true})
 	{
 		const FString How = bBeginDestroy ? TEXT("BeginDestroy: ") : TEXT("Deinitialize: ");
@@ -532,6 +540,14 @@ bool FScfgBlueprintCppTeardownTest::RunTest(const FString& Parameters)
 		TestTrue(How + TEXT("nothing is delivered: no OnResolved, no restore Callback"),
 			Calls->Paid == 1 && Calls->Restored == 0);
 		TestEqual(How + TEXT("the teardown created no UObject"), ObjectsAfter, ObjectsBefore);
+		G.Scfg->PayAsync(EScfgPayKind::Unlock, Unlock(), OnPaid);
+		G.Scfg->RestoreAsync(OnRestored, OnRestored);
+		TestTrue(How + TEXT("a PayAsync or RestoreAsync after the teardown drops its OnResolved too"),
+			Calls->Paid == 1 && Calls->Restored == 0);
+		TOptional<FScfgPaymentResult> Failed;
+		G.Scfg->Pay(EScfgPayKind::Unlock, Unlock(), [&Failed](const FScfgPaymentResult& Result) { Failed = Result; });
+		TestTrue(How + TEXT("where Pay's callback gets Failed RuntimeError"), Failed.IsSet() &&
+			Failed->Status == EScfgPaymentStatus::Failed && Failed->Error == TEXT("RuntimeError"));
 	}
 	return true;
 }

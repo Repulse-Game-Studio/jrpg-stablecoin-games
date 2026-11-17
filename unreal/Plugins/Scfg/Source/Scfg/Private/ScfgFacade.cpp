@@ -156,7 +156,7 @@ FScfgFacade::FScfgFacade(FScfgFacadeOptions InOptions) : Options(MoveTemp(InOpti
 	Reporter->bQuiet = Options.bQuiet;
 	if (!Options.Platform.IsValid())
 	{
-		Options.Platform = MakeShared<FScfgDesktopPlatform>();
+		Options.Platform = MakeShared<FScfgEnginePlatform>();
 	}
 	if (!Options.ServerFactory)
 	{

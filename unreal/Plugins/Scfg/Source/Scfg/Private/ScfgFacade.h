@@ -136,7 +136,7 @@ struct FScfgFacadeOptions
 	TFunction<double()> WorkerInterval;
 	// Record reports in the reporter instead of logging them.
 	bool bQuiet = false;
-	// Default: FScfgDesktopPlatform.
+	// Default: FScfgEnginePlatform (mobile on Android and iOS, or with -scfg-mobile outside Shipping).
 	TSharedPtr<IScfgPlatform> Platform;
 	// The checkout controllers' server_factory (the browser page). Default: the localhost checkout server
 	// (FScfgLocalServer::Factory: 127.0.0.1 on a random port, the plugin's Resources/Web/ page, the configured logo);
