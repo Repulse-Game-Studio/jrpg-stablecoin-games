@@ -64,7 +64,6 @@ private:
 	TSharedPtr<STextBlock> Status;
 	TArray<FButtonView> All;
 	TArray<FString> Labels;
-	bool bUnlockShown = true;
 };
 
 // Counts the clicks the world got (a click on the HUD or on a sheet is Slate's and never reaches it).

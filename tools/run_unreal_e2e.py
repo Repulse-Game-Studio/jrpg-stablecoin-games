@@ -18,11 +18,15 @@ shows. Per run (godot/demo's scenarios, tools/run_godot_e2e.py):
      with a mock wallet (EIP-6963 for evm/arc, Wallet Standard for solana), and pay there. The tip
      is opened by a real click on the HUD right after the unlock sheet closed.
   3. Real-window input (task 7's kept cases): the sheet's mouse wish names the game window's real
-     SViewport; in a game that hides the cursor, the game window is deactivated and activated
-     again with a sheet open (a real second native window) and the sheet keeps the mouse and the
-     focus, takes a real click, and gives the capture back when it closes; a close under
-     LockAlways gives the cursor lock back without forcing a capture; in the cursor-showing
-     configuration a HUD click after a close reaches the HUD, not the world.
+     SViewport; in a game that hides the cursor, with a sheet open, the game window is
+     deactivated and activated again by a second native window of the game, and the whole
+     application is deactivated by another X client taking the X focus and activated again by
+     a real X click (XTest) on the sheet; the sheet keeps the mouse and the focus, takes the
+     clicks, and gives the capture back when it closes; a close under LockAlways gives the
+     cursor lock back without forcing a capture; in the cursor-showing configuration a click on
+     the empty screen reaches the world, a HUD click after a close reaches the HUD, and a click
+     on the dimmed game while a screen is open reaches neither. The sheet's screenshot is
+     checked to show the drawn sheet.
   4. Restart the game: Chapter 2 is still owned.
 
 --family evm (default) pays USDC on Anvil (the arbitrum entry pointed at a mock token); arc pays
@@ -34,7 +38,11 @@ The game runs only on an X server of its own: the runner re-runs itself under `x
 Xvfb that xvfb-run started for this run (own_xvfb). Rendering: Vulkan on Mesa's lavapipe
 (VK_ICD_FILENAMES / VK_DRIVER_FILES), which the engine accepts only with -AllowCPUDevices
 (VulkanRHI.cpp's device choice skips CPU devices otherwise), at the Linux default feature level
-SM5. The game's user data (HOME, XDG_*, -UserDir) lives in a temporary directory.
+SM5. The e2e config asks the game to draw no world (draw_world false: lavapipe draws even the
+empty Entry map at under one frame a second); the showcase itself draws it. The game's user data
+(HOME, XDG_*, -UserDir) lives in a temporary directory, which a passed run removes (--keep keeps
+it), and its D-Bus session address points nowhere, so no session bus, portal, gvfs or
+accessibility daemon is started for it.
 
 Two modes:
   default     the editor build (tools/run_unreal_build.py, ScfgDevEditor Development) run as a
@@ -44,9 +52,20 @@ Two modes:
               the plugin's Resources/Web is staged where the page server finds it and that the
               default sheet host works in a cooked game.
 
-Every process (the build, the game, the chain, the browser) runs under a timeout and is killed by
-process group; the whole run is one session under xvfb-run, killed as a whole at the end. Ports
-are ephemeral on 127.0.0.1. Screenshots of the sheet (one per run) go to --screenshots.
+Every process (the build, the game, the chain, the browser) runs under a timeout; the game and
+the builds are killed by process group. The inner run is one session under xvfb-run; at the end
+the outer run ends that session and every process descended from it, including those that
+started sessions of their own (Playwright's Chromium). UAT writes its logs into the run's
+directory (uebp_LogFolder, uebp_EngineSavedFolder). A run fails on every Error or Warning line of
+the game logs except the measured engine ones (ALLOWED).
+
+Network: the control socket, Anvil, the game's checkout page and UBA are on 127.0.0.1, on ports
+the kernel picks. The game process itself has the engine's trace control listener on
+0.0.0.0:1985 (ruling R2-5). solana-test-validator (Agave 4.3) runs with --bind-address 127.0.0.1
+(gossip, repair, TVU, TPU on loopback), but its RPC and pubsub (TCP <rpc>, <rpc>+1), its faucet
+(TCP) and one UDP socket on port 8000 listen on 0.0.0.0, and Agave 4.3 has no option for those:
+an accepted test-time exposure (ruling R2-16; the foreign MCP's TCP 127.0.0.1:8000 is not
+touched). Screenshots of the sheet (one per run) go to --screenshots.
 
     uv run python tools/run_unreal_e2e.py --family solana [--packaged] [--screenshots DIR]
 """
@@ -95,10 +114,18 @@ REPLY_TIMEOUT = 120.0
 GAME_TIMEOUT = 1800.0     # a game process lives at most this long
 RUN_TIMEOUT = 7200.0      # the whole inner run (the packaged build included)
 BUILD_TIMEOUT = 3600.0
-# Lines of a game log that fail a run: our categories' errors and warnings, and any crash.
-OUR_PROBLEM = re.compile(r"\bLogScfg(Dev)?: (Error|Warning): ")
+# Lines of a game log that fail a run: every Error and Warning line except ALLOWED, and any crash.
+PROBLEM = re.compile(r"\b\w+: (Error|Warning): ")
 FATAL = re.compile(r"Ensure condition failed|Assertion failed|Fatal error|=== Critical error ===|"
                    r"Unhandled Exception|Segmentation fault")
+# The engine's own warnings, measured in every run (none of them is ours): an uncooked -game run
+# loads the editor's plugins, and the CSV profiler sanitizes the llvmpipe adapter name.
+ALLOWED = (
+    re.compile(r"\bLogEditorDataStorageUI: Warning: Unable to register widget factory '\w+' as "
+               r"purpose '\d+' isn't registered\.$"),
+    re.compile(r"\bLogCsvProfiler: Warning: Metadata value sanitized due to invalid characters: "
+               r"gpu=\"llvmpipe "),
+)
 
 
 class E2EError(Exception):
@@ -113,10 +140,12 @@ class Proc:
     pid: int
     ppid: int
     argv: tuple
+    sid: int = 0
+    state: str = "S"
 
 
 def read_processes(proc_root: Path = Path("/proc")) -> list:
-    """Every process this user can see, as Proc(pid, ppid, argv)."""
+    """Every process this user can see, as Proc(pid, ppid, argv, sid, state)."""
     out = []
     for entry in proc_root.iterdir():
         if not entry.name.isdigit():
@@ -126,10 +155,11 @@ def read_processes(proc_root: Path = Path("/proc")) -> list:
             argv = (entry / "cmdline").read_bytes().split(b"\0")
         except OSError:
             continue
-        # "pid (comm) state ppid ...": comm may hold spaces and parentheses
-        ppid = int(stat[stat.rindex(")") + 2:].split()[1])
-        out.append(Proc(int(entry.name), ppid,
-                        tuple(a.decode(errors="replace") for a in argv if a)))
+        # "pid (comm) state ppid pgrp session ...": comm may hold spaces and parentheses
+        fields = stat[stat.rindex(")") + 2:].split()
+        out.append(Proc(int(entry.name), int(fields[1]),
+                        tuple(a.decode(errors="replace") for a in argv if a),
+                        int(fields[3]), fields[0]))
     return out
 
 
@@ -170,81 +200,167 @@ def outer_env(environ: dict, token: str, outer_pid: int) -> dict:
     return env
 
 
-# --- the X server: input focus ----------------------------------------------------------------
+# --- the X server: focus, windows and input of another client ---------------------------------
 
 
-def focus_window_of(pid: int, display: str) -> int | None:
-    """Gives the X input focus to the largest top-level window of process `pid` (SDL sets
-    _NET_WM_PID) on `display`, as a window manager focuses the window a player clicks; returns
-    the window id, or None when it has none. Xvfb runs no window manager, so nothing else does:
-    without the X focus SDL reports no focus gain, the engine has no focus window, and its cursor
-    lock (FLinuxCursor::Lock, SDL_SetWindowMouseRect) does nothing. libX11 through ctypes."""
-    import ctypes
-    import ctypes.util
+class XClient:
+    """A client of this run's X server through libX11 and libXtst (ctypes): it finds the game's
+    window (_NET_WM_PID), gives windows the input focus as a window manager would (Xvfb runs
+    none), maps a window of its own (another application), and clicks with XTest (a real X
+    button event, which SDL reports as the OS's). An X protocol error raises E2EError instead of
+    Xlib's default handler, which would exit the process."""
 
-    lib = ctypes.util.find_library("X11")
-    if not lib:
-        raise E2EError("libX11 not found (needed to focus the game window on Xvfb)")
-    x = ctypes.CDLL(lib)
-    ulong, c_int, c_uint = ctypes.c_ulong, ctypes.c_int, ctypes.c_uint
-    x.XOpenDisplay.restype = ctypes.c_void_p
-    x.XOpenDisplay.argtypes = [ctypes.c_char_p]
-    x.XDefaultRootWindow.restype = ulong
-    x.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
-    x.XInternAtom.restype = ulong
-    x.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, c_int]
-    x.XQueryTree.argtypes = [ctypes.c_void_p, ulong, ctypes.POINTER(ulong), ctypes.POINTER(ulong),
-                             ctypes.POINTER(ctypes.POINTER(ulong)), ctypes.POINTER(c_uint)]
-    x.XGetWindowProperty.argtypes = [
-        ctypes.c_void_p, ulong, ulong, ctypes.c_long, ctypes.c_long, c_int, ulong,
-        ctypes.POINTER(ulong), ctypes.POINTER(c_int), ctypes.POINTER(ulong), ctypes.POINTER(ulong),
-        ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte))]
-    x.XGetGeometry.argtypes = [ctypes.c_void_p, ulong, ctypes.POINTER(ulong),
-                               ctypes.POINTER(c_int), ctypes.POINTER(c_int),
-                               *[ctypes.POINTER(c_uint)] * 4]
-    x.XSetInputFocus.argtypes = [ctypes.c_void_p, ulong, c_int, ulong]
-    x.XFree.argtypes = [ctypes.c_void_p]
-    x.XSync.argtypes = [ctypes.c_void_p, c_int]
-    x.XCloseDisplay.argtypes = [ctypes.c_void_p]
-    dpy = x.XOpenDisplay(display.encode())
-    if not dpy:
-        raise E2EError(f"cannot open the X display {display}")
-    try:
-        root = x.XDefaultRootWindow(dpy)
-        wm_pid = x.XInternAtom(dpy, b"_NET_WM_PID", 1)
-        best, best_area = None, -1
+    _errors: list = []
+    _handler = None  # the ctypes callback, kept alive
+
+    def __init__(self, display: str):
+        import ctypes
+        import ctypes.util
+
+        self.ct = ctypes
+        lib, tst = ctypes.util.find_library("X11"), ctypes.util.find_library("Xtst")
+        if not lib or not tst:
+            raise E2EError("libX11 and libXtst are needed to drive the windows on Xvfb")
+        x, t = ctypes.CDLL(lib), ctypes.CDLL(tst)
+        ulong, c_int, c_uint, vp = ctypes.c_ulong, ctypes.c_int, ctypes.c_uint, ctypes.c_void_p
+        x.XOpenDisplay.restype = vp
+        x.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        x.XDefaultRootWindow.restype = ulong
+        x.XDefaultRootWindow.argtypes = [vp]
+        x.XInternAtom.restype = ulong
+        x.XInternAtom.argtypes = [vp, ctypes.c_char_p, c_int]
+        x.XQueryTree.argtypes = [vp, ulong, ctypes.POINTER(ulong), ctypes.POINTER(ulong),
+                                 ctypes.POINTER(ctypes.POINTER(ulong)), ctypes.POINTER(c_uint)]
+        x.XGetWindowProperty.argtypes = [
+            vp, ulong, ulong, ctypes.c_long, ctypes.c_long, c_int, ulong, ctypes.POINTER(ulong),
+            ctypes.POINTER(c_int), ctypes.POINTER(ulong), ctypes.POINTER(ulong),
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte))]
+        x.XGetGeometry.argtypes = [vp, ulong, ctypes.POINTER(ulong), ctypes.POINTER(c_int),
+                                   ctypes.POINTER(c_int), *[ctypes.POINTER(c_uint)] * 4]
+        x.XCreateSimpleWindow.restype = ulong
+        x.XCreateSimpleWindow.argtypes = [vp, ulong, c_int, c_int, c_uint, c_uint, c_uint,
+                                          ulong, ulong]
+        x.XMapWindow.argtypes = [vp, ulong]
+        x.XDestroyWindow.argtypes = [vp, ulong]
+        x.XSetInputFocus.argtypes = [vp, ulong, c_int, ulong]
+        x.XFree.argtypes = [vp]
+        x.XSync.argtypes = [vp, c_int]
+        x.XCloseDisplay.argtypes = [vp]
+        t.XTestFakeMotionEvent.argtypes = [vp, c_int, c_int, c_int, ulong]
+        t.XTestFakeButtonEvent.argtypes = [vp, c_uint, c_int, ulong]
+        if XClient._handler is None:
+            proto = ctypes.CFUNCTYPE(c_int, vp, vp)
+
+            class XErrorEvent(ctypes.Structure):
+                _fields_ = [("type", c_int), ("display", vp), ("resourceid", ulong),
+                            ("serial", ulong), ("error_code", ctypes.c_ubyte),
+                            ("request_code", ctypes.c_ubyte), ("minor_code", ctypes.c_ubyte)]
+
+            def on_error(display, event):
+                e = ctypes.cast(event, ctypes.POINTER(XErrorEvent)).contents
+                XClient._errors.append((e.error_code, e.request_code))
+                return 0
+
+            XClient._handler = proto(on_error)
+            x.XSetErrorHandler.argtypes = [proto]
+            x.XSetErrorHandler.restype = vp
+            x.XSetErrorHandler(XClient._handler)
+        self.x, self.t, self.ulong = x, t, ulong
+        self.dpy = x.XOpenDisplay(display.encode())
+        if not self.dpy:
+            raise E2EError(f"cannot open the X display {display}")
+        self.root = x.XDefaultRootWindow(self.dpy)
+
+    def sync(self, what: str) -> None:
+        XClient._errors.clear()
+        self.x.XSync(self.dpy, 0)
+        if XClient._errors:
+            codes = list(XClient._errors)
+            XClient._errors.clear()
+            raise E2EError(f"X error {codes} while {what}")
+
+    def close(self) -> None:
+        if self.dpy:
+            self.x.XCloseDisplay(self.dpy)
+            self.dpy = None
+
+    def window_of(self, pid: int) -> int | None:
+        """The largest top-level window of process `pid`, or None."""
+        ct, x, ulong = self.ct, self.x, self.ulong
+        wm_pid = x.XInternAtom(self.dpy, b"_NET_WM_PID", 1)
         r, parent = ulong(), ulong()
-        children, n = ctypes.POINTER(ulong)(), c_uint()
-        if not wm_pid or not x.XQueryTree(dpy, root, ctypes.byref(r), ctypes.byref(parent),
-                                          ctypes.byref(children), ctypes.byref(n)):
+        children, n = ct.POINTER(ulong)(), ct.c_uint()
+        if not wm_pid or not x.XQueryTree(self.dpy, self.root, ct.byref(r), ct.byref(parent),
+                                          ct.byref(children), ct.byref(n)):
             return None
         windows = [children[i] for i in range(n.value)]
         if children:
             x.XFree(children)
+        best, best_area = None, -1
         for w in windows:
-            kind, fmt, count, after = ulong(), c_int(), ulong(), ulong()
-            data = ctypes.POINTER(ctypes.c_ubyte)()
-            if x.XGetWindowProperty(dpy, w, wm_pid, 0, 1, 0, 6, ctypes.byref(kind),
-                                    ctypes.byref(fmt), ctypes.byref(count), ctypes.byref(after),
-                                    ctypes.byref(data)) != 0 or not data:
+            kind, fmt, count, after = ulong(), ct.c_int(), ulong(), ulong()
+            data = ct.POINTER(ct.c_ubyte)()
+            if x.XGetWindowProperty(self.dpy, w, wm_pid, 0, 1, 0, 6, ct.byref(kind),
+                                    ct.byref(fmt), ct.byref(count), ct.byref(after),
+                                    ct.byref(data)) != 0 or not data:
                 continue
-            owner = ctypes.cast(data, ctypes.POINTER(ulong))[0] if count.value == 1 else None
+            owner = ct.cast(data, ct.POINTER(ulong))[0] if count.value == 1 else None
             x.XFree(data)
             if owner != pid:
                 continue
-            gx, gy = c_int(), c_int()
-            width, height, border, depth = c_uint(), c_uint(), c_uint(), c_uint()
-            x.XGetGeometry(dpy, w, ctypes.byref(r), ctypes.byref(gx), ctypes.byref(gy),
-                           ctypes.byref(width), ctypes.byref(height), ctypes.byref(border),
-                           ctypes.byref(depth))
+            gx, gy = ct.c_int(), ct.c_int()
+            width, height, border, depth = ct.c_uint(), ct.c_uint(), ct.c_uint(), ct.c_uint()
+            x.XGetGeometry(self.dpy, w, ct.byref(r), ct.byref(gx), ct.byref(gy),
+                           ct.byref(width), ct.byref(height), ct.byref(border), ct.byref(depth))
             if width.value * height.value > best_area:
                 best, best_area = w, width.value * height.value
-        if best is not None:
-            x.XSetInputFocus(dpy, best, 2, 0)  # RevertToParent, CurrentTime
-            x.XSync(dpy, 0)
+        self.sync("listing the windows")
         return best
+
+    def focus(self, window: int) -> None:
+        self.x.XSetInputFocus(self.dpy, window, 2, 0)  # RevertToParent, CurrentTime
+        self.sync("focusing a window")
+
+    def make_window(self) -> int:
+        """A mapped window of this client's (another application), not over the game's sheet."""
+        w = self.x.XCreateSimpleWindow(self.dpy, self.root, WINDOW[0] + 20, 20, 200, 120, 0, 0, 0)
+        self.x.XMapWindow(self.dpy, w)
+        self.sync("mapping a window")
+        return w
+
+    def destroy(self, window: int) -> None:
+        self.x.XDestroyWindow(self.dpy, window)
+        self.sync("destroying a window")
+
+    def click(self, at, frame) -> None:
+        """A left click at screen position `at` through XTest, as a hand makes one: the pointer
+        moves in from 24 pixels away, then onto the spot (SButton clicks only while hovered), then
+        the button goes down and up; `frame()` lets the game run a frame between the steps."""
+        x, y = round(at[0]), round(at[1])
+        for px, py in ((x - 24, y), (x, y)):
+            self.t.XTestFakeMotionEvent(self.dpy, -1, px, py, 0)
+            self.sync("moving the pointer")
+            frame()
+        for down in (1, 0):
+            self.t.XTestFakeButtonEvent(self.dpy, 1, down, 0)
+            self.sync("pressing the button" if down else "releasing the button")
+            frame()
+
+
+def focus_window_of(pid: int, display: str) -> int | None:
+    """Gives the X input focus to the largest top-level window of process `pid` on `display`, as a
+    window manager focuses the window a player clicks; returns the window id, or None when it has
+    none. Xvfb runs no window manager, so nothing else does: without the X focus SDL reports no
+    focus gain, the engine has no focus window, and its cursor lock (FLinuxCursor::Lock,
+    SDL_SetWindowMouseRect) does nothing."""
+    client = XClient(display)
+    try:
+        window = client.window_of(pid)
+        if window is not None:
+            client.focus(window)
+        return window
     finally:
-        x.XCloseDisplay(dpy)
+        client.close()
 
 
 # --- processes -------------------------------------------------------------------------------
@@ -284,26 +400,35 @@ def group_alive(pgid: int) -> bool:
     return True
 
 
-def session_members(sid: int, proc_root: Path = Path("/proc")) -> list:
-    """The pids of the live processes in session `sid` (this user's; zombies are gone already)."""
-    out = []
-    for entry in proc_root.iterdir():
-        if entry.name.isdigit():
-            try:
-                if os.getsid(int(entry.name)) != sid:
-                    continue
-                stat = (entry / "stat").read_text()
-            except (ProcessLookupError, PermissionError, OSError):
-                continue
-            if stat[stat.rindex(")") + 2:].split()[0] != "Z":
-                out.append(int(entry.name))
-    return out
+def run_tree(sid: int, processes: list, me: int | None = None) -> list:
+    """The live processes of session `sid` and every process descended from one of them, also in
+    sessions of their own (Playwright starts the browser in one): what the outer run ends."""
+    live = [p for p in processes if p.state != "Z" and p.pid != me]
+    found = {p.pid for p in live if p.sid == sid}
+    grew = True
+    while grew:
+        grew = False
+        for p in live:
+            if p.pid not in found and p.ppid in found:
+                found.add(p.pid)
+                grew = True
+    return sorted(found)
+
+
+def alive(pid: int) -> bool:
+    """pid is a process that has not ended (a zombie has)."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+    except OSError:
+        return False
+    return stat[stat.rindex(")") + 2:].split()[0] != "Z"
 
 
 def kill_session(sid: int, grace: float = 3.0) -> int:
-    """Ends every process of session `sid` except this one: SIGTERM (so an Xvfb removes its lock
-    file), then SIGKILL what is left after `grace` seconds; returns how many there were."""
-    left = [pid for pid in session_members(sid) if pid != os.getpid()]
+    """Ends the run's processes (run_tree: the session and its descendants) except this one:
+    SIGTERM (so an Xvfb removes its lock file), then SIGKILL what is left after `grace` seconds;
+    returns how many there were."""
+    left = run_tree(sid, read_processes(), me=os.getpid())
     for sig in (signal.SIGTERM, signal.SIGKILL):
         for pid in left:
             try:
@@ -312,7 +437,7 @@ def kill_session(sid: int, grace: float = 3.0) -> int:
                 pass
         deadline = time.monotonic() + grace
         while sig == signal.SIGTERM and time.monotonic() < deadline:
-            if not [pid for pid in session_members(sid) if pid != os.getpid()]:
+            if not any(alive(pid) for pid in left):
                 return len(left)
             time.sleep(0.1)
     return len(left)
@@ -325,7 +450,8 @@ def write_config(path: Path, family_config: dict, chain: dict | None, port: int,
                  token: str) -> dict:
     """The driver's e2e config (ScfgE2EDriver.h): the family's configure and items, the chain
     override and the control socket. Written readable by this user only."""
-    config = {**family_config, "control": {"port": port, "token": token}}
+    # lavapipe draws even the empty Entry map at under one frame a second: no world
+    config = {**family_config, "control": {"port": port, "token": token}, "draw_world": False}
     if chain is not None:
         config["chain"] = chain
     path.write_text(json.dumps(config, indent=1), encoding="utf-8")
@@ -333,13 +459,23 @@ def write_config(path: Path, family_config: dict, chain: dict | None, port: int,
     return config
 
 
+# A D-Bus address that cannot be used: with no address at all and DISPLAY set, libdbus
+# autolaunches a session bus (and with it portals, gvfs and the accessibility bus) in sessions of
+# their own, which outlive the game.
+NO_BUS = "unix:path=/nonexistent/scfg-e2e-no-bus"
+
+
 def game_env(environ: dict, home: Path) -> dict:
     """The game's environment: the inner run's (DISPLAY is the Xvfb's) with lavapipe forced, SDL
-    on X11, no desktop session bus, no caller library path, and HOME/XDG in `home`."""
+    on X11, a session bus address that goes nowhere (NO_BUS), no accessibility bridge, no gvfs,
+    no caller library path, and HOME/XDG in `home`."""
     env = {k: v for k, v in environ.items()
-           if k not in ("WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "LD_LIBRARY_PATH",
-                        "XDG_RUNTIME_DIR", "SESSION_MANAGER")}
+           if k not in ("WAYLAND_DISPLAY", "LD_LIBRARY_PATH", "XDG_RUNTIME_DIR", "SESSION_MANAGER")}
     env.update({
+        "DBUS_SESSION_BUS_ADDRESS": NO_BUS,
+        "NO_AT_BRIDGE": "1",
+        "GVFS_DISABLE_FUSE": "1",
+        "GIO_USE_VFS": "local",
         "HOME": str(home),
         "XDG_CONFIG_HOME": str(home / ".config"),
         "XDG_DATA_HOME": str(home / ".local" / "share"),
@@ -373,8 +509,10 @@ def game_command(engine: Path, config: Path, user_dir: Path, staged: Path | None
 
 
 def problems(log: str) -> list:
-    """The lines of a game log that fail a run."""
-    return [line for line in log.splitlines() if OUR_PROBLEM.search(line) or FATAL.search(line)]
+    """The lines of a game log that fail a run: an Error or Warning line not in ALLOWED, a crash."""
+    return [line for line in log.splitlines()
+            if FATAL.search(line)
+            or (PROBLEM.search(line) and not any(a.search(line) for a in ALLOWED))]
 
 
 class Control:
@@ -580,6 +718,105 @@ def expect(cond: bool, why: str, data=None) -> None:
         raise E2EError(why + ("" if data is None else ":\n" + json.dumps(data, indent=1)))
 
 
+# A negative check holds this long, over at least this many snapshots (one a frame or more):
+# something that happens a few frames later is not missed.
+HOLD_SECONDS = 0.5
+HOLD_SNAPSHOTS = 10
+
+
+def holds_for(game: Game, what: str, pred, seconds: float = HOLD_SECONDS,
+              snapshots: int = HOLD_SNAPSHOTS) -> dict:
+    """pred holds on every snapshot for `seconds` and at least `snapshots` snapshots; the last."""
+    deadline = time.monotonic() + seconds
+    n = 0
+    while True:
+        snap = game.snapshot()
+        n += 1
+        if not pred(snap):
+            raise E2EError(f"{what}: no longer true at snapshot {n}:\n{json.dumps(snap, indent=1)}")
+        if n >= snapshots and time.monotonic() >= deadline:
+            return snap
+
+
+def read_png(path: Path) -> tuple:
+    """(width, height, channels, rows) of an 8-bit, non-interlaced RGB or RGBA PNG; rows are
+    bytes, filters undone. Enough for the engine's screenshots (no Pillow in this project)."""
+    import struct
+    import zlib
+
+    data = path.read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise E2EError(f"{path} is not a PNG")
+    pos, idat, head = 8, b"", None
+    while pos < len(data):
+        length, kind = struct.unpack(">I4s", data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + length]
+        if kind == b"IHDR":
+            head = struct.unpack(">IIBBBBB", body)
+        elif kind == b"IDAT":
+            idat += body
+        pos += 12 + length
+    width, height, depth, colour, _, _, interlace = head
+    channels = {2: 3, 6: 4}.get(colour)
+    if depth != 8 or channels is None or interlace:
+        raise E2EError(f"{path}: an unexpected PNG format {head}")
+    raw = zlib.decompress(idat)
+    stride = width * channels
+    rows, prev = [], bytearray(stride)
+    for y in range(height):
+        kind = raw[y * (stride + 1)]
+        line = bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+        for i in range(stride):
+            a = line[i - channels] if i >= channels else 0
+            b = prev[i]
+            if kind == 1:
+                line[i] = (line[i] + a) & 255
+            elif kind == 2:
+                line[i] = (line[i] + b) & 255
+            elif kind == 3:
+                line[i] = (line[i] + (a + b) // 2) & 255
+            elif kind == 4:
+                c = prev[i - channels] if i >= channels else 0
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        rows.append(bytes(line))
+        prev = line
+    return width, height, channels, rows
+
+
+# The sheet's panel colour (FScfgStyle::SheetColor, #fbfcfd).
+SHEET_RGB = (0xFB, 0xFC, 0xFD)
+
+
+def sheet_drawn(path: Path, view: dict) -> str | None:
+    """None when the screenshot shows the sheet drawn where the snapshot lays it out, else why
+    not: the window's size; in the area of the sheet's controls, mostly the panel colour and some
+    dark text; the game beside it dimmed."""
+    width, height, ch, rows = read_png(path)
+    if (width, height) != WINDOW:
+        return f"the screenshot is {width}x{height}, not {WINDOW[0]}x{WINDOW[1]}"
+    rects = [b["rect"] for b in view["buttons"] if b["rect"][2] > 0]
+    left = int(min(r[0] for r in rects))
+    top, bottom = int(min(r[1] for r in rects)), int(max(r[1] + r[3] for r in rects))
+    panel = dark = total = 0
+    for y in range(max(top, 0), min(bottom, height), 2):
+        row = rows[y]
+        for x in range(max(left, 0), width, 2):
+            r, g, b = row[x * ch], row[x * ch + 1], row[x * ch + 2]
+            total += 1
+            panel += all(abs(v - w) <= 6 for v, w in zip((r, g, b), SHEET_RGB))
+            dark += max(r, g, b) < 90
+    game = [max(rows[y][x * ch:x * ch + 3])
+            for y in range(0, height, 8) for x in range(0, left // 2, 8)]
+    if not total or panel / total < 0.4:
+        return f"the sheet's area is {panel}/{total} panel-coloured pixels, not mostly the panel"
+    if dark / total < 0.003:
+        return f"the sheet's area has {dark}/{total} dark pixels: no text drawn"
+    if sum(game) / max(len(game), 1) > 140:
+        return "the game beside the sheet is not dimmed"
+    return None
+
+
 # --- the scenarios ---------------------------------------------------------------------------
 
 
@@ -601,8 +838,11 @@ def unlock_by_manual_transfer(game: Game, fam, state_file: Path, shots: Path, fa
            f"copied {amount!r} / {recipient!r}, which the sheet does not show", texts)
     fam.check_manual(recipient, token)
     shot = shots / f"unreal-e2e-{family}-manual.png"
+    view = sheet(game.snapshot())
     game.call("screenshot", path=str(shot), timeout=180)
-    print(f"  manual step: send {amount} USDC to {recipient} (screenshot {shot})")
+    why = sheet_drawn(shot, view)
+    expect(why is None, f"the screenshot {shot} does not show the sheet: {why}")
+    print(f"  manual step: send {amount} USDC to {recipient} (screenshot {shot}, the sheet drawn)")
     game.click("forward")  # I've sent it
     wait_for(game, "the waiting step",
              lambda s: any(t.startswith("Waiting for your payment")
@@ -716,8 +956,44 @@ def real_window_input(game: Game) -> dict:
     expect(after["focus"] == "sheet" and after["captor"] != "viewport"
            and not after["high_precision"],
            "after the activation the sheet should have the focus and the mouse again", cycle)
+    holds_for(game, "after the window activation the sheet keeps the focus and the mouse",
+              lambda s: s["input"]["focus"] == "sheet" and s["input"]["captor"] != "viewport"
+              and not s["input"]["high_precision"] and has_button("forward", "Next")(s))
     game.click("forward")  # a real click on the sheet after the activation
     wait_for(game, "the method step after the activation", has_button("method_browser"))
+    game.key("Escape")
+    snap = wait_for(game, "back on the amount step", has_button("forward", "Next"))
+
+    # Another application takes the X focus (a window of this runner's own X client): the whole
+    # application is deactivated. On Linux the engine activates it again on a mouse button in
+    # its window (FLinuxApplication, not on a focus-in): a player clicks back into the game (a
+    # real X click through XTest, on the sheet's title), then on the sheet's Next.
+    client = XClient(os.environ["DISPLAY"])
+    try:
+        other = client.make_window()
+        client.focus(other)
+        snap = wait_for(game, "the application to be deactivated",
+                        lambda s: not s["input"]["app_active"], 30)
+        seen["app_deactivated"] = snap["input"]
+        expect(has_button("forward", "Next")(snap), "the sheet should stay open", snap)
+        client.destroy(other)
+        r = button(sheet(snap), "forward")["rect"]
+        client.click((r[0] + r[2] / 2, 40), game.snapshot)  # the sheet's header, no control
+        snap = wait_for(game, "the application activated by the click",
+                        lambda s: s["input"]["app_active"], 30)
+        seen["app_activated_by_click"] = snap["input"]
+        game.focus()  # a window manager focuses the window clicked
+        expect(has_button("forward", "Next")(snap) and snap["world_clicks"] == clicks,
+               "the click that activates the game is the sheet's, and does nothing", snap)
+        client.click((r[0] + r[2] / 2, r[1] + r[3] / 2), game.snapshot)
+    finally:
+        client.close()
+    snap = wait_for(game, "the X click on Next taken", has_button("method_browser"), 30)
+    snap = holds_for(game, "after the application activation the sheet keeps the focus and the "
+                     "mouse", lambda s: s["input"]["app_active"] and s["input"]["focus"] == "sheet"
+                     and s["input"]["captor"] != "viewport" and not s["input"]["high_precision"]
+                     and has_button("method_browser")(s))
+    seen["app_reactivated"] = snap["input"]
     game.key("Escape")
     wait_for(game, "back on the amount step", has_button("forward", "Next"))
     game.key("Escape")
@@ -730,8 +1006,9 @@ def real_window_input(game: Game) -> dict:
            "closed: the game's focus, capture, high precision and lock should be back",
            snap["input"])
     expect(snap["world_clicks"] == clicks, "a click on the sheet reached the world", snap)
-    print("  game-only input: window deactivated and activated again with the sheet open; the "
-          "sheet kept the focus and the mouse, took a real click, and gave the capture back")
+    print("  game-only input, sheet open: the window deactivated and activated again (a second "
+          "window), then the application (another X client, back with a real X click); the "
+          "sheet kept the focus and the mouse, took the clicks, and gave the capture back")
 
     # a cursor shown and locked to the window (LockAlways)
     state = game.call("input_mode", mode="lock_always")
@@ -748,12 +1025,11 @@ def real_window_input(game: Game) -> dict:
            "open under LockAlways: the lock should be released", snap["input"])
     expect(holds == "viewport", f"the sheet should hold the viewport's lock, not {holds}")
     game.key("Escape")
-    snap = wait_for(game, "the sheet to close", no_screen)
-    snap = wait_for(game, "a frame after the close", lambda s: True)
+    wait_for(game, "the sheet to close", no_screen)
+    snap = wait_for(game, "the lock back", lambda s: s["input"]["cursor_locked"] is True, 30)
+    snap = holds_for(game, "closed under LockAlways: the lock back and no capture forced",
+                     lambda s: s["input"]["captor"] == "none" and s["input"]["cursor_locked"])
     seen["lock_always_after_close"] = snap["input"]
-    expect(snap["input"]["captor"] == "none" and snap["input"]["cursor_locked"] is True,
-           "closed under LockAlways: the lock should be back and no capture forced",
-           snap["input"])
     print("  LockAlways: the lock released while the sheet was open, back after the close, and "
           "no capture forced")
 
@@ -773,10 +1049,10 @@ def real_window_input(game: Game) -> dict:
     expect(snap["world_clicks"] == clicks, "the HUD click reached the world", snap)
     # ... and with a screen open, a click on the dimmed game is the screen's
     under = game.call("click_at", x=empty[0] * 0.5, y=empty[1])["under"]
-    snap = wait_for(game, "a frame after the click", lambda s: True)
     seen["click_on_the_dim"] = under
-    expect(snap["world_clicks"] == clicks and any(v["kind"] == "restore" for v in snap["screens"]),
-           f"a click on the dimmed game (on {under}) reached the world or closed the screen", snap)
+    holds_for(game, f"a click on the dimmed game (on {under}) reaches neither the world nor "
+              "closes the screen", lambda s: s["world_clicks"] == clicks
+              and any(v["kind"] == "restore" for v in s["screens"]))
     game.key("Escape")
     snap = wait_for(game, "the restore screen to close", no_screen)
     wait_for(game, "the restore status",
@@ -816,8 +1092,10 @@ def bad_configs_quit_at_once(make_game, work: Path, control: Control) -> None:
             out = game.output()
         finally:
             game.close()
-        errors = [line for line in out.splitlines() if ": Error: " in line]
-        if code != 1 or not any(reason in line for line in errors) or READY_LINE in out:
+        bad = problems(out)
+        expected = (len(bad) == 2 and reason in bad[0]
+                    and "showcase: the setup failed, quitting with exit code 1" in bad[1])
+        if code != 1 or not expected or READY_LINE in out:
             raise E2EError(f"with the e2e config {content!r} the showcase should log why "
                            f"({reason!r}) and quit with code 1 (it exited with {code}):\n"
                            + "\n".join(out.splitlines()[-40:]))
@@ -875,10 +1153,43 @@ def staged_game(archive: Path) -> Path:
     return found[0]
 
 
+def uat_env(environ: dict, work: Path) -> dict:
+    """UAT's environment: its logs and saved files in the run's directory. Without these an
+    installed engine's UAT logs to ~/Library/Logs/Unreal Engine/LocalBuildLogs and
+    Engine/Programs/AutomationTool/Saved, and clears the log folder first when it is the only UAT
+    running (AutomationUtils/CommandEnvironment.cs): a developer's own UAT logs would go."""
+    return {**environ, "uebp_LogFolder": str(work / "uat-logs"),
+            "uebp_EngineSavedFolder": str(work / "uat-saved")}
+
+
+# Where UAT writes by default (uat_env keeps it out of both): checked unchanged by a packaged run.
+UAT_DEFAULT_LOGS = (Path.home() / "Library" / "Logs" / "Unreal Engine" / "LocalBuildLogs",)
+
+
+def newest_mtime(paths) -> float:
+    newest = 0.0
+    for root in paths:
+        if root.exists():
+            for f in [root, *root.rglob("*")]:
+                try:
+                    newest = max(newest, f.stat().st_mtime)
+                except OSError:
+                    pass
+    return newest
+
+
 def build_packaged(engine: Path, work: Path) -> Path:
     archive = work / "archive"
     log = work / "buildcookrun.log"
-    code = run_grouped(buildcookrun_command(engine, archive), log, BUILD_TIMEOUT)
+    defaults = (*UAT_DEFAULT_LOGS, engine / "Engine" / "Programs" / "AutomationTool" / "Saved")
+    before = newest_mtime(defaults)
+    code = run_grouped(buildcookrun_command(engine, archive), log, BUILD_TIMEOUT,
+                       env=uat_env(os.environ, work))
+    if newest_mtime(defaults) != before:
+        raise E2EError("UAT wrote outside the run's directory (under "
+                       f"{', '.join(map(str, defaults))})")
+    if not any((work / "uat-logs").rglob("*")):
+        raise E2EError(f"UAT wrote no log into {work / 'uat-logs'}")
     text = log.read_text(errors="replace")
     if code != 0 or "BUILD SUCCESSFUL" not in text:
         raise E2EError(f"BuildCookRun failed ({code}, log {log}):\n{text[-4000:]}")
@@ -893,6 +1204,19 @@ def build_packaged(engine: Path, work: Path) -> Path:
 
 
 # --- the run ---------------------------------------------------------------------------------
+
+
+def remove_work(path: Path) -> None:
+    """Removes a directory of this run, unless something is mounted under it (a FUSE helper left
+    running, which rmtree would descend into): then it says so and leaves it."""
+    if not path.exists():
+        return
+    mounts = [line.split()[1] for line in Path("/proc/mounts").read_text().splitlines()]
+    inside = [m for m in mounts if Path(m) == path or path in Path(m).parents]
+    if inside:
+        print(f"Unreal e2e: {path} kept: something is mounted under it ({inside})")
+        return
+    shutil.rmtree(path, ignore_errors=True)
 
 
 def run_inner(args) -> int:
@@ -990,12 +1314,14 @@ def run_inner(args) -> int:
             browser.close()
         bad = [line for out in outputs for line in problems(out)]
         if bad:
-            raise E2EError("the game logged errors or warnings of ours, or crashed:\n"
+            raise E2EError("the game logged errors or warnings (not in ALLOWED), or crashed:\n"
                            + "\n".join(bad))
     except Exception as e:
         print(e if isinstance(e, E2EError) else traceback.format_exc())
         print(f"Unreal e2e ({args.family}, {mode}) FAILED after "
               f"{time.monotonic() - started:.1f} s (logs in {work})")
+        if not args.keep:
+            remove_work(work / "archive")  # the logs stay; the 1 GB archive goes
         return 1
     finally:
         for game in games:
@@ -1004,10 +1330,12 @@ def run_inner(args) -> int:
         if fam is not None:
             fam.cleanup()
     shown = ", ".join(f"{k} {v:.1f} s" for k, v in times.items())
+    kept = work if args.keep else None
+    if kept is None:
+        remove_work(work)
     print(f"Unreal e2e ({args.family}, {mode}) PASSED in {time.monotonic() - started:.1f} s "
-          f"({shown}); logs in {work}")
-    if not args.keep:
-        shutil.rmtree(work / "archive", ignore_errors=True)
+          f"({shown}); "
+          + (f"logs in {kept}" if kept else "work directory removed (--keep keeps it)"))
     return 0
 
 
@@ -1051,7 +1379,7 @@ def main(argv=None) -> int:
     ap.add_argument("--no-build", action="store_true",
                     help="default mode: use the editor build as it is")
     ap.add_argument("--screenshots", help="where the sheet's screenshot goes (default: the "
-                    "run's temporary directory)")
+                    "run's temporary directory, removed with it when the run passes)")
     ap.add_argument("--keep", action="store_true", help="keep the packaged archive")
     args = ap.parse_args(argv)
     if os.environ.get(INNER_ENV):

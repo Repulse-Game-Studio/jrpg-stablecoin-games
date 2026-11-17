@@ -304,7 +304,6 @@ bool FScfgE2EDriver::Requested(FString& OutPath)
 TSharedPtr<FScfgE2EDriver> FScfgE2EDriver::Create(const FString& Path, UScfgShowcaseGameInstance* InGame)
 {
 	const TSharedRef<FScfgE2EDriver> D = MakeShared<FScfgE2EDriver>();
-	D->ConfigPath = Path;
 	D->Game = InGame;
 	auto Bad = [&Path](const FString& Why) -> TSharedPtr<FScfgE2EDriver>
 	{
@@ -358,6 +357,10 @@ TSharedPtr<FScfgE2EDriver> FScfgE2EDriver::Create(const FString& Path, UScfgShow
 		return Bad(TEXT("\"control\" must be {port, token}"));
 	}
 	D->ControlPort = Port;
+	if (Config->HasField(TEXT("draw_world")) && !Config->TryGetBoolField(TEXT("draw_world"), D->bDrawWorld))
+	{
+		return Bad(TEXT("\"draw_world\" must be a boolean"));
+	}
 	const TSharedPtr<FJsonObject>* Chain = nullptr;
 	if (Config->HasField(TEXT("chain")))
 	{
@@ -445,6 +448,15 @@ bool FScfgE2EDriver::Start()
 
 bool FScfgE2EDriver::Tick(float DeltaTime)
 {
+	if (!bWorldSet)
+	{
+		UScfgShowcaseGameInstance* G = Game.Get();
+		if (UGameViewportClient* Client = G ? G->GetGameViewportClient() : nullptr)
+		{
+			Client->bDisableWorldRendering = !bDrawWorld;
+			bWorldSet = true;
+		}
+	}
 	Flush();
 	if (bQuitting)
 	{

@@ -1540,6 +1540,52 @@ bool FScfgSheetHandOverTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// Task 8 review M3 (found by the e2e's application deactivation): the engine activates the window again and gives the
+// viewport the focus and the mouse in the same message pump as the click or key that activated it (on Linux a mouse
+// button activates the application, FLinuxApplication), before the sheet's next tick: that input must be the sheet's,
+// not the game's.
+SCFG_SHEET_TEST(FScfgSheetFirstInputTest, "TheInputThatActivatesTheGameIsTheSheets")
+
+bool FScfgSheetFirstInputTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSheetTestsDetail;
+	FSheetRig R(*this);
+	if (!R.bReady)
+	{
+		return false;
+	}
+	R.Started(*this);
+	R.GameCapturesTheMouse();
+	const TSharedRef<TOptional<FScfgPaymentResult>> Box = R.W.Pay(EScfgPayKind::Tip, Tip(TEXT("3.00"), TEXT("USDC")));
+	R.Frame(2);
+	const TSharedPtr<SScfgPaymentSheet> Sheet = R.Sheet();
+	if (!TestTrue(TEXT("the sheet, holding the game's capture"), Sheet.IsValid() && R.MouseCaptor() != R.Game))
+	{
+		return false;
+	}
+	auto Activate = [&R]()
+	{
+		FWidgetPath Path;
+		FSlateApplication& App = FSlateApplication::Get();
+		App.FindPathToWidget(R.Game.ToSharedRef(), Path);
+		App.ProcessReply(Path, FReply::Handled().SetUserFocus(R.Game.ToSharedRef(), EFocusCause::WindowActivate)
+			.CaptureMouse(R.Game.ToSharedRef()), nullptr, nullptr, 0);
+	};
+	R.Game->Got.Reset();
+	Activate();
+	R.Click(R.Game.ToSharedRef());  // no frame in between: the click that activated the window
+	TestEqual(TEXT("the activating click is not the game's"), FString::Join(R.Game->Got, TEXT(",")), FString());
+	TestFalse(TEXT("and the game's capture went back to the sheet's hold"), R.MouseCaptor() == R.Game);
+	TestTrue(TEXT("the sheet still holds what it took"), Sheet->HeldMouseCaptor() == R.Game);
+	Activate();
+	R.Key(EKeys::Escape);  // a key in the same pump as the activation
+	TestEqual(TEXT("the key is not the game's"), FString::Join(R.Game->Got, TEXT(",")), FString());
+	R.Frame(2);
+	TestTrue(TEXT("it is the sheet's (Escape on the first step closes it)"), Box->IsSet());
+	TestTrue(TEXT("closing gave the capture back to the game"), R.MouseCaptor() == R.Game);
+	return true;
+}
+
 // Ruling R2-15 (M1): a sheet the game takes off the viewport itself ("Remove All Widgets") is released on the host's
 // next frame: the flow resolves as cancel, the focus goes back, nothing is left open.
 SCFG_SHEET_TEST(FScfgSheetRemovedTest, "ASheetTheGameRemovesCountsAsCancel")

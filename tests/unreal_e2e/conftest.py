@@ -2,7 +2,7 @@
 family. Every test here is marked `unreal_e2e` (registered here: pyproject.toml is not touched) and
 deselected unless the `-m` expression names it, so a plain `pytest` never builds or starts Unreal:
 
-    uv run pytest tests/unreal_e2e -m unreal_e2e [-k solana] [--unreal-packaged]
+    uv run pytest -m unreal_e2e [-k solana]           # SCFG_UNREAL_PACKAGED=1: the packaged mode
 
 Each test runs the tool, which needs UE 5.8 ($UE_ROOT or /mnt/files/UnrealEngine), xvfb-run, Mesa's
 lavapipe, Playwright's Chromium and anvil / solana-test-validator; a missing one skips the test
@@ -13,11 +13,6 @@ from pathlib import Path
 import pytest
 
 HERE = Path(__file__).resolve().parent
-
-
-def pytest_addoption(parser):
-    parser.addoption("--unreal-packaged", action="store_true",
-                     help="tests/unreal_e2e: run the packaged (BuildCookRun) mode")
 
 
 def pytest_configure(config):

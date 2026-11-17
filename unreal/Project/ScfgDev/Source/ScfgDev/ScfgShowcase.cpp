@@ -111,7 +111,6 @@ TSharedRef<SButton> SScfgShowcaseHud::MakeButton(const FString& Name, const FStr
 void SScfgShowcaseHud::SetChapter(const FString& Text, bool bShowUnlock)
 {
 	Chapter->SetText(FText::FromString(Text));
-	bUnlockShown = bShowUnlock;
 	for (const FButtonView& B : All)
 	{
 		if (B.Name == TEXT("Unlock"))
@@ -295,9 +294,6 @@ void UScfgShowcaseGameInstance::OnStart()
 		.OnTip_Lambda([Weak]() { if (Weak.IsValid()) Weak->Tip(); })
 		.OnRestore_Lambda([Weak]() { if (Weak.IsValid()) Weak->Restore(); });
 	Viewport->AddViewportWidgetContent(Hud.ToSharedRef(), 0);
-	// A menu over an empty map: there is no world to draw, only the HUD and the sheet (which also keeps a software
-	// renderer, the e2e's lavapipe under Xvfb, at a usable frame rate).
-	Viewport->bDisableWorldRendering = true;
 	// A menu-style game: the cursor shown, the HUD's buttons clickable, the world still gets what the HUD does not take.
 	if (APlayerController* PC = GetFirstLocalPlayerController())
 	{

@@ -40,7 +40,10 @@
 // While it is open and the topmost screen over its viewport, every Tick takes the mouse and the keyboard focus back
 // when the game viewport has them (the engine gives both to it when the window is activated again, Alt+Tab back from
 // the wallet: FSceneViewport::OnViewportActivated; and so does a SetInputMode(GameOnly) under the sheet), and the
-// focus when nothing has it. Every other widget keeps its capture and focus (an editor widget in PIE, a game widget
+// focus when nothing has it. An input processor registered while a screen is open does the same before Slate routes
+// each mouse button and key: the engine's activation and the click or key that caused it come in one message pump,
+// before the next tick (on Linux a click activates the application), and that input would otherwise be the game's.
+// Every other widget keeps its capture and focus (an editor widget in PIE, a game widget
 // or a modal above the sheet, a context menu), and nothing is taken while a modal window is up. A screen below
 // another never takes them, so two stacked screens do not fight. A screen closing below another hands the mouse over
 // with the focus: what it holds (the capture, high precision, the lock) is merged into what the screen on top holds,
@@ -120,6 +123,9 @@ public:
 	bool IsEnded() const { return bEnded; }
 	// The screens shown and not hidden yet, oldest first.
 	static TArray<TSharedRef<SScfgScreen>> OpenScreens();
+	// The topmost open screen takes back what the game viewport took (KeepInput, as on its tick); an input processor
+	// registered while a screen is open calls it before Slate routes a mouse button or a key (see THE MOUSE).
+	static void KeepTopmostInput();
 
 	// --- what tests and drivers read (Godot's control(), focus_order(), ...) ---
 

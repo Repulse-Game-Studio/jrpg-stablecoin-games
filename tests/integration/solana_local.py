@@ -52,7 +52,11 @@ class LocalSolana:
         self.ledger = tempfile.mkdtemp(prefix="scfg-solana-")
         port = _free_port()
         self.proc = subprocess.Popen(
-            [exe, "--ledger", self.ledger, "--reset", "--quiet", "--rpc-port", str(port),
+            # --bind-address: gossip, repair, TVU, TPU on loopback (Agave 4.3's default, made explicit).
+            # The RPC and pubsub (port, port + 1) and the faucet still listen on 0.0.0.0, and so does
+            # a UDP socket on 0.0.0.0:8000 (outside --dynamic-port-range): Agave 4.3 has no option for those.
+            [exe, "--ledger", self.ledger, "--reset", "--quiet", "--bind-address", "127.0.0.1",
+             "--rpc-port", str(port),
              "--faucet-port", str(_free_port()), "--gossip-port", str(_free_port()),
              "--dynamic-port-range", f"{port + 2}-{port + 40}"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

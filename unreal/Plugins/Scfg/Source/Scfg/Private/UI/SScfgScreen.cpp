@@ -1,6 +1,7 @@
 // Twin of godot/addons/scfg/ui/screen_base.gd (see SScfgScreen.h).
 #include "UI/SScfgScreen.h"
 
+#include "Framework/Application/IInputProcessor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Application/SlateUser.h"
 #include "GenericPlatform/GenericApplication.h"
@@ -28,6 +29,61 @@ static TArray<TWeakPtr<SScfgScreen>>& Registry()
 {
 	static TArray<TWeakPtr<SScfgScreen>> Open;
 	return Open;
+}
+
+// While a screen is open: before Slate routes a mouse button or a key, the topmost screen takes back what the game
+// viewport took since its last tick. The engine gives the viewport the focus and the mouse when the window is
+// activated again (FSceneViewport::OnViewportActivated) in the same message pump as the input that activated it (on
+// Linux a mouse button activates the application, FLinuxApplication), so without this that click or key would be the
+// game's. Nothing is consumed: the input is then routed as usual.
+class FInputGuard final : public IInputProcessor
+{
+public:
+	virtual void Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor) override {}
+	virtual bool HandleMouseButtonDownEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override
+	{
+		SScfgScreen::KeepTopmostInput();
+		return false;
+	}
+	virtual bool HandleMouseButtonDoubleClickEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override
+	{
+		SScfgScreen::KeepTopmostInput();
+		return false;
+	}
+	virtual bool HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent) override
+	{
+		SScfgScreen::KeepTopmostInput();
+		return false;
+	}
+	virtual const TCHAR* GetDebugName() const override { return TEXT("ScfgScreenInputGuard"); }
+};
+
+static TSharedPtr<FInputGuard>& Guard()
+{
+	static TSharedPtr<FInputGuard> G;
+	return G;
+}
+
+// The guard is registered while a screen is open, and only then.
+static void UpdateGuard()
+{
+	if (!FSlateApplication::IsInitialized())
+	{
+		Guard().Reset();
+		return;
+	}
+	Registry().RemoveAll([](const TWeakPtr<SScfgScreen>& W) { return !W.IsValid(); });
+	TSharedPtr<FInputGuard>& G = Guard();
+	if (!Registry().IsEmpty() && !G.IsValid())
+	{
+		G = MakeShared<FInputGuard>();
+		FSlateApplication::Get().RegisterInputPreProcessor(G);
+	}
+	else if (Registry().IsEmpty() && G.IsValid())
+	{
+		FSlateApplication::Get().UnregisterInputPreProcessor(G);
+		G.Reset();
+	}
 }
 
 // Godot's back arrow (_arrow()): a short line with a chevron, in ink.
@@ -136,6 +192,15 @@ static bool IsDown(const FKey& K)
 SScfgScreen::~SScfgScreen()
 {
 	ScfgScreenDetail::Registry().RemoveAll([this](const TWeakPtr<SScfgScreen>& W) { return !W.IsValid() || W.Pin().Get() == this; });
+	ScfgScreenDetail::UpdateGuard();
+}
+
+void SScfgScreen::KeepTopmostInput()
+{
+	for (const TSharedRef<SScfgScreen>& Screen : OpenScreens())
+	{
+		Screen->KeepInput();  // only the topmost open screen over its viewport acts (IsTopmost)
+	}
 }
 
 void SScfgScreen::ConstructScreen(const TSharedRef<FScfgStyle>& InStyle)
@@ -334,6 +399,7 @@ void SScfgScreen::OnShown()
 	}
 	ScfgScreenDetail::Registry().RemoveAll([this](const TWeakPtr<SScfgScreen>& W) { return !W.IsValid() || W.Pin().Get() == this; });
 	ScfgScreenDetail::Registry().Add(Self);
+	ScfgScreenDetail::UpdateGuard();
 	Refresh();
 	// shown again (a UMG host re-adding its widget): nothing to rebuild, but the focus is taken all the same
 	if (!bEnded && LastSignature.IsSet() && !Covered())
@@ -346,6 +412,7 @@ void SScfgScreen::OnHidden(bool bRestoreFocus)
 {
 	const TSharedRef<SScfgScreen> Self = StaticCastSharedRef<SScfgScreen>(AsShared());
 	ScfgScreenDetail::Registry().RemoveAll([this](const TWeakPtr<SScfgScreen>& W) { return !W.IsValid() || W.Pin().Get() == this; });
+	ScfgScreenDetail::UpdateGuard();
 	if (!bRestoreFocus || !FSlateApplication::IsInitialized())
 	{
 		return;

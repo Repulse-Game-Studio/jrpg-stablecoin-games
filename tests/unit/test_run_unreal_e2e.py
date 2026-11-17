@@ -69,7 +69,24 @@ def test_read_processes_parses_a_command_name_with_spaces_and_parentheses(tmp_pa
     (proc / "42" / "stat").write_text("42 (Web Content (x)) S 7 42 42 0 -1\n")
     (proc / "42" / "cmdline").write_bytes(b"/usr/bin/Xvfb\0:3\0-screen\0")
     (proc / "self").mkdir()
-    assert e2e.read_processes(proc) == [e2e.Proc(42, 7, ("/usr/bin/Xvfb", ":3", "-screen"))]
+    assert e2e.read_processes(proc) == [e2e.Proc(42, 7, ("/usr/bin/Xvfb", ":3", "-screen"), 42, "S")]
+
+
+def test_run_tree_is_the_session_and_every_descendant_also_in_other_sessions():
+    """The browser Playwright starts in a session of its own, and what it starts, are ended with
+    the run; a zombie, this process and an unrelated process are not."""
+    procs = [
+        e2e.Proc(10, 1, ("xvfb-run",), sid=10),
+        e2e.Proc(11, 10, ("python",), sid=10),
+        e2e.Proc(12, 11, ("node",), sid=10),
+        e2e.Proc(13, 12, ("chrome",), sid=13),
+        e2e.Proc(14, 13, ("chrome", "--type=renderer"), sid=13),
+        e2e.Proc(15, 11, ("anvil",), sid=10, state="Z"),
+        e2e.Proc(16, 1, ("unrelated",), sid=16),
+        e2e.Proc(17, 1, ("orphan of ours",), sid=10),
+        e2e.Proc(99, 1, ("outer",), sid=99),
+    ]
+    assert e2e.run_tree(10, procs, me=11) == [10, 12, 13, 14, 17]
 
 
 def test_the_outer_run_reruns_itself_under_xvfb_run_without_the_desktop():
@@ -89,8 +106,13 @@ def test_the_game_environment_forces_lavapipe_and_isolates_the_game(tmp_path):
     assert env["DISPLAY"] == ":99" and env["XAUTHORITY"] == "/tmp/xvfb-run.x/Xauthority"
     assert env["VK_ICD_FILENAMES"] == env["VK_DRIVER_FILES"] == e2e.LAVAPIPE_ICD
     assert env["SDL_VIDEODRIVER"] == "x11"
-    for gone in ("WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "LD_LIBRARY_PATH"):
+    for gone in ("WAYLAND_DISPLAY", "LD_LIBRARY_PATH"):
         assert gone not in env
+    # an address that goes nowhere: with none, libdbus would autolaunch a bus (and portals, gvfs,
+    # the accessibility bus) in sessions of their own
+    assert env["DBUS_SESSION_BUS_ADDRESS"] == e2e.NO_BUS and not Path(e2e.NO_BUS[10:]).exists()
+    assert env["NO_AT_BRIDGE"] == "1" and env["GVFS_DISABLE_FUSE"] == "1"
+    assert env["GIO_USE_VFS"] == "local"
     for key in ("HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME"):
         assert Path(env[key]).is_relative_to(tmp_path / "home"), key
 
@@ -100,7 +122,7 @@ def test_the_config_names_the_control_socket_and_the_chain_and_is_private(tmp_pa
     family = {"configure": {"wallet": "0xabc"}, "items": {"chapter2": {"code": 1}}}
     chain = {"network": "mainnet", "key": "arbitrum", "rpc": ["http://127.0.0.1:1"]}
     e2e.write_config(path, family, chain, 4321, "secret")
-    assert json.loads(path.read_text()) == {**family, "chain": chain,
+    assert json.loads(path.read_text()) == {**family, "chain": chain, "draw_world": False,
                                             "control": {"port": 4321, "token": "secret"}}
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     e2e.write_config(path, family, None, 4321, "secret")
@@ -122,15 +144,24 @@ def test_the_game_command_renders_on_the_cpu_and_never_headless(tmp_path):
     assert "-AllowCPUDevices" in packaged
 
 
-def test_problems_are_our_errors_and_warnings_and_crashes_only():
-    log = "\n".join([
+def test_problems_are_every_error_and_warning_but_the_measured_engine_ones():
+    allowed = [
         "[1][0]LogScfg: scfg: the payment state file is /tmp/x/state.json",
-        "[1][0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'X'",
+        "[1][0]LogEditorDataStorageUI: Warning: Unable to register widget factory "
+        "'AlertWidgetConstructor' as purpose '0' isn't registered.",
+        '[1][0]LogCsvProfiler: Warning: Metadata value sanitized due to invalid characters: '
+        'gpu="llvmpipe (LLVM 20.1.2, 256 bits)"',
+    ]
+    bad = [
         "[1][0]LogScfg: Error: scfg: worker error: boom",
         "[1][0]LogScfgDev: Warning: showcase: no game viewport, no HUD",
+        "[1][0]LogSlate: Error: something the plugin made Slate say",
+        "[1][0]LogHttp: Warning: a request of ours",
+        "[1][0]LogEditorDataStorageUI: Warning: something else of that category",
         "[1][0]LogOutputDevice: Error: Ensure condition failed: x",
-    ])
-    assert e2e.problems(log) == log.splitlines()[2:]
+        "Segmentation fault (core dumped)",
+    ]
+    assert e2e.problems("\n".join(allowed + bad)) == bad
 
 
 def test_the_packaged_build_command_stages_a_development_game(tmp_path):
@@ -142,6 +173,88 @@ def test_the_packaged_build_command_stages_a_development_game(tmp_path):
         assert flag in cmd, flag
     cooker = [a for a in cmd if a.startswith("-AdditionalCookerOptions=")]
     assert cooker == ["-AdditionalCookerOptions=-ddc=NoZenLocalFallback -notraceserver"]
+
+
+def test_uat_writes_its_logs_into_the_run(tmp_path):
+    env = e2e.uat_env({"PATH": "/bin"}, tmp_path)
+    assert env == {"PATH": "/bin", "uebp_LogFolder": str(tmp_path / "uat-logs"),
+                   "uebp_EngineSavedFolder": str(tmp_path / "uat-saved")}
+
+
+def _png(path, width, height, pixel):
+    """An RGBA PNG whose rows use every filter type in turn (the decoder must undo each)."""
+    import struct
+    import zlib
+
+    raw = b""
+    for y in range(height):
+        kind = y % 5
+        line = bytes(c for x in range(width) for c in pixel(x, y))
+        prev = bytes(c for x in range(width) for c in pixel(x, y - 1)) if y else bytes(len(line))
+        out = bytearray()
+        for i, v in enumerate(line):
+            a = line[i - 4] if i >= 4 else 0
+            b = prev[i]
+            c = prev[i - 4] if i >= 4 else 0
+            pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+            pred = [0, a, b, (a + b) // 2, a if pa <= pb and pa <= pc else b if pb <= pc else c][kind]
+            out.append((v - pred) & 255)
+        raw += bytes([kind]) + bytes(out)
+
+    def chunk(kind, body):
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(
+            ">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
+
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height,
+                     8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def test_read_png_undoes_every_filter(tmp_path):
+    def pixel(x, y):
+        return ((x * 7 + y) & 255, (x * y) & 255, (255 - x) & 255, 255)
+
+    _png(tmp_path / "p.png", 9, 10, pixel)
+    width, height, ch, rows = e2e.read_png(tmp_path / "p.png")
+    assert (width, height, ch) == (9, 10, 4)
+    assert all(rows[y][x * 4:x * 4 + 4] == bytes(pixel(x, y)) for y in range(10) for x in range(9))
+
+
+def test_sheet_drawn_wants_the_panel_with_text_beside_a_dimmed_game(tmp_path, monkeypatch):
+    monkeypatch.setattr(e2e, "WINDOW", (64, 40))
+    view = {"buttons": [{"rect": [36, 4, 20, 6]}, {"rect": [36, 30, 20, 6]}]}
+
+    def drawn(x, y):
+        if x < 32:
+            return (8, 8, 12, 255)  # the dimmed game
+        return (20, 30, 40, 255) if (x + y) % 9 == 0 else (*e2e.SHEET_RGB, 255)
+
+    _png(tmp_path / "ok.png", 64, 40, drawn)
+    assert e2e.sheet_drawn(tmp_path / "ok.png", view) is None
+    _png(tmp_path / "black.png", 64, 40, lambda x, y: (0, 0, 0, 255))
+    assert "panel" in e2e.sheet_drawn(tmp_path / "black.png", view)
+    _png(tmp_path / "blank.png", 64, 40, lambda x, y: (8, 8, 8, 255) if x < 32 else
+         (*e2e.SHEET_RGB, 255))
+    assert "text" in e2e.sheet_drawn(tmp_path / "blank.png", view)
+    _png(tmp_path / "small.png", 32, 20, drawn)
+    assert "32x20" in e2e.sheet_drawn(tmp_path / "small.png", view)
+
+
+def test_remove_work_leaves_a_directory_with_a_mount_under_it(tmp_path, monkeypatch, capsys):
+    work = tmp_path / "scfg-unreal-e2e-x"
+    (work / "home" / ".gvfs").mkdir(parents=True)
+    real_read = Path.read_text
+
+    def read_text(self, *a, **kw):
+        if str(self) == "/proc/mounts":
+            return f"gvfsd-fuse {work / 'home' / '.gvfs'} fuse.gvfsd-fuse rw 0 0\n"
+        return real_read(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    e2e.remove_work(work)
+    assert work.exists() and "mounted" in capsys.readouterr().out
+    monkeypatch.setattr(Path, "read_text", real_read)
+    e2e.remove_work(work)
+    assert not work.exists()
 
 
 def test_staged_game_finds_the_binary_or_fails(tmp_path):
@@ -194,24 +307,26 @@ def test_kill_group_kills_the_child_and_what_it_started(tmp_path):
     assert not e2e.group_alive(proc.pid)
 
 
-def test_kill_session_kills_every_process_of_the_runs_session(tmp_path):
-    """The outer run's last step: whatever is left in the session (a chain node, a browser, a
-    game in its own process group) is killed."""
+def test_kill_session_kills_the_runs_session_and_what_it_started_elsewhere(tmp_path):
+    """The outer run's last step: whatever is left in the session (a chain node, a game in its own
+    process group) and what those started in sessions of their own (a browser) is ended."""
     pids = tmp_path / "pids"
     proc = subprocess.Popen(
-        ["sh", "-c", f"sleep 60 & echo $! >> {pids}; (sleep 62 & echo $! >> {pids}; wait) & wait"],
+        ["sh", "-c", f"sleep 60 & echo $! >> {pids}; (sleep 62 & echo $! >> {pids}; wait) & "
+         f"setsid sh -c 'sleep 63 & echo $! >> {pids}; wait' & wait"],
         start_new_session=True)
     deadline = time.monotonic() + 5
-    while not pids.exists() or len(pids.read_text().split()) < 2:
+    while not pids.exists() or len(pids.read_text().split()) < 3:
         assert time.monotonic() < deadline
         time.sleep(0.05)
-    members = e2e.session_members(proc.pid)
     started = [int(p) for p in pids.read_text().split()]
-    assert proc.pid in members and set(started) <= set(members)
-    assert e2e.kill_session(proc.pid) >= 3
+    tree = e2e.run_tree(proc.pid, e2e.read_processes())
+    assert proc.pid in tree and set(started) <= set(tree)
+    assert os.getsid(started[2]) != proc.pid  # the third is in a session of its own
+    assert e2e.kill_session(proc.pid) >= 5
     proc.wait(5)
     assert _wait_gone(started) == []
-    assert e2e.session_members(proc.pid) == []
+    assert e2e.run_tree(proc.pid, e2e.read_processes()) == []
 
 
 def test_the_inner_run_refuses_a_display_that_is_not_its_own(monkeypatch, capsys):

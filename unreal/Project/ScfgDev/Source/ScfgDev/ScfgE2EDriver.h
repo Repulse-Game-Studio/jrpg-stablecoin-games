@@ -9,6 +9,9 @@
 //              the built-in chain entry is pointed at the local test node and its mock token, as the integration
 //              driver's override (unreal/core-driver/Main.cpp, apply_override) and the Godot driver's SCFG_E2E_CHAIN do
 //   control    {port, token}: the runner's control socket on 127.0.0.1 and the token the driver greets it with
+//   draw_world false (optional): UGameViewportClient::bDisableWorldRendering, for a software renderer (the runner's
+//              lavapipe draws even the empty Entry map at under one frame a second; the showcase itself always
+//              draws its world, Shipping included)
 // A config that is not a JSON object of that shape is logged ("LogScfgDev: Error: e2e config <path>: <why>") and the
 // showcase quits with exit code 1.
 //
@@ -111,10 +114,12 @@ private:
 	void OnFocusChanging(const FFocusEvent& Event, const FWeakWidgetPath& OldPath, const TSharedPtr<SWidget>& OldWidget,
 		const FWidgetPath& NewPath, const TSharedPtr<SWidget>& NewWidget);
 
-	FString ConfigPath;
 	FScfgOptions ConfigOptions;
 	TMap<FString, FScfgItem> ConfigItems;
 	int32 ControlPort = 0;
+	// The config's draw_world (default true); false: the game viewport draws no world (set once it exists).
+	bool bDrawWorld = true;
+	bool bWorldSet = false;
 	FString ControlToken;
 
 	TWeakObjectPtr<UScfgShowcaseGameInstance> Game;
@@ -126,7 +131,6 @@ private:
 	// A step replied with an error: the rest of its command's steps are dropped.
 	bool bAbortSteps = false;
 	FTSTicker::FDelegateHandle TickHandle;
-	FDelegateHandle LaunchUrlHandle;
 	FDelegateHandle FocusHandle;
 	TArray<FString> Opened;
 	bool bRecordFocus = false;
