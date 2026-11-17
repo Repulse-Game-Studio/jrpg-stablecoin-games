@@ -541,6 +541,8 @@ Tested on **Linux x64 with UE 5.8.4**: the editor and the Shipping game build wi
 pass, and the showcase is played end to end under Xvfb in a Development game, paying on local EVM, Arc and Solana
 test chains (by manual transfer, and by the browser method in Chromium with mock wallets). That run covers the
 uncooked game for all three chain families; the packaged game passed it too, at an earlier version of the showcase.
+The showcase's tour also runs on a packaged Development game, configured from the project settings in the staged ini
+with a logo staged as [described above](#the-logo-in-a-packaged-game).
 Not tested yet: play in the editor, a Shipping game run, a real desktop session with a window manager, and HTTPS RPC
 endpoints (the tests serve plain HTTP on loopback).
 

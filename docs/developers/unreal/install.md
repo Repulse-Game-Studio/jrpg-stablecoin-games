@@ -192,8 +192,9 @@ rules.
 6. If you take Solana payments, receive any amount of each token on your mainnet Solana wallet once first. Until
    then the Output Log warns (`scfg: your wallet can't receive USDT on solana yet ...`) and players are not offered
    that token.
-7. Package the game and pay once from the packaged build. A Shipping game has not been run in this preview yet, and
-   neither has a packaged game with a logo (see [Logo](api.md#the-logo-in-a-packaged-game)).
+7. Package the game and pay once from the packaged build. A Shipping game has not been run in this preview yet. If
+   you set a logo, check that **Validate** gives no packaging warning (see
+   [Logo](api.md#the-logo-in-a-packaged-game)).
 
 ## What you get
 
