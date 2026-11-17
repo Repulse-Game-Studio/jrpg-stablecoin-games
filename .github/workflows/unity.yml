@@ -1,0 +1,204 @@
+name: unity
+
+# The Unity glue in real Unity editors and players, through GameCI (https://game.ci): the Unity Test
+# Framework's edit- and play-mode suites on the oldest supported Unity (6.3 LTS) and on the version the
+# dev project is on, then the e2e players built with the dev project's build methods: the Linux IL2CPP
+# player (windowed, under xvfb) and the WebGL player (in Chromium), each paying on Anvil (EVM and Arc)
+# and on solana-test-validator. The C# core's own tests run without Unity in test.yml (cs-core).
+#
+# It needs a Unity license in three repository secrets: UNITY_LICENSE (the contents of
+# Unity_lic.ulf), UNITY_EMAIL and UNITY_PASSWORD (notes/unity-port/unity-setup-guide.md, section 5).
+# GitHub gives no secrets to pull requests from forks, and a repository without them skips every
+# Unity job (the "license" job says so) instead of failing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "unity/**"
+      - "plugin/game/scfg/web/**"
+      - "tools/run_unity_e2e.py"
+      - "tools/run_unity_web_e2e.py"
+      - "tools/check_unity_samples.py"
+      - ".github/workflows/unity.yml"
+  schedule:
+    - cron: "0 7 * * 1"   # weekly, after test.yml: a new runner image or GameCI image shows up here
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AGAVE_VERSION: v4.3.0
+  UNITY_VERSION: 6000.6.9f1   # unity/Project/ProjectSettings/ProjectVersion.txt
+  PROJECT: unity/Project
+
+jobs:
+  license:
+    # Fork pull requests get no secrets: skip the Unity jobs there, and wherever the secrets are unset.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    outputs:
+      ok: ${{ steps.check.outputs.ok }}
+    steps:
+      - id: check
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          if [ -n "$UNITY_LICENSE" ] && [ -n "$UNITY_EMAIL" ] && [ -n "$UNITY_PASSWORD" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::UNITY_LICENSE, UNITY_EMAIL or UNITY_PASSWORD is not set: the Unity jobs are skipped"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  tests:
+    needs: license
+    if: needs.license.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        unity: ["6000.3.28f1", "6000.6.9f1"]   # 6.3 LTS, the package's minimum; the dev project's version
+        mode: [editmode, playmode]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: unity/Project/Library
+          key: library-tests-${{ matrix.unity }}-${{ hashFiles('unity/Project/Packages/packages-lock.json') }}
+          restore-keys: library-tests-${{ matrix.unity }}-
+      - uses: game-ci/unity-test-runner@fa6ced25861c16ef56187828c43f76d00df43a23 # v4.3.2
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: ${{ env.PROJECT }}
+          unityVersion: ${{ matrix.unity }}
+          testMode: ${{ matrix.mode }}
+          artifactsPath: artifacts/${{ matrix.unity }}-${{ matrix.mode }}
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unity-tests-${{ matrix.unity }}-${{ matrix.mode }}
+          path: artifacts/${{ matrix.unity }}-${{ matrix.mode }}
+          if-no-files-found: ignore
+
+  samples:
+    # The Showcase and Demo samples, imported into the dev project as the Package Manager does,
+    # compile and their scenes open (ScfgSamplesCheck.Check, run as the build method).
+    needs: license
+    if: needs.license.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv run --no-project python tools/check_unity_samples.py
+      - name: Copy the samples into the dev project
+        run: cp -r "unity/Packages/com.repulse.scfg/Samples~" "$PROJECT/Assets/Samples"
+      - uses: game-ci/unity-builder@eb1b9fba120c6e62c9fb7a7a81d6c107ce004c45 # v6.0.0
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: ${{ env.PROJECT }}
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: StandaloneLinux64
+          buildMethod: ScfgSamplesCheck.Check
+          allowDirtyBuild: true   # the samples' copy is untracked
+
+  linux-e2e:
+    needs: license
+    if: needs.license.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: unity/Project/Library
+          key: library-linux-${{ env.UNITY_VERSION }}-${{ hashFiles('unity/Project/Packages/packages-lock.json') }}
+          restore-keys: library-linux-${{ env.UNITY_VERSION }}-
+      - name: Build the IL2CPP Linux e2e player (Managed Stripping Level High)
+        uses: game-ci/unity-builder@eb1b9fba120c6e62c9fb7a7a81d6c107ce004c45 # v6.0.0
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: ${{ env.PROJECT }}
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: StandaloneLinux64
+          buildMethod: Scfg.E2E.ScfgE2EBuild.BuildLinux
+          customParameters: -scfgBackend il2cpp -scfgOut /github/workspace/build/linux-il2cpp
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+      - name: Install Agave (solana-test-validator)
+        run: |
+          curl -sSfL -o /tmp/agave.tar.bz2 \
+            "https://github.com/anza-xyz/agave/releases/download/${AGAVE_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          tar xjf /tmp/agave.tar.bz2 -C /tmp
+          echo /tmp/solana-release/bin >> "$GITHUB_PATH"
+      - run: uv sync
+      - name: Make the player runnable (the build container wrote it as root)
+        run: sudo chown -R "$USER" build && chmod +x build/linux-il2cpp/scfg-e2e.x86_64
+      # Windowed under xvfb, so the screens are drawn too (the local runs are -batchmode -nographics).
+      - name: Linux IL2CPP e2e (EVM)
+        run: SCFG_E2E_WINDOWED=1 uv run python tools/run_unity_e2e.py --player build/linux-il2cpp --family evm
+      - name: Linux IL2CPP e2e (Arc, native USDC send)
+        run: SCFG_E2E_WINDOWED=1 uv run python tools/run_unity_e2e.py --player build/linux-il2cpp --family arc
+      - name: Linux IL2CPP e2e (Solana)
+        run: SCFG_E2E_WINDOWED=1 uv run python tools/run_unity_e2e.py --player build/linux-il2cpp --family solana
+
+  webgl-e2e:
+    needs: license
+    if: needs.license.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: unity/Project/Library
+          key: library-webgl-${{ env.UNITY_VERSION }}-${{ hashFiles('unity/Project/Packages/packages-lock.json') }}
+          restore-keys: library-webgl-${{ env.UNITY_VERSION }}-
+      - name: Build the WebGL e2e player (IL2CPP, Managed Stripping Level High, uncompressed)
+        uses: game-ci/unity-builder@eb1b9fba120c6e62c9fb7a7a81d6c107ce004c45 # v6.0.0
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: ${{ env.PROJECT }}
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: WebGL
+          buildMethod: Scfg.E2E.ScfgE2EBuild.BuildWebGL
+          customParameters: -scfgOut /github/workspace/build/webgl
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+      - name: Install Agave (solana-test-validator)
+        run: |
+          curl -sSfL -o /tmp/agave.tar.bz2 \
+            "https://github.com/anza-xyz/agave/releases/download/${AGAVE_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          tar xjf /tmp/agave.tar.bz2 -C /tmp
+          echo /tmp/solana-release/bin >> "$GITHUB_PATH"
+      - run: uv sync
+      - run: sudo chown -R "$USER" build
+      # Playwright drives the runner's preinstalled Google Chrome (run_godot_e2e.launch_chromium).
+      - name: WebGL e2e (EVM)
+        run: uv run python tools/run_unity_web_e2e.py --player build/webgl --family evm
+      - name: WebGL e2e (Arc, native USDC send)
+        run: uv run python tools/run_unity_web_e2e.py --player build/webgl --family arc
+      - name: WebGL e2e (Solana)
+        run: uv run python tools/run_unity_web_e2e.py --player build/webgl --family solana
