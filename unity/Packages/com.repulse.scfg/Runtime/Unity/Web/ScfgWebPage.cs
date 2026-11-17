@@ -26,6 +26,12 @@ namespace Scfg
 
         public bool Installed { get; private set; }
 
+        /// <summary>
+        /// Installed with every page file present and every script run: the browser checkout can work. False when a file
+        /// is missing from the build or a script threw in the page (each warned about), so "Browser wallet" is not offered.
+        /// </summary>
+        public bool Usable { get; private set; }
+
         /// <param name="js">The page.</param>
         /// <param name="loadAsset">A file of the shared page (Resources/ScfgWeb), or null when the build lacks it.</param>
         /// <param name="warn">Developer advice (the facade's Warn: development builds only).</param>
@@ -54,18 +60,49 @@ namespace Scfg
             return null;
         }
 
-        /// <summary>Load bridge.js and the checkout page's scripts into the page, once. A file the build lacks is skipped with a warning.</summary>
+        /// <summary>
+        /// Load bridge.js and the checkout page's scripts into the page, once. A file the build lacks is skipped with a
+        /// warning; scripts that threw in the page are warned about together (most often a Content-Security-Policy that
+        /// forbids eval). Either leaves the page not <see cref="Usable"/>.
+        /// </summary>
         public void Install()
         {
             if (Installed) return;
+            bool usable = true;
+            var failed = new List<string>();
             foreach (var name in Scripts)
             {
                 var code = Text(name);
-                if (code != null) _js.Load(code);
+                if (code == null)
+                {
+                    usable = false;
+                    continue;
+                }
+                bool ran;
+                try
+                {
+                    ran = _js.Load(code);
+                }
+                catch (Exception)
+                {
+                    ran = false;
+                }
+                if (!ran) failed.Add(name);
+            }
+            if (failed.Count > 0)
+            {
+                usable = false;
+                _warn?.Invoke("the checkout page script" + (failed.Count > 1 ? "s " : " ") + string.Join(", ", failed)
+                              + " could not be run in the web page (the"
+                              + " browser console says why; most often a Content-Security-Policy whose script-src lacks"
+                              + " 'unsafe-eval'), so the browser checkout is off and \"Browser wallet\" is not offered."
+                              + " See \"WebGL builds\" in the package's documentation.");
             }
             var page = Text("index.html");
+            if (page == null) usable = false;
             CallRaw("setPage", page ?? "");
             Installed = true;
+            Usable = usable;
         }
 
         private string? CallRaw(string function, params object?[] args) =>

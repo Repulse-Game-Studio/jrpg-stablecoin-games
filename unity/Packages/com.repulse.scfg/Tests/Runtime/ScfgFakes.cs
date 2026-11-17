@@ -197,10 +197,13 @@ namespace Scfg.Tests
         public int Syncs;
         public bool Persistent = true;
 
+        /// <summary>Scripts whose code contains one of these throw in the page (Load answers false), as under a strict CSP.</summary>
+        public readonly List<string> LoadFails = new List<string>();
+
         public bool Load(string code)
         {
             Loaded.Add(code);
-            return true;
+            return !LoadFails.Any(code.Contains);
         }
 
         /// <summary>Queue answers for <paramref name="function"/>: each value as the jslib returns it (JSON of the answer).</summary>

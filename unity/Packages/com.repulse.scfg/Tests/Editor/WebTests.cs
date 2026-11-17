@@ -64,6 +64,38 @@ namespace Scfg.Tests
         }
 
         [Test]
+        public void AFullInstallIsUsable()
+        {
+            var warnings = new List<string>();
+            var page = Page(new FakeWebJs(), warnings);
+            Assert.That(page.Usable, Is.False, "not before Install");
+            page.Install();
+            Assert.That(page.Usable, Is.True);
+            Assert.That(warnings, Is.Empty);
+            var missing = new ScfgWebPage(new FakeWebJs(), name => name == "app.js" ? null : Asset(name), warnings.Add);
+            missing.Install();
+            Assert.That(missing.Usable, Is.False, "a missing file");
+        }
+
+        [Test]
+        public void InstallWarnsOnceAboutScriptsThatFailedInThePage()
+        {
+            var js = new FakeWebJs();
+            js.LoadFails.Add("/*bridge*/");
+            js.LoadFails.Add("/*app*/");
+            var warnings = new List<string>();
+            var page = Page(js, warnings);
+            page.Install();
+            page.Install();
+            Assert.That(js.Loaded.Count, Is.EqualTo(4), "every script is still tried");
+            Assert.That(warnings.Count, Is.EqualTo(1));
+            Assert.That(warnings[0], Does.Contain("scripts bridge.js, app.js could not be run"));
+            Assert.That(warnings[0], Does.Contain("'unsafe-eval'"));
+            Assert.That(page.Installed, Is.True);
+            Assert.That(page.Usable, Is.False);
+        }
+
+        [Test]
         public void ValuesReachThePageAsJsonArguments()
         {
             var js = new FakeWebJs();
@@ -384,6 +416,20 @@ namespace Scfg.Tests
             _rig.Settle();
             Assert.That(_rig.Host.Last.Checkout.Core.Methods(), Is.EqualTo(new[] { "manual" }));
             Assert.That(_js.CallsTo("hasWallet").First(), Is.EqualTo(new List<object?> { "evm", Chains.Mainnet["arbitrum"].WalletChain }));
+        }
+
+        [Test]
+        public void APageWhoseScriptsFailedOffersNoBrowserCheckout()
+        {
+            _js.LoadFails.Add("window.scfgBridge"); // bridge.js (the real files: Resources/ScfgWeb)
+            _rig.Configure(new ScfgMethods { Qr = false });
+            SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
+            _rig.Settle();
+            var ctl = _rig.Host.Last.Checkout;
+            Assert.That(ctl.Core.Methods(), Is.EqualTo(new[] { "manual" }), "\"Browser wallet\" is not offered");
+            Assert.That(ctl.Core.ServerFactory, Is.Null, "no overlay");
+            Assert.That(_js.CallsTo("hasWallet"), Is.Empty, "a page without its bridge is not asked");
+            Assert.That(_rig.Warnings.Count(w => w.Contains("bridge.js could not be run")), Is.EqualTo(1));
         }
 
         [Test]

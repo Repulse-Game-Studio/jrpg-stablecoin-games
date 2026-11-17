@@ -49,12 +49,16 @@ namespace Scfg
             return S.Page;
         }
 
-        /// <summary>The checkout controllers' browser_wallet on the web: does the page have a wallet for the chain.</summary>
+        /// <summary>
+        /// The checkout controllers' browser_wallet on the web: does the page have a wallet for the chain (never, when the
+        /// checkout page could not be installed: ScfgWebPage.Usable).
+        /// </summary>
         private static Func<Chain, bool>? BrowserWalletFor()
         {
             if (!S.Platform.IsWeb) return null;
             var page = WebPage();
             if (page == null) return null;
+            if (!page.Usable) return _ => false;
             return chain =>
             {
                 try
@@ -69,11 +73,11 @@ namespace Scfg
             };
         }
 
-        /// <summary>The overlay a web checkout pays in (Godot's _server_factory on the web).</summary>
+        /// <summary>The overlay a web checkout pays in (Godot's _server_factory on the web); null without a usable page.</summary>
         private static Func<ServerArgs, ICheckoutServer>? OverlayFactory()
         {
             var page = WebPage();
-            if (page == null) return null;
+            if (page == null || !page.Usable) return null;
             return args =>
             {
                 var logoUrl = LogoDataUrl();
