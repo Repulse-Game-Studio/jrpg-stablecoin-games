@@ -1,6 +1,6 @@
 // The Unreal glue around the payment core (unreal/README.md, "The glue module"): the worker that drives the core's
-// Engine on the game thread, the FHttpModule transport, the UTF-8 bridge, and (later tasks) the store, the facade,
-// the checkout server and the UI.
+// Engine on the game thread, the FHttpModule transport, the UTF-8 bridge, the store (state.json), and (later tasks) the
+// facade, the checkout server and the UI.
 using UnrealBuildTool;
 
 public class Scfg : ModuleRules
