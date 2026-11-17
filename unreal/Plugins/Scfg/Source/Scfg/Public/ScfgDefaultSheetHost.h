@@ -58,7 +58,8 @@ public:
 
 	void SetStyleOverride(TSharedPtr<const ISlateStyle> InOverride) { StyleOverride = MoveTemp(InOverride); }
 	// What the screens take as the game viewport's wish for the mouse (default: read from the game viewport client,
-	// ScfgDefaultSheetHostDetail::WishOf). For a game that draws its world in a widget of its own, and for the tests.
+	// ScfgDefaultSheetHostDetail::WishOf). For the plugin's own tests: FScfgMouseWish is defined in a Private header
+	// (UI/SScfgScreen.h), so a game module cannot build one.
 	void SetMouseWishOverride(TFunction<FScfgMouseWish()> InWish) { MouseWishOverride = MoveTemp(InWish); }
 
 	// The screens shown, oldest first, and their widgets (SScfgPaymentSheet / SScfgRestoreScreen): what tests and the

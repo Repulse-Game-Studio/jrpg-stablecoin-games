@@ -1479,6 +1479,67 @@ bool FScfgSheetOthersKeepInputTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// Task 7 re-review 3 (N1): a screen that closes below another hands what it took of the game viewport (the capture
+// too) to the screen on top, merged with what that one holds, so the last close gives the capture back: with nothing
+// held by the top screen, and with a lock alone held by it (an always-locking viewport).
+SCFG_SHEET_TEST(FScfgSheetHandOverTest, "TheScreenBelowHandsItsCaptureToTheTop")
+
+bool FScfgSheetHandOverTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSheetTestsDetail;
+	FSheetRig R(*this);
+	if (!R.bReady)
+	{
+		return false;
+	}
+	R.Started(*this);
+	TSharedPtr<SWidget> Game = R.Game;
+	for (const bool bAlwaysLock : {false, true})
+	{
+		const TCHAR* Case = bAlwaysLock ? TEXT("always-lock: ") : TEXT("nothing on top: ");
+		R.Host->SetMouseWishOverride([Game, bAlwaysLock]()
+		{
+			FScfgMouseWish Wish;
+			Wish.Viewport = Game;
+			Wish.bCapture = true;
+			Wish.bAlwaysLock = bAlwaysLock;
+			return Wish;
+		});
+		R.GameCapturesTheMouse();
+		const TSharedRef<TOptional<FScfgPaymentResult>> Below = R.W.Pay(EScfgPayKind::Unlock, Unlock());
+		R.Frame(2);
+		const TSharedPtr<SScfgPaymentSheet> Lower = R.Sheet();
+		if (!TestTrue(FString(Case) + TEXT("the sheet"), Lower.IsValid()))
+		{
+			return false;
+		}
+		TestTrue(FString(Case) + TEXT("the sheet took the game's capture"), Lower->HeldMouseCaptor() == R.Game &&
+			R.MouseCaptor() != R.Game);
+		const TSharedRef<TOptional<FScfgRestoreResult>> Above = R.W.Restore();
+		R.Frame(2);
+		const TSharedPtr<SScfgRestoreScreen> Top = R.RestoreScreen();
+		if (!TestTrue(FString(Case) + TEXT("the restore screen on top, with the focus"), Top.IsValid() &&
+				R.FocusInside(*Top)))
+		{
+			return false;
+		}
+		TestEqual(FString(Case) + TEXT("the top screen holds a lock alone only under an always-locking viewport"),
+			Top->HeldMouseCaptor() == R.Game, bAlwaysLock);
+		Lower->CloseWith(TEXT("cancel"));  // the screen below closes first (a programmatic close)
+		R.Frame(2);
+		TestTrue(FString(Case) + TEXT("the sheet below closed"), Below->IsSet() && !Lower->IsOpen());
+		TestTrue(FString(Case) + TEXT("the top screen keeps the focus"), R.FocusInside(*Top));
+		TestTrue(FString(Case) + TEXT("and now holds the viewport's capture"), Top->HeldMouseCaptor() == R.Game);
+		TestTrue(FString(Case) + TEXT("nobody has the capture meanwhile"), R.MouseCaptor() != R.Game);
+		R.Key(EKeys::Escape);
+		R.Frame(2);
+		TestTrue(FString(Case) + TEXT("the restore screen closed"), Above->IsSet());
+		TestTrue(FString(Case) + TEXT("the last close gave the capture back to the game"), R.MouseCaptor() == R.Game);
+		FSlateApplication::Get().ReleaseAllPointerCapture(0);
+	}
+	return true;
+}
+
 // Ruling R2-15 (M1): a sheet the game takes off the viewport itself ("Remove All Widgets") is released on the host's
 // next frame: the flow resolves as cancel, the focus goes back, nothing is left open.
 SCFG_SHEET_TEST(FScfgSheetRemovedTest, "ASheetTheGameRemovesCountsAsCancel")

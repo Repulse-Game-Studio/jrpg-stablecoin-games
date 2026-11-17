@@ -32,17 +32,20 @@
 // capture, high precision and lock back exactly so, by a reply on the captor's path: this does not depend on the focus
 // cause, so a PIE viewport (which re-captures only on a mouse focus) gets its capture back too. It gives back what the
 // game wants then (SetMouseWish: the viewport client's capture mode, cursor and lock mode, and the player controller's
-// cursor), not what it recorded, so a game that changed its input mode meanwhile keeps its new one; only without a
-// wish is the recorded state replayed. Only the game viewport's hold is taken and recorded (the wish names the viewport
-// widget; without one nothing is taken): a capture, given back only if the game still wants one; a lock without a
-// capture only where the viewport always locks (ShouldAlwaysLockMouse), given back as a lock alone. Nothing held at
-// open is never turned into a capture at close. While it is open and the topmost screen over its viewport, every Tick
-// takes the mouse and the keyboard focus back when the game viewport has them (the engine gives both to it when the
-// window is activated again, Alt+Tab back from the wallet: FSceneViewport::OnViewportActivated; and so does a
-// SetInputMode(GameOnly) under the sheet), and the focus when nothing has it. Every other widget keeps its capture
-// and focus (an editor widget in PIE, a game widget or a modal above the sheet, a context menu), and nothing is
-// taken while a modal window is up. A screen below another never takes them, so two stacked screens do not fight. A screen closing below another hands the mouse
-// over with the focus; a game that hid the platform cursor itself (SetPlatformCursorVisibility) is left as it is.
+// cursor), not what it recorded, so a game that changed its input mode meanwhile keeps its new one; only when the wish
+// at the close names no viewport is what was taken given back, to the viewport it was taken from. Only the game
+// viewport's hold is taken and recorded (the wish names the viewport widget; without one nothing is taken): a capture,
+// given back only if the game still wants one; a lock without a capture only where the viewport always locks
+// (ShouldAlwaysLockMouse), given back as a lock alone. Nothing held at open is never turned into a capture at close.
+// While it is open and the topmost screen over its viewport, every Tick takes the mouse and the keyboard focus back
+// when the game viewport has them (the engine gives both to it when the window is activated again, Alt+Tab back from
+// the wallet: FSceneViewport::OnViewportActivated; and so does a SetInputMode(GameOnly) under the sheet), and the
+// focus when nothing has it. Every other widget keeps its capture and focus (an editor widget in PIE, a game widget
+// or a modal above the sheet, a context menu), and nothing is taken while a modal window is up. A screen below
+// another never takes them, so two stacked screens do not fight. A screen closing below another hands the mouse over
+// with the focus: what it holds (the capture, high precision, the lock) is merged into what the screen on top holds,
+// so the last one to close gives it all back. A game that hid the platform cursor itself (SetPlatformCursorVisibility)
+// is left as it is.
 //
 // FOCUS AND OTHER SCREENS. The focus the game had (every Slate user's) goes back to it when the screen closes
 // (OnHidden). Several screens can be open at once, the later one on top: a rebuild never takes the focus from a
@@ -73,7 +76,8 @@ class SVerticalBox;
 // viewport client and its player controller): the screen gives the mouse back by it, not by what it recorded at open.
 struct FScfgMouseWish
 {
-	// The viewport's widget (the captor and the lock target); null: unknown, the recorded state is replayed.
+	// The viewport's widget (the captor and the lock target); null: unknown: nothing is taken, and at the close what
+	// was taken is given back to the viewport it was taken from.
 	TSharedPtr<SWidget> Viewport;
 	// The viewport captures (a permanent capture mode, input not ignored), hides the cursor while it does (high
 	// precision), and locks the cursor with its capture.
@@ -277,7 +281,8 @@ private:
 	bool bCaptureHeld = false;
 	// The open screen drawn over all others (the one that takes the mouse and the focus back).
 	bool IsTopmost() const;
-	// Tick: on top, open, and the mouse capture or the keyboard focus is outside: take them again.
+	// Tick: open and on top: take the mouse again when the game viewport holds the capture, and the keyboard focus
+	// when the viewport has it or nobody does (never from another widget).
 	void KeepInput();
 	bool bShowWhenPainted = false;
 	// The left stick moved past the threshold on an axis (one step per push).

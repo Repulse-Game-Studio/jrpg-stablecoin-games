@@ -362,13 +362,29 @@ void SScfgScreen::OnHidden(bool bRestoreFocus)
 				Top->BackScreen = BackScreen;
 				Top->BackKey = BackKey;
 			}
-			if (!Top->bMouseHeld && bMouseHeld)
+			if (bMouseHeld)
 			{
-				Top->MouseCaptor = MouseCaptor;
+				// What this screen took goes to the one on top, merged with what that one holds itself (a lock alone
+				// under an always-locking viewport, taken after this screen had the capture): its close gives it all
+				// back.
+				if (!Top->bMouseHeld)
+				{
+					Top->MouseCaptor = MouseCaptor;
+					Top->bMouseHighPrecision = bMouseHighPrecision;
+				}
+				else if (bCaptureHeld && !Top->bCaptureHeld)
+				{
+					Top->bMouseHighPrecision = bMouseHighPrecision;
+				}
+				if (!Top->MouseCaptor.IsValid())
+				{
+					Top->MouseCaptor = MouseCaptor;
+				}
 				Top->bMouseHeld = true;
-				Top->bMouseHighPrecision = bMouseHighPrecision;
-				Top->bMouseLocked = bMouseLocked;
+				Top->bCaptureHeld = Top->bCaptureHeld || bCaptureHeld;
+				Top->bMouseLocked = Top->bMouseLocked || bMouseLocked;
 				bMouseHeld = false;
+				bCaptureHeld = false;
 			}
 			return;
 		}
