@@ -65,26 +65,30 @@ void SScfgShowcaseHud::Construct(const FArguments& InArgs)
 	auto Text = [this, &Body](const FString& S) -> TSharedRef<STextBlock>
 	{
 		Labels.Add(S);
-		return SNew(STextBlock).Text(FText::FromString(S)).Font(Body).ColorAndOpacity(FLinearColor::White);
+		return SNew(STextBlock).Text(FText::FromString(S)).Font(Body).ColorAndOpacity(FLinearColor::White)
+			.Visibility(EVisibility::HitTestInvisible);
 	};
-	const TSharedRef<SVerticalBox> Column = SNew(SVerticalBox);
+	// Only the buttons take clicks: a click anywhere else is the world's (the player controller counts them).
+	SetVisibility(EVisibility::SelfHitTestInvisible);
+	const TSharedRef<SVerticalBox> Column = SNew(SVerticalBox).Visibility(EVisibility::SelfHitTestInvisible);
 	Labels.Add(TEXT("Stablecoin for Games Showcase"));
 	Column->AddSlot().AutoHeight().Padding(0, 0, 0, 8)
 	[
 		SNew(STextBlock).Text(FText::FromString(Labels.Last())).Font(Title).ColorAndOpacity(FLinearColor::White)
+			.Visibility(EVisibility::HitTestInvisible)
 	];
 	Column->AddSlot().AutoHeight().Padding(0, 0, 0, 16)[Text(TEXT("This build runs on testnets, so no real money is involved."))];
-	Column->AddSlot().AutoHeight().Padding(0, 0, 0, 16)[SAssignNew(Chapter, STextBlock).Font(Body).ColorAndOpacity(FLinearColor::White)];
+	Column->AddSlot().AutoHeight().Padding(0, 0, 0, 16)[SAssignNew(Chapter, STextBlock).Visibility(EVisibility::HitTestInvisible).Font(Body).ColorAndOpacity(FLinearColor::White)];
 	Column->AddSlot().AutoHeight().Padding(0, 4)[MakeButton(TEXT("Unlock"), TEXT("Unlock Chapter 2 (1.00 USDC)"), InArgs._OnUnlock)];
 	Column->AddSlot().AutoHeight().Padding(0, 4)[MakeButton(TEXT("Tip"), TEXT("Tip the developer (1.00 USDC)"), InArgs._OnTip)];
 	Column->AddSlot().AutoHeight().Padding(0, 4)[MakeButton(TEXT("Restore"), TEXT("Restore purchases"), InArgs._OnRestore)];
-	Column->AddSlot().AutoHeight().Padding(0, 16, 0, 0)[SAssignNew(Status, STextBlock).Font(Body).ColorAndOpacity(FLinearColor::White).AutoWrapText(true)];
+	Column->AddSlot().AutoHeight().Padding(0, 16, 0, 0)[SAssignNew(Status, STextBlock).Visibility(EVisibility::HitTestInvisible).Font(Body).ColorAndOpacity(FLinearColor::White).AutoWrapText(true)];
 	ChildSlot
 	.HAlign(HAlign_Left)
 	.VAlign(VAlign_Center)
 	.Padding(80, 0, 0, 0)
 	[
-		SNew(SBox).WidthOverride(560)[Column]
+		SNew(SBox).WidthOverride(560).Visibility(EVisibility::SelfHitTestInvisible)[Column]
 	];
 }
 
@@ -319,6 +323,14 @@ void UScfgShowcaseGameInstance::Shutdown()
 	Super::Shutdown();
 }
 
+void UScfgShowcaseGameInstance::SetStatus(const FString& Text)
+{
+	if (Hud.IsValid())
+	{
+		Hud->SetStatus(Text);
+	}
+}
+
 void UScfgShowcaseGameInstance::Refresh()
 {
 	if (!Hud.IsValid())
@@ -380,13 +392,13 @@ void UScfgShowcaseGameInstance::Unlock()
 		{
 		case EScfgPaymentStatus::Paid:
 		case EScfgPaymentStatus::AlreadyOwned:
-			Self->Hud->SetStatus(TEXT("Payment confirmed. Thank you!"));
+			Self->SetStatus(TEXT("Payment confirmed. Thank you!"));
 			break;
 		case EScfgPaymentStatus::Pending:
-			Self->Hud->SetStatus(TEXT("No problem, keep playing. Chapter 2 unlocks by itself when the payment arrives."));
+			Self->SetStatus(TEXT("No problem, keep playing. Chapter 2 unlocks by itself when the payment arrives."));
 			break;
 		default:
-			Self->Hud->SetStatus(FString::Printf(TEXT("Maybe later. (Status: %s)"),
+			Self->SetStatus(FString::Printf(TEXT("Maybe later. (Status: %s)"),
 				*ScfgShowcaseDetail::Word(Result.Status)));
 			break;
 		}
@@ -409,7 +421,7 @@ void UScfgShowcaseGameInstance::Tip()
 		}
 		Self->EndSheet();
 		Self->FocusHud();
-		Self->Hud->SetStatus(Result.Status == EScfgPaymentStatus::Paid
+		Self->SetStatus(Result.Status == EScfgPaymentStatus::Paid
 				? FString::Printf(TEXT("Thank you for the %s %s tip!"), *Result.Amount, *Result.Token)
 				: FString::Printf(TEXT("Tip: %s"), *ScfgShowcaseDetail::Word(Result.Status)));
 	});
@@ -429,7 +441,7 @@ void UScfgShowcaseGameInstance::Restore()
 		Self->EndSheet();
 		Self->Refresh();
 		Self->FocusHud();
-		Self->Hud->SetStatus(FString::Printf(TEXT("Restore: %s"), *ScfgShowcaseDetail::Word(Result.Status)));
+		Self->SetStatus(FString::Printf(TEXT("Restore: %s"), *ScfgShowcaseDetail::Word(Result.Status)));
 	});
 }
 
@@ -439,7 +451,7 @@ void UScfgShowcaseGameInstance::HandlePaymentResolved(const FScfgPaymentResult& 
 	if (Result.Status == EScfgPaymentStatus::Paid && Hud.IsValid())
 	{
 		Refresh();
-		Hud->SetStatus(TEXT("Payment confirmed. Thank you!"));
+		SetStatus(TEXT("Payment confirmed. Thank you!"));
 	}
 }
 

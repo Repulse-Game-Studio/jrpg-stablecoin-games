@@ -119,6 +119,7 @@ private:
 	// logged why).
 	bool ConfigureScfg();
 	void Refresh();
+	void SetStatus(const FString& Text);
 	void FocusHud();
 	void BeginSheet();
 	void EndSheet();

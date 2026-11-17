@@ -873,6 +873,40 @@ bool FScfgE2EDriver::Click(int64 Id, const FString& Name, const FString& Where)
 	return true;
 }
 
+void FScfgE2EDriver::ClickAt(int64 Id, const FVector2D& At)
+{
+	const TSharedPtr<SWindow> Window = GameWindow();
+	if (!Window.IsValid() || !Window->GetNativeWindow().IsValid())
+	{
+		ReplyError(Id, TEXT("no game window"));
+		return;
+	}
+	TWeakPtr<SWindow> WeakWindow = Window;
+	TSharedRef<FString> Under = MakeShared<FString>();
+	Steps.Add([this, At, Under]()
+	{
+		MoveCursor(At);
+		const TSharedPtr<FSlateUser> User = FSlateApplication::Get().GetCursorUser();
+		const TSharedPtr<SWidget> Last = User.IsValid() ? User->GetLastWidgetsUnderCursor().GetLastWidget().Pin() : nullptr;
+		*Under = Last.IsValid() ? FString::Printf(TEXT("%s (%s)"), *Owner(Last), *Last->GetTypeAsString()) : TEXT("none");
+		return true;
+	});
+	Steps.Add([WeakWindow, At]()
+	{
+		const TSharedPtr<SWindow> W = WeakWindow.Pin();
+		FSlateApplication::Get().OnMouseDown(W.IsValid() ? W->GetNativeWindow() : nullptr, EMouseButtons::Left, At);
+		return true;
+	});
+	Steps.Add([this, Id, At, Under]()
+	{
+		FSlateApplication::Get().OnMouseUp(EMouseButtons::Left, At);
+		const TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+		Out->SetStringField(TEXT("under"), *Under);
+		Reply(Id, MakeShared<FJsonValueObject>(Out));
+		return true;
+	});
+}
+
 void FScfgE2EDriver::Key(const FString& Name, bool bRepeat)
 {
 	const FKey K(*Name);
@@ -1029,6 +1063,16 @@ void FScfgE2EDriver::Run(int64 Id, const TSharedRef<FJsonObject>& Command)
 		Command->TryGetStringField(TEXT("name"), Name);
 		Command->TryGetStringField(TEXT("in"), Where);
 		Click(Id, Name, Where);
+	}
+	else if (Op == TEXT("click_at"))
+	{
+		double X = 0, Y = 0;
+		if (!Command->TryGetNumberField(TEXT("x"), X) || !Command->TryGetNumberField(TEXT("y"), Y))
+		{
+			ReplyError(Id, TEXT("click_at needs x and y"));
+			return;
+		}
+		ClickAt(Id, FVector2D(X, Y));
 	}
 	else if (Op == TEXT("key"))
 	{

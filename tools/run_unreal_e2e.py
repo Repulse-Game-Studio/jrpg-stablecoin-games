@@ -285,26 +285,36 @@ def group_alive(pgid: int) -> bool:
 
 
 def session_members(sid: int, proc_root: Path = Path("/proc")) -> list:
-    """The pids of the processes in session `sid` (this user's)."""
+    """The pids of the live processes in session `sid` (this user's; zombies are gone already)."""
     out = []
     for entry in proc_root.iterdir():
         if entry.name.isdigit():
             try:
-                if os.getsid(int(entry.name)) == sid:
-                    out.append(int(entry.name))
-            except (ProcessLookupError, PermissionError):
-                pass
+                if os.getsid(int(entry.name)) != sid:
+                    continue
+                stat = (entry / "stat").read_text()
+            except (ProcessLookupError, PermissionError, OSError):
+                continue
+            if stat[stat.rindex(")") + 2:].split()[0] != "Z":
+                out.append(int(entry.name))
     return out
 
 
-def kill_session(sid: int) -> int:
-    """SIGKILL every process of session `sid` except this one; returns how many were left."""
+def kill_session(sid: int, grace: float = 3.0) -> int:
+    """Ends every process of session `sid` except this one: SIGTERM (so an Xvfb removes its lock
+    file), then SIGKILL what is left after `grace` seconds; returns how many there were."""
     left = [pid for pid in session_members(sid) if pid != os.getpid()]
-    for pid in left:
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        for pid in left:
+            try:
+                os.kill(pid, sig)
+            except ProcessLookupError:
+                pass
+        deadline = time.monotonic() + grace
+        while sig == signal.SIGTERM and time.monotonic() < deadline:
+            if not [pid for pid in session_members(sid) if pid != os.getpid()]:
+                return len(left)
+            time.sleep(0.1)
     return len(left)
 
 
@@ -747,18 +757,32 @@ def real_window_input(game: Game) -> dict:
     print("  LockAlways: the lock released while the sheet was open, back after the close, and "
           "no capture forced")
 
-    # the showcase's own cursor-showing mode: a HUD click after a close reaches the HUD
+    # the showcase's own cursor-showing mode: a click on the empty screen is the world's ...
     game.call("input_mode", mode="ui")
     clicks = game.snapshot()["world_clicks"]
+    empty = (WINDOW[0] * 0.8, WINDOW[1] * 0.85)  # no HUD there, and outside the docked sheet
+    under = game.call("click_at", x=empty[0], y=empty[1])["under"]
+    snap = wait_for(game, "the world to get the click",
+                    lambda s: s["world_clicks"] == clicks + 1, 30)
+    seen["world_click"] = under
+    # ... a HUD click after a close reaches the HUD, not the world ...
+    clicks = snap["world_clicks"]
     game.click("Restore", "game")
     snap = wait_for(game, "the restore screen",
                     lambda s: any(v["kind"] == "restore" for v in s["screens"]))
     expect(snap["world_clicks"] == clicks, "the HUD click reached the world", snap)
+    # ... and with a screen open, a click on the dimmed game is the screen's
+    under = game.call("click_at", x=empty[0] * 0.5, y=empty[1])["under"]
+    snap = wait_for(game, "a frame after the click", lambda s: True)
+    seen["click_on_the_dim"] = under
+    expect(snap["world_clicks"] == clicks and any(v["kind"] == "restore" for v in snap["screens"]),
+           f"a click on the dimmed game (on {under}) reached the world or closed the screen", snap)
     game.key("Escape")
     snap = wait_for(game, "the restore screen to close", no_screen)
     wait_for(game, "the restore status",
              lambda s: "Restore: cancelled" in s["game"]["texts"])
-    print("  cursor shown: a HUD click after a close reached the HUD, not the world")
+    print("  cursor shown: a click on the empty screen reached the world; a HUD click after a "
+          "close reached the HUD, and one on the dimmed game the screen, not the world")
     return seen
 
 

@@ -27,6 +27,7 @@
 //   click {name, in}     a real left click at the middle of the control `name` of the newest screen (in = "screen")
 //                        or of the HUD button `name` (in = "game"); a control below the fold of the sheet's scrolling
 //                        body is scrolled into view with the wheel first. Replies {at, wheel_notches}
+//   click_at {x, y}      a real left click at a desktop position (the world's part of the screen); replies {under}
 //   key {key, repeat?}   a key pressed and released (an FKey name: Enter, Escape, Tab, Down, ...)
 //   type {text}          characters typed
 //   owns {item}          UScfgSubsystem::Owns
@@ -103,6 +104,7 @@ private:
 	TSharedPtr<SWindow> GameWindow() const;
 	TSharedPtr<SWidget> ViewportWidget() const;
 	bool Click(int64 Id, const FString& Name, const FString& Where);
+	void ClickAt(int64 Id, const FVector2D& At);
 	void Key(const FString& Name, bool bRepeat);
 	void SetInputMode(const FString& Mode);
 	void ActivationCycle(int64 Id);
