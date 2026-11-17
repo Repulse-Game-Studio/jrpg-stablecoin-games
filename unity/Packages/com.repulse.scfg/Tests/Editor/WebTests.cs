@@ -469,9 +469,17 @@ namespace Scfg.Tests
             ctl.Paste();
             ctl.Core.TxInput = ScfgRig.Tx;
             ctl.Core.Check();
+            Assert.That(ctl.Core.State, Is.Not.EqualTo("input"), "the screen moved on before the answer");
+            Assert.That(SCFG.Current.PasteTarget, Is.EqualTo(ctl.Rid), "still waiting for the page");
             _js.Answer("takePaste", Json.Dumps(Tx("cd")));
+            int asked = _js.CallsTo("takePaste").Count;
             _rig.Pump();
-            Assert.That(ctl.Core.TxInput, Is.EqualTo(ScfgRig.Tx));
+            Assert.That(_js.CallsTo("takePaste").Count, Is.EqualTo(asked + 1), "the page was asked");
+            Assert.That(_js.Answers["takePaste"], Is.Empty, "and its answer taken");
+            Assert.That(SCFG.Current.PasteTarget, Is.Null, "the answer ends the wait");
+            Assert.That(ctl.Core.TxInput, Is.EqualTo(ScfgRig.Tx), "but is dropped");
+            _rig.Pump(2);
+            Assert.That(_js.CallsTo("takePaste").Count, Is.EqualTo(asked + 1), "not asked again");
         }
 
         [Test]
