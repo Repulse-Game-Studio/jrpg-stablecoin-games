@@ -312,7 +312,13 @@ public:
 
     // Runs work; on_done gets its result when it finishes, inside start() when it finishes without waiting,
     // otherwise inside the complete() that let it finish. on_done must not destroy or restart this Job (it may
-    // start others). Starting a Job that is still running is a programming error; a finished one starts again.
+    // start others); destroying it there is caught and aborts. Starting a Job that is still running is a
+    // programming error; a finished one starts again.
+    //
+    // A callback that work calls while it runs (an Engine's on_error, the ErrorSink of reverify and restore, a
+    // transport's own callbacks) runs inside one of work's frames. Destroying this Job there destroys the frame that
+    // is executing: undefined behaviour, and nothing detects it. Such a callback records what it wants and the
+    // owner acts on it after on_done (or from its own loop).
     void start(Co<T> work, std::function<void(Result<T>)> on_done) {
         if (flags_ && (flags_->in_callback || !flags_->finished))
             detail::programming_error("Job::start() of a Job that is still running");

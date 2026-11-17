@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -24,6 +25,32 @@ Json own_store(const Json& store) {
     if (!store.is_dict()) ::scfg::detail::programming_error("an Engine's pending and receipts must be dicts or None");
     return deep_copy(store);
 }
+
+// One command at a time (Engine.h): a network command holds its Engine's flag for as long as its coroutine is alive
+// (a local of the coroutine, so it is released when the coroutine returns or its frame is destroyed).
+class Running {
+public:
+    Running(bool& busy, std::string_view command) : busy_(busy) {
+        idle_or_abort(busy, command);
+        busy_ = true;
+    }
+    Running(const Running&) = delete;
+    Running& operator=(const Running&) = delete;
+    ~Running() { busy_ = false; }
+
+    // A command started while another runs (re-entry from a callback, a click while a tick waits for HTTP):
+    // Python's workers never interleave jobs, and the running one holds handles to the records the new one would
+    // change, so it is a programming error.
+    static void idle_or_abort(bool busy, std::string_view command) {
+        if (!busy) return;
+        const std::string what = "Engine::" + std::string(command) +
+                                 "() started while another Engine command is running (one command at a time, Engine.h)";
+        ::scfg::detail::programming_error(what.c_str());
+    }
+
+private:
+    bool& busy_;
+};
 
 SystemEntropy& system_entropy() {
     static SystemEntropy e;
@@ -106,6 +133,7 @@ void Engine::report(const Err& e) const {
 // --- payments ---
 
 Co<Json> Engine::start_session(Json kind, Json chain_name, Json opts) {
+    const detail::Running running(running_, "start_session");
     if (!opts.is_dict()) {
         co_return Err::type_error("start_session() argument after ** must be a mapping, not '" +
                                   std::string(opts.type_name()) + "'");
@@ -149,6 +177,7 @@ Co<Json> Engine::start_session(Json kind, Json chain_name, Json opts) {
 }
 
 Co<Json> Engine::build_solana_payment(Json sid, Json account) {
+    const detail::Running running(running_, "build_solana_payment");
     SCFG_CO_TRY(std::string key, detail::pending_key(pending_, sid));
     Json rec = pending_.as_dict().get(key);
     SCFG_CO_TRY(Json chain_key, py::get(rec, "chain"));
@@ -160,6 +189,7 @@ Co<Json> Engine::build_solana_payment(Json sid, Json account) {
 }
 
 Status Engine::report_hint(const Json& sid, const Json& tx_hash) {
+    detail::Running::idle_or_abort(running_, "report_hint");
     SCFG_TRY(std::string key, detail::pending_key(pending_, sid));
     Json rec = pending_.as_dict().get(key);
     SCFG_TRY(Json chain_key, py::get(rec, "chain"));
@@ -170,12 +200,14 @@ Status Engine::report_hint(const Json& sid, const Json& tx_hash) {
 }
 
 Status Engine::set_ui_status(const Json& sid, const Json& status) {
+    detail::Running::idle_or_abort(running_, "set_ui_status");
     SCFG_TRY(std::optional<std::string> key, py::str_key(sid));  // `sid in self.pending`
     if (!key || !pending_.as_dict().contains(*key)) return ok();
     return sessions::set_ui_status(pending_.as_dict(), *key, status);
 }
 
 Status Engine::discard_session(const Json& sid) {
+    detail::Running::idle_or_abort(running_, "discard_session");
     SCFG_TRY(std::optional<std::string> key, py::str_key(sid));  // self.pending.get(sid)
     if (!key) return ok();
     Json rec = pending_.as_dict().get(*key);
@@ -189,6 +221,7 @@ Status Engine::discard_session(const Json& sid) {
 }
 
 Co<std::vector<StepOutcome>> Engine::tick() {
+    const detail::Running running(running_, "tick");
     const Json now(clock_());
     std::vector<StepOutcome> outcomes;
     // list(self.pending.items()): a step may remove sessions (its own, when it is paid or closed).
@@ -273,6 +306,7 @@ Result<std::vector<StepOutcome>> Engine::expire(const Json& now) {
 // --- receipts ---
 
 Co<Json> Engine::reverify() {
+    const detail::Running running(running_, "reverify");
     OrderedMap<chains::Chain> by_key;
     for (const std::string& key : config_.registry().keys()) {
         SCFG_CO_TRY(chains::Chain c, chain(key));
@@ -324,6 +358,7 @@ Co<void> Engine::check_ready() {
 }
 
 Co<std::vector<restore::RestoreCandidate>> Engine::restore_lookup(Json tx_hash) {
+    const detail::Running running(running_, "restore_lookup");
     std::vector<std::string> ordered = config_.chains;
     for (const std::string& key : config_.registry().keys()) {
         if (std::find(config_.chains.begin(), config_.chains.end(), key) == config_.chains.end()) ordered.push_back(key);
@@ -340,6 +375,7 @@ Co<std::vector<restore::RestoreCandidate>> Engine::restore_lookup(Json tx_hash) 
 
 Result<Json> Engine::restore_apply(const std::vector<restore::RestoreCandidate>& candidates,
                                    const std::optional<std::map<int64_t, Json>>& choices) {
+    detail::Running::idle_or_abort(running_, "restore_apply");
     return restore::apply(receipts_.as_dict(), candidates, choices);
 }
 

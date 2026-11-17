@@ -218,6 +218,43 @@ SCFG_TEST(EngineTests, DestroyingASuspendedTickIsSafe) {
     t.check(snap.ok() && snap.value().pending.as_dict().size() == 1, "state intact");
 }
 
+// One command at a time: running() is set while a network command's coroutine is alive, released when it returns
+// (before its Job's on_done, which may start the next command) or when its frame is destroyed. Starting a command
+// while it is set aborts (programming_error); that path is not run here, as the runner has no death tests.
+SCFG_TEST(EngineTests, ACommandHoldsTheEngineWhileItRuns) {
+    HeldTransport transport;
+    Json pending = Json::dict({{"ps_a", awaiting("base", 1700000000)}});
+    engine::Engine eng(base_config(), transport, pending, Json(), [] { return int64_t{1700000100}; });
+    t.check(!eng.running(), "idle at first");
+    std::optional<bool> running_in_on_done;
+    scfg::Status next = Err::value_error("not run");
+    {
+        scfg::Job<std::vector<engine::StepOutcome>> job;
+        job.start(eng.tick(), [&](Result<std::vector<engine::StepOutcome>>) {
+            running_in_on_done = eng.running();
+            next = eng.set_ui_status("ps_a", "pending");  // the next command, from on_done
+        });
+        t.check(!job.done() && eng.running(), "a suspended tick holds the Engine");
+        std::deque<Promise<Json>> dropped = std::move(transport.held);  // CancelledError ends the tick
+        transport.held.clear();
+        dropped.clear();
+        t.check(job.done(), "the tick finished");
+    }
+    t.check(running_in_on_done == std::optional<bool>(false), "released before on_done");
+    t.check(next.ok(), "on_done started the next command");
+    t.check(!eng.running(), "idle after the tick");
+    {
+        scfg::Co<Json> verify = eng.reverify();  // no receipts: check_ready asks nothing of an EVM chain
+        t.check(verify.done() && !eng.running(), "a command that never waits releases at once");
+    }
+    {
+        scfg::Co<std::vector<engine::StepOutcome>> held = eng.tick();
+        t.check(!held.done() && eng.running(), "suspended again");
+    }  // destroyed while suspended
+    t.check(!eng.running(), "destroying a suspended command releases the Engine");
+    transport.held.clear();
+}
+
 // A stored session whose fields are not strs is carried as Python carries it: its expiry still reports, with the
 // stored values, and the tick's other outcomes are not lost.
 SCFG_TEST(EngineTests, StoredValuesAreCarriedIntoTheExpiry) {

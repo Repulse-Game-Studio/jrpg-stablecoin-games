@@ -5,6 +5,13 @@
 // command at a time, on one thread. Readers get Snapshots, which are detached copies. Methods that need the network
 // are Co<...> (Python's *_co jobs) and only await the injected transport; the others are plain.
 //
+// One command at a time: a network command runs until its Co finishes or is destroyed, and while it runs (suspended
+// on a request) no other command may start, as Python's Worker and PumpWorker queue commands and never interleave
+// jobs. Starting a network command, or calling report_hint, set_ui_status, discard_session or restore_apply, while
+// one runs is a programming error and aborts (running() tells). The glue queues commands, as the PumpWorker does;
+// the readers (pending(), receipts(), snapshot(), config(), chain()) are not commands. The next command may start
+// from the finished one's Job on_done, which runs after its coroutine has returned.
+//
 // Lifetime: the Engine's coroutines refer to it (member coroutines) and to the transport, so the caller keeps both
 // alive, and does not move the Engine, while one runs; destroy every Job or Co running an Engine coroutine before
 // the Engine and before the transport (Co.h, "Teardown order"). Destroying a suspended Co is always safe and touches
@@ -14,7 +21,9 @@
 //
 // Errors: a crash while stepping one session (or, later, checking one receipt or classifying one transfer) is
 // reported to on_error and counted, never propagated, exactly where Python has `except Exception`; a BaseException
-// (CancelledError) is never contained.
+// (CancelledError) is never contained. on_error is called from inside the running command's coroutine, so it must not
+// destroy the Job or Co that runs the command (Co.h, Job): that destroys the frame that is executing, which is
+// undefined behaviour with no diagnostic. A handler that wants to tear down records the wish and acts after on_done.
 #pragma once
 
 #include "Scfg/BackendsBase.h"
@@ -75,8 +84,12 @@ public:
     const Json& pending() const { return pending_; }
     const Json& receipts() const { return receipts_; }
     // Where a contained crash goes. Settable, as Python's attribute: it is read when an error is reported, and an
-    // empty one prints the error (Python's `on_error or print_error`).
+    // empty one prints the error (Python's `on_error or print_error`). It runs inside the command's coroutine: it
+    // must not destroy the Job or Co running that command, nor start another command (see the top of this file).
     std::function<void(const Err&)> on_error;
+
+    // A network command's coroutine is alive (it is running or suspended): no other command may start.
+    bool running() const { return running_; }
 
     // --- chains & RPC ---
 
@@ -144,6 +157,7 @@ private:
     Entropy* entropy_;
     OrderedMap<backends::base::Rpc> rpcs_;
     std::set<std::pair<std::string, std::string>> unready_;
+    bool running_ = false;
 };
 
 }  // namespace scfg::engine
