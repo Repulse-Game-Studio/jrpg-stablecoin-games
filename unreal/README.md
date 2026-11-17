@@ -1,6 +1,6 @@
 # unreal
 
-The C++ port of the payment core (`ScfgCore`), the start of the Unreal port. It is in development: there is no Unreal glue, UI or release yet, and nothing here includes an Unreal header. What exists is the engine-independent core in plain C++20, its tests and the driver for the integration tests. The Python core (`plugin/game/python-packages/scfg_core/`) is the reference, and the C# port (`unity/`) is the closest template. The core replays every conformance vector in `conformance/vectors/`.
+The C++ port of the payment core (`ScfgCore`), the start of the Unreal port. It is in development: there is no Unreal glue, UI or release yet. What exists is the engine-independent core in plain C++20, its tests and the driver for the integration tests, and the `Scfg` plugin that builds the core as its `ScfgCore` module under Unreal Build Tool, with a development project (see [Under UBT](#under-ubt)). Apart from that module's one registration file, nothing in the core includes an Unreal header. The Python core (`plugin/game/python-packages/scfg_core/`) is the reference, and the C# port (`unity/`) is the closest template. The core replays every conformance vector in `conformance/vectors/`.
 
 ## Layout
 
@@ -10,6 +10,8 @@ The C++ port of the payment core (`ScfgCore`), the start of the Unreal port. It 
 | `core-tests/` | The test binary `scfg_core_tests`: per-module tests (`*Tests.cpp`), the lints, the locale reruns and the Tier 1 and Tier 2 conformance runners (`support/Tier1.cpp` with its adapters in `tier1/`, `support/Tier2.cpp`). It uses an in-house runner (`support/Test.h`), not a test framework |
 | `core-driver/` | `scfg_core_driver`, the JSON-lines driver that `tests/integration/test_cpp_core.py` runs against Anvil and solana-test-validator (protocol: `rpgmaker/test/integration/engine_driver.ts`), with a test-only blocking POSIX HTTP transport |
 | `CMakeLists.txt`, `CMakePresets.json` | The build (CMake 3.25+, Ninja): the core library, the test binary, the driver, the compile-only checks, and one ctest test per test group |
+| `Plugins/Scfg/Scfg.uplugin`, `Plugins/Scfg/Source/ScfgCore/ScfgCore.Build.cs` | The Unreal plugin and the core's module rules (UE 5.8; Win64, Mac and Linux) |
+| `Project/ScfgDev/` | The development project: it loads the plugin from `../../Plugins` (`AdditionalPluginDirectories`, so the plugin is never copied) and has a minimal game module, `ScfgDev`, with the `ScfgDev` (Game) and `ScfgDevEditor` (Editor) targets |
 
 ## Development
 
@@ -38,6 +40,35 @@ Environment:
 - `SCFG_VECTORS` overrides the vectors directory the tests read (default: `conformance/vectors/`).
 - `SCFG_REQUIRE_LOCALES=1` (set in CI) makes `LocaleTests` fail when `tr_TR.UTF-8` or `de_DE.UTF-8` is not installed. Without it, the reruns fall back to another installed locale with a decimal comma. When there is none either (a stock Ubuntu, Docker or WSL image has only `C`, `POSIX` and `en_US`), `LocaleTests` fails. Install the two locales with `sudo locale-gen tr_TR.UTF-8 de_DE.UTF-8` (Debian: enable them in `/etc/locale.gen` first).
 - `SCFG_REQUIRE_CPP=1` (set in CI) makes the `test_cpp_core.py` twins fail, rather than skip, when the toolchain is missing or unusable. `tests/integration/cpp_driver.py` builds the driver once per session into `unreal/build/integration`. It takes cmake from `PATH` or `~/.local/bin` and needs 3.25 or newer. The compiler is `$CXX` when its program resolves, else `c++`, `g++` or `clang++`. It builds with Ninja, or with make when there is no Ninja. Without one of these the twins skip. A configure or compile failure of the code itself always fails. The EVM and Arc twins also need `anvil`, which CI installs.
+
+## Under UBT
+
+The plugin is `Plugins/Scfg/`: `Scfg.uplugin` (version 0.3.0, `EngineVersion` 5.8.0, no content) with one module so far, `ScfgCore` (`Runtime`, `LoadingPhase` `Default`, Win64, Mac and Linux). Only UE 5.8 (5.8.4 on Linux) has been built against; 5.6 and 5.7 are unverified.
+
+Building, from the repository root (headless; `--engine` defaults to `$UE_ROOT`, else `/mnt/files/UnrealEngine`):
+
+```bash
+python tools/run_unreal_build.py --target ScfgDevEditor --config Development      # the editor (modular)
+python tools/run_unreal_build.py --target ScfgDevEditor --config Development -- -DisableUnity   # no unity files
+python tools/run_unreal_build.py --target ScfgDev --config Shipping               # a packaged game (monolithic)
+```
+
+The wrapper runs `Engine/Build/BatchFiles/Linux/Build.sh <target> Linux <config> -Project=<uproject> -WaitMutex -NoHotReload -UBAHost=127.0.0.1` (UBT's build accelerator otherwise listens on 0.0.0.0:1345) under a timeout (default an hour) and fails when UBT fails or prints any `warning:` or `error:` about our code. Both targets set `bWarningsAsErrors = true`. The engine is an installed build, so they share its build environment, and UBT refuses a changed setting there unless `bOverrideBuildEnvironment = true`, which they also set: the override only reaches the modules UBT compiles here, which are ours. Products land in `Project/ScfgDev/Binaries/Linux/` (`libUnrealEditor-ScfgCore.so`, `libUnrealEditor-ScfgDev.so`, `ScfgDev-Linux-Shipping`) and intermediates in `Project/ScfgDev/Intermediate/` (the plugin's under `Intermediate/External/`), all gitignored; the plugin folder gets none.
+
+`ScfgDev.Smoke` is a smoke test in the development project's module: it calls `scfg::amounts::parse_amount` from another module, which proves the core links and runs inside the editor process.
+
+```bash
+"$UE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$PWD/unreal/Project/ScfgDev/ScfgDev.uproject" -ExecCmds="Automation RunTests ScfgDev.Smoke;Quit" \
+  -unattended -nullrhi -nosplash -stdout -ReportExportPath=<dir>
+```
+
+How the core fits UBT:
+
+- **Engine dependency.** `ScfgCore` depends on `Core`, privately, for one reason: a module needs `IMPLEMENT_MODULE(FDefaultModuleImpl, ScfgCore)`, which needs `Modules/ModuleManager.h`. That one line lives in `Private/ScfgCoreModule.cpp`, which the CMake build leaves out (`list(FILTER ...)` in `CMakeLists.txt`) and the lints exempt from `OnlyStdIncludes` only (`ModuleFileIsMinimal`). The public headers include no Unreal header, so no dependent gets `Core` through `ScfgCore`. The dependency also gives the module `Core`'s shared PCH.
+- **Flags.** `PCHUsage = UseExplicitOrSharedPCHs`, no `CppStandard` override (UBT passes `-std=c++20`), `bUseRTTI` and `bEnableExceptions` left at false. Every file is compiled with `-fno-rtti`. Exceptions are on in editor builds anyway: UBT turns them on for every target compiled against the editor (`-fexceptions`), and off in game builds (`-fno-exceptions`). The core is written for either: it never throws or catches. C++20 coroutines need no flag.
+- **Force-includes.** Each core file is compiled with the shared PCH of `Core` and a generated `Definitions.ScfgCore.h` force-included, so Unreal's macros (`check`, `TEXT` and the rest) are defined in every core translation unit: that is what `scfg_core_poisoned` guards against. Built with `-NoPCH -NoSharedPCH` only the definitions are force-included, and the core still builds.
+- **Exports (`SCFGCORE_API`).** UBT defines `SCFGCORE_API` as `DLLEXPORT` inside the module, `DLLIMPORT` in a module that uses it (the editor build), and empty in a monolithic build. `Public/Scfg/Export.h` defines it empty outside UBT, and under UBT defines `DLLEXPORT`/`DLLIMPORT` as Unreal's platform headers do when no PCH has (the `-NoSharedPCH` build). It goes on every class with a member a `.cpp` defines (`class SCFGCORE_API Json`), every non-inline free function, every friend function such as `BigInt`'s operators (a class's export does not cover its friends) and the extern `VERSION`, never on a template, an inline function or a `constexpr` variable. Header-only classes (aggregates, interfaces with only inline or pure members) have nothing to export and carry none. Linux editor builds compile with `-fvisibility-ms-compat -fvisibility-inlines-hidden`, so a function without the macro is hidden and a call from another module fails to link. `LintTests.ExportsMarked` checks it.
+- **Unity builds.** UBT's unity file `Module.ScfgCore.cpp` includes every core `.cpp` in one translation unit (`scfg_core_unity` is its CMake twin). UBT's adaptive unity takes the files git reports as changed out of it and compiles them alone; `-DisableAdaptiveUnity` keeps them in.
 
 ## Error model
 
@@ -73,9 +104,10 @@ Python's core is generators: a function that needs the network yields a `Request
 | Portable types | `long` (32 bits on Windows), `__int128` (not on MSVC), `wchar_t` and `std::wstring`; every header needs `#pragma once` |
 | Unity build | `namespace {` and `static` at namespace scope in a `.cpp`: Unreal's unity build puts every `.cpp` in one translation unit, so file-local names go in a named `detail` namespace |
 | Coroutines | A `Co<T>` parameter that is a reference, view or pointer; a coroutine lambda (the tests too) |
-| Files | An include that is neither standard C++20 nor `Scfg/<x>.h`; a first comment that names no existing Python twin (or "No Python twin"); two basenames that differ only in case |
+| Files | An include that is neither standard C++20 nor `Scfg/<x>.h` (except in `Private/ScfgCoreModule.cpp`, below); a first comment that names no existing Python twin (or "No Python twin"); two basenames that differ only in case |
+| Exports | In a public header: a non-inline free function, friend function or extern variable without `SCFGCORE_API`; a non-template class with a member defined in a `.cpp` without `SCFGCORE_API`; `SCFGCORE_API` without `#include "Scfg/Export.h"` (`ExportsMarked`, a heuristic scanner; `ExportsBite`) |
 
-A file is exempt from a line rule only through `kWaivers` in `LintTests.cpp` (ruling R3), which names the file and the one rule it needs, for example `PyFloat.cpp` with `printf` and `strto*` for the shortest float repr.
+A file is exempt from a line rule only through `kWaivers` in `LintTests.cpp` (ruling R3), which names the file and the one rule it needs, for example `PyFloat.cpp` with `printf` and `strto*` for the shortest float repr. The one file exempt from `OnlyStdIncludes` is `Private/ScfgCoreModule.cpp`, the module's registration with Unreal, and `ModuleFileIsMinimal` holds it to exactly its two lines: `#include "Modules/ModuleManager.h"` and `IMPLEMENT_MODULE(FDefaultModuleImpl, ScfgCore)`.
 
 Two compile-only targets check the core as Unreal will build it:
 
