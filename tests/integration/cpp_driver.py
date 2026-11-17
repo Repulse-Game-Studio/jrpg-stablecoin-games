@@ -9,7 +9,7 @@ cmake (3.25 or newer) comes from PATH, then ~/.local/bin; the compiler is $CXX w
 resolves (cmake then reads $CXX itself, arguments and all, as in CXX="ccache g++"), else c++, g++ or
 clang++ on PATH. Ninja is used when it is found the same way, else make (Unix Makefiles).
 The driver is built once per Python process (`cmake -S unreal -B unreal/build/integration
--DCMAKE_BUILD_TYPE=Release`, then only the scfg_core_driver target, in parallel) and its binary then
+-DCMAKE_BUILD_TYPE=Release`, then only the scfg_core_driver target, one job per CPU) and its binary then
 run directly.
 """
 import json
@@ -111,7 +111,9 @@ def _build():
             configure += ["-G", "Ninja", f"-DCMAKE_MAKE_PROGRAM={ninja}"]
         else:
             configure += ["-G", "Unix Makefiles", f"-DCMAKE_MAKE_PROGRAM={make}"]
-    steps = [configure, [cmake, "--build", str(BUILD_DIR), "--target", TARGET, "--parallel"]]
+    # A job count: a bare --parallel is make's unbounded -j (every compile at once).
+    jobs = str(os.cpu_count() or 2)
+    steps = [configure, [cmake, "--build", str(BUILD_DIR), "--target", TARGET, "--parallel", jobs]]
     for step in steps:
         try:
             out = subprocess.run(step, cwd=ROOT, capture_output=True, text=True,

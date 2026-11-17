@@ -117,7 +117,7 @@ SCFG_TEST(DecTests, FloatConversionIsExactLikePython) {
 }
 
 SCFG_TEST(DecTests, FromJsonIsDecimalOfAJsonValue) {
-    auto str_of = [&t](const Json& v) -> std::string {
+    auto str_of = [](const Json& v) -> std::string {
         Result<std::optional<Dec>> r = Dec::from_json(v);
         if (!r.ok()) return "raised " + r.err().kind;
         return r.value().has_value() ? r.value()->str() : "non-finite";

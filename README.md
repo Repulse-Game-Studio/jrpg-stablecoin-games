@@ -125,7 +125,8 @@ uv run pytest -m integration tests/integration/test_cs_core.py
 
 # C++ core (CMake 3.25+, Ninja, a C++20 compiler; the start of the Unreal port, in development): tests, lints and
 # the conformance vectors, also under ASan/UBSan; its local-chain twins (tests/integration/test_cpp_core.py) run with
-# the integration tests above when cmake and a compiler are found; see unreal/README.md
+# the integration tests above when cmake and a compiler are found; see unreal/README.md. Its LocaleTests group needs
+# tr_TR.UTF-8 and de_DE.UTF-8 (or another comma-decimal locale) and fails without one: sudo locale-gen tr_TR.UTF-8 de_DE.UTF-8
 (cd unreal && cmake --preset release && cmake --build --preset release && ctest --preset release)
 (cd unreal && cmake --preset asan && cmake --build --preset asan && ctest --preset asan)
 uv run pytest -m integration tests/integration/test_cpp_core.py

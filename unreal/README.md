@@ -36,7 +36,7 @@ Every preset builds with `-Werror`, and no ctest group may fail or skip. A new t
 Environment:
 
 - `SCFG_VECTORS` overrides the vectors directory the tests read (default: `conformance/vectors/`).
-- `SCFG_REQUIRE_LOCALES=1` (set in CI) makes `LocaleTests` fail when `tr_TR.UTF-8` or `de_DE.UTF-8` is not installed. Without it, the reruns fall back to another installed locale with a decimal comma.
+- `SCFG_REQUIRE_LOCALES=1` (set in CI) makes `LocaleTests` fail when `tr_TR.UTF-8` or `de_DE.UTF-8` is not installed. Without it, the reruns fall back to another installed locale with a decimal comma. When there is none either (a stock Ubuntu, Docker or WSL image has only `C`, `POSIX` and `en_US`), `LocaleTests` fails. Install the two locales with `sudo locale-gen tr_TR.UTF-8 de_DE.UTF-8` (Debian: enable them in `/etc/locale.gen` first).
 - `SCFG_REQUIRE_CPP=1` (set in CI) makes the `test_cpp_core.py` twins fail, rather than skip, when the toolchain is missing or unusable. `tests/integration/cpp_driver.py` builds the driver once per session into `unreal/build/integration`. It takes cmake from `PATH` or `~/.local/bin` and needs 3.25 or newer. The compiler is `$CXX` when its program resolves, else `c++`, `g++` or `clang++`. It builds with Ninja, or with make when there is no Ninja. Without one of these the twins skip. A configure or compile failure of the code itself always fails. The EVM and Arc twins also need `anvil`, which CI installs.
 
 ## Error model
@@ -84,7 +84,7 @@ Two compile-only targets check the core as Unreal will build it:
 
 ## Locale reruns and the deferred replay
 
-- `LocaleTests` replays Tier 1 (every topic) and Tier 2 (every vector) again under `tr_TR.UTF-8`, for the dotted and dotless i, and under `de_DE.UTF-8`, for the decimal comma (`core-tests/support/Locales.h`). It sets `setlocale` and `std::locale::global`, and counts what it replayed. Without either locale it falls back to another installed one with a decimal comma. Under `SCFG_REQUIRE_LOCALES=1` a missing one fails the test.
+- `LocaleTests` replays Tier 1 (every topic) and Tier 2 (every vector) again under `tr_TR.UTF-8`, for the dotted and dotless i, and under `de_DE.UTF-8`, for the decimal comma (`core-tests/support/Locales.h`). It sets `setlocale` and `std::locale::global`, and counts what it replayed. Without either locale it falls back to another installed one with a decimal comma. With no such locale at all the test fails (remedy: `sudo locale-gen tr_TR.UTF-8 de_DE.UTF-8`), and under `SCFG_REQUIRE_LOCALES=1` a missing named one fails it too.
 - `Tier2Deferred` replays every Tier 2 vector a second time with a transport that completes requests only from the runner's pump loop, one per turn, as Unreal's HTTP callbacks complete them on a later tick. Every networked step must suspend and resume correctly from the pump. A step that leaves a request unanswered fails. This plays the role of the C# port's `Tier2SingleThreadTest`.
 
 ## Known divergences from Python
@@ -93,7 +93,7 @@ Deliberate or accepted differences. None is reachable with valid, schema-conform
 
 | Area | C++ | Python |
 |---|---|---|
-| Deep JSON from a node | A response nested more than 1000 levels deep is a `ValueError`, so the transport reports `TransportError("invalid JSON response")` | `RecursionError`, which escapes `UrllibTransport` (it is not a `ValueError`) |
+| Deep JSON from a node | Nesting up to exactly 1000 levels is read; deeper is a `ValueError`, so the transport reports `TransportError("invalid JSON response")` | `RecursionError` near the recursion limit, a little below 1000 (from a top-level call 995 levels parse and 996 fail; inside the transport's call stack fewer), and it escapes `UrllibTransport`, since it is not a `ValueError`. A response nested between those depths parses here and raises in Python |
 | Huge amounts | `amounts::decode` of 10\*\*32 units or more is `InvalidOperation`, at any size, and restore skips it as one internal error | `decimal.Overflow` from about 10\*\*1000006 units, which `restore_lookup`'s `except InvalidOperation` does not catch. A uint256 never reaches it |
 | Non-ASCII hashes | `tx_hash`, `block_hash`, receipt keys and `get_block_hash` are lowered with `py::lower_for_ascii`: exact for ASCII and for any comparison with ASCII text, but non-ASCII letters other than U+0130 and U+212A keep their case. A hostile node's non-ASCII hash can only fail safe | `str.lower()` |
 | Transfer log topics | A dict as topic[1] or topic[2] is `TypeError: unhashable type: 'slice'` | The same on 3.9; 3.12 raises `KeyError` |

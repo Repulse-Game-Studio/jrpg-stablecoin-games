@@ -9,9 +9,11 @@ through the driver's `override`.
 
 Run with:  uv run pytest -m integration tests/integration/test_cpp_core.py
 (cmake is found on PATH or in ~/.local/bin, the compiler is $CXX or c++/g++/clang++; the driver is
-built once per session into unreal/build/integration). Skipped when cmake or a C++20 compiler is
-missing (failed instead with SCFG_REQUIRE_CPP=1; a build that ran and failed always fails), or when
-anvil or solana-test-validator is missing. test_driver_smoke needs no chain.
+built once per session into unreal/build/integration with ninja, else make). Skipped when cmake or a
+compiler is missing, when cmake is older than 3.25 (or reports no version), or when neither ninja
+nor make is found (failed instead with SCFG_REQUIRE_CPP=1; once those checks pass, a configure or
+build that fails always fails), or when anvil or solana-test-validator is missing.
+test_driver_smoke needs no chain.
 """
 import base64
 from decimal import Decimal

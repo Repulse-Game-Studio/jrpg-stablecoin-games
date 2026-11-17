@@ -10,6 +10,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Every target in this directory (core, tests, driver) gets the same flags: no exceptions, no RTTI, as UBT.
 add_compile_options(-Wall -Wextra -Wpedantic -Wshadow -Wundef -Wnon-virtual-dtor -Werror -fno-exceptions -fno-rtti)
 
+# Ruling R13: newer Clang (22) reports SCFG_TRY's __COUNTER__ as a C2y extension under -Wpedantic. Every compiler
+# Unreal supports has __COUNTER__, so silence that one warning. Only on Clang, and only where the flag exists: Clang 18
+# refuses an unknown -Wno- name under -Werror.
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  include(CheckCXXCompilerFlag)
+  check_cxx_compiler_flag(-Wc2y-extensions SCFG_HAS_WC2Y_EXTENSIONS)
+  if(SCFG_HAS_WC2Y_EXTENSIONS)
+    add_compile_options(-Wno-c2y-extensions)
+  endif()
+endif()
+
 set(SCFG_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Plugins/Scfg/Source/ScfgCore)
 file(GLOB SCFG_CORE_SOURCES CONFIGURE_DEPENDS ${SCFG_CORE_DIR}/Private/*.cpp)
 file(GLOB SCFG_CORE_HEADERS CONFIGURE_DEPENDS ${SCFG_CORE_DIR}/Public/Scfg/*.h)
