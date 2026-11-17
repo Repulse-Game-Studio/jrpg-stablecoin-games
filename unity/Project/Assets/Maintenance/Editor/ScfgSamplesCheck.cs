@@ -5,7 +5,8 @@
 //     Unity ... -executeMethod ScfgSamplesCheck.MakeScenes      (maintainers: writes each sample's scene)
 //
 // Check opens every sample scene and fails (exit 1) when it is missing, has a missing script, or lacks the sample's
-// component; the scripts compiled, or the editor would not have run this. MakeScenes writes Assets/Samples/<name>/<name>.unity:
+// component, or when the package's panel settings the samples copy (ScfgDefaultSheetHost.PanelResource) do not load;
+// the scripts compiled, or the editor would not have run this. MakeScenes writes Assets/Samples/<name>/<name>.unity:
 // a camera and one GameObject with the sample's component (the tool copies the scene back into Samples~).
 #nullable enable
 using System;
@@ -32,6 +33,11 @@ public static class ScfgSamplesCheck
     public static void Check()
     {
         int failures = 0;
+        if (Resources.Load<UnityEngine.UIElements.PanelSettings>(Scfg.ScfgDefaultSheetHost.PanelResource) == null)
+        {
+            Debug.LogError("scfg-samples: the package's panel settings " + Scfg.ScfgDefaultSheetHost.PanelResource + " do not load");
+            failures++;
+        }
         foreach (var (name, typeName) in Samples)
         {
             var type = Find(typeName);

@@ -24,7 +24,9 @@ with your own testnet wallet to watch a real test payment arrive.
 2. Open `Showcase.unity` there and press **Play**.
 
 The screen is built with UI Toolkit in code (`ScfgShowcase.cs`). If your project has an SCFG Settings asset, it is
-applied first, and the showcase's own `SCFG.Configure` call replaces it.
+applied first, and the showcase's own `SCFG.Configure` call replaces it. That works only before payments start, so
+play this scene first: loaded from another scene after payments started there, the showcase says so and stays idle.
+Loaded a second time in the same run, it carries on with the configuration it made the first time.
 
 To pay for real on a testnet: put your own wallet in `Wallet`, get testnet USDC from
 [Circle's faucet](https://faucet.circle.com/) into a second wallet (the player's), press **Unlock**, and pick a

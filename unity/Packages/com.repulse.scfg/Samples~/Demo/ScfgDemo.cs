@@ -2,8 +2,11 @@
 // (the twin of godot/demo/main.gd). It uses only the public API: Configure, AddItem, Pay, Owns, Restore and the
 // PaymentResolved event. Testnet only: no real money moves.
 //
-// While a payment or restore screen is open the game is paused (Time.timeScale = 0): the sheet takes the keyboard and
-// gamepad, but your own game code that reads input keeps running unless you stop it.
+// While a payment or restore screen is open the game is paused (Time.timeScale = 0, then back to what it was): the sheet
+// takes the keyboard and gamepad, but your own game code that reads input keeps running unless you stop it.
+//
+// Configure once per run, before payments start: play this scene first. Loaded again later in the same run, it carries
+// on with the configuration it made the first time (the Console shows the refused second Configure).
 using Scfg;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -14,6 +17,7 @@ namespace Scfg.Samples.Demo
     public sealed class ScfgDemo : MonoBehaviour
     {
         private const string Item = "chapter2";
+        private const string ItemTitle = "Chapter 2: The Fall";
 
         private Label _chapter;
         private Label _status;
@@ -21,11 +25,23 @@ namespace Scfg.Samples.Demo
         private Button _tip;
         private Button _restore;
         private bool _busy;
+        private PanelSettings _panel;
 
         private void Start()
         {
             BuildScreen();
-            if (!Configure())
+            var err = Configure();
+            if (err == "configure.after_start" && SCFG.ItemTitle(Item) == ItemTitle)
+            {
+                // this scene was loaded before in this run: payments started with the configuration it made then
+            }
+            else if (err == "configure.after_start")
+            {
+                _status.text = "Payments already started with a configuration made elsewhere: play this scene first, or"
+                               + " remove the SCFG Settings asset.";
+                return;
+            }
+            else if (err != null)
             {
                 _status.text = "SCFG refused the configuration: see the Console.";
                 return;
@@ -33,17 +49,18 @@ namespace Scfg.Samples.Demo
             SCFG.PaymentResolved += OnPaymentResolved;
             SCFG.ReceiptsChanged += Refresh;
             Refresh();
-            _unlock.Focus();
+            FocusFirst();
         }
 
         private void OnDestroy()
         {
             SCFG.PaymentResolved -= OnPaymentResolved;
             SCFG.ReceiptsChanged -= Refresh;
+            if (_panel != null) Destroy(_panel);
         }
 
-        // Configures SCFG. False when Configure or AddItem refused it (each returns the error code it logged).
-        private static bool Configure()
+        // Configures SCFG. Null, or the error code Configure or AddItem refused it with (and logged).
+        private static string Configure()
         {
             var err = SCFG.Configure(new ScfgOptions
             {
@@ -53,8 +70,8 @@ namespace Scfg.Samples.Demo
                 Testnet = true, // Sepolia / Arbitrum Sepolia / Amoy / Base Sepolia: no real money
             });
             if (err == null)
-                err = SCFG.AddItem(Item, new ScfgItem { Code = 1, Price = "1.00", Token = "USDC", Title = "Chapter 2: The Fall" });
-            return err == null;
+                err = SCFG.AddItem(Item, new ScfgItem { Code = 1, Price = "1.00", Token = "USDC", Title = ItemTitle });
+            return err;
         }
 
         private void Refresh()
@@ -68,9 +85,10 @@ namespace Scfg.Samples.Demo
         {
             if (_busy) return;
             _busy = true;
+            float timeScale = Time.timeScale; // put back after: the game may already be paused or in slow motion
             Time.timeScale = 0;
             ScfgPaymentResult r = await SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = Item });
-            Time.timeScale = 1;
+            Time.timeScale = timeScale;
             _busy = false;
             if (this == null) return; // the game quit with the sheet open
             _status.text = r.Status switch
@@ -88,9 +106,10 @@ namespace Scfg.Samples.Demo
         {
             if (_busy) return;
             _busy = true;
+            float timeScale = Time.timeScale; // put back after: the game may already be paused or in slow motion
             Time.timeScale = 0;
             ScfgPaymentResult r = await SCFG.Pay(ScfgPayKind.Tip, new ScfgPayRequest { Amount = "1.00", Token = "USDC" });
-            Time.timeScale = 1;
+            Time.timeScale = timeScale;
             _busy = false;
             if (this == null) return;
             if (r.Status == ScfgPaymentStatus.Paid) _status.text = "Thank you for the " + r.Amount + " USDC tip!";
@@ -101,9 +120,10 @@ namespace Scfg.Samples.Demo
         {
             if (_busy) return;
             _busy = true;
+            float timeScale = Time.timeScale; // put back after: the game may already be paused or in slow motion
             Time.timeScale = 0;
             ScfgRestoreResult r = await SCFG.Restore();
-            Time.timeScale = 1;
+            Time.timeScale = timeScale;
             _busy = false;
             if (this == null) return;
             if (r.Status == ScfgRestoreStatus.Restored) _status.text = "Purchases restored.";
@@ -118,7 +138,8 @@ namespace Scfg.Samples.Demo
             Refresh();
         }
 
-        private void FocusFirst() => (_unlock.resolvedStyle.display != DisplayStyle.None ? _unlock : _tip).Focus();
+        // Unlock while it is shown (Refresh hides it once Chapter 2 is owned), else Tip.
+        private void FocusFirst() => (SCFG.Owns(Item) ? _tip : _unlock).Focus();
 
         // --- the screen (plain UI Toolkit) -------------------------------------------------------------------
 
@@ -126,9 +147,11 @@ namespace Scfg.Samples.Demo
         {
             var document = gameObject.AddComponent<UIDocument>();
             // A copy of the package's panel settings (it carries the text data UI Toolkit needs), below the sheet's panel.
-            var panel = Instantiate(Resources.Load<PanelSettings>("ScfgUI/ScfgPanel"));
-            panel.sortingOrder = 0;
-            document.panelSettings = panel;
+            var asset = Resources.Load<PanelSettings>(ScfgDefaultSheetHost.PanelResource);
+            _panel = asset != null ? Instantiate(asset) : ScriptableObject.CreateInstance<PanelSettings>();
+            if (_panel.themeStyleSheet == null) _panel.themeStyleSheet = Resources.Load<ThemeStyleSheet>(ScfgDefaultSheetHost.ThemeResource);
+            _panel.sortingOrder = 0;
+            document.panelSettings = _panel;
             var root = document.rootVisualElement;
             root.style.backgroundColor = new Color(0.12f, 0.1f, 0.18f);
             root.style.alignItems = Align.Center;

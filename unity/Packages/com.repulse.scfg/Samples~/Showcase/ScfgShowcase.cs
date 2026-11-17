@@ -7,6 +7,9 @@
 //
 // Read it top to bottom: 1. configure, 2. build the shop, 3. pay, 4. listen, 5. show the state.
 // Testnets only: no real money moves.
+//
+// Configure once per run, before payments start: play this scene first. Loaded again later in the same run, it carries
+// on with the configuration it made the first time (the Console shows the refused second Configure).
 using System.Collections.Generic;
 using System.Linq;
 using Scfg;
@@ -53,11 +56,24 @@ namespace Scfg.Samples.Showcase
         private readonly Dictionary<string, Label> _itemStates = new Dictionary<string, Label>();
         private readonly Dictionary<string, List<Button>> _itemButtons = new Dictionary<string, List<Button>>();
         private bool _busy;
+        private float _timeScale = 1;
+        private PanelSettings _panel;
 
         private void Start()
         {
             BuildScreen();
-            if (!Configure())
+            var err = Configure();
+            if (err == "configure.after_start" && Items.All(i => SCFG.ItemTitle(i.Id) == i.Item.Title))
+            {
+                Log("SCFG was configured by an earlier load of this scene; carrying on with that configuration.");
+            }
+            else if (err == "configure.after_start")
+            {
+                Log("Payments already started with a configuration made elsewhere (another scene, or an SCFG Settings asset"
+                    + " with this scene not played first): play this scene first, or remove the SCFG Settings asset.");
+                return;
+            }
+            else if (err != null)
             {
                 Log("The package refused the configuration; see the Console.");
                 return;
@@ -70,9 +86,9 @@ namespace Scfg.Samples.Showcase
         }
 
         // Configures SCFG and declares the items. Configure and AddItem return null on success, or the error code they
-        // already logged (with Debug.LogError). With an SCFG Settings asset in the project, the asset is applied first
-        // and this call replaces it.
-        private static bool Configure()
+        // already logged (with Debug.LogError); so does this. With an SCFG Settings asset in the project, the asset is
+        // applied first and this call replaces it, as long as payments have not started (this scene is played first).
+        private static string Configure()
         {
             var err = SCFG.Configure(new ScfgOptions
             {
@@ -81,11 +97,14 @@ namespace Scfg.Samples.Showcase
                 Accent = Accent,
                 // Optional, among others: SolanaWallet, Chains, Tokens, Methods, Logo, RpcUrls.
             });
-            if (err != null) return false;
+            if (err != null) return err;
             foreach (var (id, item) in Items)
-                if (SCFG.AddItem(id, item) != null) return false;
+            {
+                err = SCFG.AddItem(id, item);
+                if (err != null) return err;
+            }
             SCFG.Notify = true; // a "Payment confirmed" toast for payments that confirm in the background
-            return true;
+            return null;
         }
 
         // --- 2. The shop -----------------------------------------------------------------------------------
@@ -175,8 +194,20 @@ namespace Scfg.Samples.Showcase
         }
 
         // The sheet takes the keyboard and gamepad, but not your game's own input code: pause the game while a flow
-        // runs (the sheet runs on unscaled time, so it keeps working at Time.timeScale = 0).
-        private static void PauseGame(bool paused) => Time.timeScale = paused ? 0 : 1;
+        // runs (the sheet runs on unscaled time, so it keeps working at Time.timeScale = 0), then put back the time
+        // scale it had (the game may already have been paused or in slow motion).
+        private void PauseGame(bool paused)
+        {
+            if (paused)
+            {
+                _timeScale = Time.timeScale;
+                Time.timeScale = 0;
+            }
+            else
+            {
+                Time.timeScale = _timeScale;
+            }
+        }
 
         private void AfterFlow()
         {
@@ -199,6 +230,7 @@ namespace Scfg.Samples.Showcase
         {
             SCFG.PaymentResolved -= OnPaymentResolved;
             SCFG.ReceiptsChanged -= OnReceiptsChanged;
+            if (_panel != null) Destroy(_panel);
         }
 
         private void OnPaymentResolved(ScfgPaymentResult result)
@@ -267,11 +299,11 @@ namespace Scfg.Samples.Showcase
             return "desktop (the checkout opens in your browser)";
         }
 
-        // Keyboard and gamepad players keep a focused button after every flow.
+        // Keyboard and gamepad players keep a focused button after every flow: the first one shown. Refresh hides a
+        // bought item's buttons through style.display, which resolvedStyle only shows after the next layout pass.
         private void FocusFirstButton()
         {
-            var first = _document.rootVisualElement.Query<Button>().Where(b => b.resolvedStyle.display != DisplayStyle.None).First()
-                        ?? _document.rootVisualElement.Query<Button>().First();
+            var first = _document.rootVisualElement.Query<Button>().Where(b => b.style.display.value != DisplayStyle.None).First();
             first?.Focus();
         }
 
@@ -281,9 +313,11 @@ namespace Scfg.Samples.Showcase
         {
             _document = gameObject.AddComponent<UIDocument>();
             // A copy of the package's panel settings (it carries the text data UI Toolkit needs), below the sheet's panel.
-            var panel = Instantiate(Resources.Load<PanelSettings>("ScfgUI/ScfgPanel"));
-            panel.sortingOrder = 0;
-            _document.panelSettings = panel;
+            var asset = Resources.Load<PanelSettings>(ScfgDefaultSheetHost.PanelResource);
+            _panel = asset != null ? Instantiate(asset) : ScriptableObject.CreateInstance<PanelSettings>();
+            if (_panel.themeStyleSheet == null) _panel.themeStyleSheet = Resources.Load<ThemeStyleSheet>(ScfgDefaultSheetHost.ThemeResource);
+            _panel.sortingOrder = 0;
+            _document.panelSettings = _panel;
             var root = _document.rootVisualElement;
             root.style.flexDirection = FlexDirection.Row;
             root.style.backgroundColor = new Color(0.09f, 0.11f, 0.15f);
