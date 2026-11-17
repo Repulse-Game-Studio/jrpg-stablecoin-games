@@ -312,11 +312,20 @@ TOptional<scfg::Err> FScfgFacade::AddChain(const FString& Key, const FScfgChain&
 				"SCFG when the game instance started, and payments started with them. Add your chains and call "
 				"Configure() from your game instance's Init() or the first level's BeginPlay");
 		}
+		// The chain first: one that cannot be built leaves the settings' configuration in place, as a Configure() that
+		// fails does.
+		scfg::Result<scfg::chains::Chain> Built = scfg::config::build_chain(ScfgConvert::ChainKwargs(Key, Chain));
+		if (!Built.ok())
+		{
+			return Misuse(Built.err());
+		}
 		// The settings cannot name a chain added from code, so the Configure() from code that has to follow replaces
 		// their configuration anyway: set it aside now, with the settings' own chains (ScfgSettings.h).
 		SetSettingsAside();
 		Warn(TEXT("AddChain() set aside the SCFG settings' configuration (Project Settings > Plugins > SCFG: it cannot "
 				  "name your own chains): call Configure() next, from code."));
+		CustomChains.emplace_back(Built.take());
+		return {};
 	}
 	if (Config)
 	{
@@ -339,6 +348,14 @@ TOptional<scfg::Err> FScfgFacade::Configure(const FScfgOptions& InOptions)
 	}
 	if (Worker || StartError || bShuttingDown)
 	{
+		if (Config && bConfigFromSettings)
+		{
+			return ConfigMisuse("configure.after_start",
+				"Configure() can't change the configuration once payments have started: the SCFG settings (Project "
+				"Settings > Plugins > SCFG) configured SCFG when the game instance started, and payments started with "
+				"them. Call Configure() from your game instance's Init() or the first level's BeginPlay, or clear the "
+				"wallet in the settings");
+		}
 		return ConfigMisuse(
 			"configure.after_start", "Configure() can't change the configuration once payments have started");
 	}

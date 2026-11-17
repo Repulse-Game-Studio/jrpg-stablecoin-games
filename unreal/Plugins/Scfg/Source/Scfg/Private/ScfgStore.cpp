@@ -512,6 +512,14 @@ TFunction<scfg::Status(const FString& From, const FString& To)>& FScfgStore::Rep
 	return ScfgStoreDetail::ReplaceHook();
 }
 
+#if !UE_BUILD_SHIPPING
+TFunction<bool(const FString& Path)>& FScfgStore::DefaultPathHookForTests()
+{
+	static TFunction<bool(const FString&)> Hook;
+	return Hook;
+}
+#endif
+
 std::vector<std::string> FScfgStore::CheckPending(const std::string& Sid, const scfg::Json& Record)
 {
 	const scfg::Json& S = Schema();
@@ -672,6 +680,15 @@ FScfgStore::FScfgStore(FOptions InOptions) : Options(MoveTemp(InOptions))
 	check(IsInGameThread());
 	const FString Dir = Options.Directory.IsEmpty() ? FPaths::ProjectSavedDir() / TEXT("Scfg") : Options.Directory;
 	Path = FPaths::ConvertRelativePathToFull(Dir / TEXT("state.json"));
+#if !UE_BUILD_SHIPPING
+	if (const TFunction<bool(const FString&)>& Hook = DefaultPathHookForTests(); Hook && Path == DefaultPath() && Hook(Path))
+	{
+		Blocked = scfg::Err::make("RuntimeError", "cannot read " + scfg::py::repr_str(ScfgString::ToUtf8(Path)) +
+			": the automation tests refuse the project's own payment state file");
+		ReportError(*Blocked);
+		return;
+	}
+#endif
 	UE_LOG(LogScfg, Log, TEXT("scfg: the payment state file is %s"), *Path);
 	FScfgStoreLoad Got = Load(Path);
 	for (const FString& Each : Got.Warnings)

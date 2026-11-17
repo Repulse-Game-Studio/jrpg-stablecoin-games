@@ -2,9 +2,9 @@
 
 Accept **USDC** and **USDT** tips and unlock purchases in your Unreal game, paid **directly to your own wallet**.
 There is no server, no account and no middleman: the plugin watches the blockchain itself. It is a code plugin,
-`Scfg`, for **UE 5.6 or newer**, in C++ and Blueprint projects. It has been tested on UE 5.8.4 only, in Linux desktop
-builds; 5.6 and 5.7 are untested, and so are Windows, macOS and mobile builds (see
-[Platforms](api.md#platforms)).
+`Scfg`, for **UE 5.6 or newer**, in C++ and Blueprint projects. Each release has a zip for each of UE 5.6, 5.7 and
+5.8. It has been tested on UE 5.8.4 only, in Linux desktop builds; 5.6 and 5.7 are untested, and so are Windows, macOS
+and mobile builds (see [Platforms](api.md#platforms)).
 
 Chains: Ethereum, Arbitrum, Polygon (USDC and USDT), Base (USDC), Arc (USDC), Solana (USDC and USDT), plus any EVM
 chain you add yourself.
@@ -17,8 +17,10 @@ chain you add yourself.
 The Unreal plugin first ships in release 0.3.0. Until that release exists there is no zip; you can still
 [try the showcase](#try-the-showcase-first) from a clone of the repository.
 
-1. Download the zip for your engine version, `scfg-unreal-<version>-ue<5.x>.zip` (for example `-ue5.8`), from the
-   [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest).
+1. Download the zip for your engine version, `scfg-unreal-<version>-ue<5.x>.zip` (`-ue5.6`, `-ue5.7` or `-ue5.8`),
+   from the [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest). Each
+   zip's `Scfg.uplugin` declares that engine version, so the editor does not warn that the plugin was made for
+   another one. Only the 5.8 zip has been tested (on UE 5.8.4); the 5.6 and 5.7 zips hold the same source.
 2. Unzip it and copy the `Scfg` folder from inside it into your project's `Plugins` folder (create it next to your
    `.uproject` if it does not exist), so that you have `<YourProject>/Plugins/Scfg/Scfg.uplugin`.
 3. Open the project. The zip holds source code only, so the editor builds the plugin the first time: when it says
@@ -152,7 +154,7 @@ The panel has three sections. **Configure** holds the options of `Configure`:
 | **Solana Wallet** | Optional, your Solana payout address. At least one of the two wallets is required: without one, the settings are not applied at all |
 | **Testnet** | On by default in the settings. Leave it on while you test; turn it off for the release |
 | **Chains**, **Tokens**, **Methods**, **Rpc Urls**, **Confirmations**, **Previous Wallets** | As the fields of `FScfgOptions` (see [Configure](api.md#configure)). Empty: the defaults |
-| **Logo** | An image file in your project, relative to the project folder (`Content/Scfg/logo.png`): png, jpg or webp |
+| **Logo** | An image file in a folder under `Content/`, relative to the project folder (`Content/Scfg/logo.png`): png, jpg or webp. Add that folder (`Scfg`) to **Project Settings > Packaging > Additional Non-Asset Directories to Package**, or a packaged game cannot find the logo and its `Configure` fails (see [The logo in a packaged game](api.md#the-logo-in-a-packaged-game)) |
 | **Accent** | The accent color of the sheet and the checkout page, `#rrggbb`. Empty: the default |
 
 **Chains** lists your own EVM chains, each a **Key** and the fields of an `FScfgChain` (see
@@ -163,7 +165,8 @@ Price**.
 Press **Validate** at the top of the panel. It runs the same checks the game will run, without starting anything, and
 shows the result as a notification and on the **SCFG** page of the **Message Log**: one line per problem with its
 error code (`item.invalid_price: item "chapter2": ...`), or a line saying the settings are valid, plus a warning when
-they would not be applied (no wallet) or use the test networks.
+the logo will not be packaged (it is not in a folder under `Content/` listed in Additional Non-Asset Directories to
+Package), when they would not be applied (no wallet) or when they use the test networks.
 
 When the game instance starts, the plugin applies the settings through the same calls a game makes: `AddChain` for
 each chain row, `Configure`, then `AddItem` for each item row. So `Owns (SCFG)` and `Pay (SCFG)` work from your first

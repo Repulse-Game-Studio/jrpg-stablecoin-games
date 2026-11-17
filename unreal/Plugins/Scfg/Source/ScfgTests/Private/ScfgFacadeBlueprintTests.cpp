@@ -347,6 +347,7 @@ SCFG_FACADE_BP_TEST(FScfgBlueprintWorldContextTest, "TheNodesRunFromAWorldContex
 bool FScfgBlueprintWorldContextTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgFacadeBlueprintTests;
+	const FScfgBlankProjectSettings BlankSettings;  // the instance's own facade is not configured by the project's
 	FWorld W;
 	TStrongObjectPtr<UGameInstance> Instance(NewObject<UGameInstance>(GEngine));
 	Instance->InitializeStandalone();
@@ -566,6 +567,7 @@ SCFG_FACADE_BP_TEST(FScfgBlueprintDedicatedServerTest, "NoSubsystemOnADedicatedS
 // play-in-editor one, its world context's RunAsDedicated) does not.
 bool FScfgBlueprintDedicatedServerTest::RunTest(const FString& Parameters)
 {
+	const FScfgBlankProjectSettings BlankSettings;  // the instance's own facade is not configured by the project's
 	const UScfgSubsystem* Default = GetDefault<UScfgSubsystem>();
 	TStrongObjectPtr<UGameInstance> Instance(NewObject<UGameInstance>(GEngine));
 	TestTrue(TEXT("a game instance gets one"), Default->ShouldCreateSubsystem(Instance.Get()));

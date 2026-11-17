@@ -60,8 +60,8 @@ bool FScfgDevNoTelemetryTest::RunTest(const FString& Parameters)
 }
 
 // The showcase's configuration without code (Config/DefaultGame.ini, [/Script/Scfg.ScfgSettings]) is what the plugin
-// applies at start: valid as Validate() checks it, with a wallet (so it is applied), on testnet, and with the item the
-// e2e unlocks. tests/unreal_showcase plays it.
+// applies at start: valid as Validate() checks it, with a wallet (so it is applied), on testnet, with the item the e2e
+// unlocks, and a logo a packaged game has too (no Validate warning). tests/unreal_showcase plays it.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FScfgDevShowcaseSettingsTest, "ScfgDev.ShowcaseSettings",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -82,6 +82,13 @@ bool FScfgDevShowcaseSettingsTest::RunTest(const FString& Parameters)
 	}
 	TestEqual(TEXT("the showcase's three items"), FString::Join(Ids, TEXT(",")), FString(TEXT("chapter2,soundtrack,supporter")));
 	TestTrue(TEXT("the e2e's item among them"), Ids.Contains(UScfgShowcaseGameInstance::ITEM));
+	TestEqual(TEXT("a logo"), Settings->Options.Logo, FString(TEXT("Content/Showcase/logo.png")));
+	TestTrue(TEXT("whose folder the packaging settings stage (Additional Non-Asset Directories to Package)"),
+		UScfgSettings::StagedDirectories().Contains(TEXT("Showcase")));
+	for (const FString& Warning : Settings->Warnings())
+	{
+		AddError(FString::Printf(TEXT("the project settings warn: %s"), *Warning));
+	}
 	return true;
 }
 

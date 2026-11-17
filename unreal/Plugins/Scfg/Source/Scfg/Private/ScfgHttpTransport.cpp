@@ -50,6 +50,14 @@ scfg::Err CannotStart(const std::string& Url)
 	return scfg::Err::transport_error("<urlopen error cannot start the request to '" + Url + "'>", std::nullopt);
 }
 
+#if !UE_BUILD_SHIPPING
+int32& ProcessPosts()
+{
+	static int32 Count = 0;
+	return Count;
+}
+#endif
+
 }  // namespace ScfgHttpTransportDetail
 
 FScfgHttpTransport::~FScfgHttpTransport()
@@ -62,6 +70,9 @@ scfg::Future<scfg::Json> FScfgHttpTransport::post_json(std::string Url, scfg::Js
 {
 	check(IsInGameThread());
 	++NumPosts;
+#if !UE_BUILD_SHIPPING
+	++ScfgHttpTransportDetail::ProcessPosts();
+#endif
 	if (bShutDown)
 	{
 		return scfg::Future<scfg::Json>::completed(
@@ -107,6 +118,13 @@ scfg::Future<scfg::Json> FScfgHttpTransport::post_json(std::string Url, scfg::Js
 	}
 	return Answer;
 }
+
+#if !UE_BUILD_SHIPPING
+int32 FScfgHttpTransport::ProcessPosts()
+{
+	return ScfgHttpTransportDetail::ProcessPosts();
+}
+#endif
 
 void FScfgHttpTransport::OnComplete(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bConnected)
 {

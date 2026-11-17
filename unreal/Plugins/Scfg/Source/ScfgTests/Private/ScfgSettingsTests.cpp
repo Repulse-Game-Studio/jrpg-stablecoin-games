@@ -106,8 +106,7 @@ FScfgSettingsItem ItemRow(const FString& Id, int32 Code, const FString& Price, c
 TStrongObjectPtr<UScfgSettings> Blank()
 {
 	TStrongObjectPtr<UScfgSettings> S(NewObject<UScfgSettings>(GetTransientPackage()));
-	S->Options = FScfgOptions();
-	S->Options.bTestnet = true;
+	S->Options = UScfgSettings::NewOptions();
 	S->Chains.Reset();
 	S->Items.Reset();
 	return S;
@@ -190,12 +189,18 @@ bool FScfgSettingsValidTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("with a reminder"), Lines(S->Verdict({})),
 		FString(TEXT("Valid: the configuration, 0 chains and 2 items pass the checks SCFG runs when the game starts. | "
 					 "Testnet is on: players pay with test tokens. Turn it off for the release.")));
-	// New settings copy the class default: the constructor's values (testnet on, as Unity's asset), then the project's
-	// DefaultGame.ini over them. In this project the ini has the showcase's settings (testnet on too), so the
-	// constructor's own default is seen through Blank() only.
+	// New settings copy the class default: the constructor's values (NewOptions(): testnet on, as Unity's asset), then
+	// the project's DefaultGame.ini over them. In this project the ini has the showcase's settings (testnet on too), so
+	// the constructor's own default is asserted through NewOptions(), which it uses, and not through a new object.
 	const TStrongObjectPtr<UScfgSettings> Fresh(NewObject<UScfgSettings>(GetTransientPackage()));
 	const UScfgSettings* Project = GetDefault<UScfgSettings>();
-	TestTrue(TEXT("new settings start on testnet, as Unity's asset"), Fresh->Options.bTestnet && Blank()->Options.bTestnet);
+	TestTrue(TEXT("new settings start on testnet, as Unity's asset"), UScfgSettings::NewOptions().bTestnet);
+	TestFalse(TEXT("where Configure()'s own default is mainnet"), FScfgOptions().bTestnet);
+	FScfgOptions Rest = UScfgSettings::NewOptions();
+	Rest.bTestnet = false;
+	const FScfgOptions Defaults;
+	TestTrue(TEXT("and nothing else differs from Configure()'s defaults"),
+		FScfgOptions::StaticStruct()->CompareScriptStruct(&Rest, &Defaults, PPF_None));
 	TestTrue(TEXT("and copy the project's settings"), Fresh->Options.Wallet == Project->Options.Wallet &&
 		Fresh->Items.Num() == Project->Items.Num() && Fresh->Chains.Num() == Project->Chains.Num());
 	TestTrue(TEXT("blank settings are empty"), Blank()->IsEmpty() && !Blank()->HasRows());
@@ -355,6 +360,63 @@ bool FScfgSettingsEveryProblemTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+SCFG_SETTINGS_TEST(FScfgSettingsLogoPackagingTest, "ValidateWarnsWhenTheLogoWillNotBePackaged")
+
+// PACKAGING (ScfgSettings.h): a logo ships only from a folder under Content/ that is in Additional Non-Asset Directories
+// to Package (or To Copy), relative to Content/; anywhere else Validate warns (Configure() would fail in the packaged
+// game), without counting it as a problem.
+bool FScfgSettingsLogoPackagingTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSettingsTests;
+	FWorld W;
+	auto Warning = [&W](const TCHAR* Logo, const TArray<FString>& Staged)
+	{
+		return UScfgSettings::LogoPackagingWarning(Logo, W.Dir, Staged);
+	};
+	TestEqual(TEXT("no logo, no warning"), Warning(TEXT(""), {}), FString());
+	const FString Outside = Warning(TEXT("Branding/logo.png"), {TEXT("Branding")});
+	TestTrue(TEXT("outside Content/: never packaged"), Outside.StartsWith(TEXT("Logo \"Branding/logo.png\" is not in a "
+		"folder under Content/, so a packaged game cannot include it and its Configure() fails with logo.file_missing")));
+	TestTrue(TEXT("naming the setting"), Outside.EndsWith(TEXT("add that folder to Project Settings > Packaging > "
+		"Additional Non-Asset Directories to Package.")));
+	TestTrue(TEXT("Content/ itself is no folder to stage"), Warning(TEXT("Content/logo.png"), {}).Contains(TEXT("is not in a folder under Content/")));
+	TestTrue(TEXT("a path that leaves Content/"), Warning(TEXT("Content/../Branding/logo.png"), {TEXT("Branding")})
+		.Contains(TEXT("is not in a folder under Content/")));
+	const FString Unstaged = Warning(TEXT("Content/Branding/logo.png"), {TEXT("Other")});
+	TestEqual(TEXT("under Content/ in a folder that is not staged"), Unstaged, FString(TEXT("Logo \"Content/Branding/logo.png\" "
+		"is not packaged: its folder is not in Project Settings > Packaging > Additional Non-Asset Directories to Package, "
+		"so a packaged game does not include it and its Configure() fails with logo.file_missing. Add \"Branding\" there "
+		"(the folders are relative to Content/).")));
+	TestTrue(TEXT("a nested folder is named whole"), Warning(TEXT("Content/Branding/Ui/logo.png"), {})
+		.Contains(TEXT("Add \"Branding/Ui\" there")));
+	TestEqual(TEXT("its folder staged: no warning"), Warning(TEXT("Content/Branding/logo.png"), {TEXT("Branding")}), FString());
+	TestEqual(TEXT("written with a slash"), Warning(TEXT("Content/Branding/logo.png"), {TEXT("Branding/")}), FString());
+	TestEqual(TEXT("a parent folder staged"), Warning(TEXT("Content/Branding/Ui/logo.png"), {TEXT("Branding")}), FString());
+	TestFalse(TEXT("a folder whose name only starts the same is another folder"),
+		Warning(TEXT("Content/Branding/logo.png"), {TEXT("Brand")}).IsEmpty());
+	TestFalse(TEXT("an empty entry stages nothing"), Warning(TEXT("Content/Branding/logo.png"), {TEXT("")}).IsEmpty());
+
+	// The settings' own: Warnings() checks Options.Logo against the project's staged folders; Verdict() shows each after
+	// the valid line, before the testnet note; Validate() itself is not refused for it.
+	WriteFile(W.Dir / TEXT("Content/NotStagedAnywhere/logo.png"), std::string("\x89PNG\r\n\x1a\n", 8));
+	const TStrongObjectPtr<UScfgSettings> S = Make([](UScfgSettings& E)
+	{
+		E.Options.Logo = TEXT("Content/NotStagedAnywhere/logo.png");
+		E.Options.bTestnet = true;
+		E.Options.Chains = {TEXT("arbitrum")};
+		E.Chains.Reset();
+	});
+	TestEqual(TEXT("the logo exists: valid"), S->Validate(W.Dir).Num(), 0);
+	const TArray<FString> Warned = S->Warnings(W.Dir);
+	TestTrue(TEXT("but not packaged: one warning"), Warned.Num() == 1 && Warned[0].Contains(TEXT("Add \"NotStagedAnywhere\" there")));
+	const TArray<FString> Lines = S->Verdict({}, Warned);
+	TestTrue(TEXT("the verdict: valid, the warning, the testnet note"), Lines.Num() == 3 && Lines[0].StartsWith(TEXT("Valid: ")) &&
+		Lines[1] == Warned[0] && Lines[2].StartsWith(TEXT("Testnet is on")));
+	S->Options.Logo.Reset();
+	TestEqual(TEXT("no logo: no warning"), S->Warnings(W.Dir).Num(), 0);
+	return true;
+}
+
 SCFG_SETTINGS_TEST(FScfgSettingsAppliedTest, "TheSettingsAreAppliedAtStart")
 
 bool FScfgSettingsAppliedTest::RunTest(const FString& Parameters)
@@ -389,19 +451,11 @@ SCFG_SETTINGS_TEST(FScfgSettingsInitializeTest, "InitializeAppliesTheProjectSett
 // put back) are applied; without a wallet they are not.
 bool FScfgSettingsInitializeTest::RunTest(const FString& Parameters)
 {
-	UScfgSettings* Project = GetMutableDefault<UScfgSettings>();
-	const FScfgOptions SavedOptions = Project->Options;
-	const TArray<FScfgSettingsChain> SavedChains = Project->Chains;
-	const TArray<FScfgSettingsItem> SavedItems = Project->Items;
-	ON_SCOPE_EXIT
-	{
-		Project->Options = SavedOptions;
-		Project->Chains = SavedChains;
-		Project->Items = SavedItems;
-	};
+	const FScfgBlankProjectSettings BlankSettings;  // put back afterwards
+	UScfgSettings* Project = BlankSettings.Project;
 	for (const bool bWallet : {true, false})
 	{
-		Project->Options = FScfgOptions();
+		Project->Options = UScfgSettings::NewOptions();
 		Project->Options.Wallet = bWallet ? FString(UTF8_TO_TCHAR(ScfgFacadeTests::kDev)) : FString();
 		Project->Options.bTestnet = true;
 		Project->Chains.Reset();
@@ -579,7 +633,21 @@ bool FScfgSettingsCodeConfigureTest::RunTest(const FString& Parameters)
 		TestNotNull(TEXT("the first pump starts payments with the settings"), F.GetWorker());
 		TestEqual(TEXT("a Configure from code after that"), G.Scfg->Configure(CodeOptions({TEXT("base")})),
 			FString(TEXT("configure.after_start")));
+		TestTrue(TEXT("says the settings started payments, and where to call it"),
+			W.Reports().Errors.Num() == 3 && W.Reports().Errors[2].Contains(TEXT("once payments have started: the SCFG "
+				"settings (Project Settings > Plugins > SCFG) configured SCFG when the game instance started")) &&
+			W.Reports().Errors[2].Contains(TEXT("game instance's Init() or the first level's BeginPlay, or clear the wallet")));
 		TestTrue(TEXT("the settings stay"), F.IsConfigFromSettings());
+	}
+	{
+		FWorld W;
+		FGame G(W, nullptr);
+		TestEqual(TEXT("configured from code"), G.Scfg->Configure(CodeOptions({TEXT("base")})), FString());
+		W.Pump();
+		TestEqual(TEXT("a second Configure once payments started"), G.Scfg->Configure(CodeOptions({TEXT("base")})),
+			FString(TEXT("configure.after_start")));
+		TestTrue(TEXT("keeps the plain message (no settings involved)"), W.Reports().Errors.Num() == 1 &&
+			W.Reports().Errors[0].EndsWith(TEXT("Configure() can't change the configuration once payments have started")));
 	}
 	return true;
 }
@@ -623,6 +691,22 @@ bool FScfgSettingsCodeAddChainTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("says why"), W.Reports().Errors.Num() == 1 &&
 			W.Reports().Errors[0].Contains(TEXT("call AddChain() before payments start: the SCFG settings")));
 		TestTrue(TEXT("the settings stay"), F.IsConfigFromSettings() && F.ItemTitle(TEXT("chapter2")) == TEXT("Chapter 2"));
+	}
+	{
+		FWorld W;
+		const TStrongObjectPtr<UScfgSettings> S = Make();
+		FGame G(W, S.Get());
+		FScfgFacade& F = G.F();
+		FScfgChain Typo = MyL2();
+		Typo.Rpc = {TEXT("http://rpc.example.org")};  // a typo: http, not https
+		TestEqual(TEXT("a chain from code that cannot be built is the core's error"), G.Scfg->AddChain(TEXT("other"), Typo),
+			FString(TEXT("rpc.not_https")));
+		TestTrue(TEXT("and leaves the settings' configuration in place, as a failing Configure does"),
+			F.IsConfigFromSettings() && F.ItemTitle(TEXT("chapter2")) == TEXT("Chapter 2") &&
+			F.ChainName(TEXT("myl2")) == TEXT("My L2"));
+		TestEqual(TEXT("without the set-aside warning"), W.Reports().Warnings.Num(), 0);
+		W.Pump();
+		TestNotNull(TEXT("payments then start with the settings"), F.GetWorker());
 	}
 	return true;
 }
@@ -675,6 +759,15 @@ bool FScfgSettingsMessageLogTest::RunTest(const FString& Parameters)
 	const TArray<FString> EmptyGot = Messages();
 	TestTrue(TEXT("empty: the core's wallet.missing and the note"), EmptyGot.Num() == 2 &&
 		EmptyGot[0].StartsWith(TEXT("error wallet.missing: ")) && EmptyGot[1].StartsWith(TEXT("warning No wallet is set")));
+	// A logo outside Content/ (in the project, so it validates): a warning line after the valid one.
+	const FString Loose = FPaths::ProjectDir() / TEXT("Saved/ScfgTestsLooseLogo.png");
+	WriteFile(Loose, std::string("\x89PNG\r\n\x1a\n", 8));
+	const TStrongObjectPtr<UScfgSettings> Logo = Make([](UScfgSettings& E) { E.Options.Logo = TEXT("Saved/ScfgTestsLooseLogo.png"); });
+	TestEqual(TEXT("a loose logo validates"), ScfgEditor::ValidateSettings(*Logo, /*bNotify=*/false).Num(), 0);
+	IFileManager::Get().Delete(*Loose);
+	const TArray<FString> LogoGot = Messages();
+	TestTrue(TEXT("with the packaging warning after the valid line"), LogoGot.Num() == 2 && LogoGot[0].StartsWith(TEXT("info Valid: ")) &&
+		LogoGot[1].StartsWith(TEXT("warning Logo \"Saved/ScfgTestsLooseLogo.png\" is not in a folder under Content/")));
 	return true;
 }
 

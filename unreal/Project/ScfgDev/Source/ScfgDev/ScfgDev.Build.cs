@@ -16,9 +16,9 @@ public class ScfgDev : ModuleRules
 			// The e2e driver (compiled out of Shipping): it reads what the player sees from the plugin's screens, which
 			// are not the plugin's public API (Scfg's Private/, the classes carry SCFG_API), drives them through
 			// FSlateApplication, reads its config with Json, talks to the runner over a loopback socket, and reads the
-			// clipboard (ApplicationCore).
+			// clipboard (ApplicationCore) and the HTTP transport's request count (HTTP, for its header).
 			PrivateIncludePaths.Add(Path.GetFullPath(Path.Combine(PluginsDirectory(), "Scfg", "Source", "Scfg", "Private")));
-			PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "Json", "Sockets" });
+			PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "HTTP", "Json", "Sockets" });
 		}
 	}
 

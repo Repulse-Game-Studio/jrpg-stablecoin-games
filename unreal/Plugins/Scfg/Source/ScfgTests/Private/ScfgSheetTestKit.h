@@ -6,7 +6,8 @@
 //
 // FSheetRig: an SVirtualWindow (registered with FSlateApplication, never a native window) holding the overlay a game
 // viewport draws its widgets in; a UGameViewportClient of the tests whose overlay is that one, set as the game
-// viewport of a real game instance (InitializeStandalone); the plugin's FScfgDefaultSheetHost on that instance, so the
+// viewport of a real game instance (InitializeStandalone, from blank project settings: FScfgBlankProjectSettings, so its
+// own facade is never configured); the plugin's FScfgDefaultSheetHost on that instance, so the
 // screens go through UGameViewportClient::AddViewportWidgetContent as in a game; the facade of FWorld (fake nodes,
 // fake platform) with that host as its default host and no game host; and a focusable widget of "the game" behind the
 // sheet that records every key it gets and stands for the game viewport widget (the host's mouse wish names it).
@@ -21,6 +22,7 @@
 
 #include "ScfgDefaultSheetHost.h"
 #include "ScfgFacadeTestKit.h"
+#include "ScfgSubsystemTestAccess.h"
 #include "UI/SScfgPaymentSheet.h"
 #include "UI/SScfgRestoreScreen.h"
 #include "UI/SScfgScreen.h"
@@ -56,6 +58,8 @@ public:
 
 struct FSheetRig
 {
+	// The instance below starts from blank project settings (first: it is put back last, after the instance's shutdown).
+	FScfgBlankProjectSettings BlankSettings;
 	ScfgFacadeTests::FWorld W;
 	TSharedPtr<SVirtualWindow> Window;
 	TSharedPtr<SOverlay> Layer;

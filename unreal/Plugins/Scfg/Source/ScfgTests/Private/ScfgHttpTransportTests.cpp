@@ -488,6 +488,7 @@ bool FScfgHttpRefusedAtOnceTest::RunTest(const FString& Parameters)
 	AddExpectedMessagePlain(TEXT("completed with reason 'Other'"), ELogVerbosity::Warning,
 		EAutomationExpectedMessageFlags::Contains, 1);
 	const int32 SeenBefore = Node.Seen.Num();
+	const int32 ProcessBefore = FScfgHttpTransport::ProcessPosts();
 	FScfgHttpTransport Transport;
 
 	Json Huge = Json::dict({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "eth_call"},
@@ -511,6 +512,8 @@ bool FScfgHttpRefusedAtOnceTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("with no status"), NoUrlGot->err().status.has_value());
 	}
 	TestEqual(TEXT("both counted"), Transport.Posts(), 2);
+	TestEqual(TEXT("in the process's count too (the showcase tour's http_requests)"),
+		FScfgHttpTransport::ProcessPosts() - ProcessBefore, 2);
 	TestEqual(TEXT("nothing in flight"), Transport.InFlight(), 0);
 	TestEqual(TEXT("the node saw nothing"), Node.Seen.Num(), SeenBefore);
 	return true;

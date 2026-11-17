@@ -77,7 +77,7 @@ configuration: declare the items again after it.
 | `RpcUrls` | Your own RPC endpoints per chain key (an `FScfgRpcUrls` whose `Urls` are https URLs), tried before the built-in public ones |
 | `Confirmations` | Confirmations required per chain key (1 or more; not for Solana, which waits for finalization) |
 | `PreviousWallets` | Wallets you were paid to before (EVM and Solana addresses can be mixed). Their receipts stay valid |
-| `Logo` | An image file shown on the sheet and the checkout page, relative to the project folder (`Content/Scfg/logo.png`): png, jpg or webp. See [The logo in a packaged game](#the-logo-in-a-packaged-game) |
+| `Logo` | An image file shown on the sheet and the checkout page, relative to the project folder: png, jpg or webp. To ship it, keep it in a folder under `Content/` (`Content/Scfg/logo.png`) and stage that folder: see [The logo in a packaged game](#the-logo-in-a-packaged-game) |
 | `Accent` | The accent color of the sheet and the checkout page, `"#rrggbb"`. Empty: the default |
 
 | `FScfgMethods` field | Meaning |
@@ -140,16 +140,22 @@ panel.
   it.
 - **A code call made after them wins.** The settings are one unit. A `Configure` from code replaces everything they
   applied (options, logo, chains, items) and sees only the chains your code added itself; one that fails leaves the
-  settings in place. An `AddChain` from code sets the settings aside, with a warning: call `Configure` next. Once
-  payments have started with the settings, it is refused (`configure.after_add_chain`) and the settings stay. An
+  settings in place. An `AddChain` from code sets the settings aside, with a warning: call `Configure` next. A chain
+  that the core refuses (its error code, such as `rpc.not_https`) leaves the settings in place, as a failing
+  `Configure` does. Once payments have started with the settings, it is refused (`configure.after_add_chain`) and the
+  settings stay. An
   `AddItem` from code adds to the settings' items; an id or code they already use is `item.duplicate_id` or
   `item.duplicate_code`.
 - **Override them before the first frame**: in the game instance's `Init()` after `Super::Init()`, or the first
-  level's `BeginPlay`. After it, `Configure` is `configure.after_start`.
+  level's `BeginPlay`. After it, `Configure` is `configure.after_start`, and its message says that the settings
+  started payments (clear the wallet in the settings if your game always configures from code).
 - **Validate.** The panel's **Validate** button shows every problem with its code, as a notification and on the
-  **SCFG** page of the Message Log. From code, `GetDefault<UScfgSettings>()->Validate()` returns the same
-  `TArray<FScfgSettingsProblem>` (`Code`, `Message`; empty when valid) without touching any subsystem, and
-  `Verdict(Problems)` the lines the button shows. `IsEmpty()` is true without a wallet (not applied), `HasRows()`
+  **SCFG** page of the Message Log, then a warning for a logo that a packaged game would not have (see
+  [The logo in a packaged game](#the-logo-in-a-packaged-game)). From code, `GetDefault<UScfgSettings>()->Validate()`
+  returns the same `TArray<FScfgSettingsProblem>` (`Code`, `Message`; empty when valid) without touching any
+  subsystem, `Warnings()` the warning lines (they are not problems: the editor still finds the file), and
+  `Verdict(Problems, Warnings)` the lines the button shows. `UScfgSettings::LogoPackagingWarning(Logo, ProjectDir,
+  UScfgSettings::StagedDirectories())` checks a logo you pass to `Configure` from code the same way. `IsEmpty()` is true without a wallet (not applied), `HasRows()`
   when there are chain or item rows. In editor code, `ScfgEditor::ValidateSettings(Settings, bNotify)` (module
   `ScfgEditor`) posts the result to the Message Log as the button does.
 
@@ -407,10 +413,22 @@ no `IScfgSheetHost` to implement.
 
 ### The logo in a packaged game
 
-The logo is read from disk, not loaded as an asset, and `Configure` checks that the file exists
-(`logo.file_missing`). The cooker does not package a png under `Content/` by itself: add the logo's folder to
-**Project Settings > Packaging > Additional Non-Asset Directories to Package**. A packaged game with a logo has not
-been run in this preview yet; check the packaged game's log for `logo.file_missing` before you ship.
+The logo is a loose file read from disk, not an asset, and `Configure` checks that it exists (`logo.file_missing`).
+The cooker packages assets only, so a packaged game has the logo only when both hold:
+
+1. The logo is in a **folder under `Content/`**: `Content/Scfg/logo.png`, not `Content/logo.png` itself and not a
+   folder beside `Content/` such as `Branding/logo.png`.
+2. That folder is listed in **Project Settings > Packaging > Additional Non-Asset Directories to Package** (in the
+   advanced part of the Packaging section; the paths there are relative to `Content/`, so add `Scfg`), or in
+   **Additional Non-Asset Directories To Copy**. In `Config/DefaultGame.ini` that is
+   `+DirectoriesToAlwaysStageAsUFS=(Path="Scfg")` under `[/Script/UnrealEd.ProjectPackagingSettings]`.
+
+Otherwise the editor and play in the editor still find the file, but the packaged game's `Configure` fails with
+`logo.file_missing`: project settings with that logo are not applied, and every `Pay` then fails with
+`configure.not_called`. The settings panel's **Validate** warns about a logo that will not be packaged; a logo you
+pass to `Configure` from code is not checked there, so follow the same two rules (or call
+`UScfgSettings::LogoPackagingWarning`). The showcase project does exactly this (`Content/Showcase/logo.png`, its
+`Showcase` folder in that list), and its packaged game is tested with it.
 
 ### Your own sheet host
 
@@ -527,7 +545,8 @@ Not tested yet: play in the editor, a Shipping game run, a real desktop session 
 endpoints (the tests serve plain HTTP on loopback).
 
 **Windows and macOS** are in the plugin's platform list but have never been built: they are unverified. **UE 5.6 and
-5.7** are unverified too.
+5.7** are unverified too: 5.6 is the minimum, and the release has a zip for each of 5.6, 5.7 and 5.8 (the same source,
+each `Scfg.uplugin` declaring its engine version), but only 5.8.4 has been tested.
 
 ### Mobile (unverified)
 

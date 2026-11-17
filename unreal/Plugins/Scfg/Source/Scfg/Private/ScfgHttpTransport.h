@@ -54,6 +54,11 @@ public:
 	// Requests posted so far (the tests count them), and those still waiting for an answer.
 	int32 Posts() const { return NumPosts; }
 	int32 InFlight() const { return Waiting.Num(); }
+#if !UE_BUILD_SHIPPING
+	// Requests every FScfgHttpTransport of this process posted (post_json calls), outside Shipping: the showcase tour
+	// asserts that it made none (the e2e driver's http_requests, tools/run_unreal_e2e.py --showcase).
+	static int32 ProcessPosts();
+#endif
 
 private:
 	struct FWaiting

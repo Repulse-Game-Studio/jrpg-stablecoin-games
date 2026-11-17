@@ -32,6 +32,10 @@ namespace ScfgShowcaseDetail
 const TCHAR* const WALLET = TEXT("0x52908400098527886E0F7030069857D2E4169EE7");
 // The accent color of the payment sheet, as "#rrggbb".
 const TCHAR* const ACCENT = TEXT("#7c5cff");
+// The logo on the payment sheet and the checkout page, relative to the project folder. A loose file: its folder
+// (Content/Showcase) is in Project Settings > Packaging > Additional Non-Asset Directories to Package, so a packaged
+// game has it too (Config/DefaultGame.ini).
+const TCHAR* const LOGO = TEXT("Content/Showcase/logo.png");
 
 // The paid items, passed to AddItem(). Code (1-99) identifies the item in the payment amount: never change it after
 // release. Pay may charge another amount than the price: anything above it (pay what you want), or down to an optional
@@ -459,7 +463,8 @@ bool UScfgShowcaseGameInstance::ConfigureInCode()
 	Options.Wallet = WALLET;
 	Options.bTestnet = true;  // Sepolia, Arbitrum Sepolia, Amoy, Base Sepolia, Arc Testnet
 	Options.Accent = ACCENT;
-	// Optional, among others: SolanaWallet, Chains, Tokens, Methods, RpcUrls, Confirmations, Logo.
+	Options.Logo = LOGO;
+	// Optional, among others: SolanaWallet, Chains, Tokens, Methods, RpcUrls, Confirmations.
 	if (!Scfg()->Configure(Options).IsEmpty())
 	{
 		return false;

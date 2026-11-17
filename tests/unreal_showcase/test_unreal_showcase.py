@@ -8,7 +8,8 @@ itself from the project settings (Config/DefaultGame.ini). It clicks Export rece
 data, Notify (off and on), Restore purchases, a tip and an unlock (each sheet closed with Escape on
 its first step, before a network is chosen), and checks the readouts and the event log after each;
 then it starts the showcase again with -scfg-showcase-code and checks the same shop, configured in
-code. Any Error or Warning line of the game fails it."""
+code. Each start must have found the settings' logo and posted no JSON-RPC request (the plugin's
+HTTP transport counts them). Any Error or Warning line of the game fails it."""
 
 from __future__ import annotations
 
@@ -60,3 +61,5 @@ def test_the_showcase_boots_and_its_chain_free_buttons_work():
         "Configured from: code (ConfigureInCode): the same 11 buttons and readouts",
     ):
         assert line in out, out
+    # each start: the logo found, and no JSON-RPC request made (FScfgHttpTransport's count)
+    assert out.count("Content/Showcase/logo.png was found; 0 JSON-RPC requests") == 2, out

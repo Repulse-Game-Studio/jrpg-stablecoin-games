@@ -31,6 +31,7 @@
 #include "ScfgDefaultSheetHostAccess.h"
 #include "ScfgDevLog.h"
 #include "ScfgFacade.h"
+#include "ScfgHttpTransport.h"
 #include "ScfgShowcase.h"
 #include "ScfgSubsystem.h"
 #include "ScfgSubsystemAccess.h"
@@ -1137,6 +1138,21 @@ void FScfgE2EDriver::Run(int64 Id, const TSharedRef<FJsonObject>& Command)
 	else if (Op == TEXT("saved_dir"))
 	{
 		Reply(Id, Str(FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir())));
+	}
+	else if (Op == TEXT("http_requests"))
+	{
+		Reply(Id, MakeShared<FJsonValueNumber>(FScfgHttpTransport::ProcessPosts()));
+	}
+	else if (Op == TEXT("configuration"))
+	{
+		const FScfgFacade* Facade = FScfgSubsystemAccess::Facade(*G->Scfg());
+		const TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+		Out->SetBoolField(TEXT("configured"), Facade && Facade->GetConfig() != nullptr);
+		Out->SetBoolField(TEXT("from_settings"), Facade && Facade->IsConfigFromSettings());
+		Out->SetStringField(TEXT("logo"), Facade ? Facade->GetLogoPath() : FString());
+		Out->SetBoolField(TEXT("logo_exists"), Facade && !Facade->GetLogoPath().IsEmpty() &&
+			IFileManager::Get().FileExists(*Facade->GetLogoPath()));
+		Reply(Id, MakeShared<FJsonValueObject>(Out));
 	}
 	else if (Op == TEXT("input"))
 	{

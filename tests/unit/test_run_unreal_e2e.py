@@ -145,10 +145,35 @@ def test_the_tour_presses_the_e2es_buttons_too():
     assert len(set(e2e.TOUR_BUTTONS)) == len(e2e.TOUR_BUTTONS)
 
 
-def test_the_tour_runs_the_editor_build_only(capsys):
-    with pytest.raises(SystemExit) as raised:
-        e2e.main(["--showcase", "--packaged"])
-    assert raised.value.code == 2 and "--packaged" in capsys.readouterr().err
+def test_the_tour_may_run_on_the_packaged_game(monkeypatch):
+    seen = []
+    monkeypatch.setattr(e2e, "run_outer", lambda argv: seen.append(argv) or 0)
+    monkeypatch.delenv(e2e.INNER_ENV, raising=False)
+    assert e2e.main(["--showcase", "--packaged"]) == 0
+    assert seen == [["--showcase", "--packaged"]]
+
+
+def test_the_staged_game_is_checked_for_the_editor_module(tmp_path):
+    game = tmp_path / "Linux" / "ScfgDev" / "Binaries" / "Linux" / "ScfgDev"
+    game.parent.mkdir(parents=True)
+    game.write_bytes(b"\x7fELF scfg: the payment state file is " + "Scfg".encode("utf-16-le"))
+    assert e2e.editor_module_staged(tmp_path, game) == []
+    game.write_bytes(b"\x7fELF" + "Show the SCFG log".encode("utf-16-le"))
+    assert e2e.editor_module_staged(tmp_path, game) == [
+        "'Show the SCFG log' (utf-16-le) in ScfgDev"]
+    game.write_bytes(b"\x7fELF ScfgEditor")
+    (tmp_path / "Linux" / "ScfgDev" / "Plugins").mkdir()
+    (tmp_path / "Linux" / "ScfgDev" / "Plugins" / "libScfgEditor.so").write_bytes(b"")
+    assert e2e.editor_module_staged(tmp_path, game) == [
+        "file Linux/ScfgDev/Plugins/libScfgEditor.so", "'ScfgEditor' (utf-8) in ScfgDev"]
+
+
+def test_the_tour_checks_the_showcase_logo():
+    assert e2e.SHOWCASE_LOGO == "Content/Showcase/logo.png"
+    ini = (e2e.PROJECT.parent / "Config" / "DefaultGame.ini").read_text()
+    assert f'Logo="{e2e.SHOWCASE_LOGO}"' in ini
+    assert '+DirectoriesToAlwaysStageAsUFS=(Path="Showcase")' in ini
+    assert (e2e.PROJECT.parent / e2e.SHOWCASE_LOGO).read_bytes().startswith(b"\x89PNG")
 
 
 def test_the_game_command_renders_on_the_cpu_and_never_headless(tmp_path):

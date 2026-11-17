@@ -278,6 +278,44 @@ bool FScfgStoreRoundTripTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+SCFG_STORE_TEST(FScfgStoreDefaultPathRefusedTest, "TheTestsRefuseTheProjectsOwnStateFile")
+
+// ScfgTestsModule.cpp's hook: while a test runs, a store on the project's own Saved/Scfg/state.json (DefaultPath())
+// does not read it (blocked, reported, nothing written there) and logs the Error that fails the test that did it.
+bool FScfgStoreDefaultPathRefusedTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgStoreTests;
+	if (!TestTrue(TEXT("the tests' module set the hook"), static_cast<bool>(FScfgStore::DefaultPathHookForTests())))
+	{
+		return true;
+	}
+	const FString Path = FScfgStore::DefaultPath();
+	const bool bExisted = FileExists(Path);
+	const std::optional<std::string> Before = bExisted ? ReadAll(Path) : std::nullopt;
+	AddExpectedMessagePlain(TEXT("scfg tests: a test opened the project's own payment state file"), ELogVerbosity::Error,
+		EAutomationExpectedMessageFlags::Contains, 1);
+	FTSTicker Ticker;
+	FReports Reports;
+	{
+		FScfgStore Store(Options(FPaths::ProjectSavedDir() / TEXT("Scfg"), Ticker, Reports));
+		TestEqual(TEXT("the default path"), Store.GetPath(), Path);
+		TestTrue(TEXT("refused unread: blocked"), Store.IsBlocked() && Store.GetPending().as_dict().size() == 0 &&
+			Store.GetReceipts().as_dict().size() == 0);
+		TestTrue(TEXT("saying why"), Store.IsBlocked() &&
+			ScfgString::FromUtf8(Store.GetBlockReason()->message).Contains(TEXT("refuse the project's own payment state file")));
+		TestFalse(TEXT("no save"), Store.Save(Json::dict(), Json::dict()));
+	}
+	TestEqual(TEXT("the block reported once"), Reports.Errors.Num(), 1);
+	TestEqual(TEXT("the file is as it was (or still absent)"), FileExists(Path), bExisted);
+	TestTrue(TEXT("its text untouched"), !bExisted || ReadAll(Path) == Before);
+	FTempDir T;
+	{
+		FScfgStore Own(Options(T.Dir, Ticker, Reports));
+		TestFalse(TEXT("a directory of the test's own is read as always"), Own.IsBlocked());
+	}
+	return true;
+}
+
 SCFG_STORE_TEST(FScfgStoreMakesDirectoryTest, "SaveCreatesTheDirectory")
 
 // test_save_creates_the_directory.

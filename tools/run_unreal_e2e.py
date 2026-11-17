@@ -34,7 +34,12 @@ shows. Per run (godot/demo's scenarios, tools/run_godot_e2e.py):
 --showcase runs the showcase's boot test instead (tests/unreal_showcase, the twin of
 tests/godot_showcase; see "the showcase tour" below): no chain, no browser. The showcase
 configures itself (from the project settings, then in code with -scfg-showcase-code), and its
-chain-free buttons are pressed with real clicks and their readouts checked.
+chain-free buttons are pressed with real clicks and their readouts checked; the plugin's HTTP
+transport must have posted no request (the driver's http_requests), and the settings' logo
+(Content/Showcase/logo.png) must have been found. With --packaged the tour runs on the cooked,
+staged game: the settings then come from the staged ini, the logo from the pak (its folder is in
+the project's Additional Non-Asset Directories to Package), and the plugin's editor module
+(ScfgEditor) must not be in the game.
 
 --family evm (default) pays USDC on Anvil (the arbitrum entry pointed at a mock token); arc pays
 native USDC on Anvil dressed as Arc; solana pays USDC on solana-test-validator. They need `anvil`
@@ -79,7 +84,7 @@ an accepted test-time exposure (ruling R2-16; the foreign MCP's TCP 127.0.0.1:80
 touched). Screenshots of the sheet (one per run) go to --screenshots.
 
     uv run python tools/run_unreal_e2e.py --family solana [--packaged] [--screenshots DIR]
-    uv run python tools/run_unreal_e2e.py --showcase [--no-build] [--screenshots DIR]
+    uv run python tools/run_unreal_e2e.py --showcase [--packaged | --no-build] [--screenshots DIR]
 """
 
 from __future__ import annotations
@@ -1183,6 +1188,8 @@ TOUR_BUTTONS = ("Unlock.chapter2", "Unlock.soundtrack", "Unlock.supporter", "Pay
 FROM_SETTINGS = "Configured from: the project settings (Config/DefaultGame.ini)"
 FROM_CODE = "Configured from: code (ConfigureInCode)"
 CODE_SWITCH = "-scfg-showcase-code"
+# The showcase's logo (its project settings' and ConfigureInCode's), relative to the project.
+SHOWCASE_LOGO = "Content/Showcase/logo.png"
 # What the readouts say before anything was paid.
 NOTHING_YET = ("Supported: yes", "Owned: nothing yet", "Tips: 0 USDC",
                "Payments still being watched: 0",
@@ -1307,7 +1314,23 @@ def showcase_tour(game: Game, saved: Path, shots: Path) -> dict:
     expect(snap["world_clicks"] == 0, "a HUD click reached the world", snap)
     expect(hud_button(snap, UNLOCK) is not None, "the Unlock button is gone", snap)
     seen["texts"] = texts
+    seen["configuration"] = configured_offline_with_the_logo(game, from_settings=True)
     return seen
+
+
+def configured_offline_with_the_logo(game: Game, from_settings: bool) -> dict:
+    """The facade's configuration (from the settings or not) has the showcase's logo, found on
+    disk (in a packaged game: in the pak), and the plugin's HTTP transport posted nothing."""
+    config = game.call("configuration")
+    expect(config["configured"] and config["from_settings"] == from_settings,
+           f"the configuration should {'' if from_settings else 'not '}be the settings'", config)
+    expect(config["logo"].replace("\\", "/").endswith(SHOWCASE_LOGO) and config["logo_exists"],
+           f"the configured logo should be the showcase's {SHOWCASE_LOGO}, found", config)
+    requests = game.call("http_requests")
+    expect(requests == 0, f"the showcase posted {requests} JSON-RPC request(s): it should ask "
+           "no chain anything", requests)
+    print(f"  the logo {config['logo']} was found; 0 JSON-RPC requests")
+    return {**config, "http_requests": requests}
 
 
 def showcase_from_code(game: Game, tour: dict) -> None:
@@ -1320,6 +1343,7 @@ def showcase_from_code(game: Game, tour: dict) -> None:
     for line in NOTHING_YET:
         expect(line in hud(snap), f"the HUD should show {line!r}", hud(snap))
     print(f"  {FROM_CODE}: the same {len(names)} buttons and readouts")
+    configured_offline_with_the_logo(game, from_settings=False)
 
 
 def run_showcase(args, started: float) -> int:
@@ -1331,11 +1355,21 @@ def run_showcase(args, started: float) -> int:
     games = []
     control = Control()
     times = {}
+    failed = False
     try:
-        print(f"Unreal showcase tour, DISPLAY {os.environ['DISPLAY']} (Xvfb of this run), "
-              f"work {work}")
+        mode = "packaged" if args.packaged else "editor build"
+        print(f"Unreal showcase tour ({mode}), DISPLAY {os.environ['DISPLAY']} (Xvfb of this "
+              f"run), work {work}")
         t = time.monotonic()
-        if not args.no_build:
+        staged = None
+        if args.packaged:
+            staged = build_packaged(engine, work)
+            found = editor_module_staged(work / "archive", staged)
+            if found:
+                raise E2EError("the staged game holds the plugin's editor module (ScfgEditor): "
+                               + "; ".join(found))
+            print("  the staged game holds nothing of ScfgEditor")
+        elif not args.no_build:
             build_editor(engine, work)
         times["build"] = time.monotonic() - t
         user_dir = work / "userdir"
@@ -1346,7 +1380,7 @@ def run_showcase(args, started: float) -> int:
         tour = None
         for label, extra in (("settings", []), ("code", [CODE_SWITCH])):
             t = time.monotonic()
-            game = Game(game_command(engine, config, user_dir) + extra, env,
+            game = Game(game_command(engine, config, user_dir, staged) + extra, env,
                         work / f"showcase_{label}.log", control, f"showcase ({label})")
             games.append(game)
             start = game.connect()
@@ -1375,11 +1409,14 @@ def run_showcase(args, started: float) -> int:
         print(e if isinstance(e, E2EError) else traceback.format_exc())
         print(f"Unreal showcase tour FAILED after {time.monotonic() - started:.1f} s "
               f"(logs in {work})")
+        failed = True
         return 1
     finally:
         for game in games:
             game.close()
         control.close()
+        if failed and not args.keep:
+            remove_work(work / "archive")  # the logs stay, the 1 GB archive goes
     shown = ", ".join(f"{k} {v:.1f} s" for k, v in times.items())
     kept = work if args.keep else None
     if kept is None:
@@ -1438,6 +1475,23 @@ def staged_game(archive: Path) -> Path:
     if not found:
         raise E2EError(f"no staged game under {archive}")
     return found[0]
+
+
+# The plugin's editor module (Scfg.uplugin: ScfgEditor, Type Editor) in a staged game: a file named
+# after it, or its module name or a text only it has in the game binary (UTF-8 or UTF-16, TCHAR).
+EDITOR_MODULE = "ScfgEditor"
+EDITOR_MARKS = (EDITOR_MODULE, "Show the SCFG log")
+
+
+def editor_module_staged(archive: Path, game: Path) -> list:
+    """What of the plugin's editor module the staged game holds (empty: nothing)."""
+    found = [f"file {p.relative_to(archive)}" for p in sorted(archive.rglob(f"*{EDITOR_MODULE}*"))]
+    data = game.read_bytes()
+    for mark in EDITOR_MARKS:
+        for encoding in ("utf-8", "utf-16-le"):
+            if mark.encode(encoding) in data:
+                found.append(f"{mark!r} ({encoding}) in {game.name}")
+    return found
 
 
 def uat_env(environ: dict, work: Path) -> dict:
@@ -1700,10 +1754,9 @@ def main(argv=None) -> int:
     ap.add_argument("--showcase", action="store_true",
                     help="the showcase tour instead of the payments: its chain-free buttons, "
                     "configured from the project settings, then in code (no chain, no browser; "
-                    "tests/unreal_showcase); --family does not apply, --packaged is refused")
+                    "tests/unreal_showcase); --family does not apply; with --packaged, on the "
+                    "cooked game")
     args = ap.parse_args(argv)
-    if args.showcase and args.packaged:
-        ap.error("--showcase runs the editor build only (not --packaged)")
     if os.environ.get(INNER_ENV):
         return run_inner(args)
     return run_outer(argv)

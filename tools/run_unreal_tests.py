@@ -11,7 +11,7 @@ of ours. Then runs
     <engine>/Engine/Binaries/Linux/UnrealEditor-Cmd <uproject>
         -ExecCmds="Automation RunTests <filter>;Quit" -unattended -nullrhi -nosplash -stdout
         -notraceserver -NoZenAutoLaunch -ddc=<graph without ZenLocal>
-        -ReportExportPath=<report dir>
+        -ReportExportPath=<report dir> -abslog=<report dir>/editor.log
 
 in a session of its own under --timeout (default 1800 s; on expiry, or on a SIGTERM, SIGINT or
 SIGHUP to this script, every process of the session is killed), passing its output through.
@@ -29,7 +29,12 @@ has no switch (unreal/README.md, "Under UBT").
 The editor's report, <report dir>/index.json (UTF-8 with a BOM), decides: it prints "<n> passed,
 <m> failed" and the run is green only when the editor exited 0, wrote a report, m == 0, no test
 was left unrun or in process, every entry of its tests list succeeded and their number is n,
-n > 0 and, with --expect, n >= that minimum. The vectors the run read are printed (from
+n > 0 and, with --expect, n >= that minimum, and no store opened the project's own
+Saved/Scfg/state.json (the editor's full log, <report dir>/editor.log, which has the Log lines
+its output leaves out, has no "scfg: the payment state file is <project>/Saved/Scfg/state.json"
+line: a test's facade has a state directory of its own, and a test that makes a real game
+instance starts it from blank project settings; ScfgTestsModule.cpp refuses that file, and fails
+the test, while a test runs). The vectors the run read are printed (from
 Scfg.Core.NothingLeftOut's entry), and whether $SCFG_VECTORS chose them. The report directory
 defaults to a new temporary directory, which is kept (its path is printed); a given one loses any
 old index.json first, so a stale report never passes.
@@ -71,7 +76,7 @@ def editor_command(engine: Path, project: Path, test_filter: str, report_dir: Pa
             f"-ExecCmds=Automation RunTests {test_filter};Quit",
             "-unattended", "-nullrhi", "-nosplash", "-stdout", "-notraceserver",
             "-NoZenAutoLaunch", f"-ddc={ddc_graph(engine)}",
-            f"-ReportExportPath={report_dir}"]
+            f"-ReportExportPath={report_dir}", f"-abslog={report_dir / 'editor.log'}"]
 
 
 def vectors_read(report: dict) -> str | None:
@@ -111,6 +116,19 @@ def failing(report: dict) -> list[str]:
         first = f": {errors[0].splitlines()[0]}" if errors else ""
         out.append(f"{test.get('fullTestPath')}: {state}{first}")
     return out
+
+
+STATE_LINE = "scfg: the payment state file is "
+
+
+def opened_project_state(output: str, project: Path) -> list[str]:
+    """The output's lines where a store opened the project's own Saved/Scfg/state.json (FScfgStore
+    logs "scfg: the payment state file is <path>" for each file it opens)."""
+    folder = Path(os.path.abspath(project)).parent
+    targets = {str(folder / "Saved" / "Scfg" / "state.json"),
+               str(folder.resolve() / "Saved" / "Scfg" / "state.json")}
+    return [line for line in output.splitlines()
+            if STATE_LINE in line and line.split(STATE_LINE, 1)[1].strip() in targets]
 
 
 def verdict(returncode: int, report: dict | str, expect: int | None) -> tuple[str, str | None]:
@@ -195,6 +213,8 @@ def main(argv=None) -> int:
         report_dir = Path(tempfile.mkdtemp(prefix="scfg-unreal-tests-"))
     index = report_dir / "index.json"
     index.unlink(missing_ok=True)
+    editor_log = report_dir / "editor.log"
+    editor_log.unlink(missing_ok=True)
 
     cmd = editor_command(engine, project, args.filter, report_dir)
     chosen = os.environ.get("SCFG_VECTORS")
@@ -203,7 +223,8 @@ def main(argv=None) -> int:
           flush=True)
     print("run_unreal_tests: " + " ".join(cmd), flush=True)
     try:
-        returncode, _ = run_unreal_build.run_streamed(cmd, args.timeout, args.log, linger=LINGER)
+        returncode, output = run_unreal_build.run_streamed(cmd, args.timeout, args.log,
+                                                           linger=LINGER)
     except OSError as e:
         print(f"run_unreal_tests: FAILED: cannot start {cmd[0]}: {e}", file=sys.stderr)
         return 1
@@ -214,6 +235,16 @@ def main(argv=None) -> int:
 
     report = read_report(index)
     summary, why = verdict(returncode, report, args.expect)
+    try:
+        full_log = editor_log.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        full_log = ""
+        if why is None:
+            why = f"the editor wrote no log ({editor_log} is missing)"
+    opened = opened_project_state(full_log + "\n" + output, project)
+    if why is None and opened:
+        why = (f"{len(opened)} store(s) opened the project's own payment state file (a test "
+               f"facade must not): {opened[0].strip()}")
     if isinstance(report, dict) and (read := vectors_read(report)):
         source = "$SCFG_VECTORS" if chosen else "found above the plugin"
         print(f"run_unreal_tests: the tests read the vectors in {read} ({source})", flush=True)

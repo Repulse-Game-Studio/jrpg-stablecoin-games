@@ -14,9 +14,10 @@ namespace ScfgEditor
 SCFGEDITOR_API extern const FName MessageLogName;
 
 // Settings.Validate(), posted to a new page of the "SCFG" Message Log: an error line per problem ("<code>:
-// <message>"), else an info line saying they are valid, then a warning when they are not applied (no wallet) or use
-// the test networks. Not echoed to the output log. With bNotify, also a notification (success or failure, with a link
-// to the log). Returns the problems.
+// <message>"), else an info line saying they are valid, then a warning per Settings.Warnings() (a logo a packaged game
+// would not have), and one when they are not applied (no wallet) or use the test networks. Not echoed to the output
+// log. With bNotify, also a notification (failure, or success, "with N warnings" when there are some; a link to the
+// log). Returns the problems.
 SCFGEDITOR_API TArray<FScfgSettingsProblem> ValidateSettings(const UScfgSettings& Settings, bool bNotify);
 
 }  // namespace ScfgEditor

@@ -26,6 +26,12 @@
 // the facade's logo check, without touching any subsystem: every problem, with the core's ConfigError code. The editor
 // module (ScfgEditor) puts a Validate button in the settings panel that shows the result as a notification and on the
 // "SCFG" page of the Message Log.
+//
+// PACKAGING. The logo is a loose file, which the cooker does not stage: a packaged game has it only when it is under
+// Content/, in a folder listed in Project Settings > Packaging > Additional Non-Asset Directories to Package (inside
+// the pak) or To Copy (beside it), which are relative to Content/. Anywhere else, Configure() in the packaged game fails
+// with logo.file_missing and the settings are not applied. Warnings() says so; Validate shows it as a warning, since
+// the editor and play in the editor still find the file.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -93,6 +99,10 @@ class SCFG_API UScfgSettings : public UDeveloperSettings
 public:
 	UScfgSettings();
 
+	// The options new settings start with (the constructor's): Configure()'s defaults with testnet on, as Unity's asset.
+	// A settings object made later copies the class default instead, which holds the project's DefaultGame.ini.
+	static FScfgOptions NewOptions();
+
 	// Configure()'s options. At least one of the two wallets is required, else the settings are not applied. Testnet
 	// starts on: develop with it, turn it off for the release.
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Configure")
@@ -114,9 +124,22 @@ public:
 	// are checked only when the configuration builds). Empty: valid. ProjectDir is what a logo is relative to
 	// (empty: FPaths::ProjectDir()).
 	TArray<FScfgSettingsProblem> Validate(const FString& ProjectDir = FString()) const;
+	// What Validate() does not refuse but a packaged game would: the logo kept out of the package (see PACKAGING in the
+	// file header). One line per warning; none when no logo is set or it will be packaged.
+	TArray<FString> Warnings(const FString& ProjectDir = FString()) const;
 	// What the Validate button shows: one line per problem ("<code>: <message>"), or the line saying they are valid,
-	// and a note when the settings are empty (not applied).
-	TArray<FString> Verdict(const TArray<FScfgSettingsProblem>& Problems) const;
+	// then each warning, and a note when the settings are empty (not applied) or on testnet.
+	TArray<FString> Verdict(const TArray<FScfgSettingsProblem>& Problems, const TArray<FString>& InWarnings = {}) const;
+
+	// The packaging check of a logo (Options.Logo, or one passed to Configure()), relative to ProjectDir (empty:
+	// FPaths::ProjectDir()): "" when it is under Content/, in one of Staged (folders relative to Content/, as
+	// StagedDirectories() gives them), else the warning line.
+	static FString LogoPackagingWarning(const FString& Logo, const FString& ProjectDir, const TArray<FString>& Staged);
+	// The project's Additional Non-Asset Directories to Package and To Copy (Project Settings > Packaging:
+	// DirectoriesToAlwaysStageAsUFS and DirectoriesToAlwaysStageAsNonUFS in the Game ini's
+	// [/Script/UnrealEd.ProjectPackagingSettings]), relative to Content/, read as UAT's staging reads them
+	// (CopyBuildToStagingDirectory.Automation.cs, StageAdditionalDirectoriesFromConfig).
+	static TArray<FString> StagedDirectories();
 
 	// Where a game finds them: Project Settings > Plugins > SCFG.
 	virtual FName GetContainerName() const override;

@@ -20,7 +20,8 @@ const FName ScfgEditor::MessageLogName(TEXT("SCFG"));
 TArray<FScfgSettingsProblem> ScfgEditor::ValidateSettings(const UScfgSettings& Settings, bool bNotify)
 {
 	const TArray<FScfgSettingsProblem> Problems = Settings.Validate();
-	const TArray<FString> Lines = Settings.Verdict(Problems);
+	const TArray<FString> Warnings = Settings.Warnings();
+	const TArray<FString> Lines = Settings.Verdict(Problems, Warnings);
 	{
 		FMessageLog Log(MessageLogName);
 		Log.SuppressLoggingToOutputLog(true);
@@ -38,16 +39,20 @@ TArray<FScfgSettingsProblem> ScfgEditor::ValidateSettings(const UScfgSettings& S
 			}
 			else
 			{
-				Log.Warning(Line);  // not applied, or testnet
+				Log.Warning(Line);  // a packaging warning, not applied, or testnet
 			}
 		}
 	}  // (flushed to the page here)
 	if (bNotify)
 	{
-		FNotificationInfo Info(Problems.Num() == 0
-			? LOCTEXT("Valid", "SCFG settings are valid")
-			: FText::Format(LOCTEXT("Invalid", "SCFG settings: {0} {0}|plural(one=problem,other=problems)"), Problems.Num()));
-		Info.SubText = FText::FromString(Lines[0]);
+		FNotificationInfo Info(Problems.Num() > 0
+			? FText::Format(LOCTEXT("Invalid", "SCFG settings: {0} {0}|plural(one=problem,other=problems)"), Problems.Num())
+			: Warnings.Num() > 0
+			? FText::Format(LOCTEXT("ValidWarned", "SCFG settings are valid, with {0} {0}|plural(one=warning,other=warnings)"),
+				Warnings.Num())
+			: LOCTEXT("Valid", "SCFG settings are valid"));
+		// the first problem, else the first warning (the logo will not be packaged), else the valid line
+		Info.SubText = FText::FromString(Problems.Num() == 0 && Warnings.Num() > 0 ? Warnings[0] : Lines[0]);
 		Info.ExpireDuration = 8.f;
 		Info.bUseSuccessFailIcons = true;
 		Info.Hyperlink = FSimpleDelegate::CreateLambda([]() { FMessageLog(MessageLogName).Open(EMessageSeverity::Info, true); });

@@ -6,6 +6,9 @@
 #include "ScfgGuard.h"
 #include "ScfgString.h"
 
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/Paths.h"
+
 #include "Scfg/Config.h"
 #include "Scfg/Err.h"
 #include "Scfg/Json.h"
@@ -48,8 +51,15 @@ UScfgSettings::UScfgSettings()
 {
 	CategoryName = TEXT("Plugins");
 	SectionName = TEXT("SCFG");
+	Options = NewOptions();
+}
+
+FScfgOptions UScfgSettings::NewOptions()
+{
+	FScfgOptions New;
 	// Unity's asset starts on testnet too: test payments first, then turn it off for the release.
-	Options.bTestnet = true;
+	New.bTestnet = true;
+	return New;
 }
 
 bool UScfgSettings::IsEmpty() const
@@ -96,7 +106,71 @@ TArray<FScfgSettingsProblem> UScfgSettings::Validate(const FString& ProjectDir) 
 	return Problems;
 }
 
-TArray<FString> UScfgSettings::Verdict(const TArray<FScfgSettingsProblem>& Problems) const
+TArray<FString> UScfgSettings::Warnings(const FString& ProjectDir) const
+{
+	TArray<FString> Out;
+	if (const FString Logo = LogoPackagingWarning(Options.Logo, ProjectDir, StagedDirectories()); !Logo.IsEmpty())
+	{
+		Out.Add(Logo);
+	}
+	return Out;
+}
+
+FString UScfgSettings::LogoPackagingWarning(const FString& Logo, const FString& ProjectDir, const TArray<FString>& Staged)
+{
+	if (Logo.IsEmpty())
+	{
+		return FString();
+	}
+	const FString Root = ProjectDir.IsEmpty() ? FPaths::ProjectDir() : ProjectDir;
+	const FString Full = FPaths::ConvertRelativePathToFull(Root / Logo);
+	const FString Content = FPaths::ConvertRelativePathToFull(Root / TEXT("Content"));
+	const TCHAR* const Setting = TEXT("Project Settings > Packaging > Additional Non-Asset Directories to Package");
+	FString Folder = FPaths::GetPath(Full);
+	FPaths::MakePathRelativeTo(Folder, *(Content + TEXT("/")));
+	if (!FPaths::IsUnderDirectory(Full, Content) || Folder.IsEmpty() || Folder == TEXT("."))
+	{
+		return FString::Printf(TEXT("Logo \"%s\" is not in a folder under Content/, so a packaged game cannot include "
+			"it and its Configure() fails with logo.file_missing: move it into a folder under Content/ and add that "
+			"folder to %s."), *Logo, Setting);
+	}
+	for (const FString& Dir : Staged)
+	{
+		if (!Dir.IsEmpty() && FPaths::IsUnderDirectory(Full, FPaths::ConvertRelativePathToFull(Content / Dir)))
+		{
+			return FString();
+		}
+	}
+	return FString::Printf(TEXT("Logo \"%s\" is not packaged: its folder is not in %s, so a packaged game does not "
+		"include it and its Configure() fails with logo.file_missing. Add \"%s\" there (the folders are relative to "
+		"Content/)."), *Logo, Setting, *Folder);
+}
+
+TArray<FString> UScfgSettings::StagedDirectories()
+{
+	TArray<FString> Out;
+	for (const TCHAR* const Key : {TEXT("DirectoriesToAlwaysStageAsUFS"), TEXT("DirectoriesToAlwaysStageAsNonUFS")})
+	{
+		TArray<FString> Entries;
+		if (GConfig)
+		{
+			GConfig->GetArray(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), Key, Entries, GGameIni);
+		}
+		for (const FString& Entry : Entries)
+		{
+			// '(Path="Showcase")', or a bare path: UAT splits on '"' and takes the middle of three parts, or the one.
+			TArray<FString> Parts;
+			Entry.ParseIntoArray(Parts, TEXT("\""), false);
+			if (Parts.Num() == 3 || Parts.Num() == 1)
+			{
+				Out.Add(Parts[Parts.Num() == 3 ? 1 : 0]);
+			}
+		}
+	}
+	return Out;
+}
+
+TArray<FString> UScfgSettings::Verdict(const TArray<FScfgSettingsProblem>& Problems, const TArray<FString>& InWarnings) const
 {
 	using namespace ScfgSettingsDetail;
 	TArray<FString> Lines;
@@ -109,6 +183,7 @@ TArray<FString> UScfgSettings::Verdict(const TArray<FScfgSettingsProblem>& Probl
 		Lines.Add(FString::Printf(TEXT("Valid: the configuration, %s and %s pass the checks SCFG runs when the game starts."),
 			*Count(Chains.Num(), TEXT("chain"), TEXT("chains")), *Count(Items.Num(), TEXT("item"), TEXT("items"))));
 	}
+	Lines.Append(InWarnings);
 	if (IsEmpty())
 	{
 		Lines.Add(TEXT("No wallet is set, so these settings are not applied: the game configures SCFG from code."));

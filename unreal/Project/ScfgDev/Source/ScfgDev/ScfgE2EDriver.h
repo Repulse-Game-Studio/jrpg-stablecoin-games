@@ -38,6 +38,10 @@
 //   type {text}          characters typed
 //   owns {item}          UScfgSubsystem::Owns
 //   saved_dir            FPaths::ProjectSavedDir(), absolute (Saved/Scfg/state.json is under it)
+//   http_requests        how many JSON-RPC requests the plugin's HTTP transport posted in this process
+//                        (FScfgHttpTransport::ProcessPosts): the showcase tour asserts 0
+//   configuration        the facade's {configured, from_settings, logo (its full path, "" for none), logo_exists}:
+//                        the packaged tour checks the settings' logo was found in the cooked game
 //   input                who has the keyboard focus and the mouse capture ("sheet", "viewport", "hud", "none" or a
 //                        widget type), high-precision mode, whether the cursor is locked to the window (SDL's mouse
 //                        rect; null where unknown), whether the application and the game window are active

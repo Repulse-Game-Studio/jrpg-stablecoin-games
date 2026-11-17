@@ -19,7 +19,7 @@ It runs on testnets (Sepolia, Arbitrum Sepolia, Polygon Amoy, Base Sepolia, Arc 
 
 The showcase shows both ways to configure the plugin:
 
-- **The project settings** (the default). The plugin applies them by itself when the game instance starts. They are in Project Settings > Plugins > SCFG, saved to `Config/DefaultGame.ini` under `[/Script/Scfg.ScfgSettings]`, and committed: the wallet, testnet on, the accent color and the three items. The HUD says "Configured from: the project settings".
+- **The project settings** (the default). The plugin applies them by itself when the game instance starts. They are in Project Settings > Plugins > SCFG, saved to `Config/DefaultGame.ini` under `[/Script/Scfg.ScfgSettings]`, and committed: the wallet, testnet on, the accent color, the logo and the three items. The HUD says "Configured from: the project settings".
 - **Code**. `UScfgShowcaseGameInstance::ConfigureInCode()` calls `Configure()` and `AddItem()` with the same values. It runs when the game is started with `-scfg-showcase-code`, or when the project settings are empty. A `Configure()` from code replaces what the settings applied, as long as it comes before the first frame (the game instance's `Init()`). The HUD then says "Configured from: code".
 
 ## Run it
@@ -42,7 +42,9 @@ uv run python tools/run_unreal_build.py --target ScfgDevEditor --config Developm
 
 On Windows the editor is `Engine\Binaries\Win64\UnrealEditor.exe`, with the same arguments (not verified on Windows yet).
 
-The game runs on the engine's empty `/Engine/Maps/Entry` map, so the project has no content of its own. The screen is built in C++ with Slate (`Source/ScfgDev/ScfgShowcase.cpp`).
+The game runs on the engine's empty `/Engine/Maps/Entry` map, so the project has no assets of its own. The screen is built in C++ with Slate (`Source/ScfgDev/ScfgShowcase.cpp`).
+
+The sheet's logo is `Content/Showcase/logo.png`, a loose file that the cooker does not package by itself. `Config/DefaultGame.ini` therefore lists its folder in Project Settings > Packaging > Additional Non-Asset Directories to Package (`+DirectoriesToAlwaysStageAsUFS=(Path="Showcase")`, relative to `Content/`). Without that, a packaged showcase's `Configure()` fails with `logo.file_missing`. Validate in the SCFG settings warns when a logo would be left out like this.
 
 ## Pay on a testnet
 
@@ -69,9 +71,9 @@ The settings have no Solana wallet. With one, the plugin's start checks the wall
 
 ## Tests
 
-- **The boot test**, the twin of `tests/godot_showcase`: `uv run pytest -m unreal_showcase` (deselected by default), or `uv run python tools/run_unreal_e2e.py --showcase` directly. It starts the showcase on an X server of its own (`xvfb-run -a`, Mesa's lavapipe) with the e2e driver's control socket. It presses the buttons that need no chain with real clicks: Export, Clear, Notify off and on, Restore, a tip and an unlock, each sheet closed with Escape on its first step. After each press it checks the readouts and the event log. Then it starts the showcase again with `-scfg-showcase-code` and checks the same shop. No chain is involved: the sheets close before a network is chosen.
+- **The boot test**, the twin of `tests/godot_showcase`: `uv run pytest -m unreal_showcase` (deselected by default), or `uv run python tools/run_unreal_e2e.py --showcase` directly. It starts the showcase on an X server of its own (`xvfb-run -a`, Mesa's lavapipe) with the e2e driver's control socket. It presses the buttons that need no chain with real clicks: Export, Clear, Notify off and on, Restore, a tip and an unlock, each sheet closed with Escape on its first step. After each press it checks the readouts and the event log. Then it starts the showcase again with `-scfg-showcase-code` and checks the same shop. No chain is involved: the sheets close before a network is chosen, and each start checks that the plugin posted no JSON-RPC request and found the logo. `--showcase --packaged` runs the same tour on the cooked, staged game, where the settings come from the staged ini and the logo from the pak, and checks that the editor module `ScfgEditor` is not in the game.
 - **The payment e2e**: `uv run python tools/run_unreal_e2e.py --family evm|arc|solana` (or `uv run pytest -m unreal_e2e`) pays for the unlock and a tip on a local chain. See [unreal/README.md](../../README.md#the-linux-e2e).
-- `ScfgDev.ShowcaseSettings` (in `run_unreal_tests.py --filter Scfg`) checks that the committed project settings pass `Validate()`.
+- `ScfgDev.ShowcaseSettings` (in `run_unreal_tests.py --filter Scfg`) checks that the committed project settings pass `Validate()` without a warning (their logo's folder is staged).
 
 The e2e driver (`ScfgE2EDriver.h`) is compiled only outside Shipping, and made only with `-scfg-e2e=<config>`.
 

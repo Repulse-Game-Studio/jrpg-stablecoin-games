@@ -48,6 +48,8 @@ def fake_editor(tmp_path, body="", report=None, code=0):
         "import json, pathlib, subprocess, sys, time\n"
         f"pathlib.Path({str(tmp_path / 'argv.json')!r}).write_text(json.dumps(sys.argv[1:]))\n"
         "out = next(a.split('=', 1)[1] for a in sys.argv if a.startswith('-ReportExportPath='))\n"
+        "log = next(a.split('=', 1)[1] for a in sys.argv if a.startswith('-abslog='))\n"
+        "pathlib.Path(log).write_text('LogInit: Display: the full log\\n')\n"
         "print('LogAutomationController: Display: Test Completed.')\n"
         f"{body}\n"
         f"text = {text!r}\n"
@@ -75,6 +77,34 @@ def test_all_passed_is_green_and_the_command_is_headless(tmp_path, capsys):
                  "-NoZenAutoLaunch", "-ddc=NoZenLocalFallback"):
         assert flag in argv
     assert f"-ReportExportPath={(tmp_path / 'report').resolve()}" in argv
+    assert f"-abslog={(tmp_path / 'report').resolve() / 'editor.log'}" in argv
+
+
+def test_a_store_on_the_projects_own_state_file_fails_the_run(tmp_path, capsys):
+    # a Log line: in the editor's full log (-abslog), not in its output
+    state = tmp_path / "Saved" / "Scfg" / "state.json"
+    fake_editor(tmp_path, report=make_report(passed=3),
+                body="with open(log, 'a') as f:\n"
+                     f"    f.write('LogScfg: scfg: the payment state file is {state}\\n')")
+    assert run(tmp_path) == 1
+    err = capsys.readouterr().err
+    assert "1 store(s) opened the project's own payment state file" in err
+    assert str(state) in err
+
+
+def test_a_store_in_a_directory_of_its_own_does_not_fail_the_run(tmp_path):
+    own = tmp_path / "Saved" / "ScfgTests" / "abc" / "state.json"
+    near = tmp_path / "Saved" / "Scfg" / "state.json.tmp"
+    fake_editor(tmp_path, report=make_report(passed=3),
+                body=f"print('LogScfg: scfg: the payment state file is {own}')\n"
+                     f"print('LogScfg: scfg: the payment state file is {near}')")
+    assert run(tmp_path) == 0
+
+
+def test_an_editor_that_writes_no_log_fails(tmp_path, capsys):
+    fake_editor(tmp_path, report=make_report(passed=3), body="pathlib.Path(log).unlink()")
+    assert run(tmp_path) == 1
+    assert "the editor wrote no log" in capsys.readouterr().err
 
 
 def test_the_filter_is_passed_through(tmp_path):

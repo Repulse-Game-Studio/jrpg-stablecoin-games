@@ -156,6 +156,14 @@ public:
 	// Files written by this store (the tests count them).
 	int32 NumWrites() const { return Writes; }
 
+#if !UE_BUILD_SHIPPING
+	// Empty in a game. The plugin's automation tests set it (ScfgTestsModule.cpp): a store about to open DefaultPath(),
+	// the project's own state file, calls it first with that path; true refuses the file unread (the store is blocked,
+	// with a RuntimeError saying so, and does not log its "the payment state file is" line), so no test reads, rewrites
+	// or re-verifies a developer's own payment state.
+	static TFunction<bool(const FString& Path)>& DefaultPathHookForTests();
+#endif
+
 private:
 	friend struct FScfgStoreTestAccess;
 
