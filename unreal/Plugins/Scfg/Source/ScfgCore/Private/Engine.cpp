@@ -398,6 +398,7 @@ Result<Json> Engine::restore_apply(const std::vector<restore::RestoreCandidate>&
 }
 
 Result<models::Item> Engine::add_item(const Json& item_id, const Json& kwargs) {
+    detail::Running::idle_or_abort(*running_, "add_item");
     return config::add_item(config_, item_id, kwargs);
 }
 

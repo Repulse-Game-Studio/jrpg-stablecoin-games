@@ -8,7 +8,7 @@
 // One command at a time: a network command runs until its Co finishes or is destroyed, and while it runs (suspended
 // on a request) no other command may start, as Python's Worker and PumpWorker queue commands and never interleave
 // jobs. Starting a network command, or calling report_hint, set_ui_status, discard_session or restore_apply, while
-// one runs is a programming error and aborts (running() tells). The glue queues commands, as the PumpWorker does;
+// one runs, or add_item, is a programming error and aborts (running() tells). The glue queues commands, as the PumpWorker does;
 // the readers (pending(), receipts(), snapshot(), config(), chain()) are not commands. The next command may start
 // from the finished one's Job on_done, which runs after its coroutine has returned.
 //
@@ -96,7 +96,8 @@ public:
     // config.add_item(self.config, item_id, **kwargs) on the Engine's own config: Python's Engine and the game share
     // one Config object, so an item added after the Engine was built is one it can sell and own. Here the Engine
     // holds a copy, so the glue applies each later add_item to it too (config::add_item's validation and ConfigError
-    // codes). Not while a command's coroutine runs: a step reads the items.
+    // codes). Not while a command's coroutine runs (a programming error, as for report_hint and the other
+    // synchronous commands): a step reads the items.
     Result<models::Item> add_item(const Json& item_id, const Json& kwargs);
     // The Engine's own stores (dicts, shared handles: a change through them is the Engine's state).
     const Json& pending() const { return pending_; }

@@ -67,7 +67,9 @@
 // - No web build: no IndexedDB warning, no receipts mirror in localStorage, no page clipboard bridge.
 //
 // Game thread only: a public call from another thread is an ensure (logged once with its callstack) and a Failed
-// result or a neutral value, never a crash. Shutdown and the destructor stay checked: the engine runs them.
+// result or a neutral value, never a crash; this facade calls a Pay or Restore callback and Done back on the calling
+// thread then, so UScfgSubsystem checks the thread first and delivers on the game thread (ScfgSubsystem.h). Shutdown
+// and the destructor stay checked: the engine runs them.
 #pragma once
 
 #include "CoreMinimal.h"

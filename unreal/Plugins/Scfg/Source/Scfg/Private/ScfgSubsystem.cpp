@@ -7,6 +7,8 @@
 #include "ScfgLog.h"
 #include "ScfgString.h"
 
+#include "Containers/Ticker.h"
+
 #include "Scfg/Err.h"
 #include "Scfg/Json.h"
 
@@ -30,6 +32,38 @@ FScfgPaymentResult NotRunning()
 	R.Status = EScfgPaymentStatus::Failed;
 	R.Error = TEXT("RuntimeError");
 	return R;
+}
+
+FScfgRestoreResult RestoreNotRunning()
+{
+	FScfgRestoreResult R;
+	R.Status = EScfgRestoreStatus::Failed;
+	R.Error = TEXT("RuntimeError");
+	return R;
+}
+
+// A call from another thread is misuse: each function logs its own line (an ensure reports only once per process),
+// then one ensure with its callstack. Nothing of the subsystem or the facade is touched off the game thread.
+bool OffGameThread(const TCHAR* What)
+{
+	if (IsInGameThread())
+	{
+		return false;
+	}
+	UE_LOG(LogScfg, Error, TEXT("scfg: %s must be called on the game thread"), What);
+	ensureMsgf(false, TEXT("scfg: %s must be called on the game thread"), What);
+	return true;
+}
+
+// Fn runs on the game thread at the next tick of the core ticker (FTSTicker::AddTicker may be called from any
+// thread): an off-thread Pay or Restore gets its Failed result there, never on the calling thread.
+void OnGameThread(TFunction<void()> Fn)
+{
+	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Fn = MoveTemp(Fn)](float)
+	{
+		Fn();
+		return false;  // once
+	}));
 }
 
 }  // namespace ScfgSubsystemDetail
@@ -96,6 +130,10 @@ bool UScfgSubsystem::IsShuttingDown() const
 
 FScfgFacade* UScfgSubsystem::Live(const TCHAR* What) const
 {
+	if (ScfgSubsystemDetail::OffGameThread(What))
+	{
+		return nullptr;
+	}
 	if (Facade.IsValid() && !Facade->IsShuttingDown())
 	{
 		return Facade.Get();
@@ -135,6 +173,11 @@ void UScfgSubsystem::Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, cons
 		Callback.Fn = [OnPaid](const FScfgPaymentResult& Result) { OnPaid.ExecuteIfBound(Result); };
 		Callback.IsValid = [OnPaid]() { return OnPaid.IsBound(); };
 	}
+	if (ScfgSubsystemDetail::OffGameThread(TEXT("Pay()")))
+	{
+		ScfgSubsystemDetail::OnGameThread([OnPaid] { OnPaid.ExecuteIfBound(ScfgSubsystemDetail::NotRunning()); });
+		return;
+	}
 	FScfgFacade* F = Live(TEXT("Pay()"));
 	if (!F)
 	{
@@ -150,6 +193,14 @@ void UScfgSubsystem::Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, cons
 void UScfgSubsystem::Pay(
 	EScfgPayKind Kind, const FScfgPayRequest& Request, TFunction<void(const FScfgPaymentResult&)> Callback)
 {
+	if (ScfgSubsystemDetail::OffGameThread(TEXT("Pay()")))
+	{
+		if (Callback)
+		{
+			ScfgSubsystemDetail::OnGameThread([Callback = MoveTemp(Callback)] { Callback(ScfgSubsystemDetail::NotRunning()); });
+		}
+		return;
+	}
 	FScfgPayCallback Cb;
 	Cb.Fn = MoveTemp(Callback);
 	FScfgFacade* F = Live(TEXT("Pay()"));
@@ -167,6 +218,14 @@ void UScfgSubsystem::Pay(
 void UScfgSubsystem::PayAsync(
 	EScfgPayKind Kind, const FScfgPayRequest& Request, TFunction<void(const FScfgPaymentResult&)> OnResolved)
 {
+	if (ScfgSubsystemDetail::OffGameThread(TEXT("PayAsync()")))
+	{
+		if (OnResolved)
+		{
+			ScfgSubsystemDetail::OnGameThread([OnResolved = MoveTemp(OnResolved)] { OnResolved(ScfgSubsystemDetail::NotRunning()); });
+		}
+		return;
+	}
 	FScfgFacade* F = Live(TEXT("PayAsync()"));
 	if (!F)
 	{
@@ -187,15 +246,17 @@ void UScfgSubsystem::Restore(const FOnScfgRestored& OnRestored)
 		Callback.Fn = [OnRestored](const FScfgRestoreResult& Result) { OnRestored.ExecuteIfBound(Result); };
 		Callback.IsValid = [OnRestored]() { return OnRestored.IsBound(); };
 	}
+	if (ScfgSubsystemDetail::OffGameThread(TEXT("Restore()")))
+	{
+		ScfgSubsystemDetail::OnGameThread([OnRestored] { OnRestored.ExecuteIfBound(ScfgSubsystemDetail::RestoreNotRunning()); });
+		return;
+	}
 	FScfgFacade* F = Live(TEXT("Restore()"));
 	if (!F)
 	{
-		FScfgRestoreResult R;
-		R.Status = EScfgRestoreStatus::Failed;
-		R.Error = TEXT("RuntimeError");
 		if (Callback.Valid())
 		{
-			Callback.Fn(R);
+			Callback.Fn(ScfgSubsystemDetail::RestoreNotRunning());
 		}
 		return;
 	}
@@ -205,15 +266,20 @@ void UScfgSubsystem::Restore(const FOnScfgRestored& OnRestored)
 void UScfgSubsystem::RestoreAsync(
 	TFunction<void(const FScfgRestoreResult&)> OnResolved, TFunction<void(const FScfgRestoreResult&)> Callback)
 {
+	if (ScfgSubsystemDetail::OffGameThread(TEXT("RestoreAsync()")))
+	{
+		if (OnResolved)
+		{
+			ScfgSubsystemDetail::OnGameThread([OnResolved = MoveTemp(OnResolved)] { OnResolved(ScfgSubsystemDetail::RestoreNotRunning()); });
+		}
+		return;
+	}
 	FScfgFacade* F = Live(TEXT("RestoreAsync()"));
 	if (!F)
 	{
-		FScfgRestoreResult R;
-		R.Status = EScfgRestoreStatus::Failed;
-		R.Error = TEXT("RuntimeError");
 		if (OnResolved)
 		{
-			OnResolved(R);
+			OnResolved(ScfgSubsystemDetail::RestoreNotRunning());
 		}
 		return;
 	}
@@ -302,6 +368,10 @@ void UScfgSubsystem::SetNotify(bool bInNotify)
 
 bool UScfgSubsystem::GetNotify() const
 {
+	if (ScfgSubsystemDetail::OffGameThread(TEXT("GetNotify()")))
+	{
+		return false;
+	}
 	return Facade.IsValid() && Facade->bNotify;
 }
 
@@ -315,5 +385,9 @@ void UScfgSubsystem::SetSheetHost(TSharedPtr<IScfgSheetHost> Host)
 
 TSharedPtr<IScfgSheetHost> UScfgSubsystem::GetSheetHost() const
 {
+	if (ScfgSubsystemDetail::OffGameThread(TEXT("GetSheetHost()")))
+	{
+		return nullptr;
+	}
 	return Facade.IsValid() ? Facade->SheetHost : nullptr;
 }

@@ -2,6 +2,8 @@
 // dynamic delegates and events, the Pay and Restore async nodes (each output pin once), the Blueprint library, the
 // value conversions, and the Submitter adapter's lifetime rules (ScfgSubmitter.h). Godot has no counterpart (its API
 // is the autoload itself).
+#include "HAL/PlatformTime.h"
+#include "Misc/AssertionMacros.h"
 #include "Misc/AutomationTest.h"
 #include "UObject/StrongObjectPtr.h"
 
@@ -23,6 +25,7 @@
 #include "Scfg/Payments.h"
 
 #include <memory>
+#include <thread>
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -440,6 +443,117 @@ bool FScfgBlueprintSubmitterTest::RunTest(const FString& Parameters)
 		W.Ticker.Tick(0.0f);
 	}
 	TestEqual(TEXT("and their done is never called"), *Late, 0);
+	return true;
+}
+
+SCFG_FACADE_BP_TEST(FScfgBlueprintBeginDestroyTest, "BeginDestroyWithoutDeinitializeReleasesTheNodes")
+
+// A subsystem destroyed without Deinitialize (its game instance collected, ConditionalBeginDestroy): BeginDestroy runs
+// the teardown, with both nodes waiting: no pin fires, no event, both screens are closed, nothing crashes.
+bool FScfgBlueprintBeginDestroyTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeBlueprintTests;
+	FWorld W;
+	FGame G(W);
+	G.Configure(*this);
+	G.Scfg->OnPaymentResolved.AddDynamic(G.Receiver.Get(), &UScfgTestReceiver::OnResolved);
+	W.Start();
+	TStrongObjectPtr<UScfgPayAsyncAction> Pay(UScfgPayAsyncAction::PayWith(G.Scfg.Get(), EScfgPayKind::Unlock, Unlock()));
+	Pay->OnResolved.AddDynamic(G.Receiver.Get(), &UScfgTestReceiver::OnPaid);
+	Pay->Activate();
+	W.Session(*this);
+	TStrongObjectPtr<UScfgRestoreAsyncAction> Restore(UScfgRestoreAsyncAction::RestoreWith(G.Scfg.Get()));
+	Restore->OnResolved.AddDynamic(G.Receiver.Get(), &UScfgTestReceiver::OnRestored);
+	Restore->Activate();
+	G.Scfg->ConditionalBeginDestroy();  // no Deinitialize
+	W.Facade.Reset();
+	W.Transport = nullptr;
+	TestTrue(TEXT("BeginDestroy ran the teardown"), G.Scfg->HasAnyFlags(RF_BeginDestroyed) && !G.Scfg->GetFacade());
+	TestTrue(TEXT("nothing is delivered: no pin fires, no event"),
+		G.Receiver->Paid.Num() == 0 && G.Receiver->Restored.Num() == 0 && G.Receiver->Resolved.Num() == 0);
+	TestEqual(TEXT("both screens were closed"), W.Host->Closes, 2);
+	return true;
+}
+
+SCFG_FACADE_BP_TEST(FScfgBlueprintOffThreadTest, "ACallFromAnotherThreadFailsOnTheGameThread")
+
+// The subsystem called from another thread: every function logs its own line (its ensure is swallowed by this
+// thread's ensure handler, so the test sees it without a crash report) and touches nothing; Pay, PayAsync and Restore
+// get their Failed result later, on the game thread.
+bool FScfgBlueprintOffThreadTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeBlueprintTests;
+	struct FState
+	{
+		FWorld W;
+		TUniquePtr<FGame> G;
+		TArray<bool> AsyncOnGameThread;
+		TArray<FScfgPaymentResult> Async;
+		bool bOwns = true;
+		int32 Ensures = 0;
+		double Started = 0;
+	};
+	const TSharedRef<FState> S = MakeShared<FState>();
+	S->G = MakeUnique<FGame>(S->W);
+	S->G->Configure(*this);
+	S->W.Start();
+	UScfgSubsystem* Scfg = S->G->Scfg.Get();
+	const TSharedPtr<IScfgSheetHost> Host = Scfg->GetSheetHost();
+	for (const TCHAR* What : {TEXT("Pay()"), TEXT("PayAsync()"), TEXT("Restore()"), TEXT("SetNotify()"), TEXT("Owns()"),
+			 TEXT("SetSheetHost()")})
+	{
+		AddExpectedMessagePlain(FString::Printf(TEXT("scfg: %s must be called on the game thread"), What),
+			ELogVerbosity::Error, EAutomationExpectedMessageFlags::Contains, 1);
+	}
+	FOnScfgPaid OnPaid;
+	OnPaid.BindDynamic(S->G->Receiver.Get(), &UScfgTestReceiver::OnPaid);
+	FOnScfgRestored OnRestored;
+	OnRestored.BindDynamic(S->G->Receiver.Get(), &UScfgTestReceiver::OnRestored);
+	std::thread Other([S, Scfg, OnPaid, OnRestored]()
+	{
+		// thread_local: the ensures of this thread are recorded and skipped (no callstack, no crash report)
+		const TFunction<bool(const FEnsureHandlerArgs&)> Previous = SetEnsureHandler([S](const FEnsureHandlerArgs&)
+		{
+			++S->Ensures;
+			return true;
+		});
+		Scfg->Pay(EScfgPayKind::Unlock, Unlock(), OnPaid);
+		Scfg->PayAsync(EScfgPayKind::Unlock, Unlock(), [S](const FScfgPaymentResult& R)
+		{
+			S->AsyncOnGameThread.Add(IsInGameThread());
+			S->Async.Add(R);
+		});
+		Scfg->Restore(OnRestored);
+		Scfg->SetNotify(true);
+		S->bOwns = Scfg->Owns(TEXT("chapter2"));
+		Scfg->SetSheetHost(nullptr);
+		SetEnsureHandler(Previous);
+	});
+	Other.join();
+	TestTrue(TEXT("nothing is delivered on the calling thread"),
+		S->Async.Num() == 0 && S->G->Receiver->Paid.Num() == 0 && S->G->Receiver->Restored.Num() == 0);
+	TestFalse(TEXT("a query answers its neutral value"), S->bOwns);
+	TestTrue(TEXT("nothing of the subsystem changed"), !Scfg->GetNotify() && Scfg->GetSheetHost() == Host &&
+		S->W.F().NumCheckouts() == 0 && S->W.F().NumRestores() == 0);
+	TestTrue(TEXT("the ensure fired"), S->Ensures >= 1);
+	S->Started = FPlatformTime::Seconds();
+	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand([this, S]()
+	{
+		UScfgTestReceiver& R = *S->G->Receiver;
+		const bool bAll = S->Async.Num() == 1 && R.Paid.Num() == 1 && R.Restored.Num() == 1;
+		if (!bAll && FPlatformTime::Seconds() - S->Started < 5.0)
+		{
+			return false;  // the core ticker delivers them on a later frame
+		}
+		TestTrue(TEXT("PayAsync got Failed RuntimeError, on the game thread"), S->Async.Num() == 1 &&
+			S->Async[0].Status == EScfgPaymentStatus::Failed && S->Async[0].Error == TEXT("RuntimeError") &&
+			S->AsyncOnGameThread[0]);
+		TestTrue(TEXT("so did Pay's dynamic callback"), R.Paid.Num() == 1 &&
+			R.Paid[0].Status == EScfgPaymentStatus::Failed && R.Paid[0].Error == TEXT("RuntimeError"));
+		TestTrue(TEXT("and Restore's"), R.Restored.Num() == 1 && R.Restored[0].Status == EScfgRestoreStatus::Failed);
+		S->G.Reset();
+		return true;
+	}));
 	return true;
 }
 

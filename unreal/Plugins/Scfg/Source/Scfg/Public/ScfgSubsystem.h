@@ -30,6 +30,11 @@
 // Jobs, then the Engine, then the transport it owns); 3. the store flushes what it owes and is destroyed (its OnError,
 // which that flush may call, only logs); 4. the pump leaves the ticker.
 //
+// Game thread only. A call from another thread logs "scfg: <Function>() must be called on the game thread" (every
+// function its own line; the ensure beside it reports once per process, with its callstack) and touches nothing:
+// Pay, PayAsync, Restore and RestoreAsync deliver their Failed result ("RuntimeError") on the game thread, at the next
+// tick of the core ticker, never on the calling thread; the queries return their neutral value.
+//
 // TODO(phase 4): UScfgSettings (a UDeveloperSettings under Project Settings -> Plugins -> SCFG, saved to
 // DefaultGame.ini) applied in Initialize through the same Configure / AddItem path; a code call made after it wins.
 #pragma once
