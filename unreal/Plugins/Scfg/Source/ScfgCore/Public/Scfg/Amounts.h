@@ -23,7 +23,9 @@
 namespace scfg::amounts {
 
 inline constexpr int64_t TOKEN_DECIMALS = 6;
-inline const Dec MAX_AMOUNT = Dec(BigInt(1000000), 0, false);
+// Decimal("1000000"). A function-local static, as MIN_TIP() and the registries: nothing in the core runs at static
+// initialisation, which an Unreal module loaded on demand would run at an unknown time.
+const Dec& MAX_AMOUNT();
 // The magnitude bound of every amount the core reads: a nonzero amount's adjusted exponent (the power of ten of its
 // leading digit, Decimal.adjusted()) must lie in [-40, 40]. That is far beyond any token amount (the smallest unit is
 // 1E-6; a uint256 of base units read through Arc's 18-decimal emitter is floored to 6 decimals and never stored past
@@ -43,7 +45,7 @@ Result<Dec> stored_amount(const Json& value);
 //
 // Accepts str, int or Decimal. Floats (and bools) are refused with a TypeError: binary floating point and money do
 // not mix. A str is a plain decimal number: Decimal's digit-group underscores ("1_000") are refused like any other
-// malformed amount. Anything out of (0, MAX_AMOUNT] or with more than 2 decimals is a ValueError.
+// malformed amount. Anything out of (0, MAX_AMOUNT()] or with more than 2 decimals is a ValueError.
 Result<Dec> parse_amount(const Json& value);
 Result<Dec> parse_amount(const Dec& value);
 

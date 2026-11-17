@@ -33,7 +33,7 @@ static std::string shown(const Result<T>& r) {
 
 SCFG_TEST(AmountsTests, Constants) {
     SCFG_CHECK_EQ(t, amounts::TOKEN_DECIMALS, 6);
-    SCFG_CHECK_EQ(t, amounts::MAX_AMOUNT.str(), "1000000");
+    SCFG_CHECK_EQ(t, amounts::MAX_AMOUNT().str(), "1000000");
     SCFG_CHECK_EQ(t, amounts::AMOUNT_EXPONENT_LIMIT, 40);
     SCFG_CHECK_EQ(t, amounts::AMOUNT_TEXT_LIMIT, 100);
 }

@@ -9,6 +9,11 @@
 
 namespace scfg::amounts {
 
+const Dec& MAX_AMOUNT() {
+    static const Dec max = Dec(BigInt(1000000), 0, false);
+    return max;
+}
+
 namespace detail {
 
 // _CENT = Decimal("0.01"): its exponent.
@@ -26,7 +31,7 @@ Result<Dec> checked(const std::optional<Dec>& value) {
     const Dec& d = *value;
     if (!in_range(d)) return Err::value_error("amount out of range");
     if (d <= Dec()) return Err::value_error("amount must be positive");
-    if (d > MAX_AMOUNT) return Err::value_error("amount too large");
+    if (d > MAX_AMOUNT()) return Err::value_error("amount too large");
     SCFG_TRY(Dec q, d.quantize(CENT_EXP));
     if (q != d) return Err::value_error("amount must have at most 2 decimals");
     return q;
