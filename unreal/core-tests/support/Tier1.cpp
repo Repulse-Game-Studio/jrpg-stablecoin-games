@@ -44,9 +44,12 @@ TopicRegistrar::TopicRegistrar(const char* name, void (*body)(Topic& fn)) {
     body(topic);
 }
 
-// json.dumps(v, ensure_ascii=False), cut to about 300 bytes on a code point boundary.
+// json.dumps(v, ensure_ascii=False), cut to about 300 bytes on a code point boundary (or the error dumps raised, in
+// <>).
 std::string show(const Json& v) {
-    std::string s = scfg::json::dumps(v, {.ensure_ascii = false});
+    scfg::Result<std::string> text = scfg::json::dumps(v, {.ensure_ascii = false});
+    if (!text.ok()) return "<" + text.err().str() + ">";
+    std::string s = text.take();
     if (s.size() <= 300) return s;
     size_t cut = 297;
     while (cut > 0 && (static_cast<unsigned char>(s[cut]) & 0xC0) == 0x80) --cut;

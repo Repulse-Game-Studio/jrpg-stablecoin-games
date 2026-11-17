@@ -296,7 +296,7 @@ SCFG_TEST(Tier2Tests, ANonStrSidIsANoOp) {
         for (Json sid : {Json(5), Json(), Json(true), Json(1.5)}) {
             Json args = Json::dict({{"sid", sid}, {"status", "open"}});
             std::optional<std::string> diff = tier2::replay(one_step(smoke_setup(), plain_step(action, args)));
-            t.check(!diff.has_value(), std::string(action) + " " + scfg::py::repr(sid) + ": " + shown(diff));
+            t.check(!diff.has_value(), std::string(action) + " " + scfg::py::repr(sid).value() + ": " + shown(diff));
         }
         Json args = Json::dict({{"sid", Json::list({1})}, {"status", "open"}});
         std::optional<std::string> diff =

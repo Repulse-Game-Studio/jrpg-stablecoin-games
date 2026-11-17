@@ -31,7 +31,8 @@ Result<std::string> normalize_any_tx(const Json& text) {
         Result<std::string> r = b->normalize_tx(text);
         if (r.ok() || !r.err().is_a("ValueError")) return r;
     }
-    return Err::value_error("not a transaction hash or signature: " + py::repr(text));
+    SCFG_TRY(std::string shown, py::repr(text));
+    return Err::value_error("not a transaction hash or signature: " + shown);
 }
 
 }  // namespace scfg::backends

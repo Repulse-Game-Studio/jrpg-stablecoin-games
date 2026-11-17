@@ -95,7 +95,7 @@ std::function<void(Json&)> evm_log_index(std::string text) {
             if (call.get("method").as_str() != "eth_getLogs") continue;
             Json body = scfg::json::loads(call.get("response_text").as_str()).take();
             for (Json& lg : body.as_dict().find("result")->as_list()) lg.as_dict().set("logIndex", Json(text));
-            call.set("response_text", Json(scfg::json::dumps(body)));
+            call.set("response_text", Json(scfg::json::dumps(body).value()));
         }
     };
 }
@@ -121,13 +121,13 @@ std::function<void(Json&)> solana_index(Json value) {
                     }
                 }
             }
-            call.set("response_text", Json(scfg::json::dumps(body)));
+            call.set("response_text", Json(scfg::json::dumps(body).value()));
         }
     };
 }
 
 std::string shown(const Outcome& o) {
-    std::string s = scfg::py::repr(o.removed) + " reported [";
+    std::string s = scfg::py::repr(o.removed).value() + " reported [";
     for (const std::string& k : o.kinds) s += k + " ";
     s += "] unused " + std::to_string(o.unused);
     for (const std::string& p : o.problems) s += "; " + p;
@@ -372,7 +372,7 @@ SCFG_TEST(ReverifyTests, AnInvalidEntryIsRemovedWithPythonsReason) {
     Outcome o = reverify_with(*evm, entries, [](Json& calls) { calls = Json::list(); });
     t.check(o.problems.empty(), shown(o));
     t.check(json_eq(o.removed, Json::list({"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "m"})),
-            "removed " + scfg::py::repr(o.removed));
+            "removed " + scfg::py::repr(o.removed).value());
     const std::string p = "is invalid and was removed: ";
     const std::vector<std::string> want = {
         "stored receipt 'a' " + p + "KeyError('chain')",

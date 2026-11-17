@@ -104,7 +104,7 @@ SCFG_TEST(SessionsTests, CreateSessionRecordAndDraws) {
     Result<Json> r = sessions::create_session(store, unlock(), e);
     SCFG_CHECK_EQ(t, outcome(r), "ok");
     if (!r.ok()) return;
-    SCFG_CHECK_EQ(t, scfg::json::dumps(r.value()),
+    SCFG_CHECK_EQ(t, scfg::json::dumps(r.value()).value(),
                   "{\"id\": \"ps_00112233aabbccdd\", \"kind\": \"unlock\", \"item\": \"chapter2\", \"title\": \"Chapter 2\", "
                   "\"token\": \"USDC\", \"chain\": \"base\", \"price\": \"4.99\", \"code\": 2, \"nonce\": 42, "
                   "\"units\": 4990242, \"start_block\": 100, \"cursor\": 100, \"created_at\": 1000, \"state\": \"awaiting\", "
@@ -125,7 +125,7 @@ SCFG_TEST(SessionsTests, CreateSessionRecordAndDraws) {
     Result<Json> r2 = sessions::create_session(store2, tip, e2);
     SCFG_CHECK_EQ(t, outcome(r2), "ok");
     if (r2.ok()) {
-        SCFG_CHECK_EQ(t, scfg::json::dumps(r2.value()),
+        SCFG_CHECK_EQ(t, scfg::json::dumps(r2.value()).value(),
                       "{\"id\": \"ps_00112233aabbccdd\", \"kind\": \"tip\", \"item\": null, \"title\": \"Tip\", "
                       "\"token\": \"USDT\", \"chain\": \"base\", \"price\": \"5.00\", \"code\": 0, \"nonce\": 3, "
                       "\"units\": 5000003, \"start_block\": 7, \"cursor\": 7, \"created_at\": 1.5, \"state\": \"awaiting\", "
@@ -196,7 +196,7 @@ static std::string order(const Json::Dict& store) {
     Result<std::vector<Json>> r = sessions::list_sessions(store);
     if (!r.ok()) return outcome(r);
     std::string s;
-    for (const Json& x : r.value()) s += (s.empty() ? "" : " ") + scfg::json::dumps(x.as_dict().get("created_at"));
+    for (const Json& x : r.value()) s += (s.empty() ? "" : " ") + scfg::json::dumps(x.as_dict().get("created_at")).value();
     return s;
 }
 
@@ -259,16 +259,16 @@ SCFG_TEST(SessionsTests, SetHint) {
     Json r = Json::dict({{"hint_tx", Json()}, {"hint_at", Json()}});
     store.set("s", r);
     SCFG_CHECK_EQ(t, outcome(sessions::set_hint(store, "s", std::string(" ") + kHashMixed, 7)), "ok");
-    SCFG_CHECK_EQ(t, scfg::json::dumps(r), std::string("{\"hint_tx\": \"") + kHash + "\", \"hint_at\": 7}");
+    SCFG_CHECK_EQ(t, scfg::json::dumps(r).value(), std::string("{\"hint_tx\": \"") + kHash + "\", \"hint_at\": 7}");
     SCFG_CHECK_EQ(t, outcome(sessions::set_hint(store, "x", kHash, 7)), "KeyError: 'x'");
     SCFG_CHECK_EQ(t, outcome(sessions::set_hint(store, "s", "bad", 8)), "ValueError: not a transaction hash: 'bad'");
     SCFG_CHECK_EQ(t, r.as_dict().get("hint_at").as_int64(), 7);  // untouched by the failed hint
     // A backend's own normalisation (Solana's normalize_signature).
     sessions::Normalize upper = [](const Json& v) -> Result<std::string> { return "N:" + v.as_str(); };
     SCFG_CHECK_EQ(t, outcome(sessions::set_hint(store, "s", "sig", 9.5, upper)), "ok");
-    SCFG_CHECK_EQ(t, scfg::json::dumps(r), "{\"hint_tx\": \"N:sig\", \"hint_at\": 9.5}");
+    SCFG_CHECK_EQ(t, scfg::json::dumps(r).value(), "{\"hint_tx\": \"N:sig\", \"hint_at\": 9.5}");
     sessions::clear_hint(r.as_dict());
-    SCFG_CHECK_EQ(t, scfg::json::dumps(r), "{\"hint_tx\": null, \"hint_at\": null}");
+    SCFG_CHECK_EQ(t, scfg::json::dumps(r).value(), "{\"hint_tx\": null, \"hint_at\": null}");
     // A record that is not a dict: normalize runs first, then the item assignment fails.
     Json::Dict bad;
     bad.set("l", Json::list({1}));

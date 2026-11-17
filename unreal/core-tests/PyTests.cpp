@@ -247,10 +247,10 @@ SCFG_TEST(PyTests, IntBase16MatchesPython) {
 
 SCFG_TEST(PyTests, TypeNameAndTruthy) {
     for (const Json& f : {Json(), Json(false), Json(0), Json(0.0), Json(-0.0), Json(""), Json::list(), Json::dict()})
-        t.check(!py::truthy(f), "truthy(" + py::repr(f) + ")");
+        t.check(!py::truthy(f), "truthy(" + py::repr(f).value() + ")");
     for (const Json& v : {Json(true), Json(1), Json(-1), Json(0.5), Json(std::nan("")), Json(BigInt(2).pow(70)),
                           Json("0"), Json::list({0}), Json::dict({{"a", 0}})})
-        t.check(py::truthy(v), "falsy(" + py::repr(v) + ")");
+        t.check(py::truthy(v), "falsy(" + py::repr(v).value() + ")");
 }
 
 SCFG_TEST(PyTests, EqIsPythonEquals) {
@@ -330,11 +330,44 @@ SCFG_TEST(PyTests, ReprMatchesPython) {
     };
     for (const Case& c : cases) SCFG_CHECK_EQ(t, py::repr_str(c.s), c.want);
     Json list = Json::list({1, "a", nullptr, true, 1.5, Json::dict({{"k", Json::list({2})}})});
-    SCFG_CHECK_EQ(t, py::repr(list), "[1, 'a', None, True, 1.5, {'k': [2]}]");
-    SCFG_CHECK_EQ(t, py::repr(Json(BigInt(-2).pow(71))), "-2361183241434822606848");
-    SCFG_CHECK_EQ(t, py::repr(Json(std::nan(""))), "nan");
-    SCFG_CHECK_EQ(t, py::repr(Json(1e16)), "1e+16");
-    SCFG_CHECK_EQ(t, py::repr(Json::dict()), "{}");
+    SCFG_CHECK_EQ(t, py::repr(list).value(), "[1, 'a', None, True, 1.5, {'k': [2]}]");
+    SCFG_CHECK_EQ(t, py::repr(Json(BigInt(-2).pow(71))).value(), "-2361183241434822606848");
+    SCFG_CHECK_EQ(t, py::repr(Json(std::nan(""))).value(), "nan");
+    SCFG_CHECK_EQ(t, py::repr(Json(1e16)).value(), "1e+16");
+    SCFG_CHECK_EQ(t, py::repr(Json::dict()).value(), "{}");
+}
+
+// repr() and str() of an int beyond str()'s limit, anywhere in the value, are CPython's ValueError; a KeyError of
+// such a key is still a KeyError, printed as traceback prints it. Python 3.9.25: len(repr(-(10**4300 - 1))) ==
+// 4301, repr({"k": [10**4300]}) raises, str(KeyError(10**4300)) raises and traceback.format_exception_only gives
+// "KeyError: <unprintable KeyError object>".
+SCFG_TEST(PyTests, ReprOfAnIntBeyondStrsLimitIsValueError) {
+    const std::string limit = "ValueError: Exceeds the limit (4300) for integer string conversion; use "
+                              "sys.set_int_max_str_digits() to increase the limit";
+    const BigInt big = BigInt(10).pow(4300);
+    auto outcome = [](const scfg::Result<std::string>& r) { return r.ok() ? std::string("<ok>") : r.err().str(); };
+    scfg::Result<std::string> most = py::repr(Json(-(big - BigInt(1))));
+    SCFG_CHECK(t, most.ok() && most.value().size() == 4301);
+    SCFG_CHECK_EQ(t, outcome(py::repr(Json::dict({{"k", Json::list({Json(big)})}}))), limit);
+    SCFG_CHECK_EQ(t, outcome(py::str(Json(big))), limit);
+    SCFG_CHECK_EQ(t, outcome(py::repr(Json(BigInt(1) << 4000000))), limit);  // from the bit length, at once
+    SCFG_CHECK_EQ(t, py::key_error_for(Json(big)).str(), "KeyError: <unprintable KeyError object>");
+    SCFG_CHECK_EQ(t, py::key_error_for(Json(big - BigInt(1))).message, most.ok() ? most.value().substr(1) : "");
+    SCFG_CHECK_EQ(t, py::key_error_for(Json("k")).str(), "KeyError: 'k'");
+}
+
+// float() of an int beyond the float range is refused from its bit length. Python 3.9.25: float(2**1024 - 2**971)
+// is 1.7976931348623157e+308 (1024 bits); float(2**1024 - 2**970) and float(1 << 4000000) are "OverflowError: int
+// too large to convert to float".
+SCFG_TEST(PyTests, ToFloatOfAHugeIntIsOverflowError) {
+    auto f = [](const BigInt& n) {
+        scfg::Result<double> r = py::to_float(py::Number{true, n, 0.0});
+        return r.ok() ? scfg::pyfloat::repr(r.value()) : r.err().str();
+    };
+    const BigInt top = BigInt(1) << 1024;
+    SCFG_CHECK_EQ(t, f(top - (BigInt(1) << 971)), "1.7976931348623157e+308");
+    SCFG_CHECK_EQ(t, f(top - (BigInt(1) << 970)), "OverflowError: int too large to convert to float");
+    SCFG_CHECK_EQ(t, f(-(BigInt(1) << 4000000)), "OverflowError: int too large to convert to float");
 }
 
 SCFG_TEST(PyTests, LowerForAsciiSearch) {
@@ -353,10 +386,10 @@ SCFG_TEST(PyTests, HexStrAndIterate) {
     SCFG_CHECK_EQ(t, py::hex(-5), "-0x5");
     SCFG_CHECK_EQ(t, py::hex(BigInt(1) << 64), "0x10000000000000000");
     SCFG_CHECK_EQ(t, py::hex(BigInt(INT64_MIN)), "-0x8000000000000000");
-    SCFG_CHECK_EQ(t, py::str("a'b"), "a'b");
-    SCFG_CHECK_EQ(t, py::str(Json()), "None");
-    SCFG_CHECK_EQ(t, py::str(1.5), "1.5");
-    SCFG_CHECK_EQ(t, py::str(Json::dict({{"a", Json::list({1, true})}})), "{'a': [1, True]}");
+    SCFG_CHECK_EQ(t, py::str("a'b").value(), "a'b");
+    SCFG_CHECK_EQ(t, py::str(Json()).value(), "None");
+    SCFG_CHECK_EQ(t, py::str(1.5).value(), "1.5");
+    SCFG_CHECK_EQ(t, py::str(Json::dict({{"a", Json::list({1, true})}})).value(), "{'a': [1, True]}");
     scfg::Result<std::vector<Json>> chars = py::iterate("a\xf0\x9f\x98\x80" "b");
     if (SCFG_CHECK(t, chars.ok() && chars.value().size() == 3)) SCFG_CHECK_EQ(t, chars.value()[1].as_str(), "\xf0\x9f\x98\x80");
     scfg::Result<std::vector<Json>> keys = py::iterate(Json::dict({{"k", 1}, {"j", 2}}));

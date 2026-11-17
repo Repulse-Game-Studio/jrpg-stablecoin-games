@@ -184,47 +184,52 @@ bool number_eq(const Json& a, const Json& b) {
 
 bool is_number(const Json& v) { return v.is_bool() || v.is_int() || v.is_float(); }
 
-void repr_into(const Json& v, std::string& out, std::vector<const void*>& path) {
+Status repr_into(const Json& v, std::string& out, std::vector<const void*>& path) {
     switch (v.type()) {
         case Json::Type::Null:
             out += "None";
-            return;
+            return ok();
         case Json::Type::Bool:
             out += v.as_bool() ? "True" : "False";
-            return;
+            return ok();
         case Json::Type::Int:
-            out += v.is_int64() ? dec_signed(v.as_int64()) : v.as_bigint().to_decimal();
-            return;
+            if (v.is_int64()) {
+                out += dec_signed(v.as_int64());  // at most 20 characters: no limit applies
+            } else {
+                SCFG_TRY(std::string digits, int_str(v.as_bigint()));
+                out += digits;
+            }
+            return ok();
         case Json::Type::Float:
             out += pyfloat::repr(v.as_float());
-            return;
+            return ok();
         case Json::Type::Str:
             out += repr_str(v.as_str());
-            return;
+            return ok();
         case Json::Type::List: {
             const Json::List& l = v.as_list();
             for (const void* p : path) {
                 if (p == &l) {
                     out += "[...]";
-                    return;
+                    return ok();
                 }
             }
             path.push_back(&l);
             out += '[';
             for (size_t k = 0; k < l.size(); ++k) {
                 if (k > 0) out += ", ";
-                repr_into(l[k], out, path);
+                SCFG_TRY_VOID(repr_into(l[k], out, path));
             }
             out += ']';
             path.pop_back();
-            return;
+            return ok();
         }
         case Json::Type::Dict: {
             const Json::Dict& d = v.as_dict();
             for (const void* p : path) {
                 if (p == &d) {
                     out += "{...}";
-                    return;
+                    return ok();
                 }
             }
             path.push_back(&d);
@@ -235,13 +240,14 @@ void repr_into(const Json& v, std::string& out, std::vector<const void*>& path) 
                 first = false;
                 out += repr_str(key);
                 out += ": ";
-                repr_into(value, out, path);
+                SCFG_TRY_VOID(repr_into(value, out, path));
             }
             out += '}';
             path.pop_back();
-            return;
+            return ok();
         }
     }
+    return ok();
 }
 
 bool ascii_digits(std::string_view s) {
@@ -517,10 +523,10 @@ std::string repr_str(std::string_view s) { return detail::repr_impl(s, false); }
 
 std::string ascii_str(std::string_view s) { return detail::repr_impl(s, true); }
 
-std::string repr(const Json& v) {
+Result<std::string> repr(const Json& v) {
     std::string out;
     std::vector<const void*> path;
-    detail::repr_into(v, out, path);
+    SCFG_TRY_VOID(detail::repr_into(v, out, path));
     return out;
 }
 
@@ -629,7 +635,10 @@ Result<std::string> quote(std::string_view s, std::string_view safe) {
 
 std::string hex(const BigInt& n) { return n.sign() < 0 ? "-0x" + n.abs().to_hex() : "0x" + n.to_hex(); }
 
-std::string str(const Json& v) { return v.is_str() ? v.as_str() : repr(v); }
+Result<std::string> str(const Json& v) {
+    if (v.is_str()) return v.as_str();
+    return repr(v);
+}
 
 Result<std::vector<Json>> iterate(const Json& v) {
     if (v.is_list()) return v.as_list();
@@ -660,7 +669,7 @@ Result<std::string> int_str(const BigInt& n) {
                                 "sys.set_int_max_str_digits() to increase the limit");
     };
     if (n.bit_length() >= 14286) return too_long();
-    std::string text = n.to_decimal();
+    std::string text = n.to_decimal();  // at most 14285 bits: 4301 digits
     if (text.size() - (n.sign() < 0 ? 1 : 0) > ints::INT_MAX_STR_DIGITS) return too_long();
     return text;
 }
@@ -808,6 +817,11 @@ bool eq(const Json& a, const Json& b) {
 
 Err key_error(std::string_view key) { return Err::key_error(repr_str(key)); }
 
+Err key_error_for(const Json& key) {
+    Result<std::string> shown = repr(key);
+    return Err::key_error(shown.ok() ? shown.take() : std::string("<unprintable KeyError object>"));
+}
+
 Result<Json> get(const Json& d, std::string_view key) {
     switch (d.type()) {
         case Json::Type::Dict: {
@@ -841,9 +855,13 @@ std::optional<Number> number(const Json& v) {
 
 Result<double> to_float(const Number& n) {
     if (!n.is_int) return n.f;
+    auto too_large = [] { return Err::overflow_error("int too large to convert to float"); };
     if (n.i.fits_int64()) return static_cast<double>(n.i.to_int64().value());  // round-to-nearest-even, as Python
-    std::optional<double> f = pyfloat::parse(n.i.to_decimal());                // strtod rounds correctly too
-    if (!f || std::isinf(*f)) return Err::overflow_error("int too large to convert to float");
+    // 1025 bits or more is at least 2**1024, beyond the largest double: refused before any conversion, so the
+    // decimal text below has at most 309 digits.
+    if (n.i.bit_length() > 1024) return too_large();
+    std::optional<double> f = pyfloat::parse(n.i.to_decimal());  // strtod rounds correctly too
+    if (!f || std::isinf(*f)) return too_large();
     return *f;
 }
 

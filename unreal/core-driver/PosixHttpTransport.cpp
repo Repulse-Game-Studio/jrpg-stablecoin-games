@@ -447,7 +447,7 @@ Result<Answer> read_answer(Reader& r) {
 
 Result<Json> post(const std::string& url, const Json& payload, double timeout) {
     SCFG_TRY(Url u, parse_url(url));
-    const std::string body = scfg::json::dumps(payload);
+    SCFG_TRY(const std::string body, scfg::json::dumps(payload));
     std::string request = "POST " + u.target + " HTTP/1.1\r\n";
     request += "Host: " + u.authority + "\r\n";
     request += "User-Agent: scfg/0.1\r\n";

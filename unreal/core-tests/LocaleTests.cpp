@@ -42,16 +42,16 @@ SCFG_TEST(LocaleTests, FloatsUnderEveryLocale) {
         t.check(pyfloat::parse("2.5") == 2.5, "parse(2.5)" + at);
         t.check(!pyfloat::parse("2,5").has_value(), "parse(2,5) accepted" + at);
         t.check(pyfloat::parse("-1e-05") == -1e-05, "parse(-1e-05)" + at);
-        t.check(scfg::json::dumps(Json(0.25)) == "0.25", "dumps(0.25)" + at);
+        t.check(scfg::json::dumps(Json(0.25)).value() == "0.25", "dumps(0.25)" + at);
         scfg::Result<Json> v = scfg::json::loads("[1.5, -2, 12345678901234567890123, 1e-07, 2.5E3]");
-        t.check(v.ok() && scfg::json::dumps(v.value()) == "[1.5, -2, 12345678901234567890123, 1e-07, 2500.0]",
+        t.check(v.ok() && scfg::json::dumps(v.value()).value() == "[1.5, -2, 12345678901234567890123, 1e-07, 2500.0]",
                 "loads/dumps of numbers" + at);
         t.check(py::lower_ascii("I") == "i", "lower_ascii(I)" + at);
         t.check(py::lower_for_ascii("LIMIT") == "limit", "lower_for_ascii(LIMIT)" + at);
         t.check(py::strip(" x ") == "x", "strip" + at);
         scfg::Result<scfg::BigInt> n = py::py_int(" -42 ");
         t.check(n.ok() && n.value() == -42, "py_int( -42 )" + at);
-        t.check(py::repr(Json::list({1.5, "i"})) == "[1.5, 'i']", "repr" + at);
+        t.check(py::repr(Json::list({1.5, "i"})).value() == "[1.5, 'i']", "repr" + at);
     });
     print_ran("LocaleTests.FloatsUnderEveryLocale", r);
     t.check(r.error.empty(), r.error);

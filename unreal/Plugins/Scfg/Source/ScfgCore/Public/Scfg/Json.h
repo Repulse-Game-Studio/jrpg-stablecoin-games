@@ -198,9 +198,12 @@ struct DumpOptions {
     bool ensure_ascii = true;
 };
 
-// json.dumps(v, sort_keys=, indent=, ensure_ascii=), byte for byte: floats as Python's repr (NaN, Infinity and
-// -Infinity as Python writes them), keys sorted by code point, \uXXXX with surrogate pairs under ensure_ascii.
-std::string dumps(const Json& v, const DumpOptions& opts = {});
+// json.dumps(v, sort_keys=, indent=, ensure_ascii=): the text Python writes for every value it can write, floats as
+// Python's repr (NaN, Infinity and -Infinity as Python writes them), keys sorted by code point, \uXXXX with
+// surrogate pairs under ensure_ascii. An int of more than 4300 digits is the ValueError Python raises
+// (py::int_str's, decided from the bit length first, so dumps stays linear in its output). A list or dict that
+// contains itself is a programming error (Python's "Circular reference detected").
+Result<std::string> dumps(const Json& v, const DumpOptions& opts = {});
 
 }  // namespace json
 }  // namespace scfg

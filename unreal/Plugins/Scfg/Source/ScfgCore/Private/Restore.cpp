@@ -158,7 +158,10 @@ Result<Json> apply(Json::Dict& receipts, const std::vector<RestoreCandidate>& ca
             if (choice.is_null()) continue;
             const bool allowed =
                 choice.is_str() && std::find(c.choices.begin(), c.choices.end(), choice.as_str()) != c.choices.end();
-            if (!allowed) return Err::value_error(py::repr(choice) + " is not an allowed choice");
+            if (!allowed) {
+                SCFG_TRY(std::string shown, py::repr(choice));
+                return Err::value_error(shown + " is not an allowed choice");
+            }
             if (choice.as_str() == TIP_CHOICE) {
                 kind = Json("tip");
                 item = Json();

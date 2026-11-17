@@ -62,12 +62,14 @@ Result<std::string> normalize_tx_hash(const Json& tx_hash) {
             return py::lower_ascii(s);
         }
     }
-    return Err::value_error("not a transaction hash: " + py::repr(tx_hash));
+    SCFG_TRY(std::string shown, py::repr(tx_hash));
+    return Err::value_error("not a transaction hash: " + shown);
 }
 
 Result<Json> create_session(Json::Dict& store, const NewSession& a, Entropy& entropy) {
     if (!a.kind.is_str() || (a.kind.as_str() != "unlock" && a.kind.as_str() != "tip")) {
-        return Err::value_error("invalid kind " + py::repr(a.kind));
+        SCFG_TRY(std::string shown, py::repr(a.kind));
+        return Err::value_error("invalid kind " + shown);
     }
     Json nonce = a.nonce;
     if (nonce.is_null()) {
@@ -166,7 +168,10 @@ void clear_hint(Json::Dict& rec) {
 Status set_ui_status(Json::Dict& store, std::string_view sid, const Json& status) {
     const bool known = status.is_str() && std::find(UI_STATUSES.begin(), UI_STATUSES.end(),
                                                     std::string_view(status.as_str())) != UI_STATUSES.end();
-    if (!known) return Err::value_error("invalid ui status " + py::repr(status));
+    if (!known) {
+        SCFG_TRY(std::string shown, py::repr(status));
+        return Err::value_error("invalid ui status " + shown);
+    }
     const Json* found = store.find(sid);
     if (found == nullptr) return py::key_error(sid);
     Json rec = *found;

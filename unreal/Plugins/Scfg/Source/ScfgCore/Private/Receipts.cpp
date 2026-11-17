@@ -16,7 +16,8 @@ namespace scfg::receipts::detail {
 // An int is py::int_str (CPython's 4300-digit limit for str()).
 Result<std::string> str_of(const Json& v) {
     if (v.is_int()) return py::int_str(v.as_bigint());
-    return v.is_str() ? v.as_str() : py::repr(v);
+    if (v.is_str()) return v.as_str();
+    return py::repr(v);
 }
 
 // The tx part of a key. lower_for_ascii is str.lower() for every hash a chain gives (ASCII).
@@ -27,9 +28,15 @@ std::string tx_part(std::string_view tx_hash) {
 Result<Json> make(const Json& chain, const transfers::Transfer& t, const Json& kind, const Json& item,
                   const Json& token, const Json& source) {
     const bool kind_ok = kind.is_str() && (kind.as_str() == "unlock" || kind.as_str() == "tip");
-    if (!kind_ok) return Err::value_error("invalid kind " + py::repr(kind));
+    if (!kind_ok) {
+        SCFG_TRY(std::string shown, py::repr(kind));
+        return Err::value_error("invalid kind " + shown);
+    }
     const bool source_ok = source.is_str() && (source.as_str() == "payment" || source.as_str() == "restore");
-    if (!source_ok) return Err::value_error("invalid source " + py::repr(source));
+    if (!source_ok) {
+        SCFG_TRY(std::string shown, py::repr(source));
+        return Err::value_error("invalid source " + shown);
+    }
     return Json::dict({{"chain", chain},
                        {"tx_hash", t.tx_hash},
                        {"log_index", t.log_index},
@@ -58,7 +65,7 @@ Result<std::string> receipt_key(std::string_view chain, std::string_view tx_hash
 }
 
 std::string receipt_key(std::string_view chain, std::string_view tx_hash, int64_t log_index) {
-    return std::string(chain) + ":" + detail::tx_part(tx_hash) + ":" + BigInt(log_index).to_decimal();
+    return std::string(chain) + ":" + detail::tx_part(tx_hash) + ":" + py::dec(log_index);  // an int64: 20 digits
 }
 
 Result<std::string> receipt_key(const Json& chain, const Json& tx_hash, const Json& log_index) {

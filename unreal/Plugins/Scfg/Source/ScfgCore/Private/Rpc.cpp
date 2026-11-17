@@ -67,7 +67,7 @@ Result<NodeError> parse_error(const Json& e) {
     } else if (!n.err().is_a("TypeError") && !n.err().is_a("ValueError")) {
         return std::move(n).err();
     }
-    std::string text = py::str(message);
+    SCFG_TRY(std::string text, py::str(message));
     if (!value.fits_int64()) return NodeError{Err::make("RpcError", std::move(text))};  // no code (see Rpc.h)
     return NodeError{Err::rpc_error(value.to_int64().value(), std::move(text))};
 }

@@ -31,13 +31,19 @@ namespace scfg_test::tier2::detail {
 
 std::string number(size_t n) { return std::to_string(n); }
 
+// json.dumps of v for a message, cut to about 300 bytes (or the error dumps raised, in <>).
 std::string show(const Json& v) {
-    std::string s = scfg::json::dumps(v, {.sort_keys = true, .ensure_ascii = false});
+    Result<std::string> text = scfg::json::dumps(v, {.sort_keys = true, .ensure_ascii = false});
+    if (!text.ok()) return "<" + text.err().str() + ">";
+    std::string s = text.take();
     if (s.size() <= 300) return s;
     size_t cut = 297;
     while (cut > 0 && (static_cast<unsigned char>(s[cut]) & 0xC0) == 0x80) --cut;
     return s.substr(0, cut) + "...";
 }
+
+// str(v) or repr(v) for a message (or the error they raised, in <>).
+std::string text(const Result<std::string>& r) { return r.ok() ? r.value() : "<" + r.err().str() + ">"; }
 
 std::string join(const std::vector<std::string>& parts, std::string_view sep) {
     std::string out;
@@ -83,7 +89,10 @@ Result<std::optional<std::string>> str_or_none_field(const Json& d, std::string_
 
 Result<BigInt> int_field(const Json& d, std::string_view key) {
     SCFG_TRY(Json v, py::get(d, key));
-    if (!v.is_int()) return Err::type_error(std::string(key) + " must be an int, not " + py::repr(v));
+    if (!v.is_int()) {
+        SCFG_TRY(std::string shown, py::repr(v));
+        return Err::type_error(std::string(key) + " must be an int, not " + shown);
+    }
     return v.as_bigint();
 }
 
@@ -360,7 +369,8 @@ std::optional<Json> ScriptedEntropy::take(std::string_view fn, int64_t n) {
     const Json dfn = draw.as_dict().get("fn");
     const Json dn = draw.as_dict().get("n");
     if (!dfn.is_str() || dfn.as_str() != fn || !dn.is_int64() || dn.as_int64() != n) {
-        problems.push_back("entropy mismatch: drew " + drew + ", recorded " + py::str(dfn) + "(" + py::str(dn) + ")");
+        problems.push_back("entropy mismatch: drew " + drew + ", recorded " + detail::text(py::str(dfn)) + "(" +
+                           detail::text(py::str(dn)) + ")");
         return std::nullopt;
     }
     return draw.as_dict().get("value");
@@ -400,7 +410,7 @@ std::vector<std::string> ScriptedEntropy::leftover() const {
         const Json& d = draws_[i];
         Json fn = d.is_dict() ? d.as_dict().get("fn") : Json();
         Json n = d.is_dict() ? d.as_dict().get("n") : Json();
-        left += (left.empty() ? "(" : ", (") + py::repr(fn) + ", " + py::repr(n) + ")";
+        left += (left.empty() ? "(" : ", (") + detail::text(py::repr(fn)) + ", " + detail::text(py::repr(n)) + ")";
     }
     return {"unconsumed entropy: [" + left + "]"};
 }
@@ -471,7 +481,7 @@ scfg::Future<Json> ReplayTransport::post_json(std::string url, Json payload, dou
         }
     }
     if (!answer) {
-        problems.push_back("unexpected call " + url + " " + py::str(method) + " " + detail::show(params));
+        problems.push_back("unexpected call " + url + " " + detail::text(py::str(method)) + " " + detail::show(params));
         answer = Err::make("AssertionError", problems.back());
     }
     if (fault) {
@@ -583,7 +593,7 @@ Result<restore::RestoreCandidate> candidate_from_json(const Json& d) {
     SCFG_TRY(Json cls, detail::pop(fields, "class"));
     SCFG_TRY(std::optional<std::string> name, py::str_key(cls));
     const bool is_log = name && *name == "TransferLog";
-    if (!name || (*name != "Transfer" && !is_log)) return Err::key_error(py::repr(cls));  // _TRANSFER_CLASSES[cls]
+    if (!name || (*name != "Transfer" && !is_log)) return py::key_error_for(cls);  // _TRANSFER_CLASSES[cls]
     std::vector<std::string_view> want = {"token", "sender", "recipient", "value", "tx_hash", "log_index", "block_number"};
     if (is_log) want.push_back("block_hash");
     bool exact = fields.as_dict().size() == want.size();
@@ -637,7 +647,8 @@ Result<Json> to_jsonable(const Json& v, const std::string& path) {
     const std::string where = path.empty() ? "<root>" : path;
     auto check_int = [&where](const BigInt& n) -> Result<Json> {
         if (n.abs() >= BigInt(int64_t{1} << 53)) {
-            return Err::value_error("integer " + n.to_decimal() + " at " + where +
+            SCFG_TRY(std::string shown, py::int_str(n));  // f"integer {n}": str()'s ValueError beyond 4300 digits
+            return Err::value_error("integer " + shown + " at " + where +
                                     " is not safe in JSON (|n| >= 2**53); write it as a string");
         }
         return Json(n);

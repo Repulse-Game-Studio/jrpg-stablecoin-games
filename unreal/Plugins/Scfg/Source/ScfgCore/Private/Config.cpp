@@ -160,8 +160,8 @@ Result<std::string> solana_address(const Json& value, std::string_view what) {
     Result<std::string> normalized = solana::base58::normalize_pubkey(value);
     if (!normalized.ok()) {
         if (!normalized.err().is_a("ValueError")) return normalized.err();
-        return Err::config_error("solana_address.invalid",
-                                 std::string(what) + ": not a Solana address: " + py::repr(value));
+        SCFG_TRY(std::string shown, py::repr(value));
+        return Err::config_error("solana_address.invalid", std::string(what) + ": not a Solana address: " + shown);
     }
     std::string a = normalized.take();
     SCFG_TRY(std::vector<uint8_t> raw, solana::base58::b58decode(Json(a)));
@@ -234,7 +234,8 @@ Result<std::vector<std::string>> rpc_urls(const Json& value, std::string_view wh
     out.reserve(urls.size());
     for (const Json& u : urls) {
         if (!u.is_str() || !(u.as_str().rfind("https://", 0) == 0 || is_local_http(u.as_str()))) {
-            return Err::config_error("rpc.not_https", "rpc url must start with https://: " + py::repr(u));
+            SCFG_TRY(std::string shown, py::repr(u));
+            return Err::config_error("rpc.not_https", "rpc url must start with https://: " + shown);
         }
         out.push_back(u.as_str());
     }
@@ -244,7 +245,7 @@ Result<std::vector<std::string>> rpc_urls(const Json& value, std::string_view wh
 Result<BigInt> positive_int(const Json& value, std::string_view what, int64_t minimum = 1) {
     if (!is_int(value) || value.as_bigint() < BigInt(minimum)) {
         return Err::config_error("int.below_minimum",
-                                 std::string(what) + " must be an int >= " + BigInt(minimum).to_decimal());
+                                 std::string(what) + " must be an int >= " + py::dec(minimum));
     }
     return value.as_bigint();
 }
@@ -279,9 +280,9 @@ Result<Custom> custom_chains(const std::vector<CustomChain>& custom, bool testne
         for (const OrderedMap<chains::Chain>* group : {&builtin, &mine}) {
             for (const auto& [k, c] : *group) {
                 if (c.chain_id == chain->chain_id) {
+                    SCFG_TRY(std::string chain_id, py::int_str(chain->chain_id));  // no upper bound is checked
                     return Err::config_error("chain.duplicate_chain_id", "chain " + key + " has the same chain_id (" +
-                                                                             chain->chain_id.to_decimal() + ") as " +
-                                                                             py::repr_str(c.key));
+                                                                             chain_id + ") as " + py::repr_str(c.key));
                 }
             }
         }
@@ -313,9 +314,9 @@ Result<std::optional<std::string>> logo(const Json& value) {
         }
     }
     if (bad) {
+        SCFG_TRY(std::string shown, py::repr(value));
         return Err::config_error("logo.bad_path",
-                                 "logo must be a path inside the game folder, like 'images/logo.png': " +
-                                     py::repr(value));
+                                 "logo must be a path inside the game folder, like 'images/logo.png': " + shown);
     }
     SCFG_TRY_VOID(logo_content_type(value.as_str()));
     return std::optional<std::string>(value.as_str());
@@ -330,7 +331,10 @@ Result<std::string> accent(const Json& value) {
         good = !s.empty() && s[0] == '#' && (s.size() == 4 || s.size() == 7 || s.size() == 9);
         for (size_t i = 1; good && i < s.size(); ++i) good = is_hex(s[i]);
     }
-    if (!good) return Err::config_error("accent.invalid", "accent must be a color like '#0e7c74': " + py::repr(value));
+    if (!good) {
+        SCFG_TRY(std::string shown, py::repr(value));
+        return Err::config_error("accent.invalid", "accent must be a color like '#0e7c74': " + shown);
+    }
     std::string digits = value.as_str().substr(1);
     if (digits.size() == 3) digits = {digits[0], digits[0], digits[1], digits[1], digits[2], digits[2]};
     return "#" + py::lower_ascii(std::string_view(digits).substr(0, 6));  // alpha, if any, is dropped
@@ -398,8 +402,9 @@ Result<Json> merge_methods(const Json& methods, const std::vector<std::string>& 
         SCFG_TRY(std::vector<Json> entries, py::iterate(qr_chains));
         for (const Json& c : entries) {
             if (!(c.is_str() && contains(chains, c.as_str()))) {  // `c not in chains`: a tuple, compared with ==
+                SCFG_TRY(std::string shown, py::repr(c));
                 return Err::config_error("methods.qr_disabled_chain",
-                                         "methods.qr.chains contains disabled chain " + py::repr(c));
+                                         "methods.qr.chains contains disabled chain " + shown);
             }
         }
     }
@@ -481,18 +486,24 @@ Result<Config> build(const Json& kwargs, const std::vector<CustomChain>* typed) 
         SCFG_TRY_VOID(hashable(c));  // `c in other_network` hashes c
         if (c.is_str() && contains(custom.other, c.as_str())) {
             std::string net = testnet ? "mainnet" : "testnet";
-            return Err::config_error("chains.wrong_network", "chain " + py::repr(c) + " was only added for " + net +
+            return Err::config_error("chains.wrong_network", "chain " + py::repr_str(c.as_str()) +
+                                                                 " was only added for " + net +
                                                                  "; add it again with testnet=" +
                                                                  (testnet ? "True" : "False") + " to use it here");
         }
         const chains::Chain* chain = c.is_str() ? registry.find(c.as_str()) : nullptr;
-        if (chain == nullptr) return Err::config_error("chains.unknown", "unknown chain: " + py::repr(c));
+        if (chain == nullptr) {
+            SCFG_TRY(std::string shown, py::repr(c));
+            return Err::config_error("chains.unknown", "unknown chain: " + shown);
+        }
+        // c is a str from here on
         if (chain->family == "solana" && !sol) {
-            return Err::config_error("chain.needs_solana_wallet", "chain " + py::repr(c) + " needs solana_wallet=");
+            return Err::config_error("chain.needs_solana_wallet",
+                                     "chain " + py::repr_str(c.as_str()) + " needs solana_wallet=");
         }
         if (chain->family == "evm" && !wallet) {
             return Err::config_error("chain.needs_evm_wallet",
-                                     "chain " + py::repr(c) + " needs wallet= (an EVM 0x address)");
+                                     "chain " + py::repr_str(c.as_str()) + " needs wallet= (an EVM 0x address)");
         }
         chain_keys.push_back(c.as_str());
     }
@@ -514,7 +525,10 @@ Result<Config> build(const Json& kwargs, const std::vector<CustomChain>* typed) 
     }
     if (token_values.empty()) return Err::config_error("tokens.empty", "tokens must not be empty");
     for (const Json& t : token_values) {
-        if (!contains(TOKENS, t)) return Err::config_error("tokens.unknown", "unknown token: " + py::repr(t));
+        if (!contains(TOKENS, t)) {
+            SCFG_TRY(std::string shown, py::repr(t));
+            return Err::config_error("tokens.unknown", "unknown token: " + shown);
+        }
         tokens.push_back(t.as_str());
     }
 
@@ -636,10 +650,10 @@ Result<chains::Chain> build_chain(const Json& kwargs) {
     Json fee_hint = detail::arg(*kw, "fee_hint", "low");
 
     if (!detail::is_id(key, 32)) {
-        return Err::config_error("chain.invalid_key",
-                                 "invalid chain key " + py::repr(key) + " (use a-z, 0-9, _ and -)");
+        SCFG_TRY(std::string shown, py::repr(key));
+        return Err::config_error("chain.invalid_key", "invalid chain key " + shown + " (use a-z, 0-9, _ and -)");
     }
-    std::string what = "chain " + py::repr(key);
+    std::string what = "chain " + py::repr_str(key.as_str());  // is_id: a str
     if (!name.is_str() || py::strip(name.as_str()).empty() || py::len(name.as_str()) > 32) {
         return Err::config_error("chain.invalid_name",
                                  what + ": name must be a non-empty string of at most 32 characters");
@@ -771,8 +785,8 @@ Result<models::Item> add_item(Config& config, const Json& item_id, const Json& k
     Json min_price = detail::arg(*kw, "min_price");
 
     if (!detail::is_id(item_id, 64)) {
-        return Err::config_error("item.invalid_id",
-                                 "invalid item id " + py::repr(item_id) + " (use a-z, 0-9, _ and -)");
+        SCFG_TRY(std::string shown, py::repr(item_id));
+        return Err::config_error("item.invalid_id", "invalid item id " + shown + " (use a-z, 0-9, _ and -)");
     }
     const std::string& id = item_id.as_str();
     if (config.items.contains(id)) {
@@ -783,7 +797,7 @@ Result<models::Item> add_item(Config& config, const Json& item_id, const Json& k
     }
     int64_t item_code = code.as_int64();
     if (config.item_by_code(item_code) != nullptr) {
-        return Err::config_error("item.duplicate_code", "duplicate item code " + code.as_bigint().to_decimal());
+        return Err::config_error("item.duplicate_code", "duplicate item code " + py::dec(item_code));  // 1..99
     }
     // except (TypeError, ValueError) as e: ConfigError(f"item {item_id!r}: {e}")
     auto amount = [&id](const Json& v) -> Result<Dec> {
@@ -805,8 +819,8 @@ Result<models::Item> add_item(Config& config, const Json& item_id, const Json& k
         available = !carrying.empty();
     }
     if (!available) {
-        return Err::config_error("token.unavailable",
-                                 "token " + py::repr(token) + " is not available on any enabled chain");
+        SCFG_TRY(std::string shown, py::repr(token));
+        return Err::config_error("token.unavailable", "token " + shown + " is not available on any enabled chain");
     }
     if (!title.is_str() || py::strip(title.as_str()).empty() || py::len(title.as_str()) > 80) {
         return Err::config_error("item.invalid_title", "title must be a non-empty string of at most 80 characters");

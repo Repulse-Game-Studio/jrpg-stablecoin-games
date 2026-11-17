@@ -33,7 +33,25 @@ static std::string loads_error(std::string_view s) {
     return r.err().message;
 }
 
-static std::string D(const Json& v) { return json::dumps(v); }
+static std::string D(const Json& v) { return json::dumps(v).value(); }
+
+// json.dumps of an int beyond str()'s limit raises CPython's ValueError (int.__repr__), wherever the int is; one of
+// 4300 digits is written. Python 3.9.25: len(json.dumps([1, 10**4300 - 1])) == 4305,
+// len(json.dumps({"a": -(10**4300 - 1)}, indent=1)) == 4311, and json.dumps({"a": [10**4300]}) raises.
+SCFG_TEST(JsonTests, AnIntBeyondStrsLimitIsDumpsValueError) {
+    const std::string limit = "ValueError: Exceeds the limit (4300) for integer string conversion; use "
+                              "sys.set_int_max_str_digits() to increase the limit";
+    const BigInt big = BigInt(10).pow(4300);
+    auto outcome = [](const scfg::Result<std::string>& r) { return r.ok() ? std::string("<ok>") : r.err().str(); };
+    scfg::Result<std::string> most = json::dumps(Json::list({1, Json(big - BigInt(1))}));
+    SCFG_CHECK(t, most.ok() && most.value().size() == 4305);
+    scfg::Result<std::string> indented = json::dumps(Json::dict({{"a", Json(-(big - BigInt(1)))}}), {.indent = 1});
+    SCFG_CHECK(t, indented.ok() && indented.value().size() == 4311);
+    SCFG_CHECK_EQ(t, outcome(json::dumps(Json::dict({{"a", Json::list({Json(big)})}}))), limit);
+    SCFG_CHECK_EQ(t, outcome(json::dumps(Json(-big), {.sort_keys = true, .indent = 2, .ensure_ascii = false})), limit);
+    // refused from the bit length, before any conversion: 4 million bits (1.2 million digits) at once
+    SCFG_CHECK_EQ(t, outcome(json::dumps(Json::list({Json(BigInt(1) << 4000000)}))), limit);
+}
 
 SCFG_TEST(JsonTests, IntegersStayIntegers) {
     Json big = L(t, "12345678901234567890123");
@@ -74,11 +92,11 @@ SCFG_TEST(JsonTests, IntegerDigitLimit) {
 SCFG_TEST(JsonTests, RoundTripsPythonLayout) {
     std::string src = "{\"b\":1,\"a\":[true,null,\"\xC3\xA9\"]}";
     SCFG_CHECK_EQ(t, D(L(t, src)), "{\"b\": 1, \"a\": [true, null, \"\\u00e9\"]}");
-    SCFG_CHECK_EQ(t, json::dumps(L(t, src), {.ensure_ascii = false}), "{\"b\": 1, \"a\": [true, null, \"\xC3\xA9\"]}");
-    SCFG_CHECK_EQ(t, json::dumps(L(t, "{\"b\":1,\"a\":[],\"c\":{},\"d\":[1,{\"x\":2}]}"), {.indent = 2}),
+    SCFG_CHECK_EQ(t, json::dumps(L(t, src), {.ensure_ascii = false}).value(), "{\"b\": 1, \"a\": [true, null, \"\xC3\xA9\"]}");
+    SCFG_CHECK_EQ(t, json::dumps(L(t, "{\"b\":1,\"a\":[],\"c\":{},\"d\":[1,{\"x\":2}]}"), {.indent = 2}).value(),
                   "{\n  \"b\": 1,\n  \"a\": [],\n  \"c\": {},\n  \"d\": [\n    1,\n    {\n      \"x\": 2\n    }\n  ]\n}");
-    SCFG_CHECK_EQ(t, json::dumps(L(t, "{\"b\":1,\"a\":[]}"), {.indent = 0}), "{\n\"b\": 1,\n\"a\": []\n}");
-    SCFG_CHECK_EQ(t, json::dumps(L(t, "[1]"), {.indent = -3}), "[\n1\n]");  // ' ' * -3 is ''
+    SCFG_CHECK_EQ(t, json::dumps(L(t, "{\"b\":1,\"a\":[]}"), {.indent = 0}).value(), "{\n\"b\": 1,\n\"a\": []\n}");
+    SCFG_CHECK_EQ(t, json::dumps(L(t, "[1]"), {.indent = -3}).value(), "[\n1\n]");  // ' ' * -3 is ''
     SCFG_CHECK_EQ(t, D(L(t, "[]")), "[]");
     SCFG_CHECK_EQ(t, D(L(t, "{}")), "{}");
     SCFG_CHECK_EQ(t, D(L(t, "[{}, [], [[]]]")), "[{}, [], [[]]]");
@@ -92,7 +110,7 @@ SCFG_TEST(JsonTests, RoundTripsPythonLayout) {
 SCFG_TEST(JsonTests, SortKeysOrdersByCodePoint) {
     // U+FF5E (EF BD 9E) is below U+1F600 (F0 9F 98 80) by code point, as in Python (UTF-16 order would differ).
     Json o = Json::dict({{"b", 1}, {"B", 2}, {"a", 3}, {"\xEF\xBD\x9E", 4}, {"\xF0\x9F\x98\x80", 5}, {"ab", 6}});
-    SCFG_CHECK_EQ(t, json::dumps(o, {.sort_keys = true, .ensure_ascii = false}),
+    SCFG_CHECK_EQ(t, json::dumps(o, {.sort_keys = true, .ensure_ascii = false}).value(),
                   "{\"B\": 2, \"a\": 3, \"ab\": 6, \"b\": 1, \"\xEF\xBD\x9E\": 4, \"\xF0\x9F\x98\x80\": 5}");
     SCFG_CHECK_EQ(t, D(o), "{\"b\": 1, \"B\": 2, \"a\": 3, \"\\uff5e\": 4, \"\\ud83d\\ude00\": 5, \"ab\": 6}");
 }
@@ -130,9 +148,9 @@ SCFG_TEST(JsonTests, StringEscapes) {
     // "\x7f\x1f\u2028\U0001F600\"\\\b\f\n\r\t/"
     std::string s = "\x7f\x1f\xE2\x80\xA8\xF0\x9F\x98\x80\"\\\b\f\n\r\t/";
     SCFG_CHECK_EQ(t, D(Json(s)), "\"\\u007f\\u001f\\u2028\\ud83d\\ude00\\\"\\\\\\b\\f\\n\\r\\t/\"");
-    SCFG_CHECK_EQ(t, json::dumps(Json("\x7f\x1f\xE2\x80\xA8\xF0\x9F\x98\x80"), {.ensure_ascii = false}),
+    SCFG_CHECK_EQ(t, json::dumps(Json("\x7f\x1f\xE2\x80\xA8\xF0\x9F\x98\x80"), {.ensure_ascii = false}).value(),
                   "\"\x7f\\u001f\xE2\x80\xA8\xF0\x9F\x98\x80\"");
-    SCFG_CHECK_EQ(t, json::dumps(Json(std::string("a\0b", 3)), {}), "\"a\\u0000b\"");
+    SCFG_CHECK_EQ(t, json::dumps(Json(std::string("a\0b", 3)), {}).value(), "\"a\\u0000b\"");
     Json back = L(t, "\"\\ud83d\\ude00\\u00E9\\/\\b\\f\\n\\r\\t\\\"\\\\\"");
     SCFG_CHECK_EQ(t, back.as_str(), "\xF0\x9F\x98\x80\xC3\xA9/\b\f\n\r\t\"\\");
     // raw UTF-8 passes through loads
@@ -144,7 +162,7 @@ SCFG_TEST(JsonTests, LoneSurrogatesSurviveAsWtf8) {
     Json lone = L(t, "\"\\ud800\"");
     SCFG_CHECK_EQ(t, lone.as_str(), "\xED\xA0\x80");
     SCFG_CHECK_EQ(t, D(lone), "\"\\ud800\"");
-    SCFG_CHECK_EQ(t, json::dumps(lone, {.ensure_ascii = false}), "\"\xED\xA0\x80\"");
+    SCFG_CHECK_EQ(t, json::dumps(lone, {.ensure_ascii = false}).value(), "\"\xED\xA0\x80\"");
     SCFG_CHECK_EQ(t, scfg::py::len(lone.as_str()), 1);
     // a low half alone, reversed halves (two code points), a high half before a non-surrogate escape
     SCFG_CHECK_EQ(t, D(L(t, "\"\\udc00x\"")), "\"\\udc00x\"");
@@ -168,7 +186,7 @@ SCFG_TEST(JsonTests, EncodedSurrogatesOnlyInAlreadyDecodedText) {
     SCFG_CHECK(t, cesu.ok() && scfg::py::len(cesu.value().as_str()) == 2);
     if (cesu.ok()) SCFG_CHECK_EQ(t, D(cesu.value()), "\"\\ud83d\\ude00\"");
     // What dumps writes with ensure_ascii=False reads back through loads_text, not loads.
-    std::string body = json::dumps(Json::dict({{"s", Json("\xED\xA0\x80")}}), {.ensure_ascii = false});
+    std::string body = json::dumps(Json::dict({{"s", Json("\xED\xA0\x80")}}), {.ensure_ascii = false}).value();
     SCFG_CHECK(t, json::loads_text(body).ok() && !json::loads(body).ok());
     // Escapes decode to WTF-8 in both, and other invalid UTF-8 is refused by both, with the same message.
     SCFG_CHECK_EQ(t, json::loads("\"\\ud800\"").value().as_str(), "\xED\xA0\x80");
@@ -265,7 +283,7 @@ SCFG_TEST(JsonTests, DuplicateKeysKeepFirstPositionLastValue) {
 SCFG_TEST(JsonTests, DeepNestingIsAValueErrorNotACrash) {
     Json deep = L(t, std::string(1000, '[') + std::string(1000, ']'));
     SCFG_CHECK(t, deep.is_list());
-    SCFG_CHECK_EQ(t, json::dumps(deep).size(), 2000);
+    SCFG_CHECK_EQ(t, json::dumps(deep).value().size(), 2000);
     std::string err = loads_error(std::string(1001, '[') + std::string(1001, ']'));
     SCFG_CHECK_EQ(t, err, "JSON nested deeper than 1000 levels: line 1 column 1001 (char 1000)");
     SCFG_CHECK_EQ(t, loads_error(std::string(100000, '{')),
@@ -289,7 +307,7 @@ SCFG_TEST(JsonTests, DictKeepsInsertionOrderThePythonWay) {
     SCFG_CHECK_EQ(t, d.get("c", "fallback").as_str(), "fallback");
     SCFG_CHECK(t, !d.erase("c"));
     std::string seen;
-    for (const auto& [k, v] : d) seen += k + "=" + json::dumps(v) + ";";
+    for (const auto& [k, v] : d) seen += k + "=" + json::dumps(v).value() + ";";
     SCFG_CHECK_EQ(t, seen, "b=2;a=3;");
     d.set("b", 4);  // reassigning keeps the position
     SCFG_CHECK_EQ(t, D(o), "{\"b\": 4, \"a\": 3}");
@@ -358,7 +376,7 @@ SCFG_TEST(JsonTests, DumpsTheCycleItCannotWrite) {
     // as Python does. Break the cycle afterwards so the handles are freed.
     Json l = Json::list({1});
     l.as_list().push_back(l);
-    SCFG_CHECK_EQ(t, scfg::py::repr(l), "[1, [...]]");
+    SCFG_CHECK_EQ(t, scfg::py::repr(l).value(), "[1, [...]]");
     l.as_list().clear();
 }
 
@@ -376,7 +394,7 @@ SCFG_TEST(JsonTests, EveryVectorFileRoundTrips) {
         if (!t.check(text.has_value(), "cannot read " + rel)) continue;
         scfg::Result<Json> v = json::loads(*text);
         if (!t.check(v.ok(), rel + ": " + (v.ok() ? "" : v.err().str()))) continue;
-        std::string again = json::dumps(v.value(), {.sort_keys = true, .indent = 1, .ensure_ascii = false}) + "\n";
+        std::string again = json::dumps(v.value(), {.sort_keys = true, .indent = 1, .ensure_ascii = false}).value() + "\n";
         t.check(again == *text, rel + " does not round-trip");
         ++n;
     }

@@ -87,7 +87,10 @@ scfg::Status apply_override(const Json::Dict& o) {
         (network.is_str() && network.as_str() == "testnet") ? scfg::chains::TESTNET() : scfg::chains::MAINNET();
     Json key = opt(o, "key");
     const scfg::chains::Chain* base = key.is_str() ? registry.find(key.as_str()) : nullptr;
-    if (base == nullptr) return driver_error("unknown chain " + scfg::json::dumps(key));
+    if (base == nullptr) {
+        SCFG_TRY(std::string shown, scfg::json::dumps(key));
+        return driver_error("unknown chain " + shown);
+    }
     Json rpc_json = opt(o, "rpc");
     if (!rpc_json.is_list()) return driver_error("override.rpc must be a list");
     std::vector<std::string> rpc;
@@ -190,7 +193,8 @@ public:
             for (const std::string& k : receipts.as_dict().keys()) receipts.as_dict().erase(k);
             return Json();
         }
-        return driver_error("unknown op " + scfg::json::dumps(op_json));
+        SCFG_TRY(std::string shown, scfg::json::dumps(op_json));
+        return driver_error("unknown op " + shown);
     }
 
 private:
@@ -262,7 +266,11 @@ std::string reply_to(Driver& driver, std::string_view line) {
         return driver.run(cmd.as_dict());
     }();
     Json reply = result.ok() ? Json::dict({{"ok", result.value()}}) : Json::dict({{"error", describe(result.err())}});
-    return scfg::json::dumps(reply);
+    Result<std::string> text = scfg::json::dumps(reply);
+    if (text.ok()) return text.take();
+    // A result json.dumps refuses (an int of more than 4300 digits) is answered as that ValueError. An error reply
+    // holds strs and an int64 code only, so its dumps cannot fail.
+    return scfg::json::dumps(Json::dict({{"error", describe(text.err())}})).value();
 }
 
 bool blank(std::string_view line) {

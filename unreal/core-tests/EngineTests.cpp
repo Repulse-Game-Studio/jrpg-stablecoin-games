@@ -16,6 +16,7 @@
 #include "Scfg/Engine.h"
 #include "Scfg/Err.h"
 #include "Scfg/Json.h"
+#include "Scfg/Py.h"
 #include "Scfg/Restore.h"
 #include "Scfg/Result.h"
 #include "Scfg/Rpc.h"
@@ -325,7 +326,7 @@ void huge_log_index(Json& calls, std::string_view method) {
         if (result.is_null()) continue;
         Json& logs = result.is_dict() ? *result.as_dict().find("logs") : result;
         for (Json& lg : logs.as_list()) lg.as_dict().set("logIndex", Json(huge));
-        call.set("response_text", Json(scfg::json::dumps(body)));
+        call.set("response_text", Json(scfg::json::dumps(body).value()));
     }
 }
 
@@ -426,4 +427,121 @@ SCFG_TEST(EngineTests, AHugeLogIndexIsAContainedWatcherError) {
     step.set("snapshot", scfg::deep_copy(before));
     std::optional<std::string> diff = scfg_test::tier2::replay(copy);
     t.check(!diff.has_value(), diff.value_or(""));
+}
+
+// ---- a node's block number beyond str()'s 4300-digit limit ----
+
+namespace scfg_test::engine_tests {
+
+// Answers eth_blockNumber with hex(head) and eth_getLogs with [], recording every request.
+struct HugeHeadTransport final : scfg::coio::Transport {
+    scfg::BigInt head;
+    std::vector<Json> asked;
+    Future<Json> post_json(std::string url, Json payload, double timeout) override {
+        (void)url, (void)timeout;
+        asked.push_back(payload);
+        const bool block_number = payload.as_dict().get("method").as_str() == "eth_blockNumber";
+        return Future<Json>::completed(Json::dict(
+            {{"jsonrpc", "2.0"}, {"id", 1}, {"result", block_number ? Json(scfg::py::hex(head)) : Json::list()}}));
+    }
+};
+
+}  // namespace scfg_test::engine_tests
+
+// int(x, 16) has no digit limit, so a node's eth_blockNumber of 5000 decimal digits becomes the session's
+// start_block and cursor, and every later request carries it in hex. Python raises only where it formats the int in
+// decimal: json.dumps of the record (when the host saves it) and repr. Expectations from the Python reference:
+//
+// ---- huge_head.py (run from the repo root: python3 -I huge_head.py .) ----
+//   import copy, json, sys
+//   sys.path[:0] = [sys.argv[1] + "/plugin/game/python-packages", sys.argv[1] + "/conformance/python"]
+//   from scfg_conformance import replay as rp
+//   HEAD = 10 ** 4999 + 1000
+//   v = json.load(open(f"{sys.argv[1]}/conformance/vectors/tier2/smoke/evm_unlock_paid.json"))
+//   step = copy.deepcopy(v["steps"][0])
+//   step["calls"][0]["response_text"] = json.dumps({"id": 1, "jsonrpc": "2.0", "result": hex(HEAD)})
+//   t = rp.ReplayTransport()
+//   errors = []
+//   engine = rp.build_engine(v["setup"], transport=t, clock=lambda: step["at"], on_error=errors.append)
+//   t.load(step["calls"])
+//   with rp.patched_entropy(rp.ScriptedEntropy(step["entropy"])):
+//       result, raises = rp.run_action(engine, step["action"], step["args"], [])
+//   print(raises, errors, result["start_block"] - HEAD, result["cursor"] - HEAD)
+//   for obj in (result, engine.pending):
+//       try: json.dumps(obj)
+//       except ValueError as e: print(e)
+//   try: repr(result)
+//   except ValueError as e: print(e)
+//   class Answering:
+//       def __init__(self): self.asked = []
+//       def post_json(self, url, payload, timeout):
+//           self.asked.append((payload["method"], payload["params"]))
+//           result = hex(HEAD + 7) if payload["method"] == "eth_blockNumber" else []
+//           return {"jsonrpc": "2.0", "id": 1, "result": result}
+//   engine.transport = a = Answering()
+//   result, raises = rp.run_action(engine, "tick", {}, [])
+//   print(raises, rp.encode_returns("tick", result), errors, a.asked)
+//   rec = engine.pending[result[0].session_id]
+//   print(rec["start_block"] - HEAD, rec["cursor"] - HEAD)
+// ---- end of huge_head.py ----
+//
+// Python 3.9.25 printed: no raise and no contained error, start_block and cursor HEAD - 5; json.dumps of the result
+// and of engine.pending, and repr(result), each "Exceeds the limit (4300) for integer string conversion; use
+// sys.set_int_max_str_digits() to increase the limit" (at once); the tick returns the session "waiting" (0 of 3
+// confirmations, no error) after eth_blockNumber and one eth_getLogs from hex(HEAD - 5) to hex(HEAD + 7), and the
+// cursor is then HEAD + 8.
+SCFG_TEST(EngineTests, AHugeBlockNumberIsStoredAndRefusedOnlyByDumps) {
+    std::optional<Json> v = load_vector("smoke/evm_unlock_paid");
+    if (!t.check(v.has_value(), "smoke/evm_unlock_paid")) return;
+    const Json first_step = v->as_dict().get("steps").as_list()[0];
+    const Json::Dict& first = first_step.as_dict();
+    const scfg::BigInt head = scfg::BigInt(10).pow(4999) + scfg::BigInt(1000);
+    HugeHeadTransport transport;
+    transport.head = head;
+    std::vector<std::string> errors;
+    scfg_test::tier2::ScriptedEntropy entropy;
+    entropy.load(first.get("entropy"));
+    const int64_t at = first.get("at").as_int64();
+    Result<std::unique_ptr<engine::Engine>> built = scfg_test::tier2::build_engine(
+        v->as_dict().get("setup"), transport, [at] { return at; }, [&errors](const Err& e) { errors.push_back(e.str()); },
+        &entropy);
+    if (!t.check(built.ok(), built.ok() ? "" : built.err().str())) return;
+    engine::Engine& eng = *built.value();
+    const Json args_json = first.get("args");
+    const Json::Dict& args = args_json.as_dict();
+    std::optional<Result<Json>> rec =
+        run_now(eng.start_session(args.get("kind"), args.get("chain"), Json::dict({{"item", args.get("item")}})));
+    if (!t.check(rec && rec->ok(), rec && !rec->ok() ? rec->err().str() : "suspended")) return;
+    const Json record = rec->value();
+    t.check(record.as_dict().get("start_block").as_bigint() == head - scfg::BigInt(5), "start_block is HEAD - 5");
+    t.check(record.as_dict().get("cursor").as_bigint() == head - scfg::BigInt(5), "cursor is HEAD - 5");
+    t.check(errors.empty(), "no contained error");
+    const std::string limit = "ValueError: Exceeds the limit (4300) for integer string conversion; use "
+                              "sys.set_int_max_str_digits() to increase the limit";
+    auto outcome = [](const Result<std::string>& r) { return r.ok() ? std::string("<ok>") : r.err().str(); };
+    SCFG_CHECK_EQ(t, outcome(scfg::json::dumps(record)), limit);
+    SCFG_CHECK_EQ(t, outcome(scfg::json::dumps(eng.pending())), limit);
+    SCFG_CHECK_EQ(t, outcome(scfg::py::repr(record)), limit);
+
+    transport.head = head + scfg::BigInt(7);
+    transport.asked.clear();
+    std::optional<Result<std::vector<scfg::watcher::StepOutcome>>> ticked = run_now(eng.tick());
+    if (!t.check(ticked && ticked->ok(), ticked && !ticked->ok() ? ticked->err().str() : "suspended")) return;
+    const std::vector<scfg::watcher::StepOutcome>& outcomes = ticked->value();
+    if (!t.check(outcomes.size() == 1, "one outcome")) return;
+    SCFG_CHECK_EQ(t, outcomes[0].status, "waiting");
+    t.check(outcomes[0].confirmations == 0 && outcomes[0].required == 3 && !outcomes[0].error, "0 of 3, no error");
+    t.check(errors.empty(), "no contained error in the tick");
+    if (t.check(transport.asked.size() == 2, "eth_blockNumber and one eth_getLogs")) {
+        SCFG_CHECK_EQ(t, transport.asked[0].as_dict().get("method").as_str(), "eth_blockNumber");
+        const Json::Dict& logs = transport.asked[1].as_dict();
+        SCFG_CHECK_EQ(t, logs.get("method").as_str(), "eth_getLogs");
+        const Json filter_json = logs.get("params").as_list()[0];
+        const Json::Dict& filter = filter_json.as_dict();
+        SCFG_CHECK_EQ(t, filter.get("fromBlock").as_str(), scfg::py::hex(head - scfg::BigInt(5)));
+        SCFG_CHECK_EQ(t, filter.get("toBlock").as_str(), scfg::py::hex(head + scfg::BigInt(7)));
+    }
+    const Json stored = eng.pending().as_dict().get(record.as_dict().get("id").as_str());
+    t.check(stored.as_dict().get("start_block").as_bigint() == head - scfg::BigInt(5), "start_block kept");
+    t.check(stored.as_dict().get("cursor").as_bigint() == head + scfg::BigInt(8), "cursor is HEAD + 8");
 }

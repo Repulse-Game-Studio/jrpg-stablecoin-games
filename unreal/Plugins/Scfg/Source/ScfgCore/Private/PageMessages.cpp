@@ -30,7 +30,9 @@ Result<TxMessage> parse_tx_message(const Json& data) {
     TxMessage out{tx_hash.take(), std::nullopt};
     Json sender = data.as_dict().get("from");
     if (py::truthy(sender)) {
-        Result<std::string> normalized = py::str(sender).starts_with("0x") ? evm::to_checksum_address(sender)
+        Result<std::string> shown = py::str(sender);  // its ValueError is caught below, as Python's
+        Result<std::string> normalized = !shown.ok()                     ? Result<std::string>(std::move(shown).err())
+                                         : shown.value().starts_with("0x") ? evm::to_checksum_address(sender)
                                                                            : solana::base58::normalize_pubkey(sender);
         if (normalized.ok()) {
             out.sender = normalized.take();

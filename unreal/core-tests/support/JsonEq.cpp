@@ -16,9 +16,11 @@ std::string here(const std::string& path, const std::string& detail) {
     return path.empty() ? detail : path + ": " + detail;
 }
 
-// json.dumps of v, cut to 120 bytes at a code point boundary.
+// json.dumps of v, cut to 120 bytes at a code point boundary (or the error dumps raised, in <>).
 std::string show(const Json& v) {
-    std::string s = scfg::json::dumps(v);
+    scfg::Result<std::string> text = scfg::json::dumps(v);
+    if (!text.ok()) return "<" + text.err().str() + ">";
+    std::string s = text.take();
     if (s.size() <= 120) return s;
     size_t cut = 117;
     while (cut > 0 && (static_cast<unsigned char>(s[cut]) & 0xC0) == 0x80) --cut;

@@ -88,7 +88,7 @@ SCFG_TEST(ReceiptsTests, MakeReceiptFields) {
     Result<Json> r = receipts::make_receipt("solana", tr, "unlock", "chapter2", "USDC", "payment");
     SCFG_CHECK_EQ(t, outcome(r), "ok");
     if (!r.ok()) return;
-    SCFG_CHECK_EQ(t, scfg::json::dumps(r.value()),
+    SCFG_CHECK_EQ(t, scfg::json::dumps(r.value()).value(),
                   "{\"chain\": \"solana\", \"tx_hash\": \"5Sig\", \"log_index\": 3, \"block\": 99, \"kind\": \"unlock\", "
                   "\"item\": \"chapter2\", \"amount\": \"4.990000\", \"token\": \"USDC\", \"payer\": null, "
                   "\"recipient\": \"7xK\", \"source\": \"payment\"}");
@@ -96,7 +96,7 @@ SCFG_TEST(ReceiptsTests, MakeReceiptFields) {
     scfg::evm::TransferLog log{"T", "S", "R", BigInt(1230017), kHashLower, BigInt(7), BigInt(1234567), kHashLower};
     Result<Json> a = receipts::make_receipt("ethereum", log, "tip", Json(), "USDC", "restore");
     Result<Json> b = receipts::make_receipt("ethereum", log.to_transfer(), "tip", Json(), "USDC", "restore");
-    SCFG_CHECK(t, a.ok() && b.ok() && scfg::json::dumps(a.value()) == scfg::json::dumps(b.value()));
+    SCFG_CHECK(t, a.ok() && b.ok() && scfg::json::dumps(a.value()).value() == scfg::json::dumps(b.value()).value());
     if (a.ok()) SCFG_CHECK_EQ(t, a.value().as_dict().get("amount").as_str(), "1.230017");
     // kind is checked before source.
     SCFG_CHECK_EQ(t, outcome(receipts::make_receipt("c", tr, "refund", Json(), "USDC", "payment")),

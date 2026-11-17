@@ -28,7 +28,7 @@ const std::string kLong(4301, '9');
 // The TransportError parse_rpc_body gives, or a description of what it gave instead.
 Err fails(int status, std::string_view body) {
     Result<Json> r = coio::parse_rpc_body(status, body);
-    if (r.ok()) return Err::make("AssertionError", "parsed: " + scfg::json::dumps(r.value()));
+    if (r.ok()) return Err::make("AssertionError", "parsed: " + scfg::json::dumps(r.value()).value());
     return r.err();
 }
 
@@ -40,7 +40,7 @@ Json parsed(int status, std::string_view body) {
 
 bool same(scfg_test::Ctx& t, const Json& got, const Json& want, const std::string& what) {
     std::optional<std::string> diff = scfg_test::first_diff(got, want);
-    return t.check(!diff, what + ": " + diff.value_or("") + " (got " + scfg::json::dumps(got) + ")");
+    return t.check(!diff, what + ": " + diff.value_or("") + " (got " + scfg::json::dumps(got).value() + ")");
 }
 
 }  // namespace scfg_test::coio_tests

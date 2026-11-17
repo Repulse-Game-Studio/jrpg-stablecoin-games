@@ -19,7 +19,8 @@ Result<Json> response_for(const BigInt& status, bool readable, Json body) {
         std::optional<int> code;
         if (status >= std::numeric_limits<int>::min() && status <= std::numeric_limits<int>::max())
             code = static_cast<int>(status.to_int64().value());
-        return Err::transport_error("HTTP " + status.to_decimal(), code);
+        SCFG_TRY(std::string shown, py::int_str(status));  // f"HTTP {status}"
+        return Err::transport_error("HTTP " + shown, code);
     }
     if (!readable) return Err::transport_error(std::string(INVALID_JSON), std::nullopt);
     return body;
@@ -39,7 +40,10 @@ Result<Json> parse_rpc_body(int status, std::string_view body) {
 }
 
 Result<Json> response_from_envelope(const Json::Dict& envelope) {
-    if (const Json* error = envelope.find("error")) return Err::transport_error(py::str(*error), std::nullopt);
+    if (const Json* error = envelope.find("error")) {
+        SCFG_TRY(std::string message, py::str(*error));
+        return Err::transport_error(std::move(message), std::nullopt);
+    }
     Json raw_status = envelope.get("status");
     SCFG_TRY(BigInt status, ints::int_from(py::truthy(raw_status) ? raw_status : Json(0)));
     Json raw_body = envelope.get("body");

@@ -66,7 +66,8 @@ namespace scfg::evm {
 
 Result<std::string> to_checksum_address(const Json& address) {
     if (!address.is_str() || !detail::is_hex_word(address.as_str(), 40)) {
-        return Err::value_error("not a 20-byte hex address: " + py::repr(address));
+        SCFG_TRY(std::string shown, py::repr(address));
+        return Err::value_error("not a 20-byte hex address: " + shown);
     }
     std::string lower = py::lower_ascii(std::string_view(address.as_str()).substr(2));  // hex digits: ASCII
     std::string digest = bytes::to_hex(keccak::keccak256(lower));                     // lowercase hex

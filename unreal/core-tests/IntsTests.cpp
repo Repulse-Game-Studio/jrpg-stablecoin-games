@@ -91,7 +91,7 @@ SCFG_TEST(IntsTests, JsonLoadsReadsIntegersWithIntFrom) {
     scfg::Result<Json> big = ints::json_loads("1" + std::string(4299, '0'));
     SCFG_CHECK(t, big.ok() && big.value().is_int() && big.value().as_bigint() == BigInt(10).pow(4299));
     scfg::Result<Json> f = ints::json_loads("[1.5e3]");
-    SCFG_CHECK(t, f.ok() && scfg::json::dumps(f.value()) == "[1500.0]");
+    SCFG_CHECK(t, f.ok() && scfg::json::dumps(f.value()).value() == "[1500.0]");
     scfg::Result<Json> over = ints::json_loads("[" + std::string(4301, '1') + "]");
     SCFG_CHECK(t, !over.ok() && over.err().message.rfind("Exceeds the limit (4300 digits) for integer string conversion: "
                                                         "value has 4301 digits", 0) == 0);

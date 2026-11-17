@@ -333,23 +333,26 @@ public:
 
     std::string out;
 
-    void write(const Json& v, size_t level) {
+    // An int of more than 4300 digits is int_str's ValueError, as json.dumps raises it (int.__repr__); the text
+    // written so far is then dropped.
+    Status write(const Json& v, size_t level) {
         switch (v.type()) {
             case Json::Type::Null:
                 out += "null";
-                return;
+                return ok();
             case Json::Type::Bool:
                 out += v.as_bool() ? "true" : "false";
-                return;
+                return ok();
             case Json::Type::Int:
                 if (v.is_int64()) {
                     char buf[24];
                     auto res = std::to_chars(buf, buf + sizeof buf, v.as_int64());
                     out.append(buf, res.ptr);
                 } else {
-                    out += v.as_bigint().to_decimal();
+                    SCFG_TRY(std::string digits, py::int_str(v.as_bigint()));
+                    out += digits;
                 }
-                return;
+                return ok();
             case Json::Type::Float: {
                 double d = v.as_float();
                 if (std::isnan(d)) {
@@ -359,18 +362,17 @@ public:
                 } else {
                     out += pyfloat::repr(d);
                 }
-                return;
+                return ok();
             }
             case Json::Type::Str:
                 write_string(v.as_str());
-                return;
+                return ok();
             case Json::Type::List:
-                write_list(v.as_list(), level);
-                return;
+                return write_list(v.as_list(), level);
             case Json::Type::Dict:
-                write_dict(v.as_dict(), level);
-                return;
+                return write_dict(v.as_dict(), level);
         }
+        return ok();
     }
 
 private:
@@ -388,26 +390,27 @@ private:
         if (o_.indent) newline(level);
     }
 
-    void write_list(const Json::List& l, size_t level) {
+    Status write_list(const Json::List& l, size_t level) {
         if (l.empty()) {
             out += "[]";
-            return;
+            return ok();
         }
         path_.enter(&l, "json::dumps");
         out += '[';
         for (size_t k = 0; k < l.size(); ++k) {
             separator(k == 0, level + 1);
-            write(l[k], level + 1);
+            SCFG_TRY_VOID(write(l[k], level + 1));
         }
         if (o_.indent) newline(level);
         out += ']';
         path_.leave();
+        return ok();
     }
 
-    void write_dict(const Json::Dict& d, size_t level) {
+    Status write_dict(const Json::Dict& d, size_t level) {
         if (d.empty()) {
             out += "{}";
-            return;
+            return ok();
         }
         path_.enter(&d, "json::dumps");
         std::vector<const Json::Dict::Entry*> items;
@@ -423,11 +426,12 @@ private:
             separator(k == 0, level + 1);
             write_string(items[k]->first);
             out += ": ";
-            write(items[k]->second, level + 1);
+            SCFG_TRY_VOID(write(items[k]->second, level + 1));
         }
         if (o_.indent) newline(level);
         out += '}';
         path_.leave();
+        return ok();
     }
 
     void hex_escape(uint32_t unit) {
@@ -632,9 +636,9 @@ Result<Json> loads(std::string_view text) { return json_detail::Reader(text, fal
 
 Result<Json> loads_text(std::string_view text) { return json_detail::Reader(text, true).document(); }
 
-std::string dumps(const Json& v, const DumpOptions& opts) {
+Result<std::string> dumps(const Json& v, const DumpOptions& opts) {
     json_detail::Writer w(opts);
-    w.write(v, 0);
+    SCFG_TRY_VOID(w.write(v, 0));
     return std::move(w.out);
 }
 

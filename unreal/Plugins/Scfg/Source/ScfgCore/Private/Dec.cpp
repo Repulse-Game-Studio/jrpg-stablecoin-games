@@ -30,6 +30,11 @@ Err overflow() { return Err::make("Overflow", "[<class 'decimal.Overflow'>]"); }
 
 BigInt ten_pow(int64_t n) { return BigInt(10).pow(static_cast<uint64_t>(n)); }
 
+// The coefficient's digits, through BigInt::to_decimal: Decimal has no digit limit, and Python's Decimal(int) is
+// quadratic in the size of the int too (CPython 3.9: 0.25 s for 200 000 bits, 1 s for 400 000). Every coefficient
+// the core builds is bounded where it is made: amount text (AMOUNT_TEXT_LIMIT), a JSON int (the reader's 4300
+// digits), a float (at most 767 digits), a token value (a 32-byte log word, or a Solana amount read through
+// int_from).
 int64_t count_digits(const BigInt& magnitude) { return static_cast<int64_t>(magnitude.to_decimal().size()); }
 
 // coef / 10^drop, rounded half to even (drop >= 1).
@@ -251,7 +256,7 @@ Result<std::optional<Dec>> Dec::from_json(const Json& v) {
 }
 
 std::string Dec::str() const {
-    std::string digits = coef_.to_decimal();
+    std::string digits = coef_.to_decimal();  // bounded as count_digits says
     int64_t n = static_cast<int64_t>(digits.size());
     int64_t leftdigits = exp_ + n;
     int64_t dotplace = exp_ <= 0 && leftdigits > -6 ? leftdigits : 1;

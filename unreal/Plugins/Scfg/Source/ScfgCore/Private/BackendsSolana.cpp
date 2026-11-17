@@ -91,7 +91,7 @@ Result<std::string> key_of(const Json& v) {
         if (std::isinf(f) || f != std::trunc(f)) return "f" + pyfloat::repr(f);
     }
     SCFG_TRY(BigInt n, py::py_int(v));  // an int, a bool or an integral float: its exact value
-    return "i" + n.to_decimal();
+    return "i" + py::hex(n);             // in hex: linear in the size of n, and no digit limit applies
 }
 
 // Python's dict over such keys, in insertion order: the first key object inserted stays (rows[k] = v and
@@ -226,7 +226,7 @@ Result<std::string> mint_of(const chains::Chain& chain, const Json& rec) {
     if (name) {
         if (const chains::Token* t = chain.tokens.find(*name)) return t->address;
     }
-    return Err::key_error(py::repr(key));
+    return py::key_error_for(key);
 }
 
 // Python _qualifies: a transfer at or after the session's start slot that no receipt holds yet, read only as far as
@@ -494,7 +494,10 @@ Co<void> steps(std::shared_ptr<Step> s) {
     SCFG_CO_TRY(Json kind, py::get(s->rec, "kind"));
     SCFG_CO_TRY(Json item, py::get(s->rec, "item"));
     SCFG_CO_TRY(Json token_name, py::get(s->rec, "token"));
-    if (!py::eq(kind, Json("unlock")) && !py::eq(kind, Json("tip"))) co_return Err::value_error("invalid kind " + py::repr(kind));
+    if (!py::eq(kind, Json("unlock")) && !py::eq(kind, Json("tip"))) {
+        SCFG_CO_TRY(std::string shown, py::repr(kind));
+        co_return Err::value_error("invalid kind " + shown);
+    }
     SCFG_CO_TRY(Dec amount, watcher::units_of(value));
     Json receipt = Json::dict({{"chain", Json(s->chain.key)},
                                {"tx_hash", signature},

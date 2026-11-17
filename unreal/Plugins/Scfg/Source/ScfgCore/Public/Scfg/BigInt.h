@@ -35,7 +35,9 @@ public:
     // int.from_bytes(b, "big") (unsigned).
     static BigInt from_bytes_be(std::span<const uint8_t> b);
 
-    // str(n).
+    // The decimal digits of n ("-" first when negative), with no digit limit. Quadratic in the size of n: the core
+    // formats an int through py::int_str (CPython's 4300-digit limit, decided from the bit length first), and calls
+    // this directly only on a value that is bounded where it is made (each such call says why).
     std::string to_decimal() const;
     // format(n, "x"): lowercase, no 0x prefix, a '-' before a negative, "0" for zero.
     std::string to_hex() const;

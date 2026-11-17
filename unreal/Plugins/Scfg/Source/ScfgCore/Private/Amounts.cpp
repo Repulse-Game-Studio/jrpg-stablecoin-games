@@ -46,10 +46,16 @@ Result<Dec> stored_amount(const Json& value) {
     if (value.is_str() && py::len(value.as_str()) > AMOUNT_TEXT_LIMIT) return Err::value_error(detail::limit_text());
     Result<std::optional<Dec>> d = Dec::from_json(value);
     if (!d.ok()) {
-        if (d.err().is_a("InvalidOperation")) return Err::value_error("not a number: " + py::repr(value));
+        if (d.err().is_a("InvalidOperation")) {
+            SCFG_TRY(std::string shown, py::repr(value));
+            return Err::value_error("not a number: " + shown);
+        }
         return std::move(d).err();  // the TypeError of a value Decimal() does not take
     }
-    if (!d.value() || !detail::in_range(*d.value())) return Err::value_error("amount out of range: " + py::repr(value));
+    if (!d.value() || !detail::in_range(*d.value())) {
+        SCFG_TRY(std::string shown, py::repr(value));
+        return Err::value_error("amount out of range: " + shown);
+    }
     return *d.value();
 }
 

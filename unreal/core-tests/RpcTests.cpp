@@ -168,7 +168,7 @@ std::string kind_of(const Result<Json>& r) { return r.ok() ? "ok" : r.err().kind
 
 bool same(scfg_test::Ctx& t, const Json& got, const Json& want, const std::string& what) {
     std::optional<std::string> diff = scfg_test::first_diff(got, want);
-    return t.check(!diff, what + ": " + diff.value_or("") + " (got " + scfg::json::dumps(got) + ")");
+    return t.check(!diff, what + ": " + diff.value_or("") + " (got " + scfg::json::dumps(got).value() + ")");
 }
 
 Json strs(const std::vector<std::string>& v) {
@@ -214,7 +214,7 @@ SCFG_TEST(RpcTests, CallSendsJsonRpcAndReturnsResult) {
     if (SCFG_CHECK(t, r.ok())) same(t, r.value(), "0x10", "result");
     if (!SCFG_CHECK_EQ(t, c.t.calls.size(), 1)) return;
     SCFG_CHECK_EQ(t, c.t.calls[0].url, A);
-    SCFG_CHECK_EQ(t, scfg::json::dumps(c.t.calls[0].payload),
+    SCFG_CHECK_EQ(t, scfg::json::dumps(c.t.calls[0].payload).value(),
                   "{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"eth_blockNumber\", \"params\": []}");
     SCFG_CHECK(t, c.t.calls[0].timeout == 10.0);
     // The params list goes out as given (the same object).
@@ -251,7 +251,7 @@ SCFG_TEST(RpcTests, BlockNumberRejectsMalformedHex) {
         Fx c({{A, answer(bad)}});
         Result<BigInt> r = run(c->block_number());
         t.check(!r.ok() && (r.err().kind == "TypeError" || r.err().kind == "ValueError"),
-                py::repr(bad) + ": " + (r.ok() ? "ok" : r.err().str()));
+                py::repr(bad).value() + ": " + (r.ok() ? "ok" : r.err().str()));
     }
 }
 
@@ -433,7 +433,7 @@ SCFG_TEST(RpcTests, ReceiptAndBlockHash) {
             return ok(Json::dict({{"status", "0x1"}}));
         }
         if (m == "eth_getBlockByNumber") {
-            if (scfg::json::dumps(p) != "[\"0x64\", false]") return err(1, "bad params " + scfg::json::dumps(p));
+            if (scfg::json::dumps(p).value() != "[\"0x64\", false]") return err(1, "bad params " + scfg::json::dumps(p).value());
             return ok(Json::dict({{"hash", "0xABC"}}));
         }
         return ok(Json());
@@ -454,7 +454,7 @@ SCFG_TEST(RpcTests, BlockHashNoneForUnknownOrEmptyBlock) {
     for (const Json& block : {Json(), Json::dict(), Json(""), Json(0), Json(false), Json::list()}) {
         Fx c({{A, answer(block)}});
         Result<std::optional<std::string>> r = run(c->get_block_hash(1000000000));
-        t.check(r.ok() && !r.value().has_value(), py::repr(block));
+        t.check(r.ok() && !r.value().has_value(), py::repr(block).value());
     }
 }
 
@@ -478,7 +478,7 @@ SCFG_TEST(RpcTests, BlockHashRejectsMalformedBlocksAsPythonDoes) {
         Fx c({{A, answer(row.block)}});
         Result<std::optional<std::string>> r = run(c->get_block_hash(1));
         t.check(!r.ok() && r.err().kind == row.kind && r.err().message == row.message,
-                py::repr(row.block) + ": " + (r.ok() ? "ok" : r.err().str()));
+                py::repr(row.block).value() + ": " + (r.ok() ? "ok" : r.err().str()));
     }
 }
 
@@ -536,7 +536,7 @@ SCFG_TEST(RpcTests, GetLogsSendsFilterShape) {
     SCFG_CHECK(t, run(c->get_logs("0xToken", Json::list({"0xt0", Json(), "0xt2"}), 16, 31)).ok());
     if (!SCFG_CHECK_EQ(t, c.t.calls.size(), 1)) return;
     SCFG_CHECK_EQ(t, c.t.calls[0].method, "eth_getLogs");
-    SCFG_CHECK_EQ(t, scfg::json::dumps(c.t.calls[0].params),
+    SCFG_CHECK_EQ(t, scfg::json::dumps(c.t.calls[0].params).value(),
                   "[{\"address\": \"0xToken\", \"topics\": [\"0xt0\", null, \"0xt2\"], \"fromBlock\": \"0x10\", "
                   "\"toBlock\": \"0x1f\"}]");
 }
@@ -547,7 +547,7 @@ SCFG_TEST(RpcTests, GetLogsExtendsAsPythonsListExtend) {
     for (const Json& empty : {Json(), Json::dict(), Json(""), Json(0), Json(false)}) {
         Fx c({{A, answer(empty)}});
         Result<std::vector<Json>> r = run(c->get_logs("0xt", Json::list(), 1, 2));
-        t.check(r.ok() && r.value().empty(), py::repr(empty));
+        t.check(r.ok() && r.value().empty(), py::repr(empty).value());
     }
     Fx d({{A, answer(Json::dict({{"a", 1}}))}});
     Result<std::vector<Json>> keys = run(d->get_logs("0xt", Json::list(), 1, 1));
@@ -735,8 +735,8 @@ SCFG_TEST(RpcTests, ErrorClassificationMatchesPython) {
         std::vector<std::string> urls, live;
         for (const Call& x : c.t.log) urls.push_back(x.url.substr(8));
         for (const std::string& u : c->live_urls()) live.push_back(u.substr(8));
-        t.check(urls == row.urls, row.name + ": urls " + scfg::json::dumps(strs(urls)));
-        t.check(live == row.live, row.name + ": live " + scfg::json::dumps(strs(live)));
+        t.check(urls == row.urls, row.name + ": urls " + scfg::json::dumps(strs(urls)).value());
+        t.check(live == row.live, row.name + ": live " + scfg::json::dumps(strs(live)).value());
     }
 }
 
@@ -987,7 +987,7 @@ Handlers history(int64_t first_a, int64_t first_b, Json tx_b = Json()) {
 
 std::string tx_any(const Result<srpc::TxAny>& r) {
     if (!r.ok()) return r.err().str();
-    return scfg::json::dumps(r.value().tx) + (r.value().authoritative ? " authoritative" : " not authoritative");
+    return scfg::json::dumps(r.value().tx).value() + (r.value().authoritative ? " authoritative" : " not authoritative");
 }
 
 }  // namespace scfg_test::rpc_tests
@@ -997,7 +997,7 @@ SCFG_TEST(SolanaRpcTests, GetTransactionAsksForNewestVersionAndJson) {
     Result<Json> r = run(s->get_transaction("SIG"));
     if (SCFG_CHECK(t, r.ok())) same(t, r.value(), Json::dict({{"slot", 5}}), "tx");
     SCFG_CHECK_EQ(t, s.t.calls[0].method, "getTransaction");
-    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls[0].params),
+    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls[0].params).value(),
                   "[\"SIG\", {\"encoding\": \"json\", \"commitment\": \"confirmed\", \"maxSupportedTransactionVersion\": 1}]");
     SCFG_CHECK_EQ(t, srpc::TX_VERSION, 1);
 }
@@ -1123,18 +1123,18 @@ SCFG_TEST(SolanaRpcTests, SmallHelpers) {
     same(t, s.t.calls.back().params, Json::list({Json::dict({{"commitment", "confirmed"}})}), "getSlot params");
     Result<Json> sigs = run(s->get_signatures_for_address("X", {.until = "S0"}));
     if (SCFG_CHECK(t, sigs.ok())) same(t, sigs.value(), answers["getSignaturesForAddress"], "signatures");
-    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls.back().params),
+    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls.back().params).value(),
                   "[\"X\", {\"limit\": 100, \"commitment\": \"confirmed\", \"until\": \"S0\"}]");
     Result<Json> statuses = run(s->get_signature_statuses(Json::list({"a", "b"})));
     if (SCFG_CHECK(t, statuses.ok()))
         same(t, statuses.value().as_list()[1].as_dict().get("confirmationStatus"), "finalized", "status");
-    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls.back().params), "[[\"a\", \"b\"], {\"searchTransactionHistory\": true}]");
+    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls.back().params).value(), "[[\"a\", \"b\"], {\"searchTransactionHistory\": true}]");
     Result<bool> exists = run(s->account_exists("X"));
     SCFG_CHECK(t, exists.ok() && !exists.value());
-    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls.back().params), "[\"X\", {\"encoding\": \"base64\", \"commitment\": \"confirmed\"}]");
+    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls.back().params).value(), "[\"X\", {\"encoding\": \"base64\", \"commitment\": \"confirmed\"}]");
     Result<BigInt> token = run(s->get_token_balance("X"));
     SCFG_CHECK(t, token.ok() && token.value() == 0);
-    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls.back().params),
+    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls.back().params).value(),
                   "[\"X\", {\"encoding\": \"jsonParsed\", \"commitment\": \"confirmed\"}]");
     Result<Json> bh = run(s->get_latest_blockhash());
     if (SCFG_CHECK(t, bh.ok())) same(t, bh.value(), "BH", "blockhash");
@@ -1142,14 +1142,14 @@ SCFG_TEST(SolanaRpcTests, SmallHelpers) {
     SCFG_CHECK(t, balance.ok() && balance.value() == 1234);
     Result<BigInt> fee = run(s->get_priority_fee(Json::list({"X"})));
     SCFG_CHECK(t, fee.ok() && fee.value() == 5);
-    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls.back().params), "[[\"X\"]]");
+    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls.back().params).value(), "[[\"X\"]]");
 }
 
 SCFG_TEST(SolanaRpcTests, SignatureOptionsBeforeAndEmptyResult) {
     Sol s({{SA, answer(Json())}});
     Result<Json> r = run(s->get_signatures_for_address("X", {.before = "B1", .limit = 5, .commitment = "finalized"}));
     if (SCFG_CHECK(t, r.ok())) same(t, r.value(), Json::list(), "empty");
-    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls[0].params),
+    SCFG_CHECK_EQ(t, scfg::json::dumps(s.t.calls[0].params).value(),
                   "[\"X\", {\"limit\": 5, \"commitment\": \"finalized\", \"before\": \"B1\"}]");
 }
 
@@ -1157,9 +1157,9 @@ SCFG_TEST(SolanaRpcTests, EmptyResultsReadAsEmptyListsLikePythonOr) {
     for (const Json& empty : {Json::dict(), Json(""), Json(0), Json(false)}) {
         Sol s({{SA, answer(empty)}});
         Result<Json> sigs = run(s->get_signatures_for_address("X"));
-        t.check(sigs.ok() && sigs.value().is_list() && sigs.value().as_list().empty(), py::repr(empty));
+        t.check(sigs.ok() && sigs.value().is_list() && sigs.value().as_list().empty(), py::repr(empty).value());
         Result<BigInt> fee = run(s->get_priority_fee(Json::list({"X"})));
-        t.check(fee.ok() && fee.value() == 0, py::repr(empty));
+        t.check(fee.ok() && fee.value() == 0, py::repr(empty).value());
     }
 }
 
@@ -1288,7 +1288,7 @@ SCFG_TEST(SolanaRpcTests, PriorityFeeAndSignatureFormsMatchPython) {
     SCFG_CHECK(t, fee.ok() && fee.value() == 5);
     Result<Json> sigs = run(s->get_signatures_for_address("X", {.until = "", .before = "B", .limit = 3}));
     if (SCFG_CHECK(t, sigs.ok())) same(t, sigs.value(), Json::dict({{"x", 1}}), "signatures");
-    SCFG_CHECK_EQ(t, scfg::json::dumps(s.x.t.log[2].params), "[\"X\", {\"limit\": 3, \"commitment\": \"confirmed\", \"before\": \"B\"}]");
+    SCFG_CHECK_EQ(t, scfg::json::dumps(s.x.t.log[2].params).value(), "[\"X\", {\"limit\": 3, \"commitment\": \"confirmed\", \"before\": \"B\"}]");
 }
 
 SCFG_TEST(SolanaRpcTests, MalformedRepliesRaiseWherePythonRaises) {

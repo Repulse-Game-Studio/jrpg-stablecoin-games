@@ -54,8 +54,8 @@ Result<PaymentSpec> prepare_payment(const config::Config& config, const Json& ki
         }
         const models::Item* it = item.is_str() ? config.items.find(item.as_str()) : nullptr;
         if (it == nullptr) {
-            return Err::config_error("item.unknown",
-                                     "unknown item " + py::repr(item) + "; declare it with scfg.add_item()");
+            SCFG_TRY(std::string shown, py::repr(item));
+            return Err::config_error("item.unknown", "unknown item " + shown + "; declare it with scfg.add_item()");
         }
         Dec price = it->price;
         if (!amount.is_null()) {
@@ -82,13 +82,17 @@ Result<PaymentSpec> prepare_payment(const config::Config& config, const Json& ki
         spec.code = 0;
         spec.title = py::truthy(title) ? title : Json("Tip");
     } else {
-        return Err::config_error("payment.bad_kind", "kind must be 'unlock' or 'tip', not " + py::repr(kind));
+        SCFG_TRY(std::string shown, py::repr(kind));
+        return Err::config_error("payment.bad_kind", "kind must be 'unlock' or 'tip', not " + shown);
     }
     bool enabled = false;
     if (token.is_str()) {
         for (const std::string& t : config.tokens) enabled = enabled || t == token.as_str();
     }
-    if (!enabled) return Err::config_error("token.not_enabled", "token " + py::repr(token) + " is not enabled");
+    if (!enabled) {
+        SCFG_TRY(std::string shown, py::repr(token));
+        return Err::config_error("token.not_enabled", "token " + shown + " is not enabled");
+    }
     SCFG_TRY(std::vector<std::string> chains, config::chains_for_token(config, token.as_str()));
     if (chains.empty()) {
         return Err::config_error("token.unavailable", token.as_str() + " is not available on any enabled chain");

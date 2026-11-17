@@ -367,7 +367,7 @@ SCFG_TEST(ConfigTests, LogoAccentAndTextOn) {
     SCFG_CHECK_EQ(t, outcome(config::text_on("#1")), "ValueError: invalid literal for int() with base 16: ''");
     Json methods = config::DEFAULT_METHODS();
     methods.as_dict().set("qr", 5);  // a fresh dict each call: the next one is untouched
-    SCFG_CHECK_EQ(t, py::repr(config::DEFAULT_METHODS()),
+    SCFG_CHECK_EQ(t, py::repr(config::DEFAULT_METHODS()).value(),
                   "{'browser': {'enabled': True, 'timeout_min': 30}, 'qr': {'enabled': True, 'wallet_button': True, "
                   "'chains': None}, 'manual': {'enabled': True, 'allow_tx_paste': True}}");
 }
@@ -416,16 +416,16 @@ SCFG_TEST(PaymentsTests, ATipCarriesWhateverTitleAndItemItWasGiven) {
     auto spec = pay("tip", Json::dict({{"amount", "1"}, {"token", "USDC"}, {"title", 5}, {"item", Json::list({1})}}));
     SCFG_CHECK_EQ(t, outcome(spec), "ok");
     if (spec.ok()) {
-        SCFG_CHECK_EQ(t, py::repr(spec.value().title), "5");
-        SCFG_CHECK_EQ(t, py::repr(spec.value().item), "[1]");
+        SCFG_CHECK_EQ(t, py::repr(spec.value().title).value(), "5");
+        SCFG_CHECK_EQ(t, py::repr(spec.value().item).value(), "[1]");
         SCFG_CHECK_EQ(t, spec.value().price.str(), "1.00");
         SCFG_CHECK_EQ(t, spec.value().code, 0);
         SCFG_CHECK_EQ(t, strings(spec.value().chains), "arbitrum base arc polygon ethereum solana");
     }
     auto falsy = pay("tip", Json::dict({{"amount", "1"}, {"token", "USDC"}, {"title", 0}}));
-    SCFG_CHECK(t, falsy.ok() && py::repr(falsy.value().title) == "'Tip'" && falsy.value().item.is_null());
+    SCFG_CHECK(t, falsy.ok() && py::repr(falsy.value().title).value() == "'Tip'" && falsy.value().item.is_null());
     auto unlock = pay("unlock", Json::dict({{"item", "a"}, {"title", Json::list({1})}, {"token", 0}}));
-    SCFG_CHECK(t, unlock.ok() && py::repr(unlock.value().title) == "[1]" && unlock.value().token == "USDC" &&
+    SCFG_CHECK(t, unlock.ok() && py::repr(unlock.value().title).value() == "[1]" && unlock.value().token == "USDC" &&
                       unlock.value().code == 7);
     SCFG_CHECK_EQ(t, outcome(pay("unlock", Json::dict({{"item", Json::list({1})}}))), "TypeError: unhashable type: 'list'");
     SCFG_CHECK_EQ(t, outcome(pay("unlock", Json::dict({{"item", Json::dict()}}))), "TypeError: unhashable type: 'dict'");

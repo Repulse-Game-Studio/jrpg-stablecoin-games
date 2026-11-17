@@ -12,7 +12,9 @@
 #include "Scfg/Json.h"
 #include "Scfg/Result.h"
 
+#include <charconv>
 #include <compare>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -80,8 +82,9 @@ std::string repr_str(std::string_view s);
 // ascii(s): repr_str with every non-ASCII character escaped too.
 std::string ascii_str(std::string_view s);
 // repr(v): None, True, False, ints, floats (pyfloat::repr), str (repr_str), lists and dicts as Python prints them;
-// a list or dict inside itself is [...] / {...}.
-std::string repr(const Json& v);
+// a list or dict inside itself is [...] / {...}. An int anywhere in v is int_str's: one of more than 4300 digits is
+// CPython's ValueError, refused from its bit length before any conversion (so repr is linear in its output).
+Result<std::string> repr(const Json& v);
 
 // template.format(arg) for ONE positional str argument, raising what CPython raises: IndexError for {1}, KeyError
 // for {name}, ValueError for malformed braces or a switch between automatic and manual numbering. Fields: {}, {0},
@@ -107,6 +110,16 @@ inline Result<BigInt> py_int(const std::string& s) { return py_int(std::string_v
 // int(x) of a JSON value: a bool is 0 or 1, an int itself, a finite float truncated towards zero (int(-1.9) == -1),
 // a str as above. NaN is a ValueError and an infinity an OverflowError (as Python); anything else a TypeError.
 Result<BigInt> py_int(const Json& x);
+
+// str(n) of a machine integer (int64_t, size_t, int, ...): at most 20 digits, so no digit limit applies and it
+// cannot fail. For an int that may be big, int_str.
+template <std::integral T>
+    requires(!std::same_as<T, bool>)
+std::string dec(T v) {
+    char buf[24];
+    std::to_chars_result r = std::to_chars(buf, buf + sizeof buf, v);
+    return std::string(buf, r.ptr);
+}
 
 // str(n) (and f"{n}") of an int: its decimal digits, "-" first when negative. More than 4300 digits (the sign not
 // counted) is CPython 3.9's ValueError "Exceeds the limit (4300) for integer string conversion; use
@@ -134,8 +147,8 @@ std::string hex(const BigInt& n);
 // ---- values ----
 
 // str(v) of a JSON value: a str as it is, anything else its repr (str and repr agree on None, bools, ints,
-// floats, lists and dicts).
-std::string str(const Json& v);
+// floats, lists and dicts), with repr's ValueError for an int of more than 4300 digits.
+Result<std::string> str(const Json& v);
 // `for x in v` (list(v), tuple(v), list.extend(v)) of a JSON value: a list's items, a dict's keys, a str's
 // characters (each a str); anything else is CPython's TypeError "'int' object is not iterable".
 Result<std::vector<Json>> iterate(const Json& v);
@@ -148,6 +161,10 @@ bool truthy(const Json& v);
 bool eq(const Json& a, const Json& b);
 // The KeyError Python raises for d[key] (its message is repr(key), ruling R4).
 Err key_error(std::string_view key);
+// The same for a key of any type. Python raises KeyError(key) and formats it only when it is printed, so a key
+// whose repr fails (an int of more than 4300 digits) still makes a KeyError; its message is then what
+// traceback.print_exception (print_error) writes for it, "<unprintable KeyError object>".
+Err key_error_for(const Json& key);
 // d[key] on a JSON value: the value, a KeyError for a missing key, or the TypeError CPython 3.9 raises when d is not
 // a dict ("'NoneType' object is not subscriptable", "list indices must be integers or slices, not str", ...).
 Result<Json> get(const Json& d, std::string_view key);

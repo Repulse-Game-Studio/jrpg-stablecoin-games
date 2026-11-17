@@ -86,10 +86,10 @@ void expect_transfer(Ctx& t, const Json& in, const Json& payer, int64_t value, c
     if (!t.check(got.ok(), std::string(what) + ": " + (got.ok() ? "" : got.err().str()))) return;
     if (!t.check(got.value().has_value(), std::string(what) + ": no transfer")) return;
     const scfg::transfers::Transfer& x = *got.value();
-    t.check(json_eq(x.sender, payer) && x.sender.type() == payer.type(), std::string(what) + ": payer " + scfg::py::repr(x.sender));
+    t.check(json_eq(x.sender, payer) && x.sender.type() == payer.type(), std::string(what) + ": payer " + scfg::py::repr(x.sender).value());
     t.check(x.value == BigInt(value), std::string(what) + ": value " + x.value.to_decimal());
     t.check(json_eq(x.log_index, index) && x.log_index.type() == index.type(),
-            std::string(what) + ": index " + scfg::py::repr(x.log_index));
+            std::string(what) + ": index " + scfg::py::repr(x.log_index).value());
     t.check(x.block_number == slot, std::string(what) + ": slot " + x.block_number.to_decimal());
     t.check(x.token == kMint && x.recipient == kOwner && json_eq(x.tx_hash, Json("S")), std::string(what) + ": fields");
 }
@@ -359,7 +359,7 @@ SCFG_TEST(SolanaBackendTests, LookupGivesTheRecordedCandidates) {
         } else if (t.check(got->ok() && got->value().has_value(), where + ": candidates")) {
             Result<Json> encoded = tier2::encode_returns(*got->value());
             t.check(encoded.ok() && json_eq(encoded.value(), s.get("returns")),
-                    where + ": " + (encoded.ok() ? scfg::json::dumps(encoded.value()) : encoded.err().str()));
+                    where + ": " + (encoded.ok() ? scfg::json::dumps(encoded.value()).value() : encoded.err().str()));
         }
     }
 }
@@ -528,7 +528,7 @@ Json r10_calls(Ctx& t, const Json& vector_step, const R10Case& c) {
     if (!t.check(body.ok(), c.name + ": the recorded answer")) return calls;
     Json answer = body.take();
     c.mutate(*answer.as_dict().find("result"));
-    call.set("response_text", Json(scfg::json::dumps(answer)));
+    call.set("response_text", Json(scfg::json::dumps(answer).value()));
     return calls;
 }
 
@@ -544,9 +544,9 @@ Json r10_receipt(const R10Case& c) {
 
 // Each receipt field compared with its type (json_eq alone has "2" != 2 but 2 == 2.0 == True).
 void expect_receipt(Ctx& t, const Json& got, const Json& want, const std::string& what) {
-    if (!t.check(got.is_dict() && got.as_dict().size() == want.as_dict().size(), what + ": " + scfg::py::repr(got))) return;
+    if (!t.check(got.is_dict() && got.as_dict().size() == want.as_dict().size(), what + ": " + scfg::py::repr(got).value())) return;
     for (const auto& [k, v] : want.as_dict()) {
-        t.check(same(got.as_dict().get(k), v), what + ": " + k + " " + scfg::py::repr(got.as_dict().get(k)));
+        t.check(same(got.as_dict().get(k), v), what + ": " + k + " " + scfg::py::repr(got.as_dict().get(k)).value());
     }
 }
 
@@ -578,20 +578,20 @@ SCFG_TEST(SolanaBackendTests, ACandidateCarriesTheTransferAsPythonDoes) {
             t.check(cand.already_restored == second, c.name + ": already_restored");
             const auto* tr = std::get_if<scfg::transfers::Transfer>(&cand.transfer);
             if (!t.check(tr != nullptr, c.name + ": a Transfer")) break;
-            t.check(same(tr->sender, c.sender), c.name + ": sender " + scfg::py::repr(tr->sender));
-            t.check(same(tr->log_index, c.log_index), c.name + ": log_index " + scfg::py::repr(tr->log_index));
+            t.check(same(tr->sender, c.sender), c.name + ": sender " + scfg::py::repr(tr->sender).value());
+            t.check(same(tr->log_index, c.log_index), c.name + ": log_index " + scfg::py::repr(tr->log_index).value());
             t.check(tr->block_number == c.block, c.name + ": block_number " + tr->block_number.to_decimal());
             t.check(same(tr->tx_hash, Json(kR10Sig)) && tr->value == BigInt(4993742), c.name + ": the rest");
             if (second) break;
             Result<Json> added = rig.engine->restore_apply(candidates);
             if (!t.check(added.ok() && added.value().is_list() && added.value().as_list().size() == 1,
-                         c.name + ": restore_apply " + (added.ok() ? scfg::py::repr(added.value()) : added.err().str()))) {
+                         c.name + ": restore_apply " + (added.ok() ? scfg::py::repr(added.value()).value() : added.err().str()))) {
                 break;
             }
             expect_receipt(t, added.value().as_list()[0], r10_receipt(c), c.name);
             const Json::Dict& store = rig.engine->receipts().as_dict();
             const Json* stored = store.find(std::string("solana:") + kR10Sig + ":" + c.key_suffix);
-            if (t.check(store.size() == 1 && stored != nullptr, c.name + ": the key, in " + scfg::py::repr(rig.engine->receipts()))) {
+            if (t.check(store.size() == 1 && stored != nullptr, c.name + ": the key, in " + scfg::py::repr(rig.engine->receipts()).value())) {
                 expect_receipt(t, *stored, r10_receipt(c), c.name + " (stored)");
             }
         }
@@ -654,7 +654,7 @@ std::string build(CannedTransport& tr, const Json& rec, Json account = kAccount)
     if (!rpc.ok()) return rpc.err().str();
     std::optional<Result<Json>> got = run_now(backend.build_payment(rec, rpc.value(), chain, account));
     if (!got) return "suspended";
-    return got->ok() ? scfg::json::dumps(got->value()) : got->err().kind + ": " + got->err().message;
+    return got->ok() ? scfg::json::dumps(got->value()).value() : got->err().kind + ": " + got->err().message;
 }
 
 }  // namespace scfg_test::solana_backend_tests
@@ -673,7 +673,7 @@ SCFG_TEST(SolanaBackendTests, BuildPaymentIsPythonsTransaction) {
     t.check(methods == std::vector<std::string>{"getAccountInfo", "getBalance", "getLatestBlockhash",
                                                  "getRecentPrioritizationFees"},
             "the requests, in Python's order");
-    SCFG_CHECK_EQ(t, scfg::json::dumps(tr.requests.back().as_dict().get("params")), "[[\"" + std::string(kDest) + "\"]]");
+    SCFG_CHECK_EQ(t, scfg::json::dumps(tr.requests.back().as_dict().get("params")).value(), "[[\"" + std::string(kDest) + "\"]]");
     // a fee above MAX_PRIORITY_FEE is clamped to it: SetComputeUnitPrice(1000000)
     CannedTransport high = canned("EkSnNWid2cvwEVnVx9aBqawnmiCNiDgp3gUdkDPTKN1N", 1000000000);
     std::string paid = build(high, session());

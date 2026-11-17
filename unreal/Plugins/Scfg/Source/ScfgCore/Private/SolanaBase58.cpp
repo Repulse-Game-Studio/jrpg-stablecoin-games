@@ -3,7 +3,6 @@
 
 #include "Scfg/Err.h"
 #include "Scfg/Py.h"
-#include "Scfg/PyFloat.h"
 
 #include <cmath>
 #include <cstddef>
@@ -27,19 +26,21 @@ int digit_of(uint32_t cp) {
     return -1;
 }
 
-// float(n) for an int, correctly rounded as PyLong_AsDouble rounds it; nullopt for its OverflowError.
+// float(n) for an int (py::to_float, correctly rounded as PyLong_AsDouble rounds it); nullopt for its OverflowError.
 std::optional<double> to_double(const BigInt& n) {
-    if (n.fits_int64()) return static_cast<double>(n.to_int64().value());  // round-to-nearest-even, as Python
-    std::optional<double> f = pyfloat::parse(n.to_decimal());                // strtod: correctly rounded too
-    if (!f || std::isinf(*f)) return std::nullopt;
-    return f;
+    Result<double> f = py::to_float(py::Number{true, n, 0.0});
+    if (!f.ok()) return std::nullopt;
+    return f.value();
 }
 
 std::string decimal(size_t n) { return BigInt::from_uint64(static_cast<uint64_t>(n)).to_decimal(); }
 
 // b58encode(decode_fixed(text.strip(), length)) for normalize_pubkey and normalize_signature.
 Result<std::string> normalize(const Json& text, int64_t length, std::string_view what) {
-    if (!text.is_str()) return Err::value_error(std::string(what) + py::repr(text));
+    if (!text.is_str()) {
+        SCFG_TRY(std::string shown, py::repr(text));
+        return Err::value_error(std::string(what) + shown);
+    }
     SCFG_TRY(std::vector<uint8_t> raw, decode_fixed(Json(py::strip(text.as_str())), Json(length)));
     return b58encode(raw);
 }
@@ -73,7 +74,10 @@ std::string b58encode(std::span<const uint8_t> data) {
 }
 
 Result<std::vector<uint8_t>> b58decode(const Json& text) {
-    if (!text.is_str() || text.as_str().empty()) return Err::value_error("not base58: " + py::repr(text));
+    if (!text.is_str() || text.as_str().empty()) {
+        SCFG_TRY(std::string shown, py::repr(text));
+        return Err::value_error("not base58: " + shown);
+    }
     std::string_view s = text.as_str();
     std::vector<uint8_t> values;
     values.reserve(s.size());
@@ -115,21 +119,29 @@ std::optional<double> max_encoded_length(const BigInt& length) {
 }
 
 Result<std::vector<uint8_t>> decode_fixed(const Json& text, const Json& length) {
-    if (!length.is_int()) return Err::value_error("not a byte count: " + py::repr(length));  // a bool is no int here
+    if (!length.is_int()) {  // a bool is no int here
+        SCFG_TRY(std::string shown, py::repr(length));
+        return Err::value_error("not a byte count: " + shown);
+    }
     BigInt n = length.as_bigint();
     std::optional<double> limit = max_encoded_length(n);
-    if (!limit) return Err::value_error("not a byte count: " + py::repr(length));
+    if (!limit) {
+        SCFG_TRY(std::string shown, py::repr(length));
+        return Err::value_error("not a byte count: " + shown);
+    }
     if (text.is_str()) {
         size_t chars = py::len(text.as_str());
         if (static_cast<double>(chars) > *limit) {
+            // n converted to a finite float above, so it is below 2**1024: at most 309 digits
             return Err::value_error("too long for " + n.to_decimal() + " bytes: " + detail::decimal(chars) +
                                     " characters");
         }
     }
     SCFG_TRY(std::vector<uint8_t> raw, b58decode(text));
     if (BigInt::from_uint64(static_cast<uint64_t>(raw.size())) != n) {
+        // n is below 2**1024 (see above): at most 309 digits; b58decode took text, so it is a str
         return Err::value_error("expected " + n.to_decimal() + " bytes, got " + detail::decimal(raw.size()) + ": " +
-                                py::repr(text));
+                                py::repr_str(text.as_str()));
     }
     return raw;
 }

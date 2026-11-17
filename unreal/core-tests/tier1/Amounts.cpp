@@ -65,7 +65,10 @@ SCFG_TIER1_TOPIC(amounts) {
         SCFG_TRY(Json amount, py::get(in, "amount"));
         SCFG_TRY(std::optional<Dec> d, Dec::from_json(amount));  // Decimal(i["amount"])
         // decimal_to_units refuses a non-finite Decimal as out of range; a Dec is always finite
-        if (!d) return Err::value_error("amount out of range: " + py::repr(amount));
+        if (!d) {
+            SCFG_TRY(std::string shown, py::repr(amount));
+            return Err::value_error("amount out of range: " + shown);
+        }
         SCFG_TRY(BigInt u, amounts::decimal_to_units(*d));
         return Json(u.to_decimal());
     });

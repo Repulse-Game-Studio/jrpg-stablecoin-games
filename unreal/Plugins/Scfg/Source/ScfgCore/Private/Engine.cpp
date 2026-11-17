@@ -33,7 +33,7 @@ SystemEntropy& system_entropy() {
 // self.pending[sid]: the stored key, or the KeyError (TypeError for an unhashable sid).
 Result<std::string> pending_key(const Json& pending, const Json& sid) {
     SCFG_TRY(std::optional<std::string> key, py::str_key(sid));
-    if (!key || !pending.as_dict().contains(*key)) return Err::key_error(py::repr(sid));
+    if (!key || !pending.as_dict().contains(*key)) return py::key_error_for(sid);
     return *key;
 }
 
@@ -78,7 +78,7 @@ Result<chains::Chain> Engine::chain(std::string_view key) const {
 
 Result<chains::Chain> Engine::chain_for(const Json& key) const {
     SCFG_TRY(std::optional<std::string> name, py::str_key(key));
-    if (!name) return Err::key_error(py::repr(key));
+    if (!name) return py::key_error_for(key);
     return chain(*name);
 }
 
@@ -120,8 +120,8 @@ Co<Json> Engine::start_session(Json kind, Json chain_name, Json opts) {
     const bool available = chain_name.is_str() && std::find(spec.chains.begin(), spec.chains.end(),
                                                             chain_name.as_str()) != spec.chains.end();
     if (!available) {
-        co_return Err::config_error("chain.token_unavailable",
-                                    spec.token + " is not available on chain " + py::repr(chain_name));
+        SCFG_CO_TRY(std::string shown, py::repr(chain_name));
+        co_return Err::config_error("chain.token_unavailable", spec.token + " is not available on chain " + shown);
     }
     const std::string key = chain_name.as_str();
     SCFG_CO_TRY(chains::Chain chain_obj, chain(key));

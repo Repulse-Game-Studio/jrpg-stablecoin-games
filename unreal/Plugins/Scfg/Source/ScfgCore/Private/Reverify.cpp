@@ -66,7 +66,7 @@ Status check_fields(const Json& r, const OrderedMap<chains::Chain>& chains) {
     (void)units;
     if (const chains::Chain* chain = chain_named(chains, chain_key)) {
         if (tx.as_str() != py::strip(tx.as_str())) {
-            return Err::value_error("tx id with surrounding whitespace: " + py::repr(tx));
+            return Err::value_error("tx id with surrounding whitespace: " + py::repr_str(tx.as_str()));
         }
         SCFG_TRY(const backends::base::Backend* backend, backends::backend_for(*chain));
         SCFG_TRY(std::string normalized, backend->normalize_tx(tx));
@@ -108,7 +108,7 @@ Result<chains::Token> token_of(const chains::Chain& chain, const Json& r) {
     if (name) {
         if (const chains::Token* t = chain.tokens.find(*name)) return *t;
     }
-    return Err::key_error(py::repr(key));
+    return py::key_error_for(key);
 }
 
 // What check_evm_receipt's matches() compares a log with.

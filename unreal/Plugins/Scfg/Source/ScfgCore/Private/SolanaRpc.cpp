@@ -149,7 +149,10 @@ Co<TxAny> SolanaRpc::get_transaction_any(Json sig, std::optional<BigInt> min_slo
             if (first <= *min_slot) authoritative = true;
         }
     }
-    if (!answered) co_return Err::make("RpcUnavailable", "no endpoint answered getTransaction for " + py::str(sig));
+    if (!answered) {
+        SCFG_CO_TRY(std::string shown, py::str(sig));
+        co_return Err::make("RpcUnavailable", "no endpoint answered getTransaction for " + shown);
+    }
     co_return TxAny{Json(), authoritative};
 }
 
