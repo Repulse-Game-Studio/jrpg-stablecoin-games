@@ -19,7 +19,8 @@ public:
 
 // The engine's own: FPlatformProcess::LaunchURL (the system browser, or on a phone the app that handles the link's
 // scheme: the wallet for ethereum: and solana:) and FPlatformApplicationMisc's clipboard, on every platform the plugin
-// builds for. The facade's default.
+// builds for. The facade's default. A link LaunchURL reports it could not open (a game's FCoreDelegates::ShouldLaunchUrl
+// refused it) is logged once per press, "scfg: cannot open the <scheme>: link: <why>", without the link itself.
 class SCFG_API FScfgEnginePlatform final : public IScfgPlatform
 {
 public:

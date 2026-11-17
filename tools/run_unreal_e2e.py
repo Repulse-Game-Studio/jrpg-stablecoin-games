@@ -124,13 +124,24 @@ BUILD_TIMEOUT = 3600.0
 PROBLEM = re.compile(r"\b\w+: (Error|Warning): ")
 FATAL = re.compile(r"Ensure condition failed|Assertion failed|Fatal error|=== Critical error ===|"
                    r"Unhandled Exception|Segmentation fault")
-# The engine's own warnings, measured in every run (none of them is ours): an uncooked -game run
-# loads the editor's plugins, and the CSV profiler sanitizes the llvmpipe adapter name.
+# The engine's own warnings, measured in every run: an uncooked -game run loads the editor's
+# plugins, and the CSV profiler sanitizes the llvmpipe adapter name; and the two below.
 ALLOWED = (
     re.compile(r"\bLogEditorDataStorageUI: Warning: Unable to register widget factory '\w+' as "
                r"purpose '\d+' isn't registered\.$"),
     re.compile(r"\bLogCsvProfiler: Warning: Metadata value sanitized due to invalid characters: "
                r"gpu=\"llvmpipe "),
+    # The engine's check of reflected struct members at the end of the initial load builds each
+    # struct twice and compares: FDataflowToolNodeSnapshot::Date is FDateTime::Now()
+    # (DataflowToolNode.h:47), so the check fails whenever the clock ticks between the two (seen
+    # once in a bad-config start, task 4.1); its line and the automation echo of it.
+    re.compile(r"\b(LogAutomationTest: Error: )?LogClass: (Error: )?StructProperty "
+               r"FDataflowToolNodeSnapshot::Date is not initialized properly"),
+    # Ours, by design: the e2e driver refuses every LaunchURL (it records the URL instead, through
+    # FCoreDelegates::ShouldLaunchUrl), and the plugin warns that the link did not open (phase 3
+    # review P3-1; the scheme only, never the link).
+    re.compile(r"\bLogScfg: Warning: scfg: cannot open the (http|ethereum|solana): link: "
+               r"LaunchURL cancelled by delegate$"),
 )
 
 

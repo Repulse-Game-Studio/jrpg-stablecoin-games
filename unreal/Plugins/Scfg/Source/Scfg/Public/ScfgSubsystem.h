@@ -2,6 +2,7 @@
 // subsystem, one per game instance, created and torn down with it (it survives level loads).
 //
 //     UScfgSubsystem* Scfg = GetGameInstance()->GetSubsystem<UScfgSubsystem>();
+//     if (!Scfg) { return; }                                      // a dedicated server has none (WHERE IT EXISTS)
 //     Scfg->AddChain(TEXT("myl2"), Chain);                        // optional: your own EVM chain, before Configure
 //     FScfgOptions Options;
 //     Options.Wallet = TEXT("0x...");
@@ -27,11 +28,20 @@
 // viewport (FScfgDefaultSheetHost, ScfgDefaultSheetHost.h) unless SetSheetHost() gave another; a game instance
 // without a viewport shows none, and Pay and Restore resolve Failed "sheet.unavailable".
 //
+// CONFIGURATION WITHOUT CODE. Initialize applies the project settings (UScfgSettings, Project Settings > Plugins >
+// SCFG, saved to DefaultGame.ini) when they have a wallet, through the same AddChain / Configure / AddItem calls; a
+// Configure() from code made after it replaces them (ScfgSettings.h, "A CODE CALL AFTER IT WINS"). Override them
+// before the first frame (the game instance's Init() after Super::Init(), or the first level's BeginPlay): payments
+// start on the first frame after a configuration, and a Configure() after that is configure.after_start.
+//
 // WHERE IT EXISTS. Every game instance gets one, except on a dedicated server (ShouldCreateSubsystem: a server process,
-// or a play-in-editor server instance), which can never show a sheet. Every subsystem of a process reads and writes
-// the one Saved/Scfg/state.json: several game instances in one process (play-in-editor with two or more clients) share
-// it, each saving from its own snapshot, so a receipt one client stored can be dropped by the other's next save until
-// a restart (which reads the file again) or a Restore brings it back. Test payments with one client.
+// or a play-in-editor server instance), which can never show a sheet: there GetSubsystem<UScfgSubsystem>() returns
+// null, so code that also runs on a server checks it, as the sample above does (the Blueprint nodes then log once per
+// node kind that SCFG does not run on a dedicated server, and answer their neutral value or resolve Failed). Every
+// subsystem of a process reads and writes the one Saved/Scfg/state.json: several game instances in one process
+// (play-in-editor with two or more clients) share it, each saving from its own snapshot, so a receipt one client
+// stored can be dropped by the other's next save until a restart (which reads the file again) or a Restore brings it
+// back. Test payments with one client.
 //
 // Deinitialize (or BeginDestroy, if Deinitialize never ran) tears down in ScfgFacade.h's TEARDOWN order, exactly:
 // 1. the open sheets and controllers are closed; 2. the worker is stopped and destroyed (its destructor destroys its
@@ -43,8 +53,6 @@
 // Pay, PayAsync, Restore and RestoreAsync deliver their Failed result ("RuntimeError") on the game thread, at the next
 // tick of the core ticker, never on the calling thread; the queries return their neutral value.
 //
-// TODO(phase 4): UScfgSettings (a UDeveloperSettings under Project Settings -> Plugins -> SCFG, saved to
-// DefaultGame.ini) applied in Initialize through the same Configure / AddItem path; a code call made after it wins.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -57,6 +65,7 @@
 #include "ScfgSubsystem.generated.h"
 
 class FScfgFacade;
+class UScfgSettings;
 struct FScfgFacadeOptions;
 
 UCLASS()
@@ -176,8 +185,10 @@ private:
 	void StartRestoreAsync(TFunction<void(const FScfgRestoreResult&)> OnResolved,
 		TFunction<void(const FScfgRestoreResult&)> Callback);
 
-	// Builds the facade (Initialize: the defaults; the tests: their hooks) and binds the events.
-	void StartFacade(const FScfgFacadeOptions& Options);
+	// Builds the facade (Initialize: the defaults and the project settings; the tests: their hooks and settings, or
+	// none) and binds the events, then applies Settings unless they are null or empty (no wallet: rows without one
+	// get a warning).
+	void StartFacade(const FScfgFacadeOptions& Options, const UScfgSettings* Settings);
 	void StopFacade();
 	// The facade, or null outside Initialize..Deinitialize: then one LogScfg error per call site (What) for this
 	// subsystem, not one per call (a UMG binding would log every frame).

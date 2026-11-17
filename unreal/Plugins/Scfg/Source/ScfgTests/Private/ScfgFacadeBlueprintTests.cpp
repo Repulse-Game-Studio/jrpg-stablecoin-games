@@ -478,8 +478,8 @@ SCFG_FACADE_BP_TEST(FScfgBlueprintCppTeardownTest, "TheCppAsyncCallbacksAreDropp
 // Deinitialize and once by BeginDestroy without it: the game's OnResolved (and RestoreAsync's Callback) are dropped as
 // the nodes' pins are, so game code that would make a UObject there (a widget for the result) never runs, and the
 // teardown itself creates none. Before the teardown the same callbacks are called. After it the subsystem stays
-// stopped (final re-review N3): a PayAsync or RestoreAsync made then drops its OnResolved as well, where Pay's callback
-// gets Failed; each call site logs "not running" once per subsystem (one per loop below).
+// stopped (final re-review N3): a PayAsync or RestoreAsync made then drops its OnResolved as well, where Pay's and
+// Restore's callbacks get Failed; each call site logs "not running" once per subsystem (one per loop below).
 bool FScfgBlueprintCppTeardownTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgFacadeBlueprintTests;
@@ -488,6 +488,8 @@ bool FScfgBlueprintCppTeardownTest::RunTest(const FString& Parameters)
 	AddExpectedMessagePlain(TEXT("scfg: RestoreAsync(): the SCFG subsystem is not running"), ELogVerbosity::Error,
 		EAutomationExpectedMessageFlags::Contains, 2);
 	AddExpectedMessagePlain(TEXT("scfg: Pay(): the SCFG subsystem is not running"), ELogVerbosity::Error,
+		EAutomationExpectedMessageFlags::Contains, 2);
+	AddExpectedMessagePlain(TEXT("scfg: Restore(): the SCFG subsystem is not running"), ELogVerbosity::Error,
 		EAutomationExpectedMessageFlags::Contains, 2);
 	for (const bool bBeginDestroy : {false, true})
 	{
@@ -548,6 +550,12 @@ bool FScfgBlueprintCppTeardownTest::RunTest(const FString& Parameters)
 		G.Scfg->Pay(EScfgPayKind::Unlock, Unlock(), [&Failed](const FScfgPaymentResult& Result) { Failed = Result; });
 		TestTrue(How + TEXT("where Pay's callback gets Failed RuntimeError"), Failed.IsSet() &&
 			Failed->Status == EScfgPaymentStatus::Failed && Failed->Error == TEXT("RuntimeError"));
+		// Restore too (phase 3 review P3-6): its bound callback gets Failed RuntimeError.
+		FOnScfgRestored Restored;
+		Restored.BindUFunction(G.Receiver.Get(), GET_FUNCTION_NAME_CHECKED(UScfgTestReceiver, OnRestored));
+		G.Scfg->Restore(Restored);
+		TestTrue(How + TEXT("and Restore's callback gets Failed RuntimeError"), G.Receiver->Restored.Num() == 1 &&
+			G.Receiver->Restored[0].Status == EScfgRestoreStatus::Failed && G.Receiver->Restored[0].Error == TEXT("RuntimeError"));
 	}
 	return true;
 }
@@ -575,6 +583,26 @@ bool FScfgBlueprintDedicatedServerTest::RunTest(const FString& Parameters)
 		AddError(TEXT("InitializeStandalone made no world context"));
 	}
 	Instance->Shutdown();
+	// Carried N2 of phase 2: the nodes say why there is no subsystem on a server. (After Shutdown the instance has no
+	// subsystem; the engine still has the world's context, here a dedicated server's.)
+	if (FWorldContext* Context = World ? GEngine->GetWorldContextFromWorld(World) : nullptr)
+	{
+		UScfgBlueprintLibrary::ResetLogOnceForTests();
+		TestFalse(TEXT("a client is not a server"), UScfgBlueprintLibrary::OnDedicatedServer(World));
+		Context->RunAsDedicated = true;
+		TestTrue(TEXT("a dedicated server's world"), UScfgBlueprintLibrary::OnDedicatedServer(World));
+		TestNull(TEXT("no subsystem there"), UScfgBlueprintLibrary::GetSubsystem(World));
+		AddExpectedMessagePlain(TEXT("scfg: Owns: no SCFG subsystem on a dedicated server (SCFG runs on the players' game "
+			"clients only)"), ELogVerbosity::Error, EAutomationExpectedMessageFlags::Exact, 1);
+		TestFalse(TEXT("Owns on a server"), UScfgBlueprintLibrary::Owns(World, TEXT("chapter2")));
+		AddExpectedMessagePlain(TEXT("scfg: no SCFG subsystem on a dedicated server (SCFG runs on the players' game "
+			"clients only)"), ELogVerbosity::Error, EAutomationExpectedMessageFlags::Exact, 1);
+		TStrongObjectPtr<UScfgPayAsyncAction> Node(
+			UScfgPayAsyncAction::Pay(World, EScfgPayKind::Unlock, ScfgFacadeTests::Unlock()));
+		Node->Activate();
+		Context->RunAsDedicated = false;
+		UScfgBlueprintLibrary::ResetLogOnceForTests();
+	}
 	if (World)
 	{
 		GEngine->DestroyWorldContext(World);

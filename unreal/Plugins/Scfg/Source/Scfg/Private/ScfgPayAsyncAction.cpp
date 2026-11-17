@@ -13,12 +13,15 @@ namespace ScfgAsyncDetail
 {
 
 const TCHAR* const NoSubsystem = TEXT("scfg: no SCFG subsystem here (the node needs a game instance)");
+const TCHAR* const NoSubsystemOnServer =
+	TEXT("scfg: no SCFG subsystem on a dedicated server (SCFG runs on the players' game clients only)");
 
 }  // namespace ScfgAsyncDetail
 
 UScfgPayAsyncAction* UScfgPayAsyncAction::Pay(UObject* WorldContextObject, EScfgPayKind Kind, FScfgPayRequest Request)
 {
 	UScfgPayAsyncAction* Action = PayWith(UScfgBlueprintLibrary::GetSubsystem(WorldContextObject), Kind, Request);
+	Action->bOnDedicatedServer = !Action->bHadSubsystem && UScfgBlueprintLibrary::OnDedicatedServer(WorldContextObject);
 	if (!Action->RegisteredWithGameInstance.IsValid())
 	{
 		Action->RegisterWithGameInstance(WorldContextObject);
@@ -51,7 +54,8 @@ void UScfgPayAsyncAction::Activate()
 	}
 	if (!Scfg)
 	{
-		UE_LOG(LogScfg, Error, TEXT("%s"), ScfgAsyncDetail::NoSubsystem);
+		UE_LOG(LogScfg, Error, TEXT("%s"),
+			bOnDedicatedServer ? ScfgAsyncDetail::NoSubsystemOnServer : ScfgAsyncDetail::NoSubsystem);
 		Finish(ScfgGuard::PaymentNotRunning(Kind, Request.Item, Request.Token));
 		return;
 	}
@@ -83,6 +87,7 @@ void UScfgPayAsyncAction::Finish(const FScfgPaymentResult& Result)
 UScfgRestoreAsyncAction* UScfgRestoreAsyncAction::Restore(UObject* WorldContextObject)
 {
 	UScfgRestoreAsyncAction* Action = RestoreWith(UScfgBlueprintLibrary::GetSubsystem(WorldContextObject));
+	Action->bOnDedicatedServer = !Action->bHadSubsystem && UScfgBlueprintLibrary::OnDedicatedServer(WorldContextObject);
 	if (!Action->RegisteredWithGameInstance.IsValid())
 	{
 		Action->RegisterWithGameInstance(WorldContextObject);
@@ -112,7 +117,8 @@ void UScfgRestoreAsyncAction::Activate()
 	}
 	if (!Scfg)
 	{
-		UE_LOG(LogScfg, Error, TEXT("%s"), ScfgAsyncDetail::NoSubsystem);
+		UE_LOG(LogScfg, Error, TEXT("%s"),
+			bOnDedicatedServer ? ScfgAsyncDetail::NoSubsystemOnServer : ScfgAsyncDetail::NoSubsystem);
 		Finish(ScfgGuard::RestoreNotRunning());
 		return;
 	}

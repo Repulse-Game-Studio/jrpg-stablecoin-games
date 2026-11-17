@@ -151,9 +151,17 @@ def test_problems_are_every_error_and_warning_but_the_measured_engine_ones():
         "'AlertWidgetConstructor' as purpose '0' isn't registered.",
         '[1][0]LogCsvProfiler: Warning: Metadata value sanitized due to invalid characters: '
         'gpu="llvmpipe (LLVM 20.1.2, 256 bits)"',
+        "[1][0]LogClass: Error: StructProperty FDataflowToolNodeSnapshot::Date is not initialized "
+        "properly even though its struct probably has a custom default constructor.",
+        "[1][0]LogAutomationTest: Error: LogClass: StructProperty FDataflowToolNodeSnapshot::Date "
+        "is not initialized properly even though its struct probably has a custom default constructor.",
+        "[1][0]LogScfg: Warning: scfg: cannot open the http: link: LaunchURL cancelled by delegate",
+        "[1][0]LogScfg: Warning: scfg: cannot open the ethereum: link: LaunchURL cancelled by delegate",
     ]
     bad = [
         "[1][0]LogScfg: Error: scfg: worker error: boom",
+        "[1][0]LogClass: Error: StructProperty FSomeOtherStruct::Date is not initialized properly",
+        "[1][0]LogScfg: Warning: scfg: cannot open the http: link: no xdg-open",
         "[1][0]LogScfgDev: Warning: showcase: no game viewport, no HUD",
         "[1][0]LogSlate: Error: something the plugin made Slate say",
         "[1][0]LogHttp: Warning: a request of ours",

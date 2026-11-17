@@ -18,17 +18,21 @@
 //   godot/addons/scfg/ui/sheet.gd:304) have no test in tests/ or godot/tests: OnAPhoneTheQrStepOffersTheWalletApp below
 // C++ only:
 //   TheEnginePlatformIsMobileOnPhonesOnly   -> FScfgEnginePlatform: PLATFORM_ANDROID || PLATFORM_IOS, the -scfg-mobile
-//       override (not in Shipping), the tests' constructor
+//       override (not in Shipping), the tests' constructor, a link LaunchURL refuses logged by its scheme
 //   TheCheckoutIsMobileAsThePlatformSays    -> the facade passes the platform's answer to every controller, the engine's
-//       platform included
+//       platform included, for an unlock and a tip
 //   AWalletAppPaymentIsFoundByPolling       -> an EVM unlock on a phone: QR, Open wallet app (the EIP-681 link), I've
 //       sent it, paid on chain, found by the worker's passes; no page server is ever made
 //   TheSolanaWalletLinkIsASolanaPayRequest  -> a Solana unlock on a phone: the link is the Solana Pay request with the
 //       session's reference
 //   OnAPhoneTheQrStepOffersTheWalletApp     -> the default Slate sheet: no browser method, the wallet button on the QR
 //       step, pressed by keys; on a computer no wallet button (TipWalksEveryStepByKeys)
+//   NoWalletButtonWhenConfiguredOff         -> the same phone with Methods.Qr.bWalletButton = false: the QR step has no
+//       wallet button
 #include "Misc/AutomationTest.h"
 #include "Misc/CommandLine.h"
+#include "Misc/CoreDelegates.h"
+#include "Misc/Parse.h"
 
 #include "ScfgCheckoutController.h"
 #include "ScfgFacade.h"
@@ -117,8 +121,16 @@ bool FScfgMobileEnginePlatformTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("a Linux editor is not a phone"), FScfgEnginePlatform::bMobileTarget);
 	TestEqual(TEXT("the default is the build's answer or the switch"), FScfgEnginePlatform().IsMobile(),
 		FScfgEnginePlatform::DefaultIsMobile());
-	TestEqual(TEXT("the tests' editor runs without the switch"), FScfgEnginePlatform::DefaultIsMobile(),
-		FScfgEnginePlatform::MobileOverride(FCommandLine::Get()));
+	// (the runner never passes -scfg-mobile; a hand run with it skips this one check)
+	if (!FParse::Param(FCommandLine::Get(), FScfgEnginePlatform::MobileSwitch))
+	{
+		TestFalse(TEXT("without the switch a Linux editor's default is a computer"), FScfgEnginePlatform::DefaultIsMobile());
+	}
+	else
+	{
+		AddInfo(TEXT("this editor runs with -scfg-mobile: the default is a phone"));
+		TestTrue(TEXT("with the switch the default is a phone"), FScfgEnginePlatform::DefaultIsMobile());
+	}
 	TestTrue(TEXT("-scfg-mobile"), FScfgEnginePlatform::MobileOverride(TEXT("-scfg-mobile")));
 	TestTrue(TEXT("among other switches"), FScfgEnginePlatform::MobileOverride(TEXT("ScfgDev -game -scfg-mobile -log")));
 	TestFalse(TEXT("no switch"), FScfgEnginePlatform::MobileOverride(TEXT("ScfgDev -game -log")));
@@ -127,6 +139,17 @@ bool FScfgMobileEnginePlatformTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("no command line"), FScfgEnginePlatform::MobileOverride(nullptr));
 	TestTrue(TEXT("the tests' override"), FScfgEnginePlatform(true).IsMobile());
 	TestFalse(TEXT("and its desktop"), FScfgEnginePlatform(false).IsMobile());
+	// A link LaunchURL refuses (a game's ShouldLaunchUrl, here; phase 3 review P3-1) is logged with its scheme only.
+	using namespace ScfgMobileTests;
+	const TDelegate<bool(const TCHAR*)> Before = FCoreDelegates::ShouldLaunchUrl;
+	TArray<FString> Asked;
+	FCoreDelegates::ShouldLaunchUrl.BindLambda([&Asked](const TCHAR* Url) { Asked.Add(Url); return false; });
+	AddExpectedMessagePlain(TEXT("scfg: cannot open the ethereum: link: LaunchURL cancelled by delegate"),
+		ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Exact, 1);
+	const FString Link = TEXT("ethereum:0x0000000000000000000000000000000000000001@42161/transfer?address=0x02&uint256=1");
+	FScfgEnginePlatform(true).OpenUrl(Link);
+	FCoreDelegates::ShouldLaunchUrl = Before;
+	SameLines(*this, TEXT("the link went to LaunchURL"), Asked, TArray<FString>{Link});
 	return true;
 }
 
@@ -150,18 +173,31 @@ bool FScfgMobileFacadeFlagTest::RunTest(const FString& Parameters)
 	};
 	for (const FCase& Case : Cases)
 	{
-		FWorld W;
-		FScfgFacade& S = MakeWith(W, Case.Platform);
-		TestFalse(TEXT("configure"), S.Configure(DevWallet()).IsSet());
-		AddChapter2(*this, S);
-		W.Start();
-		W.Pay(EScfgPayKind::Unlock, Unlock());  // the engine's platform: nothing below opens a URL
-		const FScfgCheckout& Ctl = W.Session(*this);
-		TestEqual(FString(Case.What) + TEXT(": the facade's answer"), S.IsMobile(), Case.bMobile);
-		TestEqual(FString(Case.What) + TEXT(": the controller's mobile"), Ctl.Core().mobile, Case.bMobile);
-		TestEqual(FString(Case.What) + TEXT(": the methods"), Joined(Ctl.Core().methods()),
-			FString(Case.bMobile ? TEXT("qr,manual") : TEXT("browser,qr,manual")));
-		W.Drop();
+		// An unlock and a tip (phase 3 review P3-5): the same rule for both kinds.
+		for (const EScfgPayKind Kind : {EScfgPayKind::Unlock, EScfgPayKind::Tip})
+		{
+			const FString What = FString(Case.What) + (Kind == EScfgPayKind::Tip ? TEXT(", a tip") : TEXT(", an unlock"));
+			FWorld W;
+			FScfgFacade& S = MakeWith(W, Case.Platform);
+			TestFalse(TEXT("configure"), S.Configure(DevWallet()).IsSet());
+			AddChapter2(*this, S);
+			W.Start();
+			// the engine's platform: nothing below opens a URL
+			W.Pay(Kind, Kind == EScfgPayKind::Tip ? Tip(TEXT("2.50"), TEXT("USDC")) : Unlock());
+			if (Kind == EScfgPayKind::Tip)
+			{
+				const scfg::Result<bool> Next = W.Host->CheckoutOf(-1).Core().next_step();
+				TestTrue(What + TEXT(": past the amount step"), Next.ok() && Next.value());
+			}
+			const FScfgCheckout& Ctl = W.Session(*this);
+			TestEqual(What + TEXT(": the facade's answer"), S.IsMobile(), Case.bMobile);
+			TestEqual(What + TEXT(": the controller's mobile"), Ctl.Core().mobile, Case.bMobile);
+			TestEqual(What + TEXT(": the methods"), Joined(Ctl.Core().methods()),
+				FString(Case.bMobile ? TEXT("qr,manual") : TEXT("browser,qr,manual")));
+			TestEqual(What + TEXT(": its kind"), ScfgString::FromUtf8(Ctl.Core().session().as_dict().get("kind").as_str()),
+				FString(Kind == EScfgPayKind::Tip ? TEXT("tip") : TEXT("unlock")));
+			W.Drop();
+		}
 	}
 	return true;
 }
@@ -318,6 +354,48 @@ bool FScfgMobileSheetTest::RunTest(const FString& Parameters)
 	R.Frame(2);
 	TestTrue(TEXT("Pay resolves paid"), Box->IsSet() && (*Box)->Status == EScfgPaymentStatus::Paid);
 	TestTrue(TEXT("chapter2 is owned"), S.Owns(TEXT("chapter2")));
+	return true;
+}
+
+SCFG_MOBILE_TEST(FScfgMobileNoWalletButtonTest, "NoWalletButtonWhenConfiguredOff")
+
+// Phase 3 review P3-5: the wallet button is the QR option wallet_button's, on a phone too.
+bool FScfgMobileNoWalletButtonTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgMobileTests;
+	using namespace ScfgSheetTests;
+	FSheetRig R(*this);
+	if (!R.bReady)
+	{
+		return false;
+	}
+	R.W.Platform->bMobile = true;
+	FScfgFacade& S = R.W.Make();
+	FScfgOptions Options = DevWallet();
+	Options.Methods.Qr.bWalletButton = false;
+	TestFalse(TEXT("configure"), S.Configure(Options).IsSet());
+	AddChapter2(*this, S);
+	R.W.Start();
+	S.SheetHost = nullptr;
+	S.DefaultSheetHost = R.Host;
+	R.W.Pay(EScfgPayKind::Unlock, Unlock());
+	R.Frame(2);
+	const TSharedPtr<SScfgPaymentSheet> Sheet = R.Sheet();
+	if (!TestTrue(TEXT("the sheet"), Sheet.IsValid()))
+	{
+		return false;
+	}
+	TestTrue(TEXT("Down reaches Arbitrum"), R.KeyTo(*Sheet, TEXT("network_arbitrum"), EKeys::Down));
+	R.Key(EKeys::Enter);
+	R.Pass();
+	TestEqual(TEXT("the method step"), Sheet->ShownStep(), FString(TEXT("method")));
+	TestTrue(TEXT("Up reaches the phone wallet"), R.KeyTo(*Sheet, TEXT("method_qr"), EKeys::Up));
+	R.Key(EKeys::Enter);
+	TestEqual(TEXT("the phone wallet step"), Sheet->ShownStep(), FString(TEXT("qr")));
+	TestTrue(TEXT("the controller says mobile"), Sheet->GetController().IsMobile());
+	TestFalse(TEXT("but no Open wallet app"), Sheet->IsShown(TEXT("wallet_app")));
+	TestTrue(TEXT("I've sent it is still there"), Sheet->IsShown(TEXT("forward")));
+	TestEqual(TEXT("nothing was opened"), R.W.Platform->Opened.Num(), 0);
 	return true;
 }
 

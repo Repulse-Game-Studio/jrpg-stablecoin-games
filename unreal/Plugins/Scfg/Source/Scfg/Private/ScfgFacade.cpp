@@ -303,6 +303,21 @@ TOptional<scfg::Err> FScfgFacade::AddChain(const FString& Key, const FScfgChain&
 	{
 		return ScfgFacadeDetail::WrongThread(TEXT("AddChain()"));
 	}
+	if (Config && bConfigFromSettings)
+	{
+		if (Worker || StartError || bShuttingDown)
+		{
+			return ConfigMisuse("configure.after_add_chain",
+				"call AddChain() before payments start: the SCFG settings (Project Settings > Plugins > SCFG) configured "
+				"SCFG when the game instance started, and payments started with them. Add your chains and call "
+				"Configure() from your game instance's Init() or the first level's BeginPlay");
+		}
+		// The settings cannot name a chain added from code, so the Configure() from code that has to follow replaces
+		// their configuration anyway: set it aside now, with the settings' own chains (ScfgSettings.h).
+		SetSettingsAside();
+		Warn(TEXT("AddChain() set aside the SCFG settings' configuration (Project Settings > Plugins > SCFG: it cannot "
+				  "name your own chains): call Configure() next, from code."));
+	}
 	if (Config)
 	{
 		return ConfigMisuse("configure.after_add_chain", "call AddChain() before Configure()");
@@ -327,27 +342,97 @@ TOptional<scfg::Err> FScfgFacade::Configure(const FScfgOptions& InOptions)
 		return ConfigMisuse(
 			"configure.after_start", "Configure() can't change the configuration once payments have started");
 	}
-	scfg::Result<scfg::config::Config> Built =
-		scfg::config::build_config(ScfgConvert::ConfigKwargs(InOptions), CustomChains);
+	// A Configure() from code replaces the settings' configuration with their chains: it sees only the chains the
+	// code added (none: AddChain() would have set the settings aside first). ScfgSettings.h, "A CODE CALL AFTER IT WINS".
+	const bool bReplacesSettings = Config && bConfigFromSettings && !bApplyingSettings;
+	scfg::Result<scfg::config::Config> Built = scfg::config::build_config(ScfgConvert::ConfigKwargs(InOptions),
+		bReplacesSettings ? std::vector<scfg::config::CustomChain>() : CustomChains);
 	if (!Built.ok())
 	{
 		return Misuse(Built.err());
 	}
 	scfg::config::Config Made = Built.take();
-	FString Logo;
-	if (Made.logo)
+	scfg::Result<FString> Logo = LogoFile(Options.ProjectDir, Made.logo);
+	if (!Logo.ok())
 	{
-		const FString Root = Options.ProjectDir.IsEmpty() ? FPaths::ProjectDir() : Options.ProjectDir;
-		Logo = FPaths::ConvertRelativePathToFull(Root / ScfgString::FromUtf8(*Made.logo));
-		if (!IFileManager::Get().FileExists(*Logo))
-		{
-			return ConfigMisuse("logo.file_missing",
-				"logo file not found in the project: " + scfg::py::repr_str(ScfgString::ToUtf8(Logo)));
-		}
+		return Misuse(Logo.err());
+	}
+	if (bReplacesSettings)
+	{
+		CustomChains.clear();
 	}
 	Config = std::move(Made);
-	LogoPath = Logo;
-	*PageLogo = Logo;
+	bConfigFromSettings = bApplyingSettings;
+	LogoPath = Logo.value();
+	*PageLogo = LogoPath;
+	return {};
+}
+
+scfg::Result<FString> FScfgFacade::LogoFile(const FString& ProjectDir, const std::optional<std::string>& Logo)
+{
+	if (!Logo)
+	{
+		return FString();
+	}
+	const FString Root = ProjectDir.IsEmpty() ? FPaths::ProjectDir() : ProjectDir;
+	const FString Full = FPaths::ConvertRelativePathToFull(Root / ScfgString::FromUtf8(*Logo));
+	if (!IFileManager::Get().FileExists(*Full))
+	{
+		return scfg::Err::config_error(
+			"logo.file_missing", "logo file not found in the project: " + scfg::py::repr_str(ScfgString::ToUtf8(Full)));
+	}
+	return Full;
+}
+
+void FScfgFacade::SetSettingsAside()
+{
+	Config.reset();
+	CustomChains.clear();
+	bConfigFromSettings = false;
+	LogoPath.Reset();
+	PageLogo->Reset();
+}
+
+TOptional<scfg::Err> FScfgFacade::ApplySettings(
+	const FScfgOptions& InOptions, const TArray<FScfgSettingsChain>& Chains, const TArray<FScfgSettingsItem>& Items)
+{
+	if (ScfgGuard::OffGameThread(TEXT("ApplySettings()")))
+	{
+		return ScfgFacadeDetail::WrongThread(TEXT("ApplySettings()"));
+	}
+	const TCHAR* const Where = TEXT("the SCFG settings (Project Settings > Plugins > SCFG)");
+	if (Config || !CustomChains.empty() || Worker || StartError || bShuttingDown)
+	{
+		return Misuse(scfg::Err::make("RuntimeError", ScfgString::ToUtf8(FString::Printf(
+			TEXT("%s are applied when the game instance starts, before any other call"), Where))));
+	}
+	TGuardValue<bool> Applying(bApplyingSettings, true);
+	for (const FScfgSettingsChain& Row : Chains)
+	{
+		if (TOptional<scfg::Err> Error = AddChain(Row.Key, Row.Chain))
+		{
+			CustomChains.clear();
+			Reporter->Error(FString::Printf(TEXT("scfg: %s were not applied: chain \"%s\" (%s). Press Validate there."),
+				Where, *Row.Key, *ScfgGuard::ErrCode(*Error)));
+			return Error;
+		}
+	}
+	if (TOptional<scfg::Err> Error = Configure(InOptions))
+	{
+		CustomChains.clear();
+		Reporter->Error(FString::Printf(TEXT("scfg: %s were not applied (%s). Press Validate there."), Where,
+			*ScfgGuard::ErrCode(*Error)));
+		return Error;
+	}
+	for (const FScfgSettingsItem& Row : Items)
+	{
+		if (TOptional<scfg::Err> Error = AddItem(Row.Id, Row.ToItem()))
+		{
+			Reporter->Error(FString::Printf(TEXT("scfg: %s: item \"%s\" was not added (%s). Press Validate there."),
+				Where, *Row.Id, *ScfgGuard::ErrCode(*Error)));
+			return Error;
+		}
+	}
 	return {};
 }
 

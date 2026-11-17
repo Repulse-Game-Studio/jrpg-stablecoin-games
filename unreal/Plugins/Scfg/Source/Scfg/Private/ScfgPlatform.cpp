@@ -1,6 +1,8 @@
 // No Python twin: see ScfgPlatform.h.
 #include "ScfgPlatform.h"
 
+#include "ScfgLog.h"
+
 #include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformProcess.h"
 #include "Misc/CommandLine.h"
@@ -29,6 +31,17 @@ void FScfgEnginePlatform::OpenUrl(const FString& Url)
 	// openURL. A link nothing handles is logged by the engine (engine-facts.md, "Mobile").
 	FString Error;
 	FPlatformProcess::LaunchURL(*Url, nullptr, &Error);
+	if (!Error.IsEmpty())
+	{
+		// Such as "LaunchURL cancelled by delegate" (a game's FCoreDelegates::ShouldLaunchUrl, a parental gate): one
+		// line with the link's scheme, never the link itself (the payment request).
+		FString Scheme;
+		if (!Url.Split(TEXT(":"), &Scheme, nullptr))
+		{
+			Scheme = TEXT("(no scheme)");
+		}
+		UE_LOG(LogScfg, Warning, TEXT("scfg: cannot open the %s: link: %s"), *Scheme, *Error);
+	}
 }
 
 void FScfgEnginePlatform::ClipboardSet(const FString& Text)

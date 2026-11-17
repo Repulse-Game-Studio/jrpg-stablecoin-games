@@ -16,5 +16,11 @@ public class ScfgTests : ModuleRules
 		// loopback client of the checkout page tests, Projects to find the plugin's folders; Slate, SlateCore, InputCore and
 		// UMG to drive the screens (Scfg.Glue.Sheet.*).
 		PrivateDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "HTTP", "HTTPServer", "InputCore", "Projects", "Scfg", "ScfgCore", "Slate", "SlateCore", "Sockets", "UMG" });
+		// The editor module's Validate action, its Message Log page and the settings panel (Scfg.Glue.Settings.*): the
+		// Project Settings registry (Settings) and a details view (PropertyEditor), in an editor build only.
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[] { "MessageLog", "PropertyEditor", "ScfgEditor", "Settings" });
+		}
 	}
 }

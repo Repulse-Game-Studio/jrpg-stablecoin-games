@@ -44,6 +44,8 @@ private:
 	// It was made with a subsystem: one gone by the time the result comes means the game instance went away (no pin),
 	// not "no subsystem" (a Failed pin).
 	bool bHadSubsystem = false;
+	// Made on a dedicated server, which has no subsystem (its log says so).
+	bool bOnDedicatedServer = false;
 	EScfgPayKind Kind = EScfgPayKind::Unlock;
 	FScfgPayRequest Request;
 };
@@ -71,4 +73,6 @@ private:
 
 	TWeakObjectPtr<UScfgSubsystem> Subsystem;
 	bool bHadSubsystem = false;
+	// Made on a dedicated server, which has no subsystem (its log says so).
+	bool bOnDedicatedServer = false;
 };

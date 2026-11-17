@@ -15,6 +15,8 @@ public class Scfg : ModuleRules
 		// of a dependent's include path (the glue never exposes scfg::Co or scfg::Future); ApplicationCore for the
 		// clipboard.
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "SlateCore", "UMG" });
+		// DeveloperSettings for the project settings (UScfgSettings, Public/ScfgSettings.h, a UDeveloperSettings).
+		PublicDependencyModuleNames.Add("DeveloperSettings");
 		// Sockets for the localhost checkout server's listener (ScfgLocalServer.h), Projects to find the plugin's
 		// Resources/Web/; Slate and InputCore for the screens (Private/UI), ImageWrapper to read the logo.
 		// The same list on every platform of Scfg.uplugin, Android and iOS included: each is an engine runtime module

@@ -82,6 +82,7 @@
 #include "IScfgSheetHost.h"
 #include "ScfgControllers.h"
 #include "ScfgPlatform.h"
+#include "ScfgSettings.h"
 #include "ScfgStore.h"
 #include "ScfgTransport.h"
 #include "ScfgTypes.h"
@@ -184,6 +185,18 @@ public:
 	// too, in the worker's turn (Python's Engine shares the game's Config object), so it can be sold and owned. Until
 	// that command ran (the next worker frame), Owns() of it reads the snapshot taken before.
 	TOptional<scfg::Err> AddItem(const FString& ItemId, const FScfgItem& Item);
+	// The project settings (ScfgSettings.h), on a new facade: AddChain() for each chain, Configure(), AddItem() for each
+	// item, each reported as a misuse and then once more naming the settings. A failing chain or Configure() applies
+	// nothing; a failing item keeps what came before. Afterwards the configuration is the settings' until a call from
+	// code wins (ScfgSettings.h, "A CODE CALL AFTER IT WINS"): Configure() replaces it, the settings' chains included;
+	// AddChain() sets it aside (with a warning) or, once payments started, is refused. Returns the first Err.
+	TOptional<scfg::Err> ApplySettings(
+		const FScfgOptions& InOptions, const TArray<FScfgSettingsChain>& Chains, const TArray<FScfgSettingsItem>& Items);
+	// The configuration is the settings' (ApplySettings), not one from code.
+	bool IsConfigFromSettings() const { return Config.has_value() && bConfigFromSettings; }
+	// A configured logo (relative to ProjectDir; empty: FPaths::ProjectDir()) as a full path that exists, "" for none,
+	// or the ConfigError logo.file_missing. Configure() and UScfgSettings::Validate() both check it.
+	static scfg::Result<FString> LogoFile(const FString& ProjectDir, const std::optional<std::string>& Logo);
 
 	// --- flows ---
 
@@ -310,6 +323,8 @@ private:
 	void ReportError(const FString& Heading, const scfg::Err& Error);
 	void Warn(const FString& Message);
 	scfg::Result<const scfg::config::Config*> RequireConfig(bool bReport);
+	// AddChain() from code after the settings: their configuration, chains and logo go.
+	void SetSettingsAside();
 
 	// Store and worker
 	FScfgStore& Stored();
@@ -364,6 +379,8 @@ private:
 
 	std::optional<scfg::config::Config> Config;
 	std::vector<scfg::config::CustomChain> CustomChains;
+	bool bConfigFromSettings = false;  // Config (and CustomChains) came from ApplySettings
+	bool bApplyingSettings = false;    // inside ApplySettings
 	FString LogoPath;  // the configured logo's full path, or ""
 	// The same, shared with the default page server's factory (read when a page server is made).
 	TSharedRef<FString> PageLogo = MakeShared<FString>();

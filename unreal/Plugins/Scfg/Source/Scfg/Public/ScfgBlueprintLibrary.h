@@ -19,7 +19,7 @@ class SCFG_API UScfgBlueprintLibrary : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
-	// The SCFG subsystem of the world context's game instance, or null (no game instance).
+	// The SCFG subsystem of the world context's game instance, or null (no game instance, or a dedicated server).
 	UFUNCTION(BlueprintPure, Category = "SCFG", meta = (WorldContext = "WorldContextObject"))
 	static UScfgSubsystem* GetSubsystem(const UObject* WorldContextObject);
 
@@ -50,4 +50,7 @@ public:
 	// A node without a game instance logs one error per node kind per session (a UMG binding is evaluated every
 	// frame); the tests start each check afresh.
 	static void ResetLogOnceForTests();
+	// The world context is on a dedicated server (a server process, a server world, or a play-in-editor server
+	// instance), where no SCFG subsystem exists (UScfgSubsystem::ShouldCreateSubsystem): the nodes' log says so.
+	static bool OnDedicatedServer(const UObject* WorldContextObject);
 };

@@ -33,7 +33,12 @@ UScfgSubsystem* Find(const UObject* WorldContextObject, const TCHAR* What)
 	{
 		bool bLogged = false;
 		Logged().Add(What, &bLogged);
-		if (!bLogged)
+		if (!bLogged && UScfgBlueprintLibrary::OnDedicatedServer(WorldContextObject))
+		{
+			UE_LOG(LogScfg, Error, TEXT("scfg: %s: no SCFG subsystem on a dedicated server (SCFG runs on the players' "
+				"game clients only)"), What);
+		}
+		else if (!bLogged)
 		{
 			UE_LOG(LogScfg, Error, TEXT("scfg: %s: no SCFG subsystem here (it needs a game instance)"), What);
 		}
@@ -42,6 +47,31 @@ UScfgSubsystem* Find(const UObject* WorldContextObject, const TCHAR* What)
 }
 
 }  // namespace ScfgLibraryDetail
+
+bool UScfgBlueprintLibrary::OnDedicatedServer(const UObject* WorldContextObject)
+{
+	if (IsRunningDedicatedServer())
+	{
+		return true;
+	}
+	const UWorld* World =
+		GEngine ? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::ReturnNull) : nullptr;
+	if (!World)
+	{
+		return false;
+	}
+	if (World->GetNetMode() == NM_DedicatedServer)
+	{
+		return true;
+	}
+	if (const UGameInstance* GameInstance = World->GetGameInstance(); GameInstance && GameInstance->IsDedicatedServerInstance())
+	{
+		return true;
+	}
+	// (a game instance that is shut down has let its world context go: the engine still has it)
+	const FWorldContext* Context = GEngine->GetWorldContextFromWorld(World);
+	return Context && Context->RunAsDedicated;
+}
 
 void UScfgBlueprintLibrary::ResetLogOnceForTests()
 {

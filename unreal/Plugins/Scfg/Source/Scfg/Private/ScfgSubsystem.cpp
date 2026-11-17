@@ -7,6 +7,7 @@
 #include "ScfgFacade.h"
 #include "ScfgGuard.h"
 #include "ScfgLog.h"
+#include "ScfgSettings.h"
 #include "ScfgString.h"
 
 #include "Engine/GameInstance.h"
@@ -71,7 +72,7 @@ bool UScfgSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 void UScfgSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	StartFacade(FScfgFacadeOptions());
+	StartFacade(FScfgFacadeOptions(), GetDefault<UScfgSettings>());
 }
 
 void UScfgSubsystem::Deinitialize()
@@ -86,7 +87,7 @@ void UScfgSubsystem::BeginDestroy()
 	Super::BeginDestroy();
 }
 
-void UScfgSubsystem::StartFacade(const FScfgFacadeOptions& Options)
+void UScfgSubsystem::StartFacade(const FScfgFacadeOptions& Options, const UScfgSettings* Settings)
 {
 	StopFacade();
 	bStopping = false;
@@ -109,6 +110,20 @@ void UScfgSubsystem::StartFacade(const FScfgFacadeOptions& Options)
 		}
 	};
 	Facade->Start();
+	if (!Settings)
+	{
+		return;
+	}
+	if (Settings->IsEmpty())
+	{
+		if (Settings->HasRows())
+		{
+			Facade->GetReporter().Warning(TEXT("scfg: the SCFG settings (Project Settings > Plugins > SCFG) have chains or "
+				"items but no wallet, so they are not applied: set a wallet there, or configure from code."));
+		}
+		return;
+	}
+	(void)Facade->ApplySettings(Settings->Options, Settings->Chains, Settings->Items);
 }
 
 void UScfgSubsystem::StopFacade()
