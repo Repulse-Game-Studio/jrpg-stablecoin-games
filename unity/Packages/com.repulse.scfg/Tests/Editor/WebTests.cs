@@ -563,6 +563,34 @@ namespace Scfg.Tests
         }
 
         [Test]
+        public void ReceiptsMergedFromTheCopyRaiseReceiptsChanged()
+        {
+            int changed = 0;
+            SCFG.ReceiptsChanged += () => changed++;
+            _js.LocalStorage![MirrorKey] = Json.Dumps(new JsonObject { { "version", 1L }, { "receipts", new JsonObject { { RKey(ScfgRig.Tx), Receipt(ScfgRig.Tx) } } } });
+            Assert.That(SCFG.Receipts(), Is.Empty, "a title screen lists the receipts before Configure");
+            int rev = SCFG.ReceiptsRevision;
+            _rig.Configure();
+            Assert.That(SCFG.Receipts().Count, Is.EqualTo(1));
+            Assert.That(changed, Is.EqualTo(1), "the list is told about the merged receipt");
+            Assert.That(SCFG.ReceiptsRevision, Is.EqualTo(rev + 1));
+            SCFG.Receipts();
+            Assert.That(changed, Is.EqualTo(1), "merged once");
+        }
+
+        [Test]
+        public void ACopyThatAddsNothingRaisesNoReceiptsChanged()
+        {
+            Assert.That(ScfgStore.Save(_rig.StorePath, new JsonObject(), new JsonObject { { RKey(ScfgRig.Tx), Receipt(ScfgRig.Tx) } }), Is.Null);
+            _js.LocalStorage![MirrorKey] = Json.Dumps(new JsonObject { { "version", 1L }, { "receipts", new JsonObject { { RKey(ScfgRig.Tx), Receipt(ScfgRig.Tx) } } } });
+            int changed = 0;
+            SCFG.ReceiptsChanged += () => changed++;
+            _rig.Configure();
+            Assert.That(SCFG.Receipts().Count, Is.EqualTo(1));
+            Assert.That(changed, Is.EqualTo(0));
+        }
+
+        [Test]
         public void TheStorageIdPicksTheCopy()
         {
             var other = ScfgWebMirror.KeyFor(Application.productName, "game-two");

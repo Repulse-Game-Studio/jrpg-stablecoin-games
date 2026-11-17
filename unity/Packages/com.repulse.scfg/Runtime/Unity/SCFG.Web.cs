@@ -11,7 +11,8 @@
 // database, so another game there can delete state.json. On the web a save also merges the receipts (not the pending
 // sessions) into a copy in localStorage, keeping receipts other tabs of this game saved and dropping the ones this tab
 // removed. The first read of the state once Configure ran merges the copy back (state.json wins a conflict) and saves at
-// once; merged receipts are re-verified like any other. A missing, blocked or full localStorage only warns (development
+// once; merged receipts are re-verified like any other. Receipts it adds raise ReceiptsChanged (unlike Godot, the
+// queries can answer before Configure, so a game may already have shown the receipts without them). A missing, blocked or full localStorage only warns (development
 // builds, once). After every save the package asks the page to write persistentDataPath to IndexedDB (Unity does so by
 // itself only when the page sets config.autoSyncPersistentDataPath).
 #nullable enable
@@ -196,6 +197,9 @@ namespace Scfg
                 S.Dirty = true;
                 S.LastSave = S.Clock();
                 Save(); // also brings the copy up to date
+                // The queries may have answered before Configure (from state.json alone), and the Worker's first
+                // snapshot will equal the merged receipts: this is the only notice a receipts list gets.
+                EmitReceiptsChanged();
             }
             else
             {
