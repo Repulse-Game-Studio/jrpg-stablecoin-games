@@ -271,6 +271,8 @@ namespace Scfg.Tests
             public string? Storage(string op, string key, string? value) => op == "get" ? "not json" : null;
             public void SyncFs() { }
             public bool FsPersistent() => true;
+            public bool OverlayShown() => false;
+            public bool CaptureAllKeyboardInput { get; set; } = true;
         }
 
         [Test]
@@ -380,6 +382,73 @@ namespace Scfg.Tests
             _rig.Pump();
             Assert.That(_js.CallsTo("closeCheckout").Single()[0], Is.EqualTo(open[0]));
             Assert.That(Result(call).Status, Is.EqualTo(ScfgPaymentStatus.Cancelled));
+        }
+
+        [Test]
+        public void ThePageHasTheKeyboardWhileTheOverlayShows()
+        {
+            _rig.Configure(new ScfgMethods { Qr = false, Manual = false });
+            var call = SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
+            var screen = _rig.Host.Last;
+            _rig.Settle();
+            Assert.That(_js.OverlayPolls, Is.EqualTo(0), "no overlay open: the page is not polled");
+            screen.Checkout.OpenBrowser();
+            var key = (string)_js.CallsTo("openCheckout").Single()[0]!;
+            _rig.Pump();
+            Assert.That(_js.Capture, Is.False, "shown: keys go to the page");
+            _rig.Pump(3);
+            Assert.That(_js.CaptureSets, Is.EqualTo(new[] { false }), "set once");
+            _js.Hide(key); // the overlay's close button
+            _rig.Pump();
+            Assert.That(_js.Capture, Is.True, "hidden: the game's keyboard again");
+            screen.Checkout.OpenBrowser(); // Reopen the wallet window
+            _rig.Pump();
+            Assert.That(_js.Capture, Is.False);
+            screen.Close("cancel");
+            _rig.Pump(2);
+            Assert.That(_js.CallsTo("closeCheckout").Count, Is.EqualTo(1));
+            Assert.That(_js.Capture, Is.True, "closed: the game's keyboard again");
+            Assert.That(_js.CaptureSets, Is.EqualTo(new[] { false, true, false, true }));
+            int polls = _js.OverlayPolls;
+            _rig.Pump(3);
+            Assert.That(_js.OverlayPolls, Is.EqualTo(polls), "no overlay open: no more polls");
+            Assert.That(Result(call).Status, Is.EqualTo(ScfgPaymentStatus.Cancelled));
+            Assert.That(_rig.Reported, Is.Empty);
+        }
+
+        [Test]
+        public void TheGamesOwnKeyboardSettingIsKept()
+        {
+            _js.Capture = false; // the game already lets the page have its keys
+            _rig.Configure(new ScfgMethods { Qr = false, Manual = false });
+            SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
+            var screen = _rig.Host.Last;
+            _rig.Settle();
+            screen.Checkout.OpenBrowser();
+            var key = (string)_js.CallsTo("openCheckout").Single()[0]!;
+            _rig.Pump();
+            _js.Hide(key);
+            _rig.Pump();
+            Assert.That(_js.Capture, Is.False, "put back as the game had it");
+            screen.Checkout.OpenBrowser();
+            _rig.Pump();
+            _js.Capture = true; // the game takes the keyboard back while the overlay shows
+            _js.Hide(key);
+            _rig.Pump();
+            Assert.That(_js.Capture, Is.True, "the game's newer choice is not undone");
+        }
+
+        [Test]
+        public void ShuttingDownGivesTheKeyboardBack()
+        {
+            _rig.Configure(new ScfgMethods { Qr = false, Manual = false });
+            SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
+            _rig.Settle();
+            _rig.Host.Last.Checkout.OpenBrowser();
+            _rig.Pump();
+            Assert.That(_js.Capture, Is.False);
+            SCFG.Shutdown();
+            Assert.That(_js.Capture, Is.True);
         }
 
         [Test]

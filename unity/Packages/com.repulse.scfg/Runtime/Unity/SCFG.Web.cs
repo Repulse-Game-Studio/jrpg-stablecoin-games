@@ -7,6 +7,12 @@
 // toast), and Paste asks the browser, whose answer arrives on a later frame (PumpPage): an empty answer from the
 // browser is a refusal and sets the screen's paste_blocked error.
 //
+// THE KEYBOARD. A Unity player takes every key of its page by default (WebGLInput.captureAllKeyboardInput), so over
+// the game the overlay could not be used with the keyboard and its keys would reach the sheet underneath. While an
+// overlay is shown (polled once per frame while one is open: its close button and a sent payment only hide it) the
+// package sets captureAllKeyboardInput to false, so keys go to what has focus in the page, and puts back the game's
+// own value when no overlay is shown any more (unless the game set it to true meanwhile).
+//
 // WEB: A SECOND COPY OF THE RECEIPTS (ScfgWebMirror). Every Unity WebGL build on one origin shares one IndexedDB
 // database, so another game there can delete state.json. On the web a save also merges the receipts (not the pending
 // sessions) into a copy in localStorage, keeping receipts other tabs of this game saved and dropping the ones this tab
@@ -96,11 +102,12 @@ namespace Scfg
             return png == null ? null : "data:image/png;base64," + Convert.ToBase64String(png);
         }
 
-        /// <summary>Web, once per frame: the browser's answer to a Paste button, and whether a Copy was refused.</summary>
+        /// <summary>Web, once per frame: the keyboard, the browser's answer to a Paste button, and whether a Copy was refused.</summary>
         private static void PumpPage()
         {
             var page = S.Page;
             if (page == null) return;
+            PumpKeyboard(page);
             try
             {
                 if (S.PasteTarget != null)
@@ -119,6 +126,42 @@ namespace Scfg
                 S.PasteTarget = null;
                 ReportError("the page's clipboard answer failed:", e);
             }
+        }
+
+        /// <summary>The page has the keyboard while an overlay is shown (see the file header).</summary>
+        private static void PumpKeyboard(ScfgWebPage page)
+        {
+            if (page.OpenOverlays == 0 && !S.KeyboardHanded) return;
+            var js = S.Js;
+            if (js == null) return;
+            try
+            {
+                bool shown = page.OverlayShown();
+                if (shown == S.KeyboardHanded) return;
+                if (shown)
+                {
+                    S.GameCapturesKeyboard = js.CaptureAllKeyboardInput;
+                    js.CaptureAllKeyboardInput = false;
+                    S.KeyboardHanded = true;
+                }
+                else
+                {
+                    GiveBackKeyboard();
+                }
+            }
+            catch (Exception e)
+            {
+                ReportError("cannot hand the keyboard to the checkout overlay:", e);
+            }
+        }
+
+        /// <summary>The game's own captureAllKeyboardInput back (no overlay shown, or the facade shutting down).</summary>
+        private static void GiveBackKeyboard()
+        {
+            if (!S.KeyboardHanded) return;
+            S.KeyboardHanded = false;
+            var js = S.Js;
+            if (js != null && !js.CaptureAllKeyboardInput) js.CaptureAllKeyboardInput = S.GameCapturesKeyboard;
         }
 
         /// <summary>

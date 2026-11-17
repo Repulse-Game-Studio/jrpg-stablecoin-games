@@ -8,7 +8,10 @@
 //   ScfgWebStorage(op, key, v)   localStorage: "get" answers {"value": <text or null>}, "set" answers {}; either answers
 //                                {"error": "<name>: <message>"} when localStorage is missing, blocked or full.
 //   ScfgWebSyncFs()              queue a write of Application.persistentDataPath (Unity's IDBFS mount) to IndexedDB.
-//   ScfgWebFsPersistent()        1 when the page has IndexedDB (so persistentDataPath outlives the tab), else 0.
+//   ScfgWebFsPersistent()        1 when persistentDataPath outlives the tab (Unity's IndexedDB database opened at
+//                                startup), else 0.
+//   ScfgWebOverlayShown()        1 while a checkout overlay is shown (bridge.js's host element, [data-scfg-overlay],
+//                                not display:none: its close button and a sent payment only hide it), else 0.
 //
 // Values cross as JSON text, never spliced into JavaScript code. Nothing here may throw into the player: every entry
 // point catches. Strings go back as _malloc'd UTF-8, which the IL2CPP marshaller frees.
@@ -116,6 +119,14 @@ var ScfgWebLib = {
     } catch (err) {
       return 0; // a sandboxed iframe can throw on the access itself
     }
+  },
+
+  ScfgWebOverlayShown: function () {
+    try {
+      var hosts = document.querySelectorAll('[data-scfg-overlay]');
+      for (var i = 0; i < hosts.length; i++) if (hosts[i].style.display !== 'none') return 1;
+    } catch (err) { /* no document: nothing is shown */ }
+    return 0;
   },
 };
 

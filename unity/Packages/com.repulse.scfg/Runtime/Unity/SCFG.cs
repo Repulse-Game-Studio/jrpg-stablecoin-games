@@ -142,6 +142,8 @@ namespace Scfg
             public HashSet<string>? OwnPrev; // the receipt keys this tab had at its last merge or write of the copy
             public string? PasteTarget; // the cid or rid waiting for the page's clipboard answer
             public double CopyWatchUntil = double.NegativeInfinity; // until when to ask the page whether a Copy failed
+            public bool KeyboardHanded; // an overlay is shown: captureAllKeyboardInput was set to false
+            public bool GameCapturesKeyboard = true; // the game's captureAllKeyboardInput before that
 
             // test hooks (Setup); not part of the API
             public string? StorePath;
@@ -429,6 +431,14 @@ namespace Scfg
             // on this thread, and its newer snapshot is the one written below.
             s.OwnTransport?.Close();
             s.OwnScheduler?.Clear();
+            try
+            {
+                GiveBackKeyboard();
+            }
+            catch (Exception e)
+            {
+                ReportError("cannot give the keyboard back to the game:", e);
+            }
             if (s.Worker != null && s.Wipe == null) Sync(s.Worker.Snapshot);
             if (s.Dirty) Save();
         }

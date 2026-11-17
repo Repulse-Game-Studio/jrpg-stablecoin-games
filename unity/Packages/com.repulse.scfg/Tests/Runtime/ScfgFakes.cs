@@ -216,6 +216,12 @@ namespace Scfg.Tests
         public string? Call(string function, string argsJson)
         {
             Calls.Add((function, argsJson));
+            if (function == "openCheckout" || function == "show" || function == "closeCheckout")
+            {
+                var key = ((List<object?>)Json.Loads(argsJson)!)[0] as string ?? "";
+                if (function == "closeCheckout") Shown.Remove(key);
+                else Shown.Add(key);
+            }
             if (Answers.TryGetValue(function, out var q) && q.Count > 0) return q.Dequeue();
             switch (function)
             {
@@ -247,6 +253,33 @@ namespace Scfg.Tests
 
         public void SyncFs() => Syncs++;
         public bool FsPersistent() => Persistent;
+
+        /// <summary>The overlays the page shows: openCheckout and show show one, closeCheckout removes it, Hide hides it.</summary>
+        public readonly HashSet<string> Shown = new HashSet<string>();
+        public int OverlayPolls;
+
+        /// <summary>The page hides the overlay by itself (its close button; bridge.js after a payment).</summary>
+        public void Hide(string key) => Shown.Remove(key);
+
+        public bool OverlayShown()
+        {
+            OverlayPolls++;
+            return Shown.Count > 0;
+        }
+
+        /// <summary>WebGLInput.captureAllKeyboardInput, and every value the package set it to.</summary>
+        public bool Capture = true;
+        public readonly List<bool> CaptureSets = new List<bool>();
+
+        public bool CaptureAllKeyboardInput
+        {
+            get => Capture;
+            set
+            {
+                Capture = value;
+                CaptureSets.Add(value);
+            }
+        }
     }
 
     /// <summary>A browser page that records what the controller asks of it.</summary>

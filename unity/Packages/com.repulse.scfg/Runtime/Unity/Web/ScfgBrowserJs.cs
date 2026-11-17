@@ -26,8 +26,17 @@ namespace Scfg
         /// <summary>Queues a write of persistentDataPath to IndexedDB.</summary>
         void SyncFs();
 
-        /// <summary>Does persistentDataPath outlive the tab (is IndexedDB there)?</summary>
+        /// <summary>Does persistentDataPath outlive the tab (did Unity's IndexedDB database open)?</summary>
         bool FsPersistent();
+
+        /// <summary>Is a checkout overlay shown in the page (an element [data-scfg-overlay] that is not hidden)?</summary>
+        bool OverlayShown();
+
+        /// <summary>
+        /// WebGLInput.captureAllKeyboardInput: the player takes every key of the page (true, Unity's default), or only
+        /// those sent to its canvas while it has focus (false).
+        /// </summary>
+        bool CaptureAllKeyboardInput { get; set; }
     }
 
     /// <summary>The real page (WebGL players only).</summary>
@@ -49,18 +58,28 @@ namespace Scfg
         [DllImport("__Internal")] private static extern string ScfgWebStorage(string op, string key, string value);
         [DllImport("__Internal")] private static extern int ScfgWebSyncFs();
         [DllImport("__Internal")] private static extern int ScfgWebFsPersistent();
+        [DllImport("__Internal")] private static extern int ScfgWebOverlayShown();
 
         public bool Load(string code) => ScfgWebLoad(code) != 0;
         public string? Call(string function, string argsJson) => ScfgWebCall(function, argsJson);
         public string? Storage(string op, string key, string? value) => ScfgWebStorage(op, key, value ?? "");
         public void SyncFs() => ScfgWebSyncFs();
         public bool FsPersistent() => ScfgWebFsPersistent() != 0;
+        public bool OverlayShown() => ScfgWebOverlayShown() != 0;
+
+        public bool CaptureAllKeyboardInput
+        {
+            get => UnityEngine.WebGLInput.captureAllKeyboardInput;
+            set => UnityEngine.WebGLInput.captureAllKeyboardInput = value;
+        }
 #else
         public bool Load(string code) => false;
         public string? Call(string function, string argsJson) => null;
         public string? Storage(string op, string key, string? value) => null;
         public void SyncFs() { }
         public bool FsPersistent() => true;
+        public bool OverlayShown() => false;
+        public bool CaptureAllKeyboardInput { get => true; set { } }
 #endif
     }
 }

@@ -118,11 +118,27 @@ namespace Scfg
 
         // --- checkout overlay (OverlayCheckout's ui) --------------------------------------------------------
 
-        public void Open(string key, JsonObject sessionInfo, string? logoUrl) => CallRaw("openCheckout", key, sessionInfo, logoUrl);
+        private readonly HashSet<string> _overlays = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>How many overlays are open in the page (shown or hidden), so that nobody polls the page without one.</summary>
+        public int OpenOverlays => _overlays.Count;
+
+        public void Open(string key, JsonObject sessionInfo, string? logoUrl)
+        {
+            _overlays.Add(key);
+            CallRaw("openCheckout", key, sessionInfo, logoUrl);
+        }
 
         public void Show(string key) => CallRaw("show", key);
 
-        public void Close(string key) => CallRaw("closeCheckout", key);
+        public void Close(string key)
+        {
+            _overlays.Remove(key);
+            CallRaw("closeCheckout", key);
+        }
+
+        /// <summary>Is one of the overlays shown (not hidden by its close button or after a payment)?</summary>
+        public bool OverlayShown() => _overlays.Count > 0 && _js.OverlayShown();
 
         /// <summary>The messages the overlay's page posted since the last call (a list; an empty one for anything else).</summary>
         public object? Take(string key) => CallParsed("take", key) is List<object?> list ? list : new List<object?>();
