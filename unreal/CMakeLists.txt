@@ -21,9 +21,11 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   endif()
 endif()
 
+# Recursive, as UBT compiles a module and as the lints walk it: a source in any subfolder of the module is compiled
+# by every target below, and a header in any subfolder of Public gets its own header TU.
 set(SCFG_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Plugins/Scfg/Source/ScfgCore)
-file(GLOB SCFG_CORE_SOURCES CONFIGURE_DEPENDS ${SCFG_CORE_DIR}/Private/*.cpp)
-file(GLOB SCFG_CORE_HEADERS CONFIGURE_DEPENDS ${SCFG_CORE_DIR}/Public/Scfg/*.h)
+file(GLOB_RECURSE SCFG_CORE_SOURCES CONFIGURE_DEPENDS ${SCFG_CORE_DIR}/*.cpp)
+file(GLOB_RECURSE SCFG_CORE_HEADERS CONFIGURE_DEPENDS ${SCFG_CORE_DIR}/Public/*.h)
 
 add_library(scfg_core STATIC ${SCFG_CORE_SOURCES})
 target_include_directories(scfg_core PUBLIC ${SCFG_CORE_DIR}/Public)
@@ -32,9 +34,10 @@ target_include_directories(scfg_core PUBLIC ${SCFG_CORE_DIR}/Public)
 # Unreal/Windows macros that break plain C++ defined to poison tokens first.
 set(SCFG_HEADER_TUS)
 foreach(header IN LISTS SCFG_CORE_HEADERS)
-  get_filename_component(stem ${header} NAME_WE)
-  set(tu ${CMAKE_CURRENT_BINARY_DIR}/header-tus/${stem}_h.cpp)
-  file(CONFIGURE OUTPUT ${tu} CONTENT "#include \"Scfg/${stem}.h\"\n")
+  file(RELATIVE_PATH included ${SCFG_CORE_DIR}/Public ${header})  # Scfg/Json.h
+  string(MAKE_C_IDENTIFIER ${included} stem)                       # Scfg_Json_h
+  set(tu ${CMAKE_CURRENT_BINARY_DIR}/header-tus/${stem}.cpp)
+  file(CONFIGURE OUTPUT ${tu} CONTENT "#include \"${included}\"\n")
   list(APPEND SCFG_HEADER_TUS ${tu})
 endforeach()
 add_library(scfg_core_poisoned OBJECT ${SCFG_CORE_SOURCES} ${SCFG_HEADER_TUS})
