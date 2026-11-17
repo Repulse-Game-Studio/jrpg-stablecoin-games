@@ -105,7 +105,14 @@ var ScfgWebLib = {
 
   ScfgWebFsPersistent: function () {
     try {
-      return typeof indexedDB !== 'undefined' && indexedDB ? 1 : 0;
+      if (typeof indexedDB === 'undefined' || !indexedDB) return 0;
+      // Unity's own mount (prejs/IdbFs.js) populates persistentDataPath from IndexedDB before the game starts: that
+      // first sync opens the database, and emscripten's IDBFS caches it in IDBFS.dbs only when the open succeeded. A
+      // browser that has indexedDB but refuses the database (blocked site data, a partitioned third-party iframe, some
+      // private modes) leaves no entry: Unity then only logs "IndexedDB is not available" and runs on memory.
+      var mount = Module.__unityIdbfsMount && Module.__unityIdbfsMount.mount;
+      if (mount && typeof IDBFS !== 'undefined' && IDBFS.dbs) return IDBFS.dbs[mount.mountpoint] ? 1 : 0;
+      return 1; // a page with its own Module.unityFileSystemInit: nothing to tell, so not warned about
     } catch (err) {
       return 0; // a sandboxed iframe can throw on the access itself
     }
