@@ -33,11 +33,15 @@
 // cause, so a PIE viewport (which re-captures only on a mouse focus) gets its capture back too. It gives back what the
 // game wants then (SetMouseWish: the viewport client's capture mode, cursor and lock mode, and the player controller's
 // cursor), not what it recorded, so a game that changed its input mode meanwhile keeps its new one; only without a
-// wish is the recorded state replayed. The lock is recorded and given back with or without a capture (a LockAlways
-// viewport). While it is open and the topmost screen, every Tick takes the mouse and the keyboard focus again when it
-// finds them outside: the engine gives both to the game viewport when the window is activated again (Alt+Tab back
-// from the wallet: FSceneViewport::OnViewportActivated), and so does a SetInputMode(GameOnly) under the sheet. A screen
-// below another never takes them, so two stacked screens do not fight. A screen closing below another hands the mouse
+// wish is the recorded state replayed. Only the game viewport's hold is taken and recorded (the wish names the viewport
+// widget; without one nothing is taken): a capture, given back only if the game still wants one; a lock without a
+// capture only where the viewport always locks (ShouldAlwaysLockMouse), given back as a lock alone. Nothing held at
+// open is never turned into a capture at close. While it is open and the topmost screen over its viewport, every Tick
+// takes the mouse and the keyboard focus back when the game viewport has them (the engine gives both to it when the
+// window is activated again, Alt+Tab back from the wallet: FSceneViewport::OnViewportActivated; and so does a
+// SetInputMode(GameOnly) under the sheet), and the focus when nothing has it. Every other widget keeps its capture
+// and focus (an editor widget in PIE, a game widget or a modal above the sheet, a context menu), and nothing is
+// taken while a modal window is up. A screen below another never takes them, so two stacked screens do not fight. A screen closing below another hands the mouse
 // over with the focus; a game that hid the platform cursor itself (SetPlatformCursorVisibility) is left as it is.
 //
 // FOCUS AND OTHER SCREENS. The focus the game had (every Slate user's) goes back to it when the screen closes
@@ -71,9 +75,13 @@ struct FScfgMouseWish
 {
 	// The viewport's widget (the captor and the lock target); null: unknown, the recorded state is replayed.
 	TSharedPtr<SWidget> Viewport;
+	// The viewport captures (a permanent capture mode, input not ignored), hides the cursor while it does (high
+	// precision), and locks the cursor with its capture.
 	bool bCapture = false;
 	bool bHighPrecision = false;
 	bool bLock = false;
+	// The viewport locks the cursor without a capture too (UGameViewportClient::ShouldAlwaysLockMouse).
+	bool bAlwaysLock = false;
 };
 
 class SCFG_API SScfgScreen : public SCompoundWidget
@@ -263,6 +271,10 @@ private:
 	bool bMouseLocked = false;
 	TOptional<bool> CaptorLocks;
 	TFunction<FScfgMouseWish()> MouseWish;
+	// The wish now (and KnownViewport kept), or none without a wish.
+	TOptional<FScfgMouseWish> CurrentWish();
+	TWeakPtr<SWidget> KnownViewport;
+	bool bCaptureHeld = false;
 	// The open screen drawn over all others (the one that takes the mouse and the focus back).
 	bool IsTopmost() const;
 	// Tick: on top, open, and the mouse capture or the keyboard focus is outside: take them again.

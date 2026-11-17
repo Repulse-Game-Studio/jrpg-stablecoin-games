@@ -20,7 +20,8 @@
 //   rendered frame; the null renderer lays out but nothing scrolls visibly; FocusEntry asks the scroll box).
 // Unreal only: SlateRunsHeadless, EscapeAndGamepadBack, GamepadConfirmAndStick, ToastsFadeInRealTime,
 // WorksWhilePausedAndDilated, TheDefaultHostIsUsedWhenTheGameSetsNone, TheGameInstanceEndsWithASheetOpen,
-// TheMouseIsTheSheetsWhileItIsOpen, ASheetTheGameRemovesCountsAsCancel.
+// TheMouseIsTheSheetsWhileItIsOpen, TheMouseGoesBackAsTheGameWantsItNow, OtherWidgetsKeepTheirMouseAndFocus,
+// ASheetTheGameRemovesCountsAsCancel.
 #include "ScfgSheetTestKit.h"
 
 #include "Blueprint/UserWidget.h"
@@ -1380,15 +1381,101 @@ bool FScfgSheetMouseWishTest::RunTest(const FString& Parameters)
 	{
 		FScfgMouseWish Wish;
 		Wish.Viewport = Game;
+		Wish.bCapture = true;
 		Wish.bLock = true;
+		Wish.bAlwaysLock = true;
 		return Wish;
 	});
 	TestFalse(TEXT("no capture anywhere"), R.MouseCaptor().IsValid());
 	Sheet->OnShown();  // the take again (as on a re-show): the lock it releases is recorded
-	TestTrue(TEXT("the lock is held for the viewport, with no capture"), Sheet->HeldMouseCaptor() == R.Game);
+	TestTrue(TEXT("an always-locking viewport: its lock is held, with no capture"), Sheet->HeldMouseCaptor() == R.Game);
 	R.Key(EKeys::Escape);
 	R.Frame(2);
 	TestFalse(TEXT("given back as a lock only: no capture forced"), R.MouseCaptor().IsValid());
+
+	// B2: the engine's defaults (capture permanently, lock on capture) in a game that held nothing at the open (a
+	// cursor-showing game releases capture and lock on every mouse-up): nothing is taken, nothing is forced at close
+	R.Host->SetMouseWishOverride([Game]()
+	{
+		FScfgMouseWish Wish;
+		Wish.Viewport = Game;
+		Wish.bCapture = true;
+		Wish.bHighPrecision = true;
+		Wish.bLock = true;
+		return Wish;
+	});
+	const TSharedRef<TOptional<FScfgPaymentResult>> Fourth = R.W.Pay(EScfgPayKind::Tip, Tip(TEXT("3.00"), TEXT("USDC")));
+	R.Frame(2);
+	const TSharedPtr<SScfgPaymentSheet> Plain = R.Sheet();
+	if (!TestTrue(TEXT("a fourth sheet"), Plain.IsValid()))
+	{
+		return false;
+	}
+	TestFalse(TEXT("nothing held at the open: nothing recorded"), Plain->HeldMouseCaptor().IsValid());
+	R.Key(EKeys::Escape);
+	R.Frame(2);
+	TestTrue(TEXT("closed"), Fourth->IsSet());
+	TestFalse(TEXT("the default wish turns nothing into a capture at the close"), R.MouseCaptor().IsValid());
+	return true;
+}
+
+// Ruling R2-15, round 3 (B1): the screens take the mouse and the focus back only from the game viewport (or a focus
+// that went nowhere). Another widget (an editor button or field in PIE, a game modal above the sheet, a menu) keeps
+// its capture and its focus, and a capture it held at the open is neither taken nor recorded.
+SCFG_SHEET_TEST(FScfgSheetOthersKeepInputTest, "OtherWidgetsKeepTheirMouseAndFocus")
+
+bool FScfgSheetOthersKeepInputTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSheetTestsDetail;
+	FSheetRig R(*this);
+	if (!R.bReady)
+	{
+		return false;
+	}
+	R.Started(*this);
+	FSlateApplication& App = FSlateApplication::Get();
+	const TSharedRef<SGameSink> Other = SNew(SGameSink);
+	R.Layer->AddSlot(FScfgDefaultSheetHost::ZORDER + 5)[Other];  // above the sheet: a modal, a menu, an editor widget
+	R.Frame();
+	auto Give = [&App, &Other](bool bFocus)
+	{
+		FWidgetPath Path;
+		App.FindPathToWidget(Other, Path);
+		FReply Reply = FReply::Handled().CaptureMouse(Other);
+		if (bFocus)
+		{
+			Reply.SetUserFocus(Other, EFocusCause::SetDirectly);
+		}
+		App.ProcessReply(Path, Reply, nullptr, nullptr, 0);
+	};
+	Give(false);
+	TestTrue(TEXT("another widget holds the capture (a button mid-click)"), R.MouseCaptor() == Other);
+	const TSharedRef<TOptional<FScfgPaymentResult>> Box = R.W.Pay(EScfgPayKind::Tip, Tip(TEXT("3.00"), TEXT("USDC")));
+	R.Frame(2);
+	const TSharedPtr<SScfgPaymentSheet> Sheet = R.Sheet();
+	if (!TestTrue(TEXT("the sheet"), Sheet.IsValid()))
+	{
+		return false;
+	}
+	TestTrue(TEXT("the open leaves its capture alone"), R.MouseCaptor() == Other);
+	TestFalse(TEXT("and records nothing"), Sheet->HeldMouseCaptor().IsValid());
+	Give(true);
+	R.Frame(3);
+	TestTrue(TEXT("a widget above the sheet keeps the focus"), R.Focused() == Other);
+	TestTrue(TEXT("and the capture"), R.MouseCaptor() == Other);
+	R.Key(EKeys::Q);
+	TestTrue(TEXT("and gets the keys"), Other->Got.Contains(TEXT("Q")));
+	TestEqual(TEXT("the sheet did not move"), Sheet->ShownStep(), FString(TEXT("amount")));
+	// it goes away, and the focus with it: the sheet takes the focus that went nowhere
+	App.ReleaseAllPointerCapture(0);
+	R.Layer->RemoveSlot(Other);
+	App.ClearAllUserFocus(EFocusCause::SetDirectly);
+	R.Frame(2);
+	TestTrue(TEXT("a focus that went nowhere comes back to the sheet"), R.FocusInside(*Sheet));
+	R.Key(EKeys::Escape);
+	R.Frame(2);
+	TestTrue(TEXT("closed"), Box->IsSet());
+	TestFalse(TEXT("no capture given to anyone at the close"), R.MouseCaptor().IsValid());
 	return true;
 }
 

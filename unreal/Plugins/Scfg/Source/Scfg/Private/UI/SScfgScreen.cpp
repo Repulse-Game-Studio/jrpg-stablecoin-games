@@ -186,6 +186,17 @@ TArray<TSharedRef<SScfgScreen>> SScfgScreen::OpenScreens()
 	return Out;
 }
 
+TOptional<FScfgMouseWish> SScfgScreen::CurrentWish()
+{
+	if (!MouseWish)
+	{
+		return {};
+	}
+	FScfgMouseWish Wish = MouseWish();
+	KnownViewport = Wish.Viewport;
+	return Wish;
+}
+
 void SScfgScreen::TakeMouse()
 {
 	FSlateApplication& App = FSlateApplication::Get();
@@ -195,41 +206,52 @@ void SScfgScreen::TakeMouse()
 	{
 		return;
 	}
-	const TSharedPtr<SWidget> Captor = User->HasCursorCapture() ? User->GetCursorCaptor() : nullptr;
-	const TOptional<FScfgMouseWish> Wish = MouseWish ? TOptional<FScfgMouseWish>(MouseWish()) : TOptional<FScfgMouseWish>();
-	if (Captor.IsValid() && !ScfgScreenDetail::IsInside(Captor.ToSharedRef(), AsShared()))
+	// Only the game viewport's hold is taken (and recorded): any other widget's capture (an editor button in PIE, a
+	// game widget above the sheet, a menu) is left alone.
+	const TOptional<FScfgMouseWish> Wish = CurrentWish();
+	const TSharedPtr<SWidget> Viewport = Wish.IsSet() ? Wish->Viewport : nullptr;
+	if (!Viewport.IsValid())
+	{
+		return;
+	}
+	const bool bViewportCaptures = User->HasCursorCapture() && User->GetCursorCaptor() == Viewport;
+	if (bViewportCaptures)
 	{
 		const TSharedPtr<GenericApplication> Platform = App.GetPlatformApplication();
-		MouseCaptor = Captor;
 		bMouseHeld = true;
+		bCaptureHeld = true;
 		bMouseHighPrecision = Platform.IsValid() && Platform->IsUsingHighPrecisionMouseMode();
-		bMouseLocked = bMouseLocked || CaptorLocks.Get(bMouseHighPrecision);
+		bMouseLocked = bMouseLocked || CaptorLocks.Get(bMouseHighPrecision) || Wish->bAlwaysLock;
+		MouseCaptor = Viewport;
 	}
-	// A cursor locked without a capture (a LockAlways viewport): released below, so given back too.
-	if (Wish.IsSet() && Wish->bLock && Wish->Viewport.IsValid())
+	else if (Wish->bAlwaysLock)
 	{
+		// a cursor locked without a capture (LockAlways, LockInFullscreen in exclusive fullscreen): only the lock
 		bMouseHeld = true;
 		bMouseLocked = true;
-		if (!MouseCaptor.IsValid())
-		{
-			MouseCaptor = Wish->Viewport;
-		}
+		MouseCaptor = Viewport;
+	}
+	else
+	{
+		return;  // nothing of the viewport's is held: nothing to release, nothing to give back
 	}
 	// The reply releases the capture, high-precision mode and the cursor lock as an event would (SlateApplication.cpp's
 	// ProcessReply); on a path to this screen, which is on top of the viewport now.
+	FReply Release = FReply::Handled().ReleaseMouseLock();
+	if (bViewportCaptures)
+	{
+		Release.ReleaseMouseCapture();
+	}
 	FWidgetPath Path;
 	if (!App.FindPathToWidget(AsShared(), Path) || !Path.IsValid())
 	{
-		if (Captor.IsValid())
-		{
-			App.FindPathToWidget(Captor.ToSharedRef(), Path);
-		}
+		App.FindPathToWidget(Viewport.ToSharedRef(), Path);
 	}
 	if (Path.IsValid())
 	{
-		App.ProcessReply(Path, FReply::Handled().ReleaseMouseCapture().ReleaseMouseLock(), nullptr, nullptr, MouseUser);
+		App.ProcessReply(Path, Release, nullptr, nullptr, MouseUser);
 	}
-	else
+	else if (bViewportCaptures)
 	{
 		App.ReleaseAllPointerCapture(MouseUser);
 	}
@@ -241,32 +263,30 @@ void SScfgScreen::GiveMouseBack()
 	{
 		return;
 	}
+	const bool bHadCapture = bCaptureHeld;
 	bMouseHeld = false;
+	bCaptureHeld = false;
 	TSharedPtr<SWidget> Target = MouseCaptor.Pin();
 	MouseCaptor.Reset();
 	const bool bLockedWhenTaken = bMouseLocked;
 	bMouseLocked = false;
-	// What the game wants now, if its viewport can say (it may have changed its input mode while the screen was open);
-	// else what was recorded.
-	bool bCapture = Target.IsValid();
+	// What the game wants now (it may have changed its input mode while the screen was open), within what was taken:
+	// a capture only where one was taken, a lock alone only where one was.
+	bool bCapture = bHadCapture;
 	bool bHighPrecision = bMouseHighPrecision;
 	bool bLock = bLockedWhenTaken;
-	if (MouseWish)
+	if (const TOptional<FScfgMouseWish> Wish = CurrentWish(); Wish.IsSet() && Wish->Viewport.IsValid())
 	{
-		const FScfgMouseWish Wish = MouseWish();
-		if (Wish.Viewport.IsValid() && (!Target.IsValid() || Target == Wish.Viewport))
-		{
-			Target = Wish.Viewport;
-			bCapture = Wish.bCapture;
-			bHighPrecision = Wish.bHighPrecision;
-			bLock = Wish.bLock;
-		}
+		Target = Wish->Viewport;
+		bCapture = bHadCapture && Wish->bCapture;
+		bHighPrecision = Wish->bHighPrecision;
+		bLock = (bCapture && Wish->bLock) || Wish->bAlwaysLock;
 	}
 	FSlateApplication& App = FSlateApplication::Get();
 	FWidgetPath Path;
 	if (!Target.IsValid() || (!bCapture && !bLock) || !App.FindPathToWidget(Target.ToSharedRef(), Path) || !Path.IsValid())
 	{
-		return;  // the game wants neither now, or its widget is gone (the level changed)
+		return;  // the game wants neither now, or its viewport is gone
 	}
 	FReply Reply = FReply::Handled();
 	if (bCapture && bHighPrecision)
@@ -460,10 +480,12 @@ void SScfgScreen::Tick(const FGeometry& AllottedGeometry, const double InCurrent
 
 bool SScfgScreen::IsTopmost() const
 {
+	// among the open screens over the same game viewport (another PIE client's sheet is not above this one)
+	const TSharedPtr<SWidget> Mine = KnownViewport.Pin();
 	const TArray<TSharedRef<SScfgScreen>> Open = OpenScreens();
 	for (int32 I = Open.Num() - 1; I >= 0; --I)
 	{
-		if (!Open[I]->bEnded)
+		if (!Open[I]->bEnded && Open[I]->KnownViewport.Pin() == Mine)
 		{
 			return &Open[I].Get() == this;
 		}
@@ -473,20 +495,36 @@ bool SScfgScreen::IsTopmost() const
 
 void SScfgScreen::KeepInput()
 {
-	if (bEnded || !FSlateApplication::IsInitialized() || !IsOpen() || !IsTopmost())
+	if (bEnded || !FSlateApplication::IsInitialized() || !IsOpen())
 	{
 		return;
 	}
 	FSlateApplication& App = FSlateApplication::Get();
-	const TSharedPtr<FSlateUser> Mouse = App.GetUser(App.GetUserIndexForMouse());
-	const TSharedPtr<SWidget> Captor = Mouse.IsValid() && Mouse->HasCursorCapture() ? Mouse->GetCursorCaptor() : nullptr;
-	if (Captor.IsValid() && !ScfgScreenDetail::IsInside(Captor.ToSharedRef(), AsShared()))
+	if (App.GetActiveModalWindow().IsValid())
 	{
-		TakeMouse();  // the game viewport captured again (window activated, SetInputMode under the sheet)
+		return;  // an engine or editor modal window owns the input (and would refuse the focus)
+	}
+	const TOptional<FScfgMouseWish> Wish = CurrentWish();
+	const TSharedPtr<SWidget> Viewport = Wish.IsSet() ? Wish->Viewport : nullptr;
+	if (!IsTopmost())
+	{
+		return;
+	}
+	// Only what the game viewport took back (the window activated again, SetInputMode(GameOnly) under the sheet), or a
+	// focus that went nowhere: every other widget (an editor widget in PIE, a game widget or a modal above the sheet,
+	// a context menu) keeps its capture and its focus.
+	const TSharedPtr<FSlateUser> Mouse = App.GetUser(App.GetUserIndexForMouse());
+	if (Viewport.IsValid() && Mouse.IsValid() && Mouse->HasCursorCapture() && Mouse->GetCursorCaptor() == Viewport)
+	{
+		TakeMouse();
 	}
 	if (!HasFocusWithin(0) && !bFocusPending)
 	{
-		FocusKeyOrPrimary(CurrentKey);
+		const TSharedPtr<SWidget> Focused = App.GetUserFocusedWidget(0);
+		if (!Focused.IsValid() || (Viewport.IsValid() && Focused == Viewport))
+		{
+			FocusKeyOrPrimary(CurrentKey);
+		}
 	}
 }
 

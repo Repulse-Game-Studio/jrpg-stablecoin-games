@@ -26,7 +26,7 @@ namespace ScfgDefaultSheetHostDetail
 // What Client's viewport wants of the mouse now: FSceneViewport::AcquireFocusAndCapture's rules (SceneViewport.cpp:
 // 731-790, OnFocusReceived :1419-1437): a permanent capture mode and input not ignored capture, with a player
 // controller (or in PIE); hidden (high precision) unless the controller shows the cursor and the client does not hide
-// it during capture; locked with the capture by the lock mode, or always.
+// it during capture; locked with the capture by the lock mode (bLock), or always (bAlwaysLock).
 TFunction<FScfgMouseWish()> WishOf(UGameViewportClient* Client, TWeakObjectPtr<UGameInstance> GameInstance)
 {
 	TWeakObjectPtr<UGameViewportClient> Weak(Client);
@@ -47,7 +47,8 @@ TFunction<FScfgMouseWish()> WishOf(UGameViewportClient* Client, TWeakObjectPtr<U
 			(Mode == EMouseCaptureMode::CapturePermanently || Mode == EMouseCaptureMode::CapturePermanently_IncludingInitialMouseDown);
 		const bool bShowsCursor = PC && PC->ShouldShowMouseCursor();
 		Wish.bHighPrecision = Wish.bCapture && (!bShowsCursor || C->HideCursorDuringCapture());
-		Wish.bLock = (Wish.bCapture && C->LockDuringCapture()) || C->ShouldAlwaysLockMouse();
+		Wish.bLock = Wish.bCapture && C->LockDuringCapture();
+		Wish.bAlwaysLock = C->ShouldAlwaysLockMouse();
 		return Wish;
 	};
 }
@@ -117,7 +118,7 @@ TSharedPtr<FScfgScreen> FScfgDefaultSheetHost::Show(const TSharedRef<SScfgScreen
 	Widget->BindScreen(Handle);
 	// the viewport locks the cursor with its capture unless its lock mode says not to: given back so on close
 	Widget->SetMouseLockHint(Client->LockDuringCapture());
-	Widget->SetMouseWish(ScfgDefaultSheetHostDetail::WishOf(Client, GameInstance));
+	Widget->SetMouseWish(MouseWishOverride ? MouseWishOverride : ScfgDefaultSheetHostDetail::WishOf(Client, GameInstance));
 	Client->AddViewportWidgetContent(Widget, ZORDER);
 	Shown.Add(FShown{Handle, Widget, Client});
 	Widget->OnShown();

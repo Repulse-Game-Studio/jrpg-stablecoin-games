@@ -84,6 +84,16 @@ FSheetRig::FSheetRig(FAutomationTestBase& Test, FVector2D Size)
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	Instance->GetWorldContext()->GameViewport = Viewport.Get();
 	Host = MakeShared<FScfgDefaultSheetHost>(Instance.Get());
+	// The test viewport client has no SViewport: "the game's widget" stands for it (what the screens take the mouse
+	// and the focus back from), a game that captures the mouse while it has it.
+	TWeakPtr<SWidget> WeakGame = Game;
+	Host->SetMouseWishOverride([WeakGame]()
+	{
+		FScfgMouseWish Wish;
+		Wish.Viewport = WeakGame.Pin();
+		Wish.bCapture = true;
+		return Wish;
+	});
 	Frame();
 	FWidgetPath Path;
 	App.FindPathToWidget(Game.ToSharedRef(), Path);

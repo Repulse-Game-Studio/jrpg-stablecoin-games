@@ -9,7 +9,7 @@
 // viewport of a real game instance (InitializeStandalone); the plugin's FScfgDefaultSheetHost on that instance, so the
 // screens go through UGameViewportClient::AddViewportWidgetContent as in a game; the facade of FWorld (fake nodes,
 // fake platform) with that host as its default host and no game host; and a focusable widget of "the game" behind the
-// sheet that records every key it gets.
+// sheet that records every key it gets and stands for the game viewport widget (the host's mouse wish names it).
 #pragma once
 
 #include "CoreMinimal.h"

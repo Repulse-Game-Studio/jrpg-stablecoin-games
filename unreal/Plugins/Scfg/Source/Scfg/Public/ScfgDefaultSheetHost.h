@@ -57,6 +57,9 @@ public:
 	virtual void Notify(const FString& Text) override;
 
 	void SetStyleOverride(TSharedPtr<const ISlateStyle> InOverride) { StyleOverride = MoveTemp(InOverride); }
+	// What the screens take as the game viewport's wish for the mouse (default: read from the game viewport client,
+	// ScfgDefaultSheetHostDetail::WishOf). For a game that draws its world in a widget of its own, and for the tests.
+	void SetMouseWishOverride(TFunction<FScfgMouseWish()> InWish) { MouseWishOverride = MoveTemp(InWish); }
 
 	// The screens shown, oldest first, and their widgets (SScfgPaymentSheet / SScfgRestoreScreen): what tests and the
 	// e2e driver read.
@@ -91,6 +94,7 @@ private:
 
 	TWeakObjectPtr<UGameInstance> GameInstance;
 	TSharedPtr<const ISlateStyle> StyleOverride;
+	TFunction<FScfgMouseWish()> MouseWishOverride;
 	TArray<FShown> Shown;
 	TArray<FToast> Toasts;
 	void EnsureTicking();
