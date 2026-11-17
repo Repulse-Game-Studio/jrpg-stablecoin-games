@@ -1587,11 +1587,12 @@ bool FScfgSheetFirstInputTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Task 8 re-review N1 (a supported state): an open sheet the game stops drawing (it collapsed the sheet, its
-// UScfgSheetWidget or an ancestor, without closing the flow) is neither painted nor ticked, and the input guard leaves
-// the game's mouse and focus alone too; drawn again, the sheet takes them back. A UMG sheet the game collapses is
-// hidden by the widget's own check (off every window as far as the visible paths go): the focus goes back, the flow
-// still waits, and it is shown again once it is painted.
+// Task 8 re-review N1 (a supported state) and task 9 review I1 (ruling R2-18): an open sheet the game stops drawing
+// (it collapsed the sheet, or its UScfgSheetWidget, an ancestor of the Slate screen, without closing the flow) leaves
+// the game's mouse, focus, keys and clicks alone from the moment it is hidden: with no frame, one frame and three
+// frames between the hide and the input, in the default host and in a UMG host. Drawn again, the sheet takes them
+// back. A UMG sheet the game collapses is also hidden by the widget's own check (no visible path to it): the focus
+// goes back, the flow still waits, and it is shown again once it is painted.
 SCFG_SHEET_TEST(FScfgSheetNotDrawnTest, "AnOpenSheetThatIsNotDrawnLeavesTheInputAlone")
 
 bool FScfgSheetNotDrawnTest::RunTest(const FString& Parameters)
@@ -1622,22 +1623,37 @@ bool FScfgSheetNotDrawnTest::RunTest(const FString& Parameters)
 		App.ProcessReply(Path, FReply::Handled().SetUserFocus(R.Game.ToSharedRef(), EFocusCause::SetDirectly)
 			.CaptureMouse(R.Game.ToSharedRef()), nullptr, nullptr, 0);
 	};
-	Sheet->SetVisibility(EVisibility::Collapsed);
-	R.Frame(3);
-	TestTrue(TEXT("not drawn: still open, the flow waiting"), Sheet->IsOpen() && !Box->IsSet());
-	GameTakesItsInput();
-	R.Game->Got.Reset();
-	R.Key(EKeys::W);
-	TestTrue(TEXT("a key: the game keeps its capture"), R.MouseCaptor() == R.Game);
-	TestTrue(TEXT("and its focus"), R.Focused() == R.Game);
-	R.Click(R.Game.ToSharedRef());
-	TestTrue(TEXT("a click: the game keeps its capture"), R.MouseCaptor() == R.Game);
-	TestEqual(TEXT("the key and the click are the game's"), FString::Join(R.Game->Got, TEXT(",")),
-		FString(TEXT("W,mouse down,mouse up")));
-	Sheet->SetVisibility(EVisibility::Visible);
-	R.Frame(2);
-	TestTrue(TEXT("drawn again: the sheet has the focus"), R.FocusInside(*Sheet));
-	TestTrue(TEXT("and the mouse"), R.MouseCaptor() != R.Game);
+	// Hidden, then Frames frames, then the game's input: a key and a click are the game's, which keeps its capture
+	// and focus; shown again, the sheet takes both back within two frames.
+	auto HiddenLeavesTheInput = [&](const FString& Where, const SScfgScreen& Screen, TFunction<void(bool)> SetShown,
+		int32 Frames)
+	{
+		const FString At = FString::Printf(TEXT("%s, %d frame(s) after the hide"), *Where, Frames);
+		SetShown(false);
+		R.Frame(Frames);
+		TestTrue(At + TEXT(": still open"), Screen.IsOpen());
+		GameTakesItsInput();
+		R.Game->Got.Reset();
+		R.Key(EKeys::W);
+		TestTrue(At + TEXT(": a key leaves the game its capture"), R.MouseCaptor() == R.Game);
+		TestTrue(At + TEXT(": and its focus"), R.Focused() == R.Game);
+		R.Click(R.Game.ToSharedRef());
+		TestTrue(At + TEXT(": a click leaves the game its capture"), R.MouseCaptor() == R.Game);
+		TestEqual(At + TEXT(": the key and the click are the game's"), FString::Join(R.Game->Got, TEXT(",")),
+			FString(TEXT("W,mouse down,mouse up")));
+		SetShown(true);
+		R.Frame(2);
+		TestTrue(At + TEXT(": drawn again, the sheet has the focus"), R.FocusInside(Screen));
+		TestTrue(At + TEXT(": and the mouse"), R.MouseCaptor() != R.Game);
+	};
+	for (const int32 Frames : {0, 1, 3})
+	{
+		HiddenLeavesTheInput(TEXT("default host"), *Sheet, [&Sheet](bool bShown)
+		{
+			Sheet->SetVisibility(bShown ? EVisibility::Visible : EVisibility::Collapsed);
+		}, Frames);
+	}
+	TestTrue(TEXT("default host: the flow still waits"), !Box->IsSet());
 	R.Game->Got.Reset();
 	GameTakesItsInput();
 	R.Key(EKeys::W);  // in the same pump: the guard acts again for a drawn sheet
@@ -1648,7 +1664,7 @@ bool FScfgSheetNotDrawnTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Escape cancels"), Box->IsSet() && (*Box)->Status == EScfgPaymentStatus::Cancelled);
 	TestTrue(TEXT("closing gave the capture back to the game"), R.MouseCaptor() == R.Game);
 
-	// A UMG host collapsing its widget.
+	// A UMG host collapsing its widget (the Slate screen's ancestor).
 	const TSharedRef<FUmgHost> Host = MakeShared<FUmgHost>();
 	Host->Rig = &R;
 	S.SheetHost = Host;
@@ -1659,14 +1675,32 @@ bool FScfgSheetNotDrawnTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	Host->Widget->SetVisibility(ESlateVisibility::Collapsed);
+	// The rig's viewport client has no SViewport: name the game's widget as the viewport, as the default host's
+	// override does, so the UMG sheet takes the game's capture too.
+	TWeakPtr<SWidget> WeakGame = R.Game;
+	Screen->SetMouseWish([WeakGame]()
+	{
+		FScfgMouseWish Wish;
+		Wish.Viewport = WeakGame.Pin();
+		Wish.bCapture = true;
+		return Wish;
+	});
 	R.Frame(2);
+	TestTrue(TEXT("UMG: the sheet took the game's capture"), R.MouseCaptor() != R.Game);
+	for (const int32 Frames : {0, 1, 3})
+	{
+		HiddenLeavesTheInput(TEXT("UMG"), *Screen, [&Host](bool bShown)
+		{
+			Host->Widget->SetVisibility(bShown ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		}, Frames);
+	}
+	Host->Widget->SetVisibility(ESlateVisibility::Collapsed);
+	R.Frame(1);
 	GameTakesItsInput();
-	R.Key(EKeys::W);
-	TestTrue(TEXT("UMG collapsed: the game keeps its focus"), R.Focused() == R.Game);
 	FTSTicker::GetCoreTicker().Tick(0.f);  // the widget's check
 	TestFalse(TEXT("UMG collapsed: hidden by the widget's check"), Screen->IsOpen());
 	TestTrue(TEXT("UMG collapsed: the focus is still the game's"), R.Focused() == R.Game);
+	TestTrue(TEXT("UMG collapsed: and the capture"), R.MouseCaptor() == R.Game);
 	TestFalse(TEXT("UMG collapsed: the flow still waits"), Second->IsSet());
 	Host->Widget->SetVisibility(ESlateVisibility::Visible);
 	R.Frame(2);

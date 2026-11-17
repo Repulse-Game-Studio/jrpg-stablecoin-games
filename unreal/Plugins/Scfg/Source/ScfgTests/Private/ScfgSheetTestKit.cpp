@@ -170,9 +170,6 @@ void FSheetRig::Frame(int32 N, float Dt)
 		FSlateWindowElementList Elements(Window);
 		Window->Paint(Args, FGeometry::MakeRoot(Size, FSlateLayoutTransform()), FSlateRect(FVector2f::ZeroVector, Size),
 			Elements, 0, FWidgetStyle(), true);
-		// The engine counts a frame after Slate drew it (FEngineLoop::Tick); the screens' input guard reads it to know
-		// which screens were drawn lately.
-		++GFrameCounter;
 	}
 }
 

@@ -31,7 +31,7 @@ static TArray<TWeakPtr<SScfgScreen>>& Registry()
 	return Open;
 }
 
-// While a screen is open: before Slate routes a mouse button or a key, the topmost screen, if it was drawn lately,
+// While a screen is open: before Slate routes a mouse button or a key, the topmost screen, if it is drawn now,
 // takes back what the game viewport took since its last tick. The engine gives the viewport the focus and the mouse
 // when the window is activated again (FSceneViewport::OnViewportActivated) in the same message pump as the input that
 // activated it (on Linux a mouse button activates the application, FLinuxApplication), so without this that click or
@@ -199,20 +199,28 @@ void SScfgScreen::KeepTopmostInput()
 {
 	for (const TSharedRef<SScfgScreen>& Screen : OpenScreens())
 	{
-		// only the topmost open screen over its viewport acts (IsTopmost), and only one that is drawn: a screen the
-		// game stopped drawing (it collapsed the screen, its UScfgSheetWidget or an ancestor) is not ticked either
-		if (Screen->PaintedRecently())
+		// only the topmost open screen over its viewport acts (IsTopmost), and only one that is drawn now: a screen
+		// the game stopped drawing (it collapsed or hid the screen, its UScfgSheetWidget or an ancestor, or switched
+		// it out) is not ticked either, so its tick would not take anything back
+		if (Screen->IsDrawnNow())
 		{
 			Screen->KeepInput();
 		}
 	}
 }
 
-bool SScfgScreen::PaintedRecently() const
+bool SScfgScreen::IsDrawnNow() const
 {
-	// FEngineLoop::Tick pumps the input, draws Slate, then counts the frame: a screen drawn every frame was painted at
-	// most one count ago when an input comes in; two give one frame of slack (a frame the engine drew no Slate in).
-	return bPainted && GFrameCounter - LastPaintFrame <= 2;
+	// Painted once, and a visible path leads to it now: FindPathToWidget's default filter (EVisibility::Visible) has
+	// no path through a collapsed or hidden widget, and arranges only what each panel shows (a widget switcher's
+	// active child), so this holds from the moment the game hides the screen, before any frame is drawn, and whatever
+	// the frame rate or how often the screen is painted (a retainer box drawing it every few frames).
+	if (!bPainted || !FSlateApplication::IsInitialized())
+	{
+		return false;
+	}
+	FWidgetPath Path;
+	return FSlateApplication::Get().FindPathToWidget(AsShared(), Path) && Path.IsValid();
 }
 
 void SScfgScreen::ConstructScreen(const TSharedRef<FScfgStyle>& InStyle)
@@ -559,9 +567,7 @@ void SScfgScreen::Refresh()
 void SScfgScreen::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
-	// Slate ticks a widget only as it paints it
-	bPainted = true;
-	LastPaintFrame = GFrameCounter;
+	bPainted = true;  // Slate ticks a widget as it paints it
 	LastSize = FVector2D(AllottedGeometry.GetLocalSize());
 	if (bShowWhenPainted && !bEnded && !IsOpen())
 	{
