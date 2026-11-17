@@ -167,6 +167,14 @@ TArray<FString> NamesOf(const FAutomationTestBase& Test)
 	return Names;
 }
 
+// Names holds Name exactly. TArray<FString>::Contains compares with FString's operator==, which ignores case, where
+// the CMake twin (and a case-sensitive file system) tells "Amounts" from "amounts".
+bool HasExactly(const TArray<FString>& Names, const FString& Name)
+{
+	return Names.ContainsByPredicate(
+		[&Name](const FString& Each) { return Each.Equals(Name, ESearchCase::CaseSensitive); });
+}
+
 }  // namespace ScfgCoreAutomation
 
 IMPLEMENT_COMPLEX_AUTOMATION_TEST(FScfgCoreTier1Test, "Scfg.Core.Tier1",
@@ -288,14 +296,14 @@ bool FScfgCoreNothingLeftOutTest::RunTest(const FString& Parameters)
 		Got.Sort();
 		for (const FString& Name : Want)
 		{
-			if (!Got.Contains(Name))
+			if (!HasExactly(Got, Name))
 			{
 				AddError(FString::Printf(TEXT("%s has no test (its vector file is not listed)"), *Name));
 			}
 		}
 		for (const FString& Name : Got)
 		{
-			if (!Want.Contains(Name))
+			if (!HasExactly(Want, Name))
 			{
 				AddError(FString::Printf(TEXT("%s has no vector file"), *Name));
 			}
@@ -316,7 +324,8 @@ bool FScfgCoreNothingLeftOutTest::RunTest(const FString& Parameters)
 	}
 	for (const std::string& Name : Registry.topics)
 	{
-		TestTrue(*Text("SCFG_TIER1_TOPIC(" + Name + ") has its tier1/" + Name + ".json"), Topics.Contains(Text(Name)));
+		TestTrue(*Text("SCFG_TIER1_TOPIC(" + Name + ") has its tier1/" + Name + ".json"),
+			HasExactly(Topics, Text(Name)));
 	}
 	return true;
 }

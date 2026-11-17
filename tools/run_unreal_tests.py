@@ -13,8 +13,8 @@ of ours. Then runs
         -notraceserver -NoZenAutoLaunch -ddc=<graph without ZenLocal>
         -ReportExportPath=<report dir>
 
-in a session of its own under --timeout (default 1800 s; on expiry, or on a SIGTERM or SIGINT to
-this script, every process of the session is killed), passing its output through.
+in a session of its own under --timeout (default 1800 s; on expiry, or on a SIGTERM, SIGINT or
+SIGHUP to this script, every process of the session is killed), passing its output through.
 
 What the flags keep off the network: -notraceserver keeps the editor from forking an
 UnrealTraceServer daemon (Core's TraceAuxiliary.cpp:2365). -NoZenAutoLaunch

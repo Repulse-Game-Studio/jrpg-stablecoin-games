@@ -202,6 +202,8 @@ def test_a_game_build_that_links_no_test_module_is_green(tmp_path, scratch_proje
 @pytest.mark.parametrize("text, why", [
     (GAME_OBJECTS + '"/p/Intermediate/External/Build/Linux/x64/UnrealGame/Shipping/ScfgCoreTests/'
                     'Module.ScfgCoreTests.cpp.o"\n', "links the test-only module ScfgCoreTests"),
+    (GAME_OBJECTS + '"/p/Intermediate/External/Build/Linux/x64/UnrealGame/Shipping/ScfgTests/'
+                    'Module.ScfgTests.cpp.o"\n', "links the test-only module ScfgTests"),
     ('"/p/ScfgDev/ScfgDev.cpp.o"\n', "links no ScfgCore object"),
     (None, "no link inputs of ScfgDev-Linux-Shipping"),
 ])
@@ -222,7 +224,7 @@ def test_a_development_game_is_checked_too(tmp_path, capsys, scratch_project):
     assert "test-only module ScfgCoreTests" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT])
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT, signal.SIGHUP])
 def test_a_signal_to_the_wrapper_kills_the_build_and_exits(tmp_path, sig):
     # an outer `timeout` or a Ctrl-C must not leave UBT (or a compiler it started) running
     pids = tmp_path / "pids"
@@ -246,6 +248,35 @@ def test_a_signal_to_the_wrapper_kills_the_build_and_exits(tmp_path, sig):
     deadline = time.monotonic() + 5
     while alive(child):
         assert time.monotonic() < deadline, "the build's child survived the signal"
+        time.sleep(0.05)
+
+
+@pytest.mark.parametrize("when", ["before the fork", "after the fork"])
+def test_a_signal_while_the_child_starts_still_kills_it(tmp_path, monkeypatch, when):
+    # the handlers are in before Popen: a signal before the child exists, or after the fork but
+    # before run_streamed knows the child, is acted on once it is known (the old code took the
+    # default action there: a KeyboardInterrupt for SIGINT, and the child was orphaned)
+    real = subprocess.Popen
+    started = []
+
+    def popen(*args, **kwargs):
+        if when == "before the fork":
+            os.kill(os.getpid(), signal.SIGINT)
+        child = real(*args, **kwargs)
+        started.append(child)
+        if when == "after the fork":
+            os.kill(os.getpid(), signal.SIGINT)
+        return child
+
+    monkeypatch.setattr(run_unreal_build.subprocess, "Popen", popen)
+    before = signal.getsignal(signal.SIGINT)
+    with pytest.raises(SystemExit) as exc:
+        run_unreal_build.run_streamed([sys.executable, "-c", "import time; time.sleep(60)"], 30)
+    assert exc.value.code == 128 + signal.SIGINT
+    assert signal.getsignal(signal.SIGINT) is before   # restored
+    deadline = time.monotonic() + 5
+    while alive(started[0].pid) and started[0].poll() is None:
+        assert time.monotonic() < deadline, "the child survived the signal"
         time.sleep(0.05)
 
 

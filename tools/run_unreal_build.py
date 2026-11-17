@@ -19,7 +19,8 @@ killed, even when Build.sh itself has already exited and only a descendant is le
 build plan of the target (Intermediate/Build/<platform>/*/<target>/<config>/Makefile.bin) is deleted
 first, since UBT would reuse it even after a changed .uplugin or -DisableUnity (drop_makefile). A
 game target (not *Editor) fails too when its link inputs hold a test-only module
-(game_link_problem). SIGTERM or SIGINT kills UBT's process group before the wrapper exits.
+(game_link_problem). SIGTERM, SIGINT or SIGHUP kills UBT's process group before the wrapper
+exits.
 """
 
 from __future__ import annotations
@@ -39,6 +40,8 @@ DEFAULT_ENGINE = "/mnt/files/UnrealEngine"
 DEFAULT_PROJECT = ROOT / "unreal" / "Project" / "ScfgDev" / "ScfgDev.uproject"
 DEFAULT_TIMEOUT = 3600.0
 KILL_GRACE = 5.0   # seconds the output may take to close after the kill
+# Kill the child's group and exit on these: an outer `timeout`, a Ctrl-C, a closed terminal or ssh.
+SIGNALS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
 DIAGNOSTIC = re.compile(r"\b(warning|error)\b(\s+[A-Z]+\d+)?\s*:", re.IGNORECASE)
 # clang/gcc `path:line[:col]: warning:` and MSVC `path(line[,col]): warning C4251:`
 LOCATED = re.compile(r"^\s*(?P<path>[^\s:(][^:(]*?)(:\d+(:\d+)?|\(\d+(,\d+)?\))\s*:")
@@ -99,18 +102,49 @@ def run_streamed(cmd: list[str], timeout: float, log_path: str | None = None,
     every process of its group was killed. linger None: the run lasts until every holder of the
     output has closed it (a UBT compiler left behind is still the build). A number: the run ends
     when cmd exits, and the output is read for at most `linger` more seconds (an editor's detached
-    helper may keep it open); the log is closed then all the same. A SIGTERM or SIGINT to this
-    process kills cmd's whole group too, and then exits with 128 + the signal number (an outer
+    helper may keep it open); the log is closed then all the same. A SIGTERM, SIGINT or SIGHUP to
+    this process kills cmd's whole group too, and then exits with 128 + the signal number (an outer
     `timeout`, a Ctrl-C), so no editor or compiler of ours is left behind. Raises OSError when
     cmd cannot be started.
     """
     deadline = time.monotonic() + timeout
-    # A session of its own: a timeout kills cmd's children (UBT's dotnet, compilers), nothing else.
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                            errors="replace", start_new_session=True)
-    lines: list[str] = []
+    # The handlers go in before the child is started, so no signal can orphan it. They read the
+    # child from this cell: while it is empty there is nothing to kill yet, and a signal that
+    # lands then (or between the fork and the assignment) is acted on as soon as the child is
+    # known.
+    cell: dict[str, subprocess.Popen | int | None] = {"proc": None, "pending": None}
+
+    def stop(signum):
+        proc_ = cell["proc"]
+        kill_group(proc_.pid)
+        print(f"{Path(sys.argv[0]).name}: signal {signum}: killed the process group of "
+              f"{cmd[0]} (pid {proc_.pid})", file=sys.stderr, flush=True)
+        raise SystemExit(128 + signum)
+
+    def on_signal(signum, _frame):
+        if cell["proc"] is None:
+            cell["pending"] = signum
+            return
+        stop(signum)
+
     log = open(log_path, "w", encoding="utf-8") if log_path else None
     log_lock = threading.Lock()   # the pump writes, the main thread closes
+    previous = {}
+    if threading.current_thread() is threading.main_thread():
+        for sig in SIGNALS:
+            previous[sig] = signal.signal(sig, on_signal)
+    try:
+        # A session of its own: a timeout kills cmd's children (UBT's dotnet, compilers) only.
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                errors="replace", start_new_session=True)
+    except BaseException:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+        if log:
+            log.close()
+        raise
+    cell["proc"] = proc
+    lines: list[str] = []
 
     def pump():
         # Ends when every process holding the pipe has closed it, which may be after cmd exits: so
@@ -124,20 +158,12 @@ def run_streamed(cmd: list[str], timeout: float, log_path: str | None = None,
                     log.flush()   # a log someone tails shows progress too
             lines.append(line)
 
-    def on_signal(signum, _frame):
-        kill_group(proc.pid)
-        print(f"{Path(sys.argv[0]).name}: signal {signum}: killed the process group of "
-              f"{cmd[0]} (pid {proc.pid})", file=sys.stderr, flush=True)
-        raise SystemExit(128 + signum)
-
-    previous = {}
-    if threading.current_thread() is threading.main_thread():
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            previous[sig] = signal.signal(sig, on_signal)
     reader = threading.Thread(target=pump, daemon=True)
-    reader.start()
     returncode = None
     try:
+        if cell["pending"] is not None:
+            stop(cell["pending"])
+        reader.start()
         if linger is None:
             reader.join(max(0.0, deadline - time.monotonic()))
             timed_out = reader.is_alive()
@@ -196,7 +222,7 @@ def drop_makefile(project: Path, target: str, platform: str, config: str) -> lis
 
 
 # Modules that must never be linked into a game (Scfg.uplugin: UncookedOnly), and one that must.
-UNCOOKED_ONLY = ("ScfgCoreTests",)
+UNCOOKED_ONLY = ("ScfgCoreTests", "ScfgTests")
 SHIPPED = "ScfgCore"
 
 

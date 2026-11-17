@@ -8,6 +8,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 TOOL = Path(__file__).resolve().parents[2] / "tools" / "run_unreal_tests.py"
 spec = importlib.util.spec_from_file_location("run_unreal_tests", TOOL)
 run_unreal_tests = importlib.util.module_from_spec(spec)
@@ -243,7 +245,8 @@ def test_the_vectors_read_are_printed_and_where_they_came_from(tmp_path, capsys,
     assert "the tests read the vectors in /stale/copy ($SCFG_VECTORS)" in out
 
 
-def test_a_signal_to_the_runner_kills_the_editor_and_exits(tmp_path):
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGHUP])
+def test_a_signal_to_the_runner_kills_the_editor_and_exits(tmp_path, sig):
     pid_file = tmp_path / "editor.pid"
     fake_editor(tmp_path, body=f"open({str(pid_file)!r}, 'w').write(f'{{__import__(\"os\").getpid()}}\\n')\n"
                                "time.sleep(60)", report=make_report(passed=1))
@@ -255,9 +258,9 @@ def test_a_signal_to_the_runner_kills_the_editor_and_exits(tmp_path):
     while not (pid_file.exists() and pid_file.read_text().endswith("\n")):
         assert time.monotonic() < deadline, "the fake editor never started"
         time.sleep(0.05)
-    proc.send_signal(signal.SIGTERM)
+    proc.send_signal(sig)
     _, err = proc.communicate(timeout=10)
-    assert proc.returncode == 128 + signal.SIGTERM
+    assert proc.returncode == 128 + sig
     assert "killed the process group" in err
     editor = int(pid_file.read_text())
     deadline = time.monotonic() + 5
