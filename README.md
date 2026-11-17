@@ -82,7 +82,7 @@ Players can read how paying works, which wallets work and how to restore a purch
 | `unity/` | The C# payment core (`Scfg.Core`), the start of the Unity port, which is in development: the core under `Packages/com.repulse.scfg/Runtime/Core/`, its NUnit tests (`core-tests/`) and the JSON-lines driver for the integration tests (`core-driver/`). See [its README](unity/README.md) |
 | `unreal/` | The C++ payment core (`ScfgCore`), the start of the Unreal port, which is in development: the core in plain C++20 under `Plugins/Scfg/Source/ScfgCore/` (no Unreal glue yet), its tests, lints and conformance runners (`core-tests/`) and the JSON-lines driver for the integration tests (`core-driver/`), built with CMake. See [its README](unreal/README.md) |
 | `tests/godot_showcase/` | Boots the Godot showcase headless and presses its chain-free buttons (needs `SCFG_GODOT`) |
-| `tools/` | `package.py` (release zip), `sync_demo.py` (copies the plugin into the demos and the Godot showcase), `check_rpcs.py`, `run_renpy_e2e.py`, `run_renpy_web_e2e.py`, `make_ui_assets.py` (screen corner images), `gen_vectors.py` (conformance vectors), `fetch_godot.py` (download a verified Godot binary or web export templates), `run_godot_tests.py` (the GDScript runner, failing closed), `run_godot_e2e.py` / `run_godot_web_e2e.py` (the Godot demo against a local chain), `make_pot.py`, `sync_web_page.py`, `check_text_ids.py` (RPG Maker and Unreal text ids), `run_rpgmaker_web_e2e.py` / `run_rpgmaker_desktop_e2e.py` (the RPG Maker plugin against a local chain) |
+| `tools/` | `package.py` (release zip), `sync_demo.py` (copies the plugin into the demos and the Godot showcase), `check_rpcs.py`, `run_renpy_e2e.py`, `run_renpy_web_e2e.py`, `make_ui_assets.py` (screen corner images), `gen_vectors.py` (conformance vectors), `fetch_godot.py` (download a verified Godot binary or web export templates), `run_godot_tests.py` (the GDScript runner, failing closed), `run_godot_e2e.py` / `run_godot_web_e2e.py` (the Godot demo against a local chain), `make_pot.py`, `sync_web_page.py`, `check_text_ids.py` (RPG Maker and Unreal text ids), `run_unreal_e2e.py` (the Unreal showcase against a local chain, under `xvfb-run`), `run_rpgmaker_web_e2e.py` / `run_rpgmaker_desktop_e2e.py` (the RPG Maker plugin against a local chain) |
 | `contracts/` | `MockToken.sol` (6-decimal mock token) and the Arc stand-ins `ArcMockUsdc.sol` / `ArcSystemEmitter.sol`, used by integration tests |
 
 ## Development
@@ -145,6 +145,8 @@ SCFG_GODOT=/tmp/godot/Godot_v4.3-stable_linux.x86_64 uv run pytest tests/godot_s
 # the Godot demo end to end (anvil / solana-test-validator on PATH; web needs export templates, see godot/README.md)
 uv run python tools/run_godot_e2e.py --godot /tmp/godot/Godot_v4.3-stable_linux.x86_64 --family evm   # or arc, solana
 uv run python tools/run_godot_web_e2e.py --godot /tmp/godot/Godot_v4.3-stable_linux.x86_64 --family evm   # or arc
+# the Unreal showcase end to end under xvfb-run (UE 5.8, Mesa lavapipe, anvil / solana-test-validator; see unreal/README.md)
+uv run python tools/run_unreal_e2e.py --family evm   # or arc, solana; --packaged: BuildCookRun first
 uv run python tools/make_pot.py --check; uv run python tools/sync_web_page.py --check
 uv run python tools/check_text_ids.py --check   # RPG Maker and Unreal text ids agree with the shared messages and the Godot template (--engine unreal: no Node)
 

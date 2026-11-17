@@ -138,8 +138,10 @@ def test_the_packaged_build_command_stages_a_development_game(tmp_path):
     assert cmd[0] == "/ue/Engine/Build/BatchFiles/RunUAT.sh" and cmd[1] == "BuildCookRun"
     for flag in ("-platform=Linux", "-clientconfig=Development", "-build", "-cook", "-stage",
                  "-pak", "-archive", f"-archivedirectory={tmp_path / 'archive'}",
-                 "-UBAHost=127.0.0.1"):
+                 "-ubtargs=-UBAHost=127.0.0.1", "-NoZenAutoLaunch"):
         assert flag in cmd, flag
+    cooker = [a for a in cmd if a.startswith("-AdditionalCookerOptions=")]
+    assert cooker == ["-AdditionalCookerOptions=-ddc=NoZenLocalFallback -notraceserver"]
 
 
 def test_staged_game_finds_the_binary_or_fails(tmp_path):
@@ -186,6 +188,9 @@ def test_kill_group_kills_the_child_and_what_it_started(tmp_path):
     e2e.kill_group(proc.pid, grace=0.5)
     proc.wait(5)
     assert _wait_gone([child]) == []
+    deadline = time.monotonic() + 5  # the killed child is a zombie until its new parent reaps it
+    while e2e.group_alive(proc.pid) and time.monotonic() < deadline:
+        time.sleep(0.05)
     assert not e2e.group_alive(proc.pid)
 
 

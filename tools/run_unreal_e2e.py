@@ -830,10 +830,17 @@ def build_editor(engine: Path, work: Path) -> None:
 
 
 def buildcookrun_command(engine: Path, archive: Path) -> list:
+    """UAT's BuildCookRun of a Development Linux game, staged, in paks, archived to `archive`.
+    UBT's build accelerator listens on 127.0.0.1 only (-UBAHost through -ubtargs: UAT does not
+    forward its own); the cooker (an editor process) launches no zen server and uses a DDC graph
+    without one, as tools/run_unreal_tests.py's editor runs do (the project's DefaultGame.ini turns
+    the zen store off for the cooked output)."""
     return [str(engine / "Engine" / "Build" / "BatchFiles" / "RunUAT.sh"), "BuildCookRun",
             f"-project={PROJECT}", "-platform=Linux", "-clientconfig=Development", "-build",
             "-cook", "-stage", "-pak", "-archive", f"-archivedirectory={archive}",
-            "-unattended", "-utf8output", "-nop4", "-UBAHost=127.0.0.1"]
+            "-unattended", "-utf8output", "-nop4", "-ubtargs=-UBAHost=127.0.0.1",
+            "-NoZenAutoLaunch",
+            f"-AdditionalCookerOptions=-ddc={ddc_graph(engine)} -notraceserver"]
 
 
 def staged_game(archive: Path) -> Path:
@@ -852,9 +859,10 @@ def build_packaged(engine: Path, work: Path) -> Path:
     if code != 0 or "BUILD SUCCESSFUL" not in text:
         raise E2EError(f"BuildCookRun failed ({code}, log {log}):\n{text[-4000:]}")
     game = staged_game(archive)
-    web = sorted(archive.glob("Linux*/**/Plugins/Scfg/Resources/Web/index.html"))
+    # A plugin outside the project (AdditionalPluginDirectories) is staged under RemappedPlugins/
+    web = sorted(archive.glob("Linux*/**/Scfg/Resources/Web/index.html"))
     if not web:
-        raise E2EError(f"the staged game has no Plugins/Scfg/Resources/Web (archive {archive})")
+        raise E2EError(f"the staged game has no Scfg/Resources/Web (archive {archive})")
     print(f"  staged: {game.relative_to(archive)}; page files at "
           f"{web[0].parent.relative_to(archive)}")
     return game
