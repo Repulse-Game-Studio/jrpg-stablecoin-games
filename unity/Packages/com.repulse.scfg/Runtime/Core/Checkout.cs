@@ -91,8 +91,11 @@ namespace Scfg.Core
         public JsonObject? Session { get; private set; }
         public string? Method { get; private set; }
         public string State { get; private set; } = "choose";
-        /// <summary>A message id of <see cref="Checkout.Messages"/>, or an error id the screen has no text for.</summary>
-        public string? Error { get; private set; }
+        /// <summary>
+        /// A message id of <see cref="Checkout.Messages"/>, or an error id the screen has no text for. The glue writes it
+        /// too (as Ren'Py's and Godot's do): a paste sets it back to null, a paste the browser refused to "paste_blocked".
+        /// </summary>
+        public string? Error { get; set; }
         public long Confirmations { get; private set; }
         public long Required { get; private set; }
         public string? HintTx { get; private set; }
