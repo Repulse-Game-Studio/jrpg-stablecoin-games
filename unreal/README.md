@@ -183,7 +183,7 @@ In tests and tools on the development machine:
 
 | | Status |
 |---|---|
-| Linux x64, UE 5.8.4 (clang 20.1.8, the bundled libc++ 20) | Verified: the editor build (unity and `-DisableUnity`) and the Shipping game build, without a warning, with the link check of the game's modules; the automation tests (`--filter Scfg`); the e2e, all three families, uncooked and packaged (a Development game), under Xvfb on Mesa's lavapipe |
+| Linux x64, UE 5.8.4 (clang 20.1.8, the bundled libc++ 20) | Verified at `ff11dac` (the code at this head; later commits change only docs): the editor build (unity and `-DisableUnity`) and the Shipping game build, without a warning, with the link check of the game's modules; the automation tests (`--filter Scfg`, 404); the e2e under Xvfb on Mesa's lavapipe, uncooked for evm, arc and solana and packaged (a Development game) for solana. The packaged evm and arc runs last passed at `f28e347`, before the input guard changed |
 | The core under CMake on Linux (g++ 13.3) | Verified: the `release` and `asan` presets, the integration twins and the `cpp_server` half. The `clang-libcxx` preset runs in CI's `cpp-core` job only (no `clang++` on the development machine) |
 | A Shipping game run | Unverified: the Shipping target builds and links, but no Shipping game was cooked or run (the packaged e2e runs a Development game) |
 | A real desktop | Unverified: the e2e has no window manager (the runner gives the X focus), a software renderer, and Playwright's Chromium with mock wallets; play-in-editor (PIE) was not run either (the tests use a test game viewport) |
