@@ -85,7 +85,9 @@ or the error code.
 
 `string SCFG.AddChain(string key, ScfgChain chain)` adds an EVM chain that is not built in. Call it before
 `Configure`; its key can then be used in `Chains`, `RpcUrls` and `Confirmations`. It returns `null`, or the error
-code.
+code. With an [SCFG Settings asset](#scfgsettings), which is applied before your code runs, call it before payments
+start (in the first scene's `Awake`): it sets the asset's configuration aside, items included, for your
+`Configure` that follows.
 
 | `ScfgChain` field | Meaning |
 |---|---|
@@ -108,15 +110,19 @@ The **SCFG Settings** asset (**Assets > Create > SCFG Settings**) configures the
 defaults. The [install page](install.md#without-code-the-scfg-settings-asset) walks through them.
 
 - It is applied before the first scene loads, with `SCFG.Configure` and then `SCFG.AddItem` for each item. A build
-  adds the asset to the player's preloaded assets for that build only; in the editor's play mode the asset database
-  finds it. Keep one per project: with several, the first by path is used and the others are reported.
+  adds the asset to the player's preloaded assets for that build only (and takes it out again after a build that
+  failed or was cancelled); in the editor's play mode the asset database finds it. Keep one per project: with
+  several, none is applied (reported in play mode and in the player) and a build fails.
 - A `SCFG.Configure` from your code after it replaces it, items included (until payments have started).
 - The inspector's **Validate** button runs the same checks without touching `SCFG` and shows the first error's code
   and message. From code, `settings.Validate()` returns that `ScfgSettings.Problem` (`Code`, `Message`), or `null`.
 - `settings.Apply()` applies it again by hand and returns the first error code, or `null`. `settings.ToOptions()`
   gives it as `ScfgOptions`. `ScfgSettings.Find()` returns the asset the startup uses, or `null`.
+- The `Logo` sprite may be a cell of a sheet or a Sprite Atlas entry, readable or not: the asset cuts it out into a
+  texture it owns (one per sprite; it stays valid until the asset makes another or is unloaded). A logo that cannot
+  be used is reported and the asset is applied without it; nothing about the asset throws.
 - `Methods`, `RpcUrls`, `Confirmations`, `PreviousWallets` and your own chains are not on the asset: configure from
-  code for those.
+  code for those (for your own chains, [`SCFG.AddChain`](#scfgaddchain) and then `SCFG.Configure`).
 
 ## Paying
 
@@ -246,15 +252,18 @@ session's subscriptions are dropped, so subscribe from your startup code as abov
 The sheet covers the game, takes focus and runs on unscaled time, but it does **not** stop your scripts. A game
 whose `Update` keeps reading the confirm key (`Input.GetKeyDown`, an Input System action) would act on keys the
 player is pressing in the sheet. Pause your game while you await `Pay` or `Restore`: disable your gameplay input
-(say, its action map) and, if you like, set `Time.timeScale = 0`. The sheet, its notices and the payment checks run
-on real time, so they keep working at `Time.timeScale = 0`. The Demo sample does exactly this.
+(say, its action map) and, if you like, set `Time.timeScale = 0`, then put back the time scale you had (the sheet
+may open from a pause menu or during slow motion). The sheet, its notices and the payment checks run on real time,
+so they keep working at `Time.timeScale = 0`. The samples pause with the time scale only, as they have no gameplay
+input of their own.
 
 ```csharp
+float timeScale = Time.timeScale;
 Time.timeScale = 0;
 gameplayActions.Disable();
 ScfgPaymentResult result = await SCFG.Pay(ScfgPayKind.Tip, new ScfgPayRequest { Amount = "2.00", Token = "USDC" });
 gameplayActions.Enable();
-Time.timeScale = 1;
+Time.timeScale = timeScale;
 ```
 
 Keyboard and gamepad work in the sheet without setup. Each step focuses its main control; up and down move through

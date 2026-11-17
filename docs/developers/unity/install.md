@@ -21,8 +21,10 @@ any EVM chain you add yourself.
    https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games.git?path=unity/Packages/com.repulse.scfg#v0.3.0
    ```
 
-   The `#v0.3.0` at the end pins a release tag. Leave it out to follow the main branch, which you should not ship
-   from. The Package Manager needs `git` installed on your machine for this.
+   The `#v0.3.0` at the end pins a release tag. The Unity package first ships in release 0.3.0, so this tag
+   exists from that release on; until then the Package Manager answers that the revision is not found, and the
+   only way in is `#main` (or a commit hash) instead, at your own risk: the main branch is not a release, and you
+   should not ship from it. The Package Manager needs `git` installed on your machine for this.
 
 ## From the release tarball
 
@@ -111,13 +113,19 @@ and shows the first error's code and message, or how many items passed.
 
 The asset is applied before the first scene loads, through `SCFG.Configure` and `SCFG.AddItem`, so
 `SCFG.Owns("chapter2")` and `SCFG.Pay(...)` work from your first `Awake`. A build puts the asset in the player by
-itself (it adds it to the build's preloaded assets for that build only); you do not need a `Resources` folder.
-Keep one asset per project: with several, the first by path is used and the others are reported.
+itself (it adds it to the build's preloaded assets for that build only, and takes it out again even when the build
+fails); you do not need a `Resources` folder, and you should not add the asset to **Preloaded Assets** yourself.
+Keep one asset per project: with several, none is applied (the Console says which ones) and a build fails, so
+the editor and the player can never use different assets.
 
 Code stays in charge: a `SCFG.Configure` call from your code made after the asset was applied replaces it, items
 included, until payments have started (the first frame). For the options the asset does not have (`Methods`,
-`RpcUrls`, `Confirmations`, `PreviousWallets`, your own chains), configure from code. A misconfigured asset is
-reported in the Console (`scfg: the SCFG Settings asset ... was not applied`), never thrown.
+`RpcUrls`, `Confirmations`, `PreviousWallets`), configure from code. Your own chains too: call `SCFG.AddChain`
+and then `SCFG.Configure` from the first scene's `Awake`; `AddChain` sets the asset's configuration aside (items
+included) for the `Configure` that follows, as the asset cannot name a chain added from code. A misconfigured
+asset is reported in the Console (`scfg: the SCFG Settings asset ... was not applied`), never thrown, and so is a
+logo that cannot be used (the asset is then applied without it). The logo can be any sprite: a texture of its
+own, a cell of a sprite sheet or a sprite in a Sprite Atlas, with or without Read/Write.
 
 ## Before you go live
 
