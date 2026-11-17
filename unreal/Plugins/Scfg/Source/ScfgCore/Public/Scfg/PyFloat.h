@@ -5,6 +5,8 @@
 // decimal comma cannot change a result.
 #pragma once
 
+#include "Scfg/Export.h"
+
 #include <optional>
 #include <string>
 #include <string_view>
@@ -15,13 +17,13 @@ namespace scfg::pyfloat {
 // positionally when the decimal exponent is in [-4, 16) with at least one fractional digit (1.0, 0.0001,
 // 1000000000000000.0), else as d.ddde+XX with at least two exponent digits (1e+16, 1e-05); "inf", "-inf", "nan",
 // "-0.0".
-std::string repr(double x);
+SCFGCORE_API std::string repr(double x);
 
 // float(s) for a float literal: an optional sign, then digits with an optional '.' and fraction (or '.' and
 // digits), then an optional exponent (e or E, an optional sign, digits); or inf, infinity or nan in any case after
 // an optional sign. Correctly rounded; out of range is inf or 0.0, as float() makes it. Anything else is nullopt,
 // checked before conversion: no hex floats and no locale forms ("2,5"). Stricter than float(), which also strips
 // whitespace and takes underscores and non-ASCII digits.
-std::optional<double> parse(std::string_view s);
+SCFGCORE_API std::optional<double> parse(std::string_view s);
 
 }  // namespace scfg::pyfloat

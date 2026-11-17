@@ -14,6 +14,7 @@
 #include "Scfg/BigInt.h"
 #include "Scfg/Co.h"
 #include "Scfg/Err.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/OrderedMap.h"
 #include "Scfg/Rpc.h"
@@ -35,7 +36,7 @@ inline constexpr int64_t UNSUPPORTED_VERSION = -32015;
 // the leftmost one only, its letters matched as Python 3.9 folds them (ſ matches s; İ and ı match i), \d any
 // Unicode 13 decimal digit. A number of more than 18 significant digits is no match (Ruling 6: a request cannot
 // carry it as an int), so no long run is converted. Linear in the message.
-std::optional<int64_t> named_version(const Err& error, int64_t tx_version);
+SCFGCORE_API std::optional<int64_t> named_version(const Err& error, int64_t tx_version);
 
 // get_signatures_for_address's keyword arguments: a falsy until/before is left out.
 struct SignatureOptions {
@@ -53,7 +54,7 @@ struct TxAny {
 
 // Python solana.rpc.SolanaRpc. Holds the client by reference: the caller keeps it alive (and does not move this
 // object or the client while a Co of theirs runs).
-class SolanaRpc {
+class SCFGCORE_API SolanaRpc {
 public:
     explicit SolanaRpc(::scfg::rpc::RpcClient& client) : client_(&client) {}
 

@@ -193,7 +193,34 @@ SCFG_TEST(LintTests, NoCoroutineLambdas) {
     }
     t.check(hits.empty(), "lint violations under " + lint::tests_dir() + ":\n" + lint::join(hits));
 }
-SCFG_TEST(LintTests, OnlyStdIncludes) { run_check(t, lint::only_std_includes); }
+// The one file of the module that is Unreal code: the module's IMPLEMENT_MODULE, which needs Unreal's
+// Modules/ModuleManager.h. The CMake build leaves it out; it holds exactly these two lines, so nothing else creeps in.
+static const std::string kModuleFile = "Private/ScfgCoreModule.cpp";
+static const std::vector<std::string> kModuleFileCode = {
+    "#include \"Modules/ModuleManager.h\"",
+    "IMPLEMENT_MODULE(FDefaultModuleImpl, ScfgCore)",
+};
+
+SCFG_TEST(LintTests, OnlyStdIncludes) {
+    run_check(t, [](const File& f) {
+        return f.rel == kModuleFile ? std::vector<std::string>() : lint::only_std_includes(f);
+    });
+}
+SCFG_TEST(LintTests, ModuleFileIsMinimal) {
+    const File* module = nullptr;
+    for (const File& f : files()) {
+        if (f.rel == kModuleFile) module = &f;
+    }
+    if (!t.check(module != nullptr, kModuleFile + " is missing")) return;
+    std::vector<std::string> code;
+    for (const std::string& line : lint::views(module->text).kept) {
+        size_t b = line.find_first_not_of(" \t");
+        if (b != std::string::npos) code.push_back(line.substr(b, line.find_last_not_of(" \t") - b + 1));
+    }
+    t.check(code == kModuleFileCode,
+            kModuleFile + " holds more than its include and IMPLEMENT_MODULE:\n" + lint::join(code));
+}
+SCFG_TEST(LintTests, ExportsMarked) { run_check(t, lint::exports); }
 SCFG_TEST(LintTests, EveryFileNamesItsTwin) { run_check(t, lint::names_its_twin); }
 SCFG_TEST(LintTests, UniqueBasenames) {
     SCFG_CHECK(t, !files().empty());
@@ -396,6 +423,58 @@ SCFG_TEST(LintTests, FileChecksBite) {
     std::vector<File> same = {{"Private/Rpc.cpp", ""}, {"Private/Solana/rpc.cpp", ""}, {"Public/Scfg/Rpc.h", ""}};
     SCFG_CHECK_EQ(t, lint::duplicate_basenames(same).size(), 1);
     SCFG_CHECK(t, lint::duplicate_basenames({{"Private/Rpc.cpp", ""}, {"Private/SolanaRpc.cpp", ""}}).empty());
+}
+
+// F3: every declaration a .cpp defines carries SCFGCORE_API, and a header that uses it includes Scfg/Export.h.
+SCFG_TEST(LintTests, ExportsBite) {
+    const std::string inc = "#include \"Scfg/Export.h\"\n";
+    auto hits = [](const std::string& text) { return lint::exports({"Public/Scfg/A.h", text}); };
+    for (const std::string& bad : std::vector<std::string>{
+             inc + "namespace scfg {\nResult<Dec> parse(const Json& v);\n}\n",
+             inc + "namespace a::b {\n[[noreturn]] void fail(\n    const char* what);\n}\n",
+             inc + "extern const std::string_view VERSION;\n",
+             inc + "class Dec {\npublic:\n    Dec();\n    int x() const { return 1; }\n};\n",
+             inc + "struct Token {\n    static Result<Token> make(std::string_view a, int d = 6);\n};\n",
+             inc + "class E final : public B {\n    std::string_view f() const override;\n};\n",
+             inc + "class J { };\nclass J::D {\n    const J* find(std::string_view k) const;\n};\n",
+             inc + "class SCFGCORE_API B {\n    friend B operator+(const B& a, const B& b);\n};\n",
+             inc + "class SCFGCORE_API B {\n    friend std::strong_ordering operator<=>(const B&, const B&);\n};\n",
+             inc + "class SCFGCORE_API O {\n    struct In {\n        void f();\n    };\n};\n",
+             inc + "class SCFGCORE_API C {\n    explicit operator bool() const;\n};\nint f(int);\n",
+             "SCFGCORE_API void f();\n",
+         }) {
+        t.check(hits(bad).size() == 1, "export lint missed:\n" + bad);
+    }
+    for (const std::string& good : std::vector<std::string>{
+             inc + "namespace scfg {\nSCFGCORE_API Result<Dec> parse(const Json& v);\n}\n",
+             inc + "namespace a::b {\n[[noreturn]] SCFGCORE_API void fail(\n    const char* what);\n}\n",
+             inc + "extern SCFGCORE_API const std::string_view VERSION;\n",
+             inc + "class SCFGCORE_API Dec {\npublic:\n    Dec();\n};\nstruct SCFGCORE_API J::D {\n    void f();\n};\n",
+             inc + "class SCFGCORE_API B {\n    friend SCFGCORE_API B operator+(const B& a, const B& b);\n"
+                   "    friend bool operator==(const B&, const B&) = default;\n};\n",
+             "inline Status ok() { return Status(); }\ninline Result<BigInt> py_int(const char* s) { return x(s); }\n",
+             "template <class T>\nCo<void> root(Co<T> w, std::function<void(Result<T>)> d) {\n    co_return ok();\n}\n",
+             "template <class T>\nclass Co {\n    Result<T> take();\n"
+             "    struct Awaiter {\n        void f();\n    };\n};\n",
+             "template <>\nclass [[nodiscard]] Result<void> {\n    const Err& err() const&;\n};\n",
+             "struct Item {\n    std::string id;\n    std::function<double()> clock = {};\n    Json kind = Json();\n"
+             "    friend bool operator==(const Item&, const Item&) = default;\n};\n",
+             "class T {\npublic:\n    virtual ~T() = default;\n    virtual Future<Json> post(std::string u) = 0;\n"
+             "    T(const T&) = delete;\n    explicit T(int& c) : c_(&c) {}\n    int g() const { return 1; }\n};\n",
+             "inline constexpr std::array<std::pair<int, int>, 1> X = {{\n    {1, 2},\n}};\n"
+             "using F = std::function<int(int)>;\n",
+             "enum class Cmp { Lt, Le };\nstruct Fwd;\n#define M(x) \\\n    auto t = (x);   \\\n    f(t)\n",
+             "namespace scfg {\ntemplate <std::integral T>\n    requires(!std::same_as<T, bool>)\n"
+             "std::string dec(T v) {\n    return std::string();\n}\n}\n",
+         }) {
+        std::vector<std::string> h = hits(good);
+        t.check(h.empty(), "export lint fired on:\n" + good + "\n" + lint::join(h));
+    }
+    // Only public headers: a .cpp defines what its header exports.
+    SCFG_CHECK(t, lint::exports({"Private/A.cpp", "Result<Dec> parse(const Json& v);\n"}).empty());
+    std::vector<std::string> where = hits(inc + "namespace scfg {\n\nResult<Dec> parse(\n    const Json& v);\n}\n");
+    if (SCFG_CHECK_EQ(t, where.size(), 1))
+        SCFG_CHECK(t, where[0].rfind("Public/Scfg/A.h:4: free function without SCFGCORE_API (", 0) == 0);
 }
 
 // Every macro UnrealMacroPoison.h defines expands to SCFG_UE_POISON_<name>::unreal_macro, and none of the names

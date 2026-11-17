@@ -16,6 +16,7 @@
 
 #include "Scfg/BackendsBase.h"
 #include "Scfg/BigInt.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/Result.h"
 #include "Scfg/Sessions.h"
@@ -49,10 +50,10 @@ using sessions::SOLANA_HINT_TIMEOUT_S;
 // or owner and for accountIndexes Python cannot sort (a str and an int, or None beside anything), int_from's errors
 // for an amount or slot. Port limit: a NaN accountIndex is ordered last, where CPython's place for it depends on
 // its set's hash order.
-Result<std::optional<transfers::Transfer>> transfer_to(const Json& tx, const Json& sig, std::string_view mint,
-                                                       std::string_view owner);
+SCFGCORE_API Result<std::optional<transfers::Transfer>> transfer_to(const Json& tx, const Json& sig,
+                                                                    std::string_view mint, std::string_view owner);
 
-class SolanaBackend final : public base::Backend {
+class SCFGCORE_API SolanaBackend final : public base::Backend {
 public:
     std::string_view family() const override { return "solana"; }
     // SolanaRpc(RpcClient(chain.rpc)): the client's default log range; the SolanaRpc owns its client.

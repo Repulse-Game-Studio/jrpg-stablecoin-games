@@ -5,6 +5,7 @@
 #pragma once
 
 #include "Scfg/BigInt.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/Result.h"
 #include "Scfg/Transfers.h"
@@ -22,17 +23,17 @@ inline constexpr std::string_view TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc
 
 // The EIP-55 mixed-case form of a 20-byte hex address (any input case): "0x" and exactly 40 ASCII hex digits, else
 // ValueError("not a 20-byte hex address: <repr>").
-Result<std::string> to_checksum_address(const Json& address);
+SCFGCORE_API Result<std::string> to_checksum_address(const Json& address);
 // True only if the address is already exactly in EIP-55 form. Never fails.
-bool is_checksum_address(const Json& address);
+SCFGCORE_API bool is_checksum_address(const Json& address);
 // Validates a user-supplied address and returns its checksummed form. Single-case input carries no checksum, so it is
 // accepted and converted. Mixed-case input claims a checksum, so it must be correct (else ValueError).
-Result<std::string> normalize_address(const Json& address);
+SCFGCORE_API Result<std::string> normalize_address(const Json& address);
 // The address left-padded to 32 bytes (lowercase), as it appears in indexed event topics.
-Result<std::string> address_topic(const Json& address);
+SCFGCORE_API Result<std::string> address_topic(const Json& address);
 
 // One ERC-20 Transfer event, normalized (Python's frozen TransferLog dataclass).
-struct TransferLog {
+struct SCFGCORE_API TransferLog {
     std::string token;      // checksummed contract address
     std::string sender;     // checksummed
     std::string recipient;  // checksummed
@@ -55,6 +56,6 @@ struct TransferLog {
 // AttributeError, a missing field a KeyError, a bad address a ValueError, logIndex/blockNumber through int(x, 16)
 // (unbounded, as Python's int). Port limit: str.lower() of the hashes is py::lower_for_ascii (exact for ASCII text and
 // for any comparison with ASCII text; other non-ASCII letters keep their case).
-Result<std::optional<TransferLog>> parse_transfer_log(const Json& log);
+SCFGCORE_API Result<std::optional<TransferLog>> parse_transfer_log(const Json& log);
 
 }  // namespace scfg::evm

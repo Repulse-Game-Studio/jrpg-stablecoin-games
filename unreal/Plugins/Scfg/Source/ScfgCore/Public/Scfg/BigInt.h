@@ -9,6 +9,7 @@
 // and its 4300-digit limit is py::py_int, built on these).
 #pragma once
 
+#include "Scfg/Export.h"
 #include "Scfg/Result.h"
 
 #include <compare>
@@ -21,7 +22,7 @@
 
 namespace scfg {
 
-class BigInt {
+class SCFGCORE_API BigInt {
 public:
     struct DivMod;
 
@@ -58,16 +59,16 @@ public:
     // n ** e (e >= 0; Python's 0 ** 0 == 1).
     BigInt pow(uint64_t e) const;
 
-    friend BigInt operator+(const BigInt& a, const BigInt& b);
-    friend BigInt operator-(const BigInt& a, const BigInt& b);
-    friend BigInt operator*(const BigInt& a, const BigInt& b);
+    friend SCFGCORE_API BigInt operator+(const BigInt& a, const BigInt& b);
+    friend SCFGCORE_API BigInt operator-(const BigInt& a, const BigInt& b);
+    friend SCFGCORE_API BigInt operator*(const BigInt& a, const BigInt& b);
     BigInt& operator+=(const BigInt& o) { return *this = *this + o; }
     BigInt& operator-=(const BigInt& o) { return *this = *this - o; }
     BigInt& operator*=(const BigInt& o) { return *this = *this * o; }
 
     // Python's << and >> (>> floors: -5 >> 1 == -3). A count is never negative here (size_t).
-    friend BigInt operator<<(const BigInt& a, size_t n);
-    friend BigInt operator>>(const BigInt& a, size_t n);
+    friend SCFGCORE_API BigInt operator<<(const BigInt& a, size_t n);
+    friend SCFGCORE_API BigInt operator>>(const BigInt& a, size_t n);
 
     // Python's //, % and divmod(); a zero divisor is a ZeroDivisionError.
     Result<BigInt> floordiv(const BigInt& d) const;
@@ -78,7 +79,7 @@ public:
     Result<BigInt> pow_mod(const BigInt& e, const BigInt& m) const;
 
     friend bool operator==(const BigInt& a, const BigInt& b) = default;
-    friend std::strong_ordering operator<=>(const BigInt& a, const BigInt& b);
+    friend SCFGCORE_API std::strong_ordering operator<=>(const BigInt& a, const BigInt& b);
 
 private:
     // Normalised: no high zero limbs, and zero is never negative.

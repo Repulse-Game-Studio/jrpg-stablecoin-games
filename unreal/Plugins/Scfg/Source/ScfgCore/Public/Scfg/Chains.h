@@ -25,6 +25,7 @@
 
 #include "Scfg/BigInt.h"
 #include "Scfg/Evm.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/OrderedMap.h"
 #include "Scfg/Result.h"
@@ -44,7 +45,7 @@ inline constexpr int64_t ARC_MIN_FEE_WEI = 20'000'000'000;  // Arc's mempool sil
 
 // Python's frozen Token dataclass. Build one with make(), which runs __post_init__'s normalisation; the fields are
 // public (as the dataclass's are readable) but a Token assembled by hand skips that check.
-struct Token {
+struct SCFGCORE_API Token {
     std::string address;  // EIP-55 checksummed for an EVM token; the canonical base58 mint for Solana
     int64_t decimals = 6;
     // Where this token's Transfer events are logged, when that is not its own contract (Arc's system emitter), and
@@ -66,7 +67,7 @@ struct Token {
 // dict nobody mutates). chain_id, confirmations and max_log_range are a developer's ints (build_chain,
 // build_config's confirmations), unbounded as Python's: 2**70 confirmations is accepted, as in Python, and simply
 // never reached.
-struct Chain {
+struct SCFGCORE_API Chain {
     std::string key;
     BigInt chain_id;
     std::string name;
@@ -99,16 +100,16 @@ struct Chain {
 };
 
 // The built-in registries, in Python's order (ethereum, arbitrum, polygon, base, arc, solana).
-OrderedMap<Chain>& MAINNET();
-OrderedMap<Chain>& TESTNET();
+SCFGCORE_API OrderedMap<Chain>& MAINNET();
+SCFGCORE_API OrderedMap<Chain>& TESTNET();
 
 inline constexpr std::array<std::string_view, 5> DISPLAY_ORDER = {"arbitrum", "base", "arc", "polygon", "ethereum"};
 
 // TESTNET() if testnet else MAINNET(): the registry itself, not a copy.
-OrderedMap<Chain>& get_chains(bool testnet);
+SCFGCORE_API OrderedMap<Chain>& get_chains(bool testnet);
 
 // chain.tokens[rec["token"]] for a stored record: rec["token"]'s KeyError or TypeError (py::get), the TypeError of an
 // unhashable value, or the KeyError of a token the chain does not carry (py::key_error_for).
-Result<Token> token_of(const Chain& chain, const Json& rec);
+SCFGCORE_API Result<Token> token_of(const Chain& chain, const Json& rec);
 
 }  // namespace scfg::chains

@@ -5,6 +5,7 @@
 #pragma once
 
 #include "Scfg/BackendsBase.h"
+#include "Scfg/Export.h"
 
 #include <cstdint>
 #include <string_view>
@@ -14,7 +15,7 @@ namespace scfg::backends::evm {
 // Blocks before the head a new session starts scanning from.
 inline constexpr int64_t START_BLOCK_MARGIN = 5;
 
-class EvmBackend final : public base::Backend {
+class SCFGCORE_API EvmBackend final : public base::Backend {
 public:
     std::string_view family() const override { return "evm"; }
     // RpcClient(chain.rpc, log_range=chain.max_log_range).

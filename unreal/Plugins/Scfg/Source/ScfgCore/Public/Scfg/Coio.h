@@ -9,6 +9,7 @@
 #pragma once
 
 #include "Scfg/Co.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/Result.h"
 
@@ -57,13 +58,13 @@ public:
 //   response") when it cannot be read;
 // - any other status is TransportError("HTTP <status>", status), unless the body is a JSON object with a truthy
 //   "error" (providers send JSON-RPC errors such as "range too large" with a 4xx status): that body is returned.
-Result<Json> parse_rpc_body(int status, std::string_view body);
+SCFGCORE_API Result<Json> parse_rpc_body(int status, std::string_view body);
 
 // Python response_from_envelope: a browser fetch() result (bridge.js: {"status", "body"} or {"error"}) as the
 // JSON-RPC response, by the same rules as parse_rpc_body (no size cap: the page already read the body). The body
 // is an already-decoded str, read with json::loads_text (a lone surrogate in it is kept); the status is read with
 // int_from (its ValueError/TypeError is not caught, as in Python), and a body that is not a str is json.loads's
 // TypeError. {"error": e} is TransportError(str(e)).
-Result<Json> response_from_envelope(const Json::Dict& envelope);
+SCFGCORE_API Result<Json> response_from_envelope(const Json::Dict& envelope);
 
 }  // namespace scfg::coio

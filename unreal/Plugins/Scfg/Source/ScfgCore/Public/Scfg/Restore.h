@@ -17,6 +17,7 @@
 #include "Scfg/Co.h"
 #include "Scfg/Config.h"
 #include "Scfg/Evm.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/OrderedMap.h"
 #include "Scfg/Result.h"
@@ -63,36 +64,38 @@ struct Classified {
 // Python classify(config, value): decode's ValueError for negative units, its InvalidOperation from 10**32 units.
 // A whole-cent amount (code 0, nonce 0) is ambiguous; code 0 with a nonce is a tip; an item code whose item the
 // amount pays for is that unlock; anything else is ambiguous.
-Result<Classified> classify(const config::Config& config, const BigInt& value);
+SCFGCORE_API Result<Classified> classify(const config::Config& config, const BigInt& value);
 
 // Python classify_or_skip: classify(), or nullopt for a value decode() cannot price (InvalidOperation, 10**32 units
 // or more), which is reported to on_error (errors::print_error when it is empty). Any other Err is returned.
-Result<std::optional<Classified>> classify_or_skip(const config::Config& config, const BigInt& value,
-                                                   const backends::base::ErrorSink& on_error);
+SCFGCORE_API Result<std::optional<Classified>> classify_or_skip(const config::Config& config, const BigInt& value,
+                                                                const backends::base::ErrorSink& on_error);
 
 // Python lookup_evm(tx_hash, config=, chain=, rpc=, receipts=, on_error=): the candidates of a normalized tx hash on
 // one EVM chain, nullopt if the chain lacks it. Each Transfer log (chain.parse_transfer) of one of the chain's tokens,
 // of a positive value, to an accepted wallet is one candidate, already_restored when its receipt key is in receipts.
 // RestoreError tx_reverted (status 0x0) or tx_not_a_payment (no candidate); a receipt that is not a dict is the
 // AttributeError of its .get.
-Co<std::optional<std::vector<RestoreCandidate>>> lookup_evm(std::string tx_hash, config::Config config,
-                                                            chains::Chain chain, std::shared_ptr<rpc::RpcClient> rpc,
-                                                            Json receipts, backends::base::ErrorSink on_error);
+SCFGCORE_API Co<std::optional<std::vector<RestoreCandidate>>> lookup_evm(std::string tx_hash, config::Config config,
+                                                                         chains::Chain chain,
+                                                                         std::shared_ptr<rpc::RpcClient> rpc,
+                                                                         Json receipts,
+                                                                         backends::base::ErrorSink on_error);
 
 // Python lookup(tx_hash, config=, chains=, rpc_for=, receipts=, on_error=): the candidates of the first chain, in
 // chains' order, whose family reads tx_hash (normalize_tx) and that knows the transaction. RestoreError invalid_hash
 // when no family reads it, else network_unavailable when a chain could not be asked (RpcUnavailable, RpcError), else
 // tx_not_found; a backend's tx_reverted / tx_not_a_payment, and any other Err, leave at once.
-Co<std::vector<RestoreCandidate>> lookup(Json tx_hash, config::Config config, OrderedMap<chains::Chain> chains,
-                                         backends::base::RpcFor rpc_for, Json receipts,
-                                         backends::base::ErrorSink on_error);
+SCFGCORE_API Co<std::vector<RestoreCandidate>> lookup(Json tx_hash, config::Config config,
+                                                      OrderedMap<chains::Chain> chains, backends::base::RpcFor rpc_for,
+                                                      Json receipts, backends::base::ErrorSink on_error);
 
 // Python apply(receipts, candidates, choices): store a receipt (source "restore") for each candidate and return the
 // receipts added (a list; the dicts the store now holds), in candidate order. choices maps a candidate's index to an
 // item id or TIP_CHOICE for the candidates whose kind is None; one without a choice (or a None choice) is skipped,
 // and a choice it does not offer is ValueError("<repr> is not an allowed choice"), raised with the earlier
 // candidates' receipts already stored. A receipt whose key is already stored is not added again.
-Result<Json> apply(Json::Dict& receipts, const std::vector<RestoreCandidate>& candidates,
-                   const std::optional<std::map<int64_t, Json>>& choices);
+SCFGCORE_API Result<Json> apply(Json::Dict& receipts, const std::vector<RestoreCandidate>& candidates,
+                                const std::optional<std::map<int64_t, Json>>& choices);
 
 }  // namespace scfg::restore

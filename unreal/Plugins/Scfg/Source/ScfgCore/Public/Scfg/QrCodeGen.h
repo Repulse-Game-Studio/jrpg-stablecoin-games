@@ -35,6 +35,7 @@
 // they refuse, so those helpers do not return a Result. The other `assert`s are invariants and are not repeated.
 #pragma once
 
+#include "Scfg/Export.h"
 #include "Scfg/Result.h"
 
 #include <cstddef>
@@ -52,7 +53,7 @@ inline constexpr std::string_view DataTooLongError = "DataTooLongError";
 // ---- Data segment class ----
 
 // A segment of character/binary/control data in a QR Code symbol. Immutable.
-class QrSegment {
+class SCFGCORE_API QrSegment {
 public:
     // Describes how a segment's data bits are interpreted.
     enum class Mode { NUMERIC, ALPHANUMERIC, BYTE, KANJI, ECI };
@@ -113,7 +114,7 @@ private:
 
 // A QR Code symbol (QR Code Model 2, ISO/IEC 18004): an immutable square grid of dark and light modules, versions
 // 1 to 40, four error correction levels, numeric/alphanumeric/byte/ECI segments.
-class QrCode {
+class SCFGCORE_API QrCode {
 public:
     // The error correction level; the enumerator's value is Python's Ecc.ordinal.
     enum class Ecc {

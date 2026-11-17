@@ -6,6 +6,7 @@
 
 #include "Scfg/BigInt.h"
 #include "Scfg/Err.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/Result.h"
 
@@ -24,22 +25,22 @@ inline constexpr size_t DIGIT_RUN_LIMIT = 18;
 
 // int(value) (py::py_int), refusing a str with more than INT_MAX_STR_DIGITS decimal characters as CPython does
 // (ValueError, with ints.py's message) before any conversion.
-Result<BigInt> int_from(const Json& value);
+SCFGCORE_API Result<BigInt> int_from(const Json& value);
 
 // int(run) for a run of Unicode decimal digits (what re's \d+ matches), or nullopt when it has more than
 // DIGIT_RUN_LIMIT significant digits. Linear: leading zeros (of any script) are stripped first, so no long text is
 // converted. A character that is not a decimal digit is int()'s ValueError.
-Result<std::optional<int64_t>> digit_run_value(std::string_view run);
+SCFGCORE_API Result<std::optional<int64_t>> digit_run_value(std::string_view run);
 
 // json.loads(text), its integer literals read with int_from: one of more than INT_MAX_STR_DIGITS digits is a
 // ValueError. Fractions and exponents are floats, as json makes them. This is json::loads (strict UTF-8; for text
 // that is already a str, json::loads_text).
-Result<Json> json_loads(std::string_view text);
+SCFGCORE_API Result<Json> json_loads(std::string_view text);
 
 namespace detail {
 
 // ints.py's ValueError for a str with `digits` decimal characters.
-Err too_many_digits(size_t digits);
+SCFGCORE_API Err too_many_digits(size_t digits);
 
 }  // namespace detail
 }  // namespace scfg::ints

@@ -56,5 +56,10 @@ std::vector<std::string> coroutine_lambdas(const File& f);  // co_await/co_retur
 std::vector<std::string> only_std_includes(const File& f);  // <x> not standard C++20, "x" not Public/Scfg/<x>.h
 std::vector<std::string> names_its_twin(const File& f);     // first comment line names no (existing) twin
 std::vector<std::string> duplicate_basenames(const std::vector<File>& all);  // case-insensitive, as on Windows
+// A public header's declarations that an Unreal module must export (F3): a non-inline free function, a friend
+// function or an extern variable without SCFGCORE_API; a non-template class with a member declared here and defined
+// in a .cpp, without SCFGCORE_API; a header that uses SCFGCORE_API without including Scfg/Export.h. A heuristic
+// scanner (namespace and class scopes, statements), not a parser.
+std::vector<std::string> exports(const File& f);
 
 }  // namespace scfg_test::lint

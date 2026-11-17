@@ -12,6 +12,7 @@
 #pragma once
 
 #include "Scfg/BigInt.h"
+#include "Scfg/Export.h"
 #include "Scfg/Result.h"
 
 #include <cstdint>
@@ -38,7 +39,7 @@ struct Instruction {
 
 // The compact-u16 encoding of n (7 bits per byte, low first, the high bit set on every byte but the last), or
 // ValueError("compact-u16 out of range: <n>") outside 0..0xFFFF.
-Result<std::vector<uint8_t>> compact_u16(int64_t n);
+SCFGCORE_API Result<std::vector<uint8_t>> compact_u16(int64_t n);
 
 // The legacy message paying from payer. Every key goes through base58 decode_fixed(key, 32) (its ValueError), in
 // Python's order: each instruction's accounts then its program id, then the payer, then the blockhash. A signer or
@@ -46,26 +47,28 @@ Result<std::vector<uint8_t>> compact_u16(int64_t n);
 // message that cannot be written is a ValueError: a header count or a program or account index above 255 ("byte must
 // be in range(0, 256)" / "bytes must be in range(0, 256)": more than 255 accounts), or a count or a data length
 // above 0xFFFF (compact_u16's).
-Result<std::vector<uint8_t>> compile_message(std::string_view payer, const std::vector<Instruction>& instructions,
-                                             std::string_view recent_blockhash);
+SCFGCORE_API Result<std::vector<uint8_t>> compile_message(std::string_view payer,
+                                                          const std::vector<Instruction>& instructions,
+                                                          std::string_view recent_blockhash);
 
 // Empty signature slots + message, ready for a wallet to sign: compact_u16(message[0]) then 64 zero bytes per
 // required signature, then the message. An empty message is Python's IndexError("index out of range").
-Result<std::vector<uint8_t>> unsigned_transaction(std::span<const uint8_t> message);
+SCFGCORE_API Result<std::vector<uint8_t>> unsigned_transaction(std::span<const uint8_t> message);
 
 // ComputeBudget SetComputeUnitLimit: data 02 | units as 4 bytes little-endian. A negative or too large value is
 // int.to_bytes' OverflowError ("can't convert negative int to unsigned" / "int too big to convert").
-Result<Instruction> set_compute_unit_limit(const BigInt& units);
+SCFGCORE_API Result<Instruction> set_compute_unit_limit(const BigInt& units);
 
 // ComputeBudget SetComputeUnitPrice: data 03 | micro_lamports as 8 bytes little-endian (OverflowError as above).
-Result<Instruction> set_compute_unit_price(const BigInt& micro_lamports);
+SCFGCORE_API Result<Instruction> set_compute_unit_price(const BigInt& micro_lamports);
 
 // SPL Token TransferChecked: accounts source (writable), mint, destination (writable), owner (signer), then each extra
 // key read-only (e.g. a Solana Pay reference, so the payment can be found with getSignaturesForAddress(extra key));
 // data 0C | amount as 8 bytes little-endian | decimals. An amount outside u64 is the OverflowError above, then a
 // decimals outside 0..255 is ValueError("bytes must be in range(0, 256)").
-Result<Instruction> transfer_checked(std::string_view source, std::string_view mint, std::string_view destination,
-                                     std::string_view owner, const BigInt& amount, int64_t decimals,
-                                     const std::vector<std::string>& extra = {});
+SCFGCORE_API Result<Instruction> transfer_checked(std::string_view source, std::string_view mint,
+                                                  std::string_view destination, std::string_view owner,
+                                                  const BigInt& amount, int64_t decimals,
+                                                  const std::vector<std::string>& extra = {});
 
 }  // namespace scfg::solana::tx

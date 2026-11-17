@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Scfg/BigInt.h"
+#include "Scfg/Export.h"
 #include "Scfg/Result.h"
 
 #include <string>
@@ -15,7 +16,8 @@ namespace scfg::solana::paylinks {
 // UTF-8 percent-encoded, only A-Za-z0-9_.-~ kept, so "/", "&", "=", "?" and spaces are encoded too. An empty value
 // is left out with its key. The recipient is inserted as it is. A lone surrogate in a quoted value is
 // UnicodeEncodeError's ValueError, as in Python.
-Result<std::string> solana_pay_uri(std::string_view recipient, const BigInt& units, std::string_view mint,
-                                   std::string_view reference, std::string_view label, std::string_view message);
+SCFGCORE_API Result<std::string> solana_pay_uri(std::string_view recipient, const BigInt& units, std::string_view mint,
+                                                std::string_view reference, std::string_view label,
+                                                std::string_view message);
 
 }  // namespace scfg::solana::paylinks

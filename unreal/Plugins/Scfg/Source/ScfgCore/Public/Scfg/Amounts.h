@@ -13,6 +13,7 @@
 
 #include "Scfg/BigInt.h"
 #include "Scfg/Dec.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/Result.h"
 
@@ -25,7 +26,7 @@ namespace scfg::amounts {
 inline constexpr int64_t TOKEN_DECIMALS = 6;
 // Decimal("1000000"). A function-local static, as MIN_TIP() and the registries: nothing in the core runs at static
 // initialisation, which an Unreal module loaded on demand would run at an unknown time.
-const Dec& MAX_AMOUNT();
+SCFGCORE_API const Dec& MAX_AMOUNT();
 // The magnitude bound of every amount the core reads: a nonzero amount's adjusted exponent (the power of ten of its
 // leading digit, Decimal.adjusted()) must lie in [-40, 40]. That is far beyond any token amount (the smallest unit is
 // 1E-6; a uint256 of base units read through Arc's 18-decimal emitter is floored to 6 decimals and never stored past
@@ -39,20 +40,20 @@ inline constexpr size_t AMOUNT_TEXT_LIMIT = 100;
 // number within the amount range (AMOUNT_EXPONENT_LIMIT) and, as text, at most AMOUNT_TEXT_LIMIT characters, else a
 // ValueError (a TypeError for a list, or for a value Decimal() does not take: None, a dict). A str takes digit-group
 // underscores and any exponent libmpdec accepts, as Decimal(str) does.
-Result<Dec> stored_amount(const Json& value);
+SCFGCORE_API Result<Dec> stored_amount(const Json& value);
 
 // Validates a price/tip amount and returns it quantized to cents.
 //
 // Accepts str, int or Decimal. Floats (and bools) are refused with a TypeError: binary floating point and money do
 // not mix. A str is a plain decimal number: Decimal's digit-group underscores ("1_000") are refused like any other
 // malformed amount. Anything out of (0, MAX_AMOUNT()] or with more than 2 decimals is a ValueError.
-Result<Dec> parse_amount(const Json& value);
-Result<Dec> parse_amount(const Dec& value);
+SCFGCORE_API Result<Dec> parse_amount(const Json& value);
+SCFGCORE_API Result<Dec> parse_amount(const Dec& value);
 
 // price (2 decimals) + code (0 = tip, 1..99 = item) + nonce -> base units. code and nonce must be ints in 0..99
 // (a bool is not one), else a ValueError.
-Result<BigInt> encode(const Json& price, const Json& code, const Json& nonce);
-Result<BigInt> encode(const Dec& price, const Json& code, const Json& nonce);
+SCFGCORE_API Result<BigInt> encode(const Json& price, const Json& code, const Json& nonce);
+SCFGCORE_API Result<BigInt> encode(const Dec& price, const Json& code, const Json& nonce);
 
 struct Decoded {
     Dec price;
@@ -63,18 +64,18 @@ struct Decoded {
 // Inverse of encode: base units -> (price, code, nonce). A ValueError for negative units. From 10**32 units the
 // price needs more than Decimal's 28 digits and this is an InvalidOperation (an ArithmeticError, not a ValueError),
 // as Python's decimal raises; callers that read transfers off the chain skip such a value.
-Result<Decoded> decode(const BigInt& units);
+SCFGCORE_API Result<Decoded> decode(const BigInt& units);
 
 // Base units -> token amount, exactly (4993742 -> 4.993742), however many digits: the value is built from its
 // digits instead of through Decimal's 28-digit arithmetic.
-Dec units_to_decimal(const BigInt& units);
+SCFGCORE_API Dec units_to_decimal(const BigInt& units);
 
 // Token amount -> base units, exactly (no rounding to Decimal's 28 digits). A ValueError for more than 6 decimals,
 // or for an amount out of range (AMOUNT_EXPONENT_LIMIT). A Dec is always finite: a caller holding a non-finite
 // Decimal (Dec::parse's nullopt) raises that ValueError itself.
-Result<BigInt> decimal_to_units(const Dec& amount);
+SCFGCORE_API Result<BigInt> decimal_to_units(const Dec& amount);
 
 // Human display of a token amount with all 6 decimals: 4993742 -> "4.993742" (f"{d:.6f}").
-std::string format_units(const BigInt& units);
+SCFGCORE_API std::string format_units(const BigInt& units);
 
 }  // namespace scfg::amounts

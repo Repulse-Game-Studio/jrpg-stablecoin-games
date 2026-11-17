@@ -4,6 +4,8 @@
 // CompactFIPS202, vendored in _xkcp.py), on 64-bit lanes instead of Python integers.
 #pragma once
 
+#include "Scfg/Export.h"
+
 #include <array>
 #include <cstdint>
 #include <span>
@@ -12,8 +14,8 @@
 namespace scfg::keccak {
 
 // keccak256(data): the 32-byte digest (Keccak-f[1600], rate 1088 bits, capacity 512, suffix 0x01).
-std::array<uint8_t, 32> keccak256(std::span<const uint8_t> data);
+SCFGCORE_API std::array<uint8_t, 32> keccak256(std::span<const uint8_t> data);
 // The same for the bytes of a string (Python's keccak256(text.encode()) when text is ASCII, as every caller's is).
-std::array<uint8_t, 32> keccak256(std::string_view data);
+SCFGCORE_API std::array<uint8_t, 32> keccak256(std::string_view data);
 
 }  // namespace scfg::keccak

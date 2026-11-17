@@ -25,6 +25,8 @@ endif()
 # by every target below, and a header in any subfolder of Public gets its own header TU.
 set(SCFG_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Plugins/Scfg/Source/ScfgCore)
 file(GLOB_RECURSE SCFG_CORE_SOURCES CONFIGURE_DEPENDS ${SCFG_CORE_DIR}/*.cpp)
+# The module's registration (IMPLEMENT_MODULE) is the one Unreal file of the module: only UBT compiles it.
+list(FILTER SCFG_CORE_SOURCES EXCLUDE REGEX "/Private/ScfgCoreModule\\.cpp$")
 file(GLOB_RECURSE SCFG_CORE_HEADERS CONFIGURE_DEPENDS ${SCFG_CORE_DIR}/Public/*.h)
 
 add_library(scfg_core STATIC ${SCFG_CORE_SOURCES})

@@ -3,6 +3,7 @@
 // before anything is unlocked.
 #pragma once
 
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/Result.h"
 
@@ -26,10 +27,10 @@ struct TxMessage {
 // normalize_any_tx's ValueError for a malformed one. A malformed sender is dropped: a truthy sender whose str()
 // starts with "0x" is read as an EVM address (to_checksum_address), any other as a Solana account
 // (normalize_pubkey), and a ValueError or TypeError there makes it None.
-Result<TxMessage> parse_tx_message(const Json& data);
+SCFGCORE_API Result<TxMessage> parse_tx_message(const Json& data);
 
 // {"account"} -> the player's Solana account, normalized (normalize_pubkey). ValueError("not an object"),
 // ValueError("bad account") for a missing one, or normalize_pubkey's ValueError.
-Result<std::string> parse_build_message(const Json& data);
+SCFGCORE_API Result<std::string> parse_build_message(const Json& data);
 
 }  // namespace scfg::page_messages

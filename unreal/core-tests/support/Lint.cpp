@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <regex>
 #include <set>
 
 namespace fs = std::filesystem;
@@ -423,6 +424,161 @@ std::vector<std::string> names_its_twin(const File& f) {
         return hits;
     }
     return {at(f, 1, "no twin comment", why)};
+}
+
+// ---- exports (F3) ----
+
+// s with every balanced (...) emptied to "()" and every <...> removed, innermost first, after the operator names are
+// replaced (so operator<< and operator() are not brackets): the shape of a declaration at its top level.
+static std::string top_level(std::string s) {
+    static const std::regex op("operator\\s*(<=>|<<=|>>=|<<|>>|<=|>=|==|!=|->\\*?|\\(\\s*\\)|\\[\\s*\\]|"
+                               "[-+*/%^&|~!=<>,]=?|co_await|new|delete|[A-Za-z_][\\w:]*)");
+    s = std::regex_replace(s, op, "operator_");
+    static const std::regex parens("\\([^()]*\\)"), angles("<[^<>]*>");
+    for (std::string prev; prev != s;) {
+        prev = s;
+        s = std::regex_replace(s, parens, "@");
+        s = std::regex_replace(s, angles, "");
+    }
+    return s;
+}
+
+// A declaration (not a definition) of a function that some .cpp defines: `... name(...) [const] [noexcept]
+// [override] [final] [-> T]`, with no `= default`, `= delete` or `= 0` (a top-level '=' is a variable).
+static bool declares_function(const std::string& stmt) {
+    static const std::regex fn(
+        "^[^=]*[\\w\\]]\\s*@\\s*(const\\s*)?(noexcept\\s*)?((override|final)\\s*)*(->[^=]*)?$");
+    return std::regex_match(top_level(stmt), fn);
+}
+
+static bool starts_with_word(std::string_view s, std::string_view w) {
+    return s.substr(0, w.size()) == w && (s.size() == w.size() || !ident_char(s[w.size()]));
+}
+
+std::vector<std::string> exports(const File& f) {
+    if (!ends_with(f.rel, ".h") || basename(f.rel) == "Export.h") return {};
+    const std::string why_fn = "a module exports only what is marked: a call from another module fails to link";
+    const std::string why_class = "a class with a member a .cpp defines is exported whole: class SCFGCORE_API X";
+    const std::string why_inc = "a header that uses SCFGCORE_API includes Scfg/Export.h, which defines it outside UBT";
+    Views v = lint::views(f.text);
+    // The code without preprocessor lines (a #define's continuation lines included), one '\n' per line.
+    static const std::regex export_include("^\\s*#\\s*include\\s*\"Scfg/Export\\.h\"");
+    std::string code;
+    bool continued = false;
+    bool includes_export = false;
+    for (size_t n = 0; n < v.code.size(); ++n) {
+        const std::string& l = v.code[n];
+        size_t first = l.find_first_not_of(" \t");
+        bool directive = continued || (first != std::string::npos && l[first] == '#');
+        continued = directive && !l.empty() && l.back() == '\\';
+        if (directive && std::regex_search(v.kept[n], export_include)) includes_export = true;
+        code += (directive ? std::string() : l) + "\n";
+    }
+
+    enum class Kind { Ns, Class, Other };
+    struct Scope {
+        Kind kind;
+        bool tmpl = false;     // a class template (or a class nested in one): nothing in it is checked
+        bool has_api = false;  // class SCFGCORE_API X
+        bool needs = false;    // declares a member that a .cpp defines
+        size_t line = 0;
+    };
+    std::vector<Scope> scopes = {{Kind::Ns}};
+    std::vector<std::string> hits;
+    bool uses_api = code.find("SCFGCORE_API") != std::string::npos;
+    std::string stmt;
+    size_t stmt_line = 0, line = 1;
+    static const std::regex access("^((public|private|protected)\\s*:\\s*)+");
+    static const std::regex attrs("^(\\[\\[[^\\]]*\\]\\]\\s*)+");
+    static const std::regex template_prefix("^template\\s*");
+    auto clean = [&](const std::string& s) {
+        std::string t = std::regex_replace(s, access, "");
+        size_t b = t.find_first_not_of(" \t\n");
+        size_t e = t.find_last_not_of(" \t\n");
+        return b == std::string::npos ? std::string() : t.substr(b, e - b + 1);
+    };
+    auto finish = [&]() {  // the statement in stmt ended with ';' at a namespace or class scope
+        std::string s = clean(stmt);
+        stmt.clear();
+        if (s.empty()) return;
+        Scope& sc = scopes.back();
+        bool api = s.find("SCFGCORE_API") != std::string::npos;
+        std::string bare = std::regex_replace(s, attrs, "");  // [[noreturn]] void f();
+        if (sc.kind == Kind::Ns) {
+            for (const char* w : {"inline", "template", "constexpr", "consteval", "static", "using", "typedef",
+                                  "static_assert", "namespace", "class", "struct", "union", "enum", "friend"}) {
+                if (starts_with_word(bare, w)) return;
+            }
+            if (starts_with_word(bare, "extern")) {
+                if (!api) hits.push_back(at(f, stmt_line, "extern variable without SCFGCORE_API", why_fn));
+            } else if (declares_function(bare) && !api) {
+                hits.push_back(at(f, stmt_line, "free function without SCFGCORE_API", why_fn));
+            }
+            return;
+        }
+        if (sc.tmpl) return;
+        if (starts_with_word(bare, "friend")) {
+            if (declares_function(bare) && !api)
+                hits.push_back(at(f, stmt_line, "friend function without SCFGCORE_API", why_fn));
+            return;
+        }
+        for (const char* w : {"template", "using", "typedef", "static_assert", "enum", "class", "struct", "union"}) {
+            if (starts_with_word(bare, w)) return;
+        }
+        if (declares_function(bare)) sc.needs = true;
+    };
+
+    for (size_t i = 0; i < code.size(); ++i) {
+        char c = code[i];
+        if (c == '\n') ++line;
+        Kind kind = scopes.back().kind;
+        if (kind == Kind::Other) {
+            if (c == '{') scopes.push_back({Kind::Other});
+            if (c != '}') continue;
+            scopes.pop_back();
+            if (scopes.back().kind == Kind::Other) continue;
+            // A function body ends its statement; an initializer ({...} then ';', ',' or ')') does not.
+            size_t j = code.find_first_not_of(" \t\n", i + 1);
+            if (j == std::string::npos || (code[j] != ';' && code[j] != ',' && code[j] != ')')) stmt.clear();
+            continue;
+        }
+        if (c == '{') {
+            std::string head = clean(stmt);
+            std::string shape = top_level(head);
+            bool tmpl = scopes.back().tmpl || starts_with_word(head, "template");
+            std::string after = std::regex_replace(shape, template_prefix, "");
+            if (starts_with_word(head, "namespace") || head.rfind("extern \"\"", 0) == 0) {
+                scopes.push_back({Kind::Ns});
+                stmt.clear();
+            } else if (starts_with_word(after, "class") || starts_with_word(after, "struct") ||
+                       starts_with_word(after, "union")) {
+                bool api = head.find("SCFGCORE_API") != std::string::npos;
+                scopes.push_back({Kind::Class, tmpl, api, false, stmt_line});
+                stmt.clear();
+            } else {
+                scopes.push_back({Kind::Other});  // a function body, an enum's list or an initializer: stmt goes on
+            }
+            continue;
+        }
+        if (c == '}') {
+            Scope sc = scopes.back();
+            if (scopes.size() > 1) scopes.pop_back();
+            if (sc.kind == Kind::Class && !sc.tmpl && sc.needs && !sc.has_api)
+                hits.push_back(at(f, sc.line, "class without SCFGCORE_API", why_class));
+            stmt.clear();
+            continue;
+        }
+        if (c == ';') {
+            finish();
+            continue;
+        }
+        bool blank = stmt.find_first_not_of(" \t\n") == std::string::npos;
+        if (blank && c != ' ' && c != '\t' && c != '\n') stmt_line = line;
+        stmt += c;
+    }
+    if (uses_api && !includes_export)
+        hits.push_back(at(f, 1, "SCFGCORE_API without #include \"Scfg/Export.h\"", why_inc));
+    return hits;
 }
 
 static std::string lower(std::string s) {

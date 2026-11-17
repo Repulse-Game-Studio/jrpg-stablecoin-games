@@ -5,6 +5,7 @@
 // the draws with an Entropy of its own. SystemEntropy is the OS source; the Unreal glue may supply another.
 #pragma once
 
+#include "Scfg/Export.h"
 #include "Scfg/Result.h"
 
 #include <cstdint>
@@ -13,7 +14,7 @@
 
 namespace scfg {
 
-class Entropy {
+class SCFGCORE_API Entropy {
 public:
     virtual ~Entropy() = default;
 
@@ -34,7 +35,7 @@ public:
 };
 
 // The operating system's random source: one device for the whole program, opened on first use.
-class SystemEntropy final : public Entropy {
+class SCFGCORE_API SystemEntropy final : public Entropy {
 public:
     std::vector<uint8_t> token_bytes(int n) override;
 };

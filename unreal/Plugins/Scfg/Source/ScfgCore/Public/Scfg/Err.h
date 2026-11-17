@@ -6,6 +6,8 @@
 // `except ValueError` is `e.is_a("ValueError")`, which also holds for a ConfigError.
 #pragma once
 
+#include "Scfg/Export.h"
+
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -15,7 +17,7 @@
 
 namespace scfg {
 
-struct Err {
+struct SCFGCORE_API Err {
     // The Python exception class name: a kind in Err.cpp's BASES table.
     std::string kind;
     // `str(exc)` in Python; for a KeyError the key's repr (`'chain'`), for an RpcError the node's own message
@@ -61,16 +63,16 @@ namespace errors {
 // The default `on_error`: a crash the core contained (one session's step, one stored receipt, one restore
 // candidate) is printed and the work goes on: its line ("scfg: contained error: <str()>", no newline) goes to the
 // print sink, or to stderr while none is set.
-void print_error(const Err& e);
+SCFGCORE_API void print_error(const Err& e);
 
 // Where print_error's lines go instead of stderr (a host's log, a test's capture); an empty one restores stderr.
 // Returns the sink it replaces. Single-threaded, as the core is.
 using PrintSink = std::function<void(std::string_view line)>;
-PrintSink set_print_sink(PrintSink sink);
+SCFGCORE_API PrintSink set_print_sink(PrintSink sink);
 
 // Programming errors reported so far (an unknown kind given to Err::make or Err::is_a), oldest first.
-std::vector<std::string>& misuse();
-void clear_misuse();
+SCFGCORE_API std::vector<std::string>& misuse();
+SCFGCORE_API void clear_misuse();
 
 }  // namespace errors
 
@@ -78,11 +80,11 @@ namespace detail {
 
 // Result's wrong-alternative access (value() of an error, err() of a success): a programming error. Prints what
 // and aborts, as std::get does without exceptions.
-[[noreturn]] void bad_result_access(const char* what, const Err* e);
+[[noreturn]] SCFGCORE_API void bad_result_access(const char* what, const Err* e);
 
 // Any other misuse of the core's own machinery (a Promise completed twice, a coroutine that ended without
 // co_return, ...): a programming error. Prints what and aborts.
-[[noreturn]] void programming_error(const char* what);
+[[noreturn]] SCFGCORE_API void programming_error(const char* what);
 
 }  // namespace detail
 }  // namespace scfg

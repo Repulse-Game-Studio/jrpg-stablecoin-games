@@ -22,6 +22,7 @@
 #include "Scfg/Co.h"
 #include "Scfg/Coio.h"
 #include "Scfg/Err.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/OrderedMap.h"
 #include "Scfg/Result.h"
@@ -44,9 +45,9 @@ inline constexpr int64_t MIN_LOG_RANGE = 10;
 
 // Python is_range_error: the node's message (lowered as Python's str.lower() for an ASCII search) holds one of
 // the phrases providers use for "your eth_getLogs block range is too wide".
-bool is_range_error(const Err& err);
+SCFGCORE_API bool is_range_error(const Err& err);
 // Python _is_rate_error: "rate limit", "too many requests" or "rate-limit".
-bool is_rate_error(const Err& err);
+SCFGCORE_API bool is_rate_error(const Err& err);
 // Python's `except (RpcUnavailable, RpcError)`: no endpoint answered, or the node refused the request.
 inline bool network_failure(const Err& e) { return e.is_a("RpcUnavailable") || e.is_a("RpcError"); }
 
@@ -55,7 +56,7 @@ inline bool network_failure(const Err& e) { return e.is_a("RpcUnavailable") || e
 // range"), otherwise halves (floor), but not below MIN_LOG_RANGE. A number is a run of Python 3.9's \d (any
 // Unicode 13 decimal digit); one of more than 18 significant digits is ignored (Ruling 6, ints::digit_run_value),
 // so no long run is converted.
-BigInt suggested_range(const Err& err, const BigInt& tried);
+SCFGCORE_API BigInt suggested_range(const Err& err, const BigInt& tried);
 
 // What try_at got from an endpoint that answered: Python's ("ok", result) or ("error", RpcError).
 struct Attempt {
@@ -73,7 +74,7 @@ struct RpcClientOptions {
 
 // Python rpc.RpcClient. Holds the transport by reference: the caller keeps it alive for the client's lifetime.
 // A network method's Co refers to this client: keep the client alive, and do not move it, while one runs.
-class RpcClient {
+class SCFGCORE_API RpcClient {
 public:
     // ValueError "at least one RPC url required" for no urls.
     static Result<RpcClient> make(std::vector<std::string> urls, coio::Transport& transport,

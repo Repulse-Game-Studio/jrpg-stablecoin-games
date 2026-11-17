@@ -34,6 +34,7 @@
 #include "Scfg/Dec.h"
 #include "Scfg/Entropy.h"
 #include "Scfg/Err.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/OrderedMap.h"
 #include "Scfg/Restore.h"
@@ -67,7 +68,7 @@ struct Snapshot {
 // A chain's RPC object (the default: its backend's make_rpc over the Engine's transport).
 using RpcFactory = std::function<Result<backends::base::Rpc>(const chains::Chain&)>;
 
-class Engine {
+class SCFGCORE_API Engine {
 public:
     // pending and receipts are None or dicts (Python's `dict(pending or {})`), deep-copied; anything else is a
     // programming error. clock gives whole seconds: session timestamps and windows run on it. on_error defaults to

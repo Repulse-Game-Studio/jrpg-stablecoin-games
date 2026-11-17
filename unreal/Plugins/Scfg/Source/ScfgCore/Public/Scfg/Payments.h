@@ -7,6 +7,7 @@
 
 #include "Scfg/Config.h"
 #include "Scfg/Dec.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/Result.h"
 
@@ -18,9 +19,9 @@
 namespace scfg::payments {
 
 // Decimal("0.50").
-const Dec& MIN_TIP();
+SCFGCORE_API const Dec& MIN_TIP();
 // (Decimal("1.00"), Decimal("3.00"), Decimal("5.00"), Decimal("10.00")).
-const std::array<Dec, 4>& TIP_PRESETS();
+SCFGCORE_API const std::array<Dec, 4>& TIP_PRESETS();
 
 // Python's frozen PaymentSpec dataclass. item and title are Json because Python carries what it was given: an
 // unlock's item is the item id (a str), a tip's is any value or None, and a title is any truthy value or the
@@ -37,6 +38,6 @@ struct PaymentSpec {
 
 // prepare_payment(config, kind, *, item=None, amount=None, token=None, title=None): kwargs holds the keyword
 // arguments (an unknown one is a TypeError); kind is any value ("unlock" or "tip", else payment.bad_kind).
-Result<PaymentSpec> prepare_payment(const config::Config& config, const Json& kind, const Json& kwargs);
+SCFGCORE_API Result<PaymentSpec> prepare_payment(const config::Config& config, const Json& kind, const Json& kwargs);
 
 }  // namespace scfg::payments

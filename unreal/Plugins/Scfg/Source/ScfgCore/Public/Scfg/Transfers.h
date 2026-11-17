@@ -5,6 +5,7 @@
 #pragma once
 
 #include "Scfg/BigInt.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 
 #include <string>
@@ -17,7 +18,7 @@ namespace scfg::transfers {
 // hint as it was stored); a log_index that is the accountIndex as the node sent it (an int of any size, or a str, a
 // float or a bool). value and block_number are always ints (a balance difference, int() of the slot), of any size.
 // make_receipt stores the carried values as they are, as Python's does.
-struct Transfer {
+struct SCFGCORE_API Transfer {
     std::string token;      // token contract (EVM) or mint (Solana)
     Json sender;            // payer; Solana: None when no account lost the token and there is no fee payer
     std::string recipient;  // developer wallet (the owner, never a token account)
@@ -27,7 +28,7 @@ struct Transfer {
     BigInt block_number;    // EVM: block number; Solana: slot
 
     // The dataclass's ==: field by field, the carried values with Python's == (py::eq: 1 == 1.0 == True).
-    friend bool operator==(const Transfer& a, const Transfer& b);
+    friend SCFGCORE_API bool operator==(const Transfer& a, const Transfer& b);
 };
 
 }  // namespace scfg::transfers

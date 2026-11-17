@@ -8,6 +8,7 @@
 #pragma once
 
 #include "Scfg/BigInt.h"
+#include "Scfg/Export.h"
 
 #include <cstdint>
 #include <span>
@@ -15,11 +16,11 @@
 namespace scfg::solana::ed25519 {
 
 // p = 2**255 - 19.
-const BigInt& P();
+SCFGCORE_API const BigInt& P();
 // d = -121665 / 121666 mod p (computed as Python computes it, on first use).
-const BigInt& D();
+SCFGCORE_API const BigInt& D();
 
 // False for anything but 32 bytes.
-bool is_on_curve(std::span<const uint8_t> point);
+SCFGCORE_API bool is_on_curve(std::span<const uint8_t> point);
 
 }  // namespace scfg::solana::ed25519

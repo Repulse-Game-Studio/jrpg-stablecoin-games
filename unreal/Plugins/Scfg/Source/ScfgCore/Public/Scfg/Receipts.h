@@ -16,6 +16,7 @@
 #include "Scfg/BigInt.h"
 #include "Scfg/Dec.h"
 #include "Scfg/Evm.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/Models.h"
 #include "Scfg/OrderedMap.h"
@@ -33,29 +34,29 @@ namespace scfg::receipts {
 // case-insensitive) and kept as it is otherwise (Solana signatures are base58: case matters; "0X..." is kept too).
 // A log index of more than 4300 digits is str()'s ValueError ("Exceeds the limit (4300) for integer string
 // conversion; ..."); an int64_t one always formats.
-Result<std::string> receipt_key(std::string_view chain, std::string_view tx_hash, const BigInt& log_index);
-std::string receipt_key(std::string_view chain, std::string_view tx_hash, int64_t log_index);
+SCFGCORE_API Result<std::string> receipt_key(std::string_view chain, std::string_view tx_hash, const BigInt& log_index);
+SCFGCORE_API std::string receipt_key(std::string_view chain, std::string_view tx_hash, int64_t log_index);
 // The same for values read back from storage: chain and log_index are formatted with str() whatever their type (an
 // int with str()'s 4300-digit limit), and a tx_hash that is not a str is the AttributeError of its startswith.
-Result<std::string> receipt_key(const Json& chain, const Json& tx_hash, const Json& log_index);
+SCFGCORE_API Result<std::string> receipt_key(const Json& chain, const Json& tx_hash, const Json& log_index);
 
 // make_receipt(chain=, transfer=, kind=, item=, token=, source=): the receipt dict, in the schema's key order (chain,
 // tx_hash, log_index, block, kind, item, amount, token, payer, recipient, source). kind must be "unlock" or "tip" and
 // source "payment" or "restore", else ValueError("invalid kind <repr>") / ("invalid source <repr>"). The amount is
 // str(units_to_decimal(value)); payer is the sender. A Transfer's carried values (its sender, tx_hash and log_index)
 // are stored as they are, whatever their type, as Python's dict holds them.
-Result<Json> make_receipt(const Json& chain, const transfers::Transfer& transfer, const Json& kind, const Json& item,
-                          const Json& token, const Json& source);
-Result<Json> make_receipt(const Json& chain, const evm::TransferLog& transfer, const Json& kind, const Json& item,
-                          const Json& token, const Json& source);
+SCFGCORE_API Result<Json> make_receipt(const Json& chain, const transfers::Transfer& transfer, const Json& kind,
+                                       const Json& item, const Json& token, const Json& source);
+SCFGCORE_API Result<Json> make_receipt(const Json& chain, const evm::TransferLog& transfer, const Json& kind,
+                                       const Json& item, const Json& token, const Json& source);
 
 // Stores the receipt under its key unless that key is already there; returns whether it was added (the first
 // receipt for a key stays). A receipt that is not a dict, or misses chain, tx_hash or log_index, is the TypeError
 // or KeyError of Python's receipt["..."]; a non-str tx_hash its AttributeError.
-Result<bool> add_receipt(Json::Dict& store, const Json& receipt);
+SCFGCORE_API Result<bool> add_receipt(Json::Dict& store, const Json& receipt);
 
 // store.pop(key, None).
-void remove_receipt(Json::Dict& store, std::string_view key);
+SCFGCORE_API void remove_receipt(Json::Dict& store, std::string_view key);
 
 // Python's (owned, tips) tuple.
 struct Ownership {
@@ -67,6 +68,6 @@ struct Ownership {
 // kind or amount, an amount amounts::stored_amount refuses (so the total stays finite), and an unlock whose item is a
 // list or a dict (unhashable: items.get raises TypeError). An unlock owns its item when the item is in `items` and the
 // amount is at least its min_price. The sum fails only with Decimal's Overflow, which bounded amounts cannot reach.
-Result<Ownership> compute_ownership(const Json::Dict& store, const OrderedMap<models::Item>& items);
+SCFGCORE_API Result<Ownership> compute_ownership(const Json::Dict& store, const OrderedMap<models::Item>& items);
 
 }  // namespace scfg::receipts

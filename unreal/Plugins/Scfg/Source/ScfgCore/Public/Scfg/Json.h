@@ -19,6 +19,7 @@
 #pragma once
 
 #include "Scfg/BigInt.h"
+#include "Scfg/Export.h"
 #include "Scfg/Result.h"
 
 #include <concepts>
@@ -38,7 +39,7 @@
 
 namespace scfg {
 
-class Json {
+class SCFGCORE_API Json {
 public:
     enum class Type { Null, Bool, Int, Float, Str, List, Dict };
     using List = std::vector<Json>;
@@ -125,7 +126,7 @@ private:
 // that was erased and is assigned again goes last. Lookup is hashed; erase is O(n). Changing the key set while
 // iterating invalidates the iteration (Python raises "dictionary changed size during iteration"); set() of a
 // present key does not.
-class Json::Dict {
+class SCFGCORE_API Json::Dict {
 public:
     using Entry = std::pair<std::string, Json>;
     using const_iterator = std::vector<Entry>::const_iterator;
@@ -164,7 +165,7 @@ private:
 
 // copy.deepcopy of a JSON value: every list and dict is copied (keys keep their order); scalars are values anyway.
 // A list or dict met twice is copied twice (Python's memo would keep the two places aliased).
-Json deep_copy(const Json& v);
+SCFGCORE_API Json deep_copy(const Json& v);
 
 namespace json {
 
@@ -183,13 +184,13 @@ inline constexpr size_t MAX_DEPTH = 1000;
 //   (char N)", counted in code points; a BOM is "Unexpected UTF-8 BOM", as for a str);
 // - a JSON \ud800 escape decodes to WTF-8 (a lone surrogate is kept, as in a Python str).
 // Use it for bytes from the network (an RPC response body).
-Result<Json> loads(std::string_view text);
+SCFGCORE_API Result<Json> loads(std::string_view text);
 
 // json.loads(s) of text that is already a Python str, which may hold lone surrogates (kept here as WTF-8): the same
 // as loads, except that encoded surrogates (ED A0..BF xx) are accepted, each as one code point. Other invalid UTF-8
 // is still a ValueError. Use it for text the core's own JSON produced or that arrived as a str, such as coio.py's
 // envelope["body"].
-Result<Json> loads_text(std::string_view text);
+SCFGCORE_API Result<Json> loads_text(std::string_view text);
 
 struct DumpOptions {
     bool sort_keys = false;
@@ -203,7 +204,7 @@ struct DumpOptions {
 // surrogate pairs under ensure_ascii. An int of more than 4300 digits is the ValueError Python raises
 // (py::int_str's, decided from the bit length first, so dumps stays linear in its output). A list or dict that
 // contains itself is a programming error (Python's "Circular reference detected").
-Result<std::string> dumps(const Json& v, const DumpOptions& opts = {});
+SCFGCORE_API Result<std::string> dumps(const Json& v, const DumpOptions& opts = {});
 
 }  // namespace json
 }  // namespace scfg

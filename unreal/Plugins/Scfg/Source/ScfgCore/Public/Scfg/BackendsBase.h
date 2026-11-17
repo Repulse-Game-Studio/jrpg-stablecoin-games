@@ -17,6 +17,7 @@
 #include "Scfg/Config.h"
 #include "Scfg/Entropy.h"
 #include "Scfg/Err.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/Models.h"
 #include "Scfg/OrderedMap.h"
@@ -51,13 +52,13 @@ using ErrorSink = std::function<void(const Err&)>;
 
 // The alternative of rpc a family's backend needs: TypeError "an EVM chain needs an RpcClient, not a SolanaRpc"
 // (and the Solana twin) for the other one or a null pointer.
-Result<std::shared_ptr<::scfg::rpc::RpcClient>> evm_client(const Rpc& rpc);
-Result<std::shared_ptr<::scfg::solana::rpc::SolanaRpc>> solana_client(const Rpc& rpc);
+SCFGCORE_API Result<std::shared_ptr<::scfg::rpc::RpcClient>> evm_client(const Rpc& rpc);
+SCFGCORE_API Result<std::shared_ptr<::scfg::solana::rpc::SolanaRpc>> solana_client(const Rpc& rpc);
 // The failover client underneath either alternative (SolanaRpc wraps one), for a caller that sets its clock. An rpc
 // holding a null pointer is a programming error.
-::scfg::rpc::RpcClient& client_of(const Rpc& rpc);
+SCFGCORE_API ::scfg::rpc::RpcClient& client_of(const Rpc& rpc);
 // rpc holds a client (not a null pointer).
-bool is_set(const Rpc& rpc);
+SCFGCORE_API bool is_set(const Rpc& rpc);
 
 class Backend {
 public:

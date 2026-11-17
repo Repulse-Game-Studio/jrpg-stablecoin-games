@@ -12,6 +12,7 @@
 #pragma once
 
 #include "Scfg/BigInt.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/Result.h"
 
@@ -25,7 +26,7 @@ namespace scfg {
 
 // An immutable finite decimal (-1)^negative * coef * 10^exp, the coefficient a magnitude kept apart from the sign
 // so that -0 exists. Equality and ordering are by value (1.0 == 1.00, -0 == 0), as Python's.
-class Dec {
+class SCFGCORE_API Dec {
 public:
     // The default context.
     static constexpr int64_t PREC = 28;
@@ -87,10 +88,10 @@ public:
     // a + b under the default context, exactly as _pydecimal's __add__: operands whose exponents are far apart cost
     // nothing, the sum is rounded half even to 28 digits (as a subnormal at ETINY), a zero's exponent is clamped
     // into [ETINY, EMAX], and a result above EMAX is an Overflow (the trapped decimal.Overflow).
-    friend Result<Dec> operator+(const Dec& a, const Dec& b);
+    friend SCFGCORE_API Result<Dec> operator+(const Dec& a, const Dec& b);
 
-    friend bool operator==(const Dec& a, const Dec& b);
-    friend std::weak_ordering operator<=>(const Dec& a, const Dec& b);
+    friend SCFGCORE_API bool operator==(const Dec& a, const Dec& b);
+    friend SCFGCORE_API std::weak_ordering operator<=>(const Dec& a, const Dec& b);
 
 private:
     BigInt coef_;

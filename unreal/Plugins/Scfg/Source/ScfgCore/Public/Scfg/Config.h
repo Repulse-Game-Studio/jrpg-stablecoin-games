@@ -18,6 +18,7 @@
 
 #include "Scfg/BigInt.h"
 #include "Scfg/Chains.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/Models.h"
 #include "Scfg/OrderedMap.h"
@@ -49,10 +50,10 @@ inline constexpr std::array<std::pair<std::string_view, std::string_view>, 4> LO
 // copy.deepcopy(DEFAULT_METHODS): a new dict each call,
 // {"browser": {"enabled": True, "timeout_min": 30}, "qr": {"enabled": True, "wallet_button": True, "chains": None},
 //  "manual": {"enabled": True, "allow_tx_paste": True}}.
-Json DEFAULT_METHODS();
+SCFGCORE_API Json DEFAULT_METHODS();
 
 // Python's Config dataclass (mutable: add_item adds to items).
-struct Config {
+struct SCFGCORE_API Config {
     std::optional<std::string> wallet;  // EVM payout address; None for a Solana-only game
     bool testnet = false;
     std::vector<std::string> chains;
@@ -85,7 +86,7 @@ struct Config {
 //
 // Only EVM chains work: payments are found through ERC-20 Transfer logs over Ethereum JSON-RPC. The tokens must have
 // 6 decimals, because the item code and nonce live in the last four decimals of the amount.
-Result<chains::Chain> build_chain(const Json& kwargs);
+SCFGCORE_API Result<chains::Chain> build_chain(const Json& kwargs);
 
 // One entry of build_config's custom_chains: a Chain from build_chain, or any other value, which is the ConfigError
 // chain.not_from_add_chain (Python's `not isinstance(chain, Chain)`).
@@ -96,28 +97,28 @@ using CustomChain = std::variant<chains::Chain, Json>;
 // kwargs' own custom_chains (if any) is iterated as Python iterates it and every entry is not a Chain; the second
 // overload passes the list beside kwargs, which must not also name it (a TypeError, Python's "got multiple values").
 // Custom chains of the other network are ignored unless chains names them.
-Result<Config> build_config(const Json& kwargs);
-Result<Config> build_config(const Json& kwargs, std::vector<CustomChain> custom_chains);
+SCFGCORE_API Result<Config> build_config(const Json& kwargs);
+SCFGCORE_API Result<Config> build_config(const Json& kwargs, std::vector<CustomChain> custom_chains);
 
 // The content type of a logo path by its extension (lowercased): a ConfigError logo.bad_type for anything but
 // .png, .jpg, .jpeg and .webp.
-Result<std::string> logo_content_type(std::string_view path);
+SCFGCORE_API Result<std::string> logo_content_type(std::string_view path);
 
 // White or ink, whichever has the higher WCAG contrast on `color` (#rrggbb). Each channel is int(color[i:i+2], 16),
 // so a color that is not one is that int()'s ValueError.
-Result<std::string> text_on(std::string_view color);
+SCFGCORE_API Result<std::string> text_on(std::string_view color);
 
 // Chains the player may pay on, in display order, filtered to enabled tokens, with developer RPC URLs tried first
 // and confirmation overrides applied. A chain missing from the registry (the driver removed it after build_config)
 // is Python's KeyError.
-Result<OrderedMap<chains::Chain>> enabled_chains(const Config& config);
+SCFGCORE_API Result<OrderedMap<chains::Chain>> enabled_chains(const Config& config);
 
 // The enabled chains that carry token, in display order.
-Result<std::vector<std::string>> chains_for_token(const Config& config, std::string_view token);
+SCFGCORE_API Result<std::vector<std::string>> chains_for_token(const Config& config, std::string_view token);
 
 // add_item(config, item_id, *, code, price, token, title, min_price=None): validates, adds the item to config.items
 // and returns it. item_id is the positional argument, any value (a non-str is item.invalid_id); kwargs holds the
 // keyword arguments.
-Result<models::Item> add_item(Config& config, const Json& item_id, const Json& kwargs);
+SCFGCORE_API Result<models::Item> add_item(Config& config, const Json& item_id, const Json& kwargs);
 
 }  // namespace scfg::config

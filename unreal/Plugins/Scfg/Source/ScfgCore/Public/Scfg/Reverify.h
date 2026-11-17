@@ -16,6 +16,7 @@
 #include "Scfg/BackendsBase.h"
 #include "Scfg/Chains.h"
 #include "Scfg/Co.h"
+#include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/OrderedMap.h"
 #include "Scfg/Rpc.h"
@@ -46,8 +47,9 @@ inline constexpr int64_t FUTURE_TOLERANCE_BLOCKS = 10'000;
 // A check that fails because of what a node returned (any Exception, as Python's `except Exception`) is not the
 // receipt's fault: that receipt is kept as unverifiable, the failure is reported, and the receipts after it are
 // still checked. A BaseException that is not an Exception (CancelledError) leaves at once.
-Co<Json> reverify_receipts(Json receipts, backends::base::RpcFor rpc_for, OrderedMap<chains::Chain> chains,
-                           OrderedMap<std::vector<std::string>> wallets, backends::base::ErrorSink on_error);
+SCFGCORE_API Co<Json> reverify_receipts(Json receipts, backends::base::RpcFor rpc_for, OrderedMap<chains::Chain> chains,
+                                        OrderedMap<std::vector<std::string>> wallets,
+                                        backends::base::ErrorSink on_error);
 
 // Python check_evm_receipt(r, rpc=, chain=, wallets=): judge one stored EVM receipt (its fields validated): "drop"
 // if the chain contradicts it, else "keep". The receipt's block must not be past the head (more than
@@ -56,7 +58,7 @@ Co<Json> reverify_receipts(Json receipts, backends::base::RpcFor rpc_for, Ordere
 // token whose payments are logged elsewhere (Arc) also accepts the token contract's own log, which a game that added
 // the chain itself before it was built in stored. RpcUnavailable and RpcError keep it; a malformed log is its Err
 // (parsed only as far as Python's any() reads).
-Co<std::string> check_evm_receipt(Json r, std::shared_ptr<rpc::RpcClient> rpc, chains::Chain chain,
-                                  std::vector<std::string> wallets);
+SCFGCORE_API Co<std::string> check_evm_receipt(Json r, std::shared_ptr<rpc::RpcClient> rpc, chains::Chain chain,
+                                               std::vector<std::string> wallets);
 
 }  // namespace scfg::reverify
