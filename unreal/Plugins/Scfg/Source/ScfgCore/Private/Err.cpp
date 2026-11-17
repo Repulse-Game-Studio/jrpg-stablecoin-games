@@ -1,8 +1,9 @@
 // Twin of scfg_core/errors.py, plus Python's built-in exception classes (the class tree of err.gd's BASES).
 #include "Scfg/Err.h"
 
+#include "Scfg/Py.h"
+
 #include <array>
-#include <charconv>
 #include <cstdio>
 #include <cstdlib>
 #include <utility>
@@ -75,12 +76,6 @@ PrintSink& print_sink() {
     return sink;
 }
 
-std::string int_text(int64_t v) {
-    char buf[24];
-    std::to_chars_result r = std::to_chars(buf, buf + sizeof buf, v);
-    return std::string(buf, r.ptr);
-}
-
 }  // namespace errors::detail
 
 bool Err::is_a(std::string_view k) const {
@@ -106,8 +101,8 @@ bool Err::is_a(std::string_view k) const {
 
 std::string Err::str() const {
     if (!code.empty()) return kind + "(" + code + "): " + message;
-    if (rpc_code) return kind + "(" + errors::detail::int_text(*rpc_code) + "): " + message;
-    if (status) return kind + "(status=" + errors::detail::int_text(*status) + "): " + message;
+    if (rpc_code) return kind + "(" + py::dec(*rpc_code) + "): " + message;
+    if (status) return kind + "(status=" + py::dec(*status) + "): " + message;
     return kind + ": " + message;
 }
 

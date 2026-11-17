@@ -7,13 +7,12 @@
 #include "Scfg/Err.h"
 #include "Scfg/Py.h"
 #include "Scfg/Receipts.h"
+#include "Scfg/Rpc.h"
 
 #include <algorithm>
 #include <utility>
 
 namespace scfg::restore::detail {
-
-bool network(const Err& e) { return e.is_a("RpcUnavailable") || e.is_a("RpcError"); }
 
 // make_receipt(chain=c.chain, transfer=c.transfer, ...) of either transfer class.
 Result<Json> receipt_of(const RestoreCandidate& c, const Json& kind, const Json& item) {
@@ -71,7 +70,7 @@ Co<std::optional<std::vector<RestoreCandidate>>> lookup_evm(std::string tx_hash,
     SCFG_CO_TRY(Json receipt, co_await rpc->get_transaction_receipt(Json(tx_hash)));
     if (receipt.is_null()) co_return std::optional<Candidates>();
     if (!receipt.is_dict()) {
-        co_return Err::make("AttributeError", "'" + std::string(receipt.type_name()) + "' object has no attribute 'get'");
+        co_return py::no_attribute(receipt, "get");
     }
     if (py::eq(receipt.as_dict().get("status"), Json("0x0"))) co_return Err::restore_error("tx_reverted", "tx_reverted");
     OrderedMap<std::string> by_address;  // {t.address: name}: a later name for the same address wins, as in a dict
@@ -124,14 +123,14 @@ Co<std::vector<RestoreCandidate>> lookup(Json tx_hash, config::Config config, Or
         // try: out = backend.lookup(tx, ..., rpc=rpc_for(key), ...) except (RpcUnavailable, RpcError): continue
         Result<backends::base::Rpc> rpc = rpc_for(key);
         if (!rpc.ok()) {
-            if (!detail::network(rpc.err())) co_return std::move(rpc).err();
+            if (!rpc::network_failure(rpc.err())) co_return std::move(rpc).err();
             network_trouble = true;
             continue;
         }
         Result<std::optional<std::vector<RestoreCandidate>>> out =
             co_await backend->lookup(tx.take(), config, chain, rpc.take(), receipts, on_error);
         if (!out.ok()) {
-            if (!detail::network(out.err())) co_return std::move(out).err();
+            if (!rpc::network_failure(out.err())) co_return std::move(out).err();
             network_trouble = true;
             continue;
         }

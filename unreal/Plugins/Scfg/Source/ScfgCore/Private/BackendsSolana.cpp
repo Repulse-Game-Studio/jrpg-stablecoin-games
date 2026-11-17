@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <compare>
 #include <map>
 #include <memory>
 #include <utility>
@@ -36,14 +35,9 @@ struct OwnedSolanaRpc {
 
 // ---- Python's view of node replies ----
 
-Err no_attribute(const Json& v, std::string_view attribute) {
-    return Err::make("AttributeError",
-                     "'" + std::string(v.type_name()) + "' object has no attribute '" + std::string(attribute) + "'");
-}
-
 // d.get(key): a dict's value or None; anything else has no .get.
 Result<Json> dict_get(const Json& d, std::string_view key) {
-    if (!d.is_dict()) return no_attribute(d, "get");
+    if (!d.is_dict()) return py::no_attribute(d, "get");
     return d.as_dict().get(key);
 }
 
@@ -154,10 +148,10 @@ struct IndexKey {
     Json key;
 };
 
-// a < b for two accountIndexes, as Python compares them (the caller has checked they are comparable).
+// a < b for two accountIndexes, as Python compares them (the caller has checked they are comparable), a NaN last.
 bool index_less(const Json& a, const Json& b) {
     if (a.is_str()) return py::compare_code_points(a.as_str(), b.as_str()) < 0;
-    return py::compare_numbers(*py::number(a), *py::number(b)) == std::partial_ordering::less;
+    return py::number_order(*py::number(a), *py::number(b)) < 0;
 }
 
 // sorted(set(pre) | set(post)). Python orders numbers among themselves and strs among themselves; any other mix of two
@@ -175,11 +169,7 @@ Status sort_indexes(std::vector<IndexKey>& keys) {
                                    "' and '" + std::string(keys[0].key.type_name()) + "'");
         }
     }
-    auto is_nan = [](const Json& v) { return v.is_float() && std::isnan(v.as_float()); };
-    std::sort(keys.begin(), keys.end(), [&is_nan](const IndexKey& a, const IndexKey& b) {
-        if (is_nan(a.key) || is_nan(b.key)) return !is_nan(a.key) && is_nan(b.key);
-        return index_less(a.key, b.key);
-    });
+    std::sort(keys.begin(), keys.end(), [](const IndexKey& a, const IndexKey& b) { return index_less(a.key, b.key); });
     return ok();
 }
 
@@ -221,12 +211,8 @@ Json match_dict(const transfers::Transfer& t) {
 
 // chain.tokens[rec["token"]].address
 Result<std::string> mint_of(const chains::Chain& chain, const Json& rec) {
-    SCFG_TRY(Json key, py::get(rec, "token"));
-    SCFG_TRY(std::optional<std::string> name, py::str_key(key));
-    if (name) {
-        if (const chains::Token* t = chain.tokens.find(*name)) return t->address;
-    }
-    return py::key_error_for(key);
+    SCFG_TRY(chains::Token token, chains::token_of(chain, rec));
+    return token.address;
 }
 
 // Python _qualifies: a transfer at or after the session's start slot that no receipt holds yet, read only as far as
@@ -637,7 +623,7 @@ Co<watcher::StepOutcome> SolanaBackend::advance(Json pending, Json receipts, std
                                                          std::move(rec), std::move(out)});
     Status done = co_await detail::steps(s);
     if (!done.ok()) {
-        if (!done.err().is_a("RpcUnavailable") && !done.err().is_a("RpcError")) co_return std::move(done).err();
+        if (!::scfg::rpc::network_failure(done.err())) co_return std::move(done).err();
         // A verdict on the hint from earlier in this step wins: the hint is already cleared, and later steps are
         // plain "waiting", so it would never be reported.
         if (!s->out.error) s->out.error = "network_unavailable";
@@ -656,7 +642,7 @@ Co<std::string> SolanaBackend::reverify(Json receipt, base::Rpc rpc, chains::Cha
     // try: ... except (RpcUnavailable, RpcError): return "keep"
     Result<BigInt> current = co_await client->get_slot("finalized");
     if (!current.ok()) {
-        if (current.err().is_a("RpcUnavailable") || current.err().is_a("RpcError")) co_return std::string("keep");
+        if (::scfg::rpc::network_failure(current.err())) co_return std::string("keep");
         co_return std::move(current).err();
     }
     if (slot > current.value()) {
@@ -666,7 +652,7 @@ Co<std::string> SolanaBackend::reverify(Json receipt, base::Rpc rpc, chains::Cha
     SCFG_CO_TRY(Json signature, py::get(receipt, "tx_hash"));
     Result<detail::srpc::TxAny> any = co_await client->get_transaction_any(signature, slot);
     if (!any.ok()) {
-        if (any.err().is_a("RpcUnavailable") || any.err().is_a("RpcError")) co_return std::string("keep");
+        if (::scfg::rpc::network_failure(any.err())) co_return std::string("keep");
         co_return std::move(any).err();
     }
     const detail::srpc::TxAny found = any.take();
@@ -776,7 +762,7 @@ Co<Json> SolanaBackend::build_payment(Json rec, base::Rpc rpc, chains::Chain cha
     SCFG_CO_TRY(Json dest, py::get(rec, "dest"));
     SCFG_CO_TRY(Json units, py::get(rec, "units"));
     SCFG_CO_TRY(Json reference, py::get(rec, "reference"));
-    if (!units.is_int() && !units.is_bool()) co_return detail::no_attribute(units, "to_bytes");
+    if (!units.is_int() && !units.is_bool()) co_return py::no_attribute(units, "to_bytes");
     SCFG_CO_TRY(BigInt amount, py::index(units));
     const std::string dest_text = dest.is_str() ? dest.as_str() : std::string();
     const std::string reference_text = reference.is_str() ? reference.as_str() : std::string();

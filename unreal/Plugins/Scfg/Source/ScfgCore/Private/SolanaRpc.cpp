@@ -137,7 +137,7 @@ Co<TxAny> SolanaRpc::get_transaction_any(Json sig, std::optional<BigInt> min_slo
             if (!version) continue;
             Result<Json> retried = co_await client_->call_at(url, "getTransaction", tx_params(sig, commitment, version));
             if (!retried.ok()) {
-                if (retried.err().is_a("RpcUnavailable") || retried.err().is_a("RpcError")) continue;
+                if (::scfg::rpc::network_failure(retried.err())) continue;
                 co_return std::move(retried).err();
             }
             res = retried.take();

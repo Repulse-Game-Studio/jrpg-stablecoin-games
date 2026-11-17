@@ -7,8 +7,6 @@
 #include "Scfg/Py.h"
 
 #include <algorithm>
-#include <cmath>
-#include <compare>
 #include <optional>
 #include <string>
 #include <utility>
@@ -35,18 +33,6 @@ Result<bool> elapsed_at_least(const Json& rec, const Json& now, int64_t limit) {
     SCFG_TRY(Json created, py::get(rec, "created_at"));
     SCFG_TRY(Json elapsed, py::sub(now, created));
     return py::compare(elapsed, py::Cmp::Ge, Json(limit));
-}
-
-// A total order for sorting numbers: Python's exact order, with a NaN put after every number (Python's comparisons
-// with it are all false).
-std::weak_ordering compare_numbers(const py::Number& a, const py::Number& b) {
-    const bool a_nan = !a.is_int && std::isnan(a.f);
-    const bool b_nan = !b.is_int && std::isnan(b.f);
-    if (a_nan || b_nan) return a_nan <=> b_nan;
-    std::partial_ordering r = py::compare_numbers(a, b);
-    return r == std::partial_ordering::less      ? std::weak_ordering::less
-           : r == std::partial_ordering::greater ? std::weak_ordering::greater
-                                                 : std::weak_ordering::equivalent;
 }
 
 }  // namespace scfg::sessions::detail
@@ -142,7 +128,7 @@ Result<std::vector<Json>> list_sessions(const Json::Dict& store) {
     }
     std::stable_sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {
         if (a.key.is_str()) return py::compare_code_points(a.key.as_str(), b.key.as_str()) < 0;
-        return detail::compare_numbers(*py::number(a.key), *py::number(b.key)) < 0;
+        return py::number_order(*py::number(a.key), *py::number(b.key)) < 0;
     });
     std::vector<Json> out;
     out.reserve(entries.size());

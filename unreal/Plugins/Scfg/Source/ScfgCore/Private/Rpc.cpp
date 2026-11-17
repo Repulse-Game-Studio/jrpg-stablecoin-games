@@ -237,7 +237,7 @@ Co<std::optional<std::string>> RpcClient::get_block_hash(BigInt number) {
     if (!py::truthy(block)) co_return std::optional<std::string>();
     SCFG_CO_TRY(Json hash, py::get(block, "hash"));
     if (!hash.is_str()) {
-        co_return Err::make("AttributeError", "'" + std::string(hash.type_name()) + "' object has no attribute 'lower'");
+        co_return py::no_attribute(hash, "lower");
     }
     co_return std::optional<std::string>(py::lower_for_ascii(hash.as_str()));
 }

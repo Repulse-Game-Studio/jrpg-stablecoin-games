@@ -33,16 +33,6 @@ struct Step {
     StepOutcome out;
 };
 
-// chain.tokens[rec["token"]].
-Result<chains::Token> token_of(const chains::Chain& chain, const Json& rec) {
-    SCFG_TRY(Json key, py::get(rec, "token"));
-    SCFG_TRY(std::optional<std::string> name, py::str_key(key));
-    if (name) {
-        if (const chains::Token* t = chain.tokens.find(*name)) return *t;
-    }
-    return py::key_error_for(key);
-}
-
 Json match_dict(const evm::TransferLog& t) {
     return Json::dict({{"tx_hash", Json(t.tx_hash)},
                        {"log_index", Json(t.log_index)},
@@ -57,7 +47,7 @@ Json match_dict(const evm::TransferLog& t) {
 // no receipt holds yet. The record is read only as far as Python's `and` gets.
 Result<bool> qualifies(const std::optional<evm::TransferLog>& t, const Step& s) {
     if (!t) return false;
-    SCFG_TRY(chains::Token token, token_of(s.chain, s.rec));
+    SCFG_TRY(chains::Token token, chains::token_of(s.chain, s.rec));
     if (t->token != token.address || t->recipient != s.wallet) return false;
     SCFG_TRY(Json start, py::get(s.rec, "start_block"));
     SCFG_TRY(bool after, py::compare(Json(t->block_number), py::Cmp::Ge, start));
@@ -88,7 +78,7 @@ Co<std::optional<std::string>> verify_hint(std::shared_ptr<Step> s) {
         co_return Verdict();
     }
     if (!receipt.is_dict()) {
-        co_return Err::make("AttributeError", "'" + std::string(receipt.type_name()) + "' object has no attribute 'get'");
+        co_return py::no_attribute(receipt, "get");
     }
     if (py::eq(receipt.as_dict().get("status"), Json("0x0"))) {
         drop_hint(*s, "tx_reverted");
@@ -126,7 +116,7 @@ Co<bool> scan(std::shared_ptr<Step> s, BigInt head) {
     const BigInt span = s->rpc->log_range();
     const BigInt step = span.is_zero() ? BigInt(SCAN_STEP_BLOCKS)
                                        : std::min(BigInt(SCAN_STEP_BLOCKS), span * BigInt(MAX_SCAN_CALLS));
-    SCFG_CO_TRY(chains::Token token, token_of(s->chain, s->rec));
+    SCFG_CO_TRY(chains::Token token, chains::token_of(s->chain, s->rec));
     SCFG_CO_TRY(std::string topic, evm::address_topic(Json(s->wallet)));
     // The cursor compared with an int, so it is a number. A float reaches get_logs, whose hex() refuses it, except
     // a NaN: min(head, nan) is head and get_logs' `while start <= to_block` never runs.
@@ -226,7 +216,7 @@ Co<void> steps(std::shared_ptr<Step> s) {
     // TransferLog(token, m["payer"], m["recipient"], m["value"], m["tx_hash"], m["log_index"], m["block"],
     // m["block_hash"]) and make_receipt(chain=, transfer=, kind=rec["kind"], item=rec["item"], token=rec["token"],
     // source="payment"), read in Python's order. The receipt keeps the stored values as they are.
-    SCFG_CO_TRY(chains::Token token, token_of(s->chain, s->rec));
+    SCFG_CO_TRY(chains::Token token, chains::token_of(s->chain, s->rec));
     (void)token;
     SCFG_CO_TRY(Json payer, py::get(m, "payer"));
     SCFG_CO_TRY(Json recipient, py::get(m, "recipient"));
@@ -324,7 +314,7 @@ Co<StepOutcome> advance(Json pending, Json receipts, std::string sid, std::share
                                                          std::move(out)});
     Status done = co_await detail::steps(s);
     if (!done.ok()) {
-        if (!done.err().is_a("RpcUnavailable") && !done.err().is_a("RpcError")) co_return std::move(done).err();
+        if (!rpc::network_failure(done.err())) co_return std::move(done).err();
         s->out.error = "network_unavailable";
     }
     co_return s->out;

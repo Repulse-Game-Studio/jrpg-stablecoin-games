@@ -1,7 +1,7 @@
 // No Python twin: Python's bytes.hex(), bytes.fromhex() and base64.b64encode().
 #include "Scfg/Bytes.h"
 
-#include <charconv>
+#include "Scfg/Py.h"
 
 namespace scfg::bytes {
 namespace detail {
@@ -34,10 +34,7 @@ Result<std::vector<uint8_t>> from_hex(std::string_view s) {
     for (size_t i = 0; i < s.size(); ++i) {
         int d = detail::nibble(s[i]);
         if (d < 0) {
-            char pos[24];
-            std::to_chars_result r = std::to_chars(pos, pos + sizeof pos, i);
-            return Err::value_error("non-hexadecimal number found in fromhex() arg at position " +
-                                    std::string(pos, r.ptr));
+            return Err::value_error("non-hexadecimal number found in fromhex() arg at position " + py::dec(i));
         }
         out[i / 2] = uint8_t(out[i / 2] << 4 | d);
     }

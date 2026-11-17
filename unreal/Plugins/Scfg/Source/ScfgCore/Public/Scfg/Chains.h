@@ -107,4 +107,8 @@ inline constexpr std::array<std::string_view, 5> DISPLAY_ORDER = {"arbitrum", "b
 // TESTNET() if testnet else MAINNET(): the registry itself, not a copy.
 OrderedMap<Chain>& get_chains(bool testnet);
 
+// chain.tokens[rec["token"]] for a stored record: rec["token"]'s KeyError or TypeError (py::get), the TypeError of an
+// unhashable value, or the KeyError of a token the chain does not carry (py::key_error_for).
+Result<Token> token_of(const Chain& chain, const Json& rec);
+
 }  // namespace scfg::chains

@@ -6,7 +6,6 @@
 #include "Scfg/PyFloat.h"
 
 #include <array>
-#include <charconv>
 #include <cmath>
 #include <compare>
 #include <optional>
@@ -29,18 +28,6 @@ constexpr std::array<uint32_t, 65> kNdZeros = {
 
 constexpr char kLowerHex[] = "0123456789abcdef";
 constexpr char kUpperHex[] = "0123456789ABCDEF";
-
-std::string dec(uint64_t v) {
-    char buf[24];
-    auto res = std::to_chars(buf, buf + sizeof buf, v);
-    return std::string(buf, res.ptr);
-}
-
-std::string dec_signed(int64_t v) {
-    char buf[24];
-    auto res = std::to_chars(buf, buf + sizeof buf, v);
-    return std::string(buf, res.ptr);
-}
 
 uint8_t byte_at(std::string_view s, size_t i) { return static_cast<uint8_t>(s[i]); }
 
@@ -194,7 +181,7 @@ Status repr_into(const Json& v, std::string& out, std::vector<const void*>& path
             return ok();
         case Json::Type::Int:
             if (v.is_int64()) {
-                out += dec_signed(v.as_int64());  // at most 20 characters: no limit applies
+                out += dec(v.as_int64());  // at most 20 characters: no limit applies
             } else {
                 SCFG_TRY(std::string digits, int_str(v.as_bigint()));
                 out += digits;
@@ -433,7 +420,7 @@ Result<std::vector<uint8_t>> utf8_bytes(std::string_view s) {
         uint32_t cp = utf8_decode(s, i);
         if (cp >= 0xD800 && cp <= 0xDFFF) {
             return Err::value_error("'utf-8' codec can't encode character " + repr_str(s.substr(start, i - start)) +
-                                    " in position " + detail::dec(pos) + ": surrogates not allowed");
+                                    " in position " + dec(pos) + ": surrogates not allowed");
         }
         for (size_t k = start; k < i; ++k) out.push_back(detail::byte_at(s, k));
     }
@@ -591,7 +578,7 @@ Result<std::string> format1(std::string_view tmpl, std::string_view arg) {
             return key_error(name);
         }
         if (index != 0)
-            return Err::index_error("Replacement index " + detail::dec(index) + " out of range for positional args tuple");
+            return Err::index_error("Replacement index " + dec(index) + " out of range for positional args tuple");
         if (has_conversion && conversion != "r" && conversion != "s" && conversion != "a")
             return Err::value_error("Unknown conversion specifier " + std::string(conversion));
         if (has_conversion && conversion == "r") {
@@ -699,7 +686,7 @@ Result<BigInt> py_int(std::string_view s) {
     if (prev == '_') return detail::invalid_literal(s);
     if (digits.size() > 4300) {
         return Err::value_error("Exceeds the limit (4300) for integer string conversion: value has " +
-                                detail::dec(digits.size()) + " digits; use sys.set_int_max_str_digits() to increase the limit");
+                                dec(digits.size()) + " digits; use sys.set_int_max_str_digits() to increase the limit");
     }
     if (digits.empty()) return detail::invalid_literal(s);
     while (i < a.size() && detail::ascii_space(a[i])) ++i;
@@ -817,6 +804,10 @@ bool eq(const Json& a, const Json& b) {
 
 Err key_error(std::string_view key) { return Err::key_error(repr_str(key)); }
 
+Err no_attribute(const Json& v, std::string_view attribute) {
+    return Err::make("AttributeError", "'" + type_name(v) + "' object has no attribute '" + std::string(attribute) + "'");
+}
+
 Err key_error_for(const Json& key) {
     Result<std::string> shown = repr(key);
     return Err::key_error(shown.ok() ? shown.take() : std::string("<unprintable KeyError object>"));
@@ -887,6 +878,16 @@ std::partial_ordering compare_numbers(const Number& a, const Number& b) {
     return r == std::partial_ordering::less      ? std::partial_ordering::greater
            : r == std::partial_ordering::greater ? std::partial_ordering::less
                                                  : r;
+}
+
+std::weak_ordering number_order(const Number& a, const Number& b) {
+    const bool a_nan = !a.is_int && std::isnan(a.f);
+    const bool b_nan = !b.is_int && std::isnan(b.f);
+    if (a_nan || b_nan) return a_nan <=> b_nan;
+    std::partial_ordering r = compare_numbers(a, b);
+    return r == std::partial_ordering::less      ? std::weak_ordering::less
+           : r == std::partial_ordering::greater ? std::weak_ordering::greater
+                                                 : std::weak_ordering::equivalent;
 }
 
 Result<bool> compare(const Json& a, Cmp op, const Json& b) {

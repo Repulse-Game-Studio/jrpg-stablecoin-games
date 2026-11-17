@@ -3,12 +3,12 @@
 
 #include "Scfg/Err.h"
 #include "Scfg/Json.h"
+#include "Scfg/Py.h"
 #include "Scfg/SolanaBase58.h"
 #include "Scfg/SolanaPda.h"
 
 #include <algorithm>
 #include <array>
-#include <charconv>
 #include <map>
 #include <string>
 #include <utility>
@@ -55,10 +55,7 @@ namespace scfg::solana::tx {
 
 Result<std::vector<uint8_t>> compact_u16(int64_t n) {
     if (n < 0 || n > 0xFFFF) {
-        char buf[24];
-        auto [end, ec] = std::to_chars(buf, buf + sizeof buf, n);
-        (void)ec;
-        return Err::value_error("compact-u16 out of range: " + std::string(buf, end));
+        return Err::value_error("compact-u16 out of range: " + py::dec(n));
     }
     std::vector<uint8_t> out;
     uint64_t v = static_cast<uint64_t>(n);

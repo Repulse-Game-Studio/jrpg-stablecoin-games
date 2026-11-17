@@ -3,16 +3,13 @@
 
 #include "Scfg/Py.h"
 
-#include <charconv>
 #include <string>
 
 namespace scfg::ints::detail {
 
 Err too_many_digits(size_t digits) {
-    char buf[24];
-    auto res = std::to_chars(buf, buf + sizeof buf, digits);
     return Err::value_error("Exceeds the limit (4300 digits) for integer string conversion: value has " +
-                            std::string(buf, res.ptr) + " digits; use sys.set_int_max_str_digits() to increase the limit");
+                            py::dec(digits) + " digits; use sys.set_int_max_str_digits() to increase the limit");
 }
 
 }  // namespace scfg::ints::detail

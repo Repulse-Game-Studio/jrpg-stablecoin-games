@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <bit>
-#include <charconv>
 #include <cmath>
 #include <utility>
 
@@ -94,12 +93,6 @@ std::optional<std::string> as_ascii(std::string_view text) {
         }
     }
     return out;
-}
-
-std::string int_text(int64_t v) {
-    char buf[24];
-    std::to_chars_result r = std::to_chars(buf, buf + sizeof buf, v);
-    return std::string(buf, r.ptr);
 }
 
 // _pydecimal's Decimal._fix under the default context, for the finite (negative, coef, exp).
@@ -278,7 +271,7 @@ std::string Dec::str() const {
     if (e != 0) {
         out.push_back('E');
         out.push_back(e > 0 ? '+' : '-');
-        out += dec_detail::int_text(e > 0 ? e : -e);
+        out += py::dec(e > 0 ? e : -e);
     }
     return out;
 }

@@ -191,4 +191,13 @@ OrderedMap<Chain>& TESTNET() {
 
 OrderedMap<Chain>& get_chains(bool testnet) { return testnet ? TESTNET() : MAINNET(); }
 
+Result<Token> token_of(const Chain& chain, const Json& rec) {
+    SCFG_TRY(Json key, py::get(rec, "token"));
+    SCFG_TRY(std::optional<std::string> name, py::str_key(key));
+    if (name) {
+        if (const Token* t = chain.tokens.find(*name)) return *t;
+    }
+    return py::key_error_for(key);
+}
+
 }  // namespace scfg::chains

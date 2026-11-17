@@ -31,8 +31,6 @@ struct Param {
     bool positional = false;  // positional-or-keyword (build_chain's key, build_config's wallet)
 };
 
-std::string type_name(const Json& v) { return std::string(v.type_name()); }
-
 // "'a'", "'a' and 'b'", "'a', 'b', and 'c'": CPython's list of missing argument names.
 std::string name_list(const std::vector<std::string_view>& names) {
     std::string out;
@@ -43,14 +41,12 @@ std::string name_list(const std::vector<std::string_view>& names) {
     return out;
 }
 
-std::string decimal(size_t n) { return BigInt::from_uint64(static_cast<uint64_t>(n)).to_decimal(); }
-
 // fn(**kwargs) bound to fn's signature: a non-dict, an unexpected keyword and a missing required argument are the
 // TypeErrors CPython raises, in that order (the missing positional ones before the keyword-only ones).
 Result<const Json::Dict*> bind(const Json& kwargs, std::string_view fn, std::span<const Param> params) {
     std::string f(fn);
     if (!kwargs.is_dict()) {
-        return Err::type_error(f + "() argument after ** must be a mapping, not " + type_name(kwargs));
+        return Err::type_error(f + "() argument after ** must be a mapping, not " + py::type_name(kwargs));
     }
     const Json::Dict& d = kwargs.as_dict();
     for (const auto& [key, value] : d) {
@@ -65,7 +61,7 @@ Result<const Json::Dict*> bind(const Json& kwargs, std::string_view fn, std::spa
         }
         if (missing.empty()) continue;
         std::string what = positional ? "positional" : "keyword-only";
-        return Err::type_error(f + "() missing " + decimal(missing.size()) + " required " + what + " argument" +
+        return Err::type_error(f + "() missing " + py::dec(missing.size()) + " required " + what + " argument" +
                                (missing.size() == 1 ? "" : "s") + ": " + name_list(missing));
     }
     return &d;
@@ -79,20 +75,20 @@ Json arg(const Json::Dict& d, std::string_view name, Json fallback = Json()) {
 
 // `v in some_set` / `v in some_dict` hashes v: a list or dict is the TypeError.
 Status hashable(const Json& v) {
-    if (v.is_list() || v.is_dict()) return Err::type_error("unhashable type: '" + type_name(v) + "'");
+    if (v.is_list() || v.is_dict()) return Err::type_error("unhashable type: '" + py::type_name(v) + "'");
     return ok();
 }
 
 // (v or {}).items(): nullptr for a falsy v, the dict for a dict, else the AttributeError.
 Result<const Json::Dict*> items_or_empty(const Json& v) {
     if (!py::truthy(v)) return static_cast<const Json::Dict*>(nullptr);
-    if (!v.is_dict()) return Err::make("AttributeError", "'" + type_name(v) + "' object has no attribute 'items'");
+    if (!v.is_dict()) return py::no_attribute(v, "items");
     return &v.as_dict();
 }
 
 // v.items(): the dict, else the AttributeError (even for a falsy v).
 Result<const Json::Dict*> items_of(const Json& v) {
-    if (!v.is_dict()) return Err::make("AttributeError", "'" + type_name(v) + "' object has no attribute 'items'");
+    if (!v.is_dict()) return py::no_attribute(v, "items");
     return &v.as_dict();
 }
 

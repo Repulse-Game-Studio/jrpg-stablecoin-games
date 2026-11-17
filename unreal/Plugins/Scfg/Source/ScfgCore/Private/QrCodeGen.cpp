@@ -27,7 +27,6 @@
 
 #include <algorithm>
 #include <array>
-#include <charconv>
 #include <cstddef>
 #include <string>
 #include <utility>
@@ -82,12 +81,6 @@ void append_bits(std::vector<bool>& bb, uint32_t val, int n) {
 
 // True iff the i'th bit of x is set to 1.
 bool get_bit(int64_t x, int i) { return ((x >> i) & 1) != 0; }
-
-std::string dec(int64_t v) {
-    char buf[24];
-    auto res = std::to_chars(buf, buf + sizeof buf, v);
-    return std::string(buf, res.ptr);
-}
 
 // The number of data bits that can be stored in a QR Code of the given version (1..40), after all function modules
 // are excluded, remainder bits included: 208..29648.
@@ -352,8 +345,8 @@ Result<QrCode> QrCode::encode_segments(const std::vector<QrSegment>& segs, Ecc e
         }
         if (version >= maxversion) {  // All versions in the range could not fit the given data
             std::string msg = "Segment too long";
-            if (used) msg = "Data length = " + detail::dec(*used) + " bits, Max capacity = " +
-                            detail::dec(datacapacitybits) + " bits";
+            if (used) msg = "Data length = " + py::dec(*used) + " bits, Max capacity = " +
+                            py::dec(datacapacitybits) + " bits";
             return Err::make(std::string(DataTooLongError), std::move(msg));
         }
     }

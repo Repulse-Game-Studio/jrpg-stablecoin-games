@@ -4,6 +4,8 @@
 // point between them is, and strtod only ever sees "<digits>e<exponent>".
 #include "Scfg/PyFloat.h"
 
+#include "Scfg/Py.h"
+
 #include <charconv>
 #include <cmath>
 #include <cstdint>
@@ -70,14 +72,6 @@ void shortest(double a, uint64_t& m, int& q) {
     q = 0;
 }
 
-std::string lower_ascii(std::string_view s) {
-    std::string out(s);
-    for (char& c : out) {
-        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
-    }
-    return out;
-}
-
 }  // namespace scfg::pyfloat::detail
 
 namespace scfg::pyfloat {
@@ -121,7 +115,7 @@ std::optional<double> parse(std::string_view s) {
         if (s[i] == '-') sign = "-";
         ++i;
     }
-    std::string word = detail::lower_ascii(s.substr(i));
+    std::string word = py::lower_ascii(s.substr(i));
     if (word == "inf" || word == "infinity") {
         double inf = std::numeric_limits<double>::infinity();
         return sign.empty() ? inf : -inf;

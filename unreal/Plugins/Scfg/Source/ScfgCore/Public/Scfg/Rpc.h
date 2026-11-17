@@ -47,6 +47,8 @@ inline constexpr int64_t MIN_LOG_RANGE = 10;
 bool is_range_error(const Err& err);
 // Python _is_rate_error: "rate limit", "too many requests" or "rate-limit".
 bool is_rate_error(const Err& err);
+// Python's `except (RpcUnavailable, RpcError)`: no endpoint answered, or the node refused the request.
+inline bool network_failure(const Err& e) { return e.is_a("RpcUnavailable") || e.is_a("RpcError"); }
 
 // Python suggested_range: the next eth_getLogs range to try after err rejected a `tried`-block request. Uses
 // the largest limit the provider states that is at least MIN_LOG_RANGE and below tried ("limited to 0 - 50 blocks

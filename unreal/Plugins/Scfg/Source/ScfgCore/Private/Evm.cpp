@@ -31,11 +31,9 @@ std::string upper_ascii(std::string_view s) {
     return out;
 }
 
-std::string type_name(const Json& v) { return std::string(v.type_name()); }
-
 // v.lower() of a log field: an AttributeError for a non-str, as Python's.
 Result<std::string> lower_attr(const Json& v) {
-    if (!v.is_str()) return Err::make("AttributeError", "'" + type_name(v) + "' object has no attribute 'lower'");
+    if (!v.is_str()) return py::no_attribute(v, "lower");
     return py::lower_for_ascii(v.as_str());
 }
 
@@ -44,7 +42,7 @@ Result<size_t> py_len(const Json& v) {
     if (v.is_list()) return v.as_list().size();
     if (v.is_dict()) return v.as_dict().size();
     if (v.is_str()) return py::len(v.as_str());
-    return Err::type_error("object of type '" + type_name(v) + "' has no len()");
+    return Err::type_error("object of type '" + py::type_name(v) + "' has no len()");
 }
 
 // _topic_to_address: to_checksum_address("0x" + topic[-40:]), with what CPython 3.9 raises for a topic that is not a
@@ -52,7 +50,7 @@ Result<size_t> py_len(const Json& v) {
 Result<std::string> topic_to_address(const Json& topic) {
     if (topic.is_list()) return Err::type_error("can only concatenate str (not \"list\") to str");
     if (topic.is_dict()) return Err::type_error("unhashable type: 'slice'");
-    if (!topic.is_str()) return Err::type_error("'" + type_name(topic) + "' object is not subscriptable");
+    if (!topic.is_str()) return Err::type_error("'" + py::type_name(topic) + "' object is not subscriptable");
     std::string_view s = topic.as_str();
     size_t n = py::len(s);
     size_t i = 0;
@@ -105,7 +103,7 @@ transfers::Transfer TransferLog::to_transfer() const {
 
 Result<std::optional<TransferLog>> parse_transfer_log(const Json& log) {
     if (!log.is_dict()) {
-        return Err::make("AttributeError", "'" + detail::type_name(log) + "' object has no attribute 'get'");
+        return py::no_attribute(log, "get");
     }
     const Json::Dict& d = log.as_dict();
     Json topics = d.get("topics");

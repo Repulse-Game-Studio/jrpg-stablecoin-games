@@ -9,6 +9,7 @@
 #include "Scfg/Evm.h"
 #include "Scfg/Ints.h"
 #include "Scfg/Py.h"
+#include "Scfg/Rpc.h"
 
 #include <algorithm>
 #include <optional>
@@ -22,11 +23,6 @@ struct Pass {
     OrderedMap<chains::Chain> chains;
     OrderedMap<std::vector<std::string>> wallets;
 };
-
-Err no_attribute(const Json& v, std::string_view attribute) {
-    return Err::make("AttributeError",
-                     "'" + std::string(v.type_name()) + "' object has no attribute '" + std::string(attribute) + "'");
-}
 
 // hash(v): a list or a dict is unhashable.
 Status hashable(const Json& v) {
@@ -48,7 +44,7 @@ Status check_fields(const Json& r, const OrderedMap<chains::Chain>& chains) {
     SCFG_TRY_VOID(hashable(token));
     SCFG_TRY_VOID(hashable(r.as_dict().get("item")));  // r["chain"] worked: r is a dict
     SCFG_TRY(Json tx, py::get(r, "tx_hash"));
-    if (!tx.is_str()) return no_attribute(tx, "lower");
+    if (!tx.is_str()) return py::no_attribute(tx, "lower");
     // int_from(r["log_index"]) < 0 or int_from(r["block"]) < 0: the block is read only for a log index >= 0. Both
     // are ints of any size: a stored 2**63 is valid, and its check decides.
     SCFG_TRY(Json stored_index, py::get(r, "log_index"));
@@ -101,16 +97,6 @@ Co<std::string> judge(Json r, std::shared_ptr<Pass> pass) {
     co_return co_await backend->reverify(r, std::move(rpc), *chain, *family_wallets);
 }
 
-// chain.tokens[r["token"]]
-Result<chains::Token> token_of(const chains::Chain& chain, const Json& r) {
-    SCFG_TRY(Json key, py::get(r, "token"));
-    SCFG_TRY(std::optional<std::string> name, py::str_key(key));
-    if (name) {
-        if (const chains::Token* t = chain.tokens.find(*name)) return *t;
-    }
-    return py::key_error_for(key);
-}
-
 // What check_evm_receipt's matches() compares a log with.
 struct Wanted {
     std::string tx_hash;
@@ -134,8 +120,6 @@ Result<bool> matches(const std::vector<Json>& logs, const chains::Chain& chain, 
     return false;
 }
 
-bool network(const Err& e) { return e.is_a("RpcUnavailable") || e.is_a("RpcError"); }
-
 // `on_error or print_error`
 void report(const backends::base::ErrorSink& on_error, const Err& e) {
     if (on_error) {
@@ -157,7 +141,7 @@ namespace scfg::reverify {
 
 Co<Json> reverify_receipts(Json receipts, backends::base::RpcFor rpc_for, OrderedMap<chains::Chain> chains,
                            OrderedMap<std::vector<std::string>> wallets, backends::base::ErrorSink on_error) {
-    if (!receipts.is_dict()) co_return detail::no_attribute(receipts, "items");
+    if (!receipts.is_dict()) co_return py::no_attribute(receipts, "items");
     auto pass = std::make_shared<detail::Pass>(detail::Pass{std::move(rpc_for), std::move(chains), std::move(wallets)});
     Json removed = Json::list();
     std::vector<std::pair<std::string, Json>> entries;  // list(receipts.items())
@@ -187,7 +171,7 @@ Co<std::string> check_evm_receipt(Json r, std::shared_ptr<rpc::RpcClient> rpc, c
                                   std::vector<std::string> wallets) {
     detail::Wanted w;
     SCFG_CO_TRY(Json tx, py::get(r, "tx_hash"));
-    if (!tx.is_str()) co_return detail::no_attribute(tx, "lower");
+    if (!tx.is_str()) co_return py::no_attribute(tx, "lower");
     w.tx_hash = py::lower_for_ascii(tx.as_str());  // an EVM hash (validated): ASCII hex
     SCFG_CO_TRY(Json stored_index, py::get(r, "log_index"));
     SCFG_CO_TRY(w.log_index, ints::int_from(stored_index));
@@ -196,7 +180,7 @@ Co<std::string> check_evm_receipt(Json r, std::shared_ptr<rpc::RpcClient> rpc, c
     SCFG_CO_TRY(Json stored_amount, py::get(r, "amount"));
     SCFG_CO_TRY(Dec amount, amounts::stored_amount(stored_amount));
     SCFG_CO_TRY(w.units, amounts::decimal_to_units(amount));
-    SCFG_CO_TRY(chains::Token token, detail::token_of(chain, r));
+    SCFG_CO_TRY(chains::Token token, chains::token_of(chain, r));
     w.token = token.address;
     Json addressed = Json::list();
     for (const std::string& wallet : wallets) {
@@ -209,7 +193,7 @@ Co<std::string> check_evm_receipt(Json r, std::shared_ptr<rpc::RpcClient> rpc, c
     // try: ... except (RpcUnavailable, RpcError): return "keep"
     Result<BigInt> head = co_await rpc->block_number();
     if (!head.ok()) {
-        if (detail::network(head.err())) co_return std::string("keep");
+        if (rpc::network_failure(head.err())) co_return std::string("keep");
         co_return std::move(head).err();
     }
     if (block > head.value()) {
@@ -218,7 +202,7 @@ Co<std::string> check_evm_receipt(Json r, std::shared_ptr<rpc::RpcClient> rpc, c
     }
     Result<std::vector<Json>> logs = co_await rpc->get_logs(token.log_source(), topics, block, block);
     if (!logs.ok()) {
-        if (detail::network(logs.err())) co_return std::string("keep");
+        if (rpc::network_failure(logs.err())) co_return std::string("keep");
         co_return std::move(logs).err();
     }
     SCFG_CO_TRY(bool found, detail::matches(logs.value(), chain, true, w));
@@ -228,7 +212,7 @@ Co<std::string> check_evm_receipt(Json r, std::shared_ptr<rpc::RpcClient> rpc, c
     // at the token contract's own log. That log is still a genuine transfer, so it keeps the purchase.
     logs = co_await rpc->get_logs(token.address, topics, block, block);
     if (!logs.ok()) {
-        if (detail::network(logs.err())) co_return std::string("keep");
+        if (rpc::network_failure(logs.err())) co_return std::string("keep");
         co_return std::move(logs).err();
     }
     SCFG_CO_TRY(bool own, detail::matches(logs.value(), chain, false, w));

@@ -157,7 +157,7 @@ Co<Json> Engine::start_session(Json kind, Json chain_name, Json opts) {
     SCFG_CO_TRY(base::Rpc client, rpc(key));
     SCFG_CO_TRY(Json fields, co_await backend->start(client, chain_obj, config_.wallet_for(chain_obj), spec.token,
                                                      std::ref(*entropy_)));
-    if (!fields.is_dict()) co_return Err::make("AttributeError", "'" + std::string(fields.type_name()) + "' object has no attribute 'pop'");
+    if (!fields.is_dict()) co_return py::no_attribute(fields, "pop");
     const Json* start = fields.as_dict().find("start_block");
     if (start == nullptr) co_return py::key_error("start_block");
     sessions::NewSession args;
@@ -344,7 +344,7 @@ Co<void> Engine::check_ready() {
             }
         }
         if (failed) {
-            if (failed->is_a("RpcUnavailable") || failed->is_a("RpcError")) continue;  // never hide an option on doubt
+            if (rpc::network_failure(*failed)) continue;  // never hide an option on doubt
             if (!failed->is_a("Exception")) co_return *failed;
             report(*failed);
             continue;

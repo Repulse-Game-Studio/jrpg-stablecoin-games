@@ -146,6 +146,12 @@ std::string hex(const BigInt& n);
 
 // ---- values ----
 
+// type(v).__name__ of a JSON value: "NoneType", "bool", "int", "float", "str", "list", "dict".
+inline std::string type_name(const Json& v) { return std::string(v.type_name()); }
+// The AttributeError CPython raises for v.attribute when v has no such attribute: "'int' object has no attribute
+// 'lower'".
+Err no_attribute(const Json& v, std::string_view attribute);
+
 // str(v) of a JSON value: a str as it is, anything else its repr (str and repr agree on None, bools, ints,
 // floats, lists and dicts), with repr's ValueError for an int of more than 4300 digits.
 Result<std::string> str(const Json& v);
@@ -188,6 +194,9 @@ Result<double> to_float(const Number& n);
 // The exact order of two numbers, as Python compares an int with a float (never through a lossy conversion);
 // unordered when either is a NaN.
 std::partial_ordering compare_numbers(const Number& a, const Number& b);
+// A total order for sorting numbers: compare_numbers, with a NaN after every number and NaNs equivalent (Python's
+// comparisons with a NaN are all false, so where sorted() puts one depends on the comparisons it happens to make).
+std::weak_ordering number_order(const Number& a, const Number& b);
 
 enum class Cmp { Lt, Le, Gt, Ge };
 // a < b (<=, >, >=) as Python evaluates it for two JSON values: numbers by compare_numbers (False when a NaN is

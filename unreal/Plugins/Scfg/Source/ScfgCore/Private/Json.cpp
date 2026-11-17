@@ -7,7 +7,6 @@
 #include "Scfg/PyFloat.h"
 
 #include <algorithm>
-#include <charconv>
 #include <cmath>
 #include <cstddef>
 #include <limits>
@@ -21,12 +20,6 @@ namespace scfg::json_detail {
 
 [[noreturn]] void wrong_type(const char* accessor, const Json& v) {
     misuse(std::string("Json::") + accessor + "() of a " + std::string(v.type_name()));
-}
-
-std::string dec(uint64_t v) {
-    char buf[24];
-    auto res = std::to_chars(buf, buf + sizeof buf, v);
-    return std::string(buf, res.ptr);
 }
 
 // The containers on the path from the root to the value being written or copied: meeting one again is a cycle.
@@ -111,8 +104,8 @@ private:
         size_t nl = before.rfind('\n');
         size_t line = 1 + static_cast<size_t>(std::count(before.begin(), before.end(), '\n'));
         size_t col = py::len(nl == std::string_view::npos ? before : before.substr(nl + 1)) + 1;
-        return Err::value_error(std::string(msg) + ": line " + dec(line) + " column " + dec(col) + " (char " +
-                                dec(py::len(before)) + ")");
+        return Err::value_error(std::string(msg) + ": line " + py::dec(line) + " column " + py::dec(col) + " (char " +
+                                py::dec(py::len(before)) + ")");
     }
 
     void skip_ws() {
@@ -159,7 +152,7 @@ private:
     }
 
     Status enter(size_t pos) {
-        if (++depth_ > json::MAX_DEPTH) return error("JSON nested deeper than " + dec(json::MAX_DEPTH) + " levels", pos);
+        if (++depth_ > json::MAX_DEPTH) return error("JSON nested deeper than " + py::dec(json::MAX_DEPTH) + " levels", pos);
         return ok();
     }
 
@@ -345,9 +338,7 @@ public:
                 return ok();
             case Json::Type::Int:
                 if (v.is_int64()) {
-                    char buf[24];
-                    auto res = std::to_chars(buf, buf + sizeof buf, v.as_int64());
-                    out.append(buf, res.ptr);
+                    out += py::dec(v.as_int64());
                 } else {
                     SCFG_TRY(std::string digits, py::int_str(v.as_bigint()));
                     out += digits;

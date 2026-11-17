@@ -33,8 +33,6 @@ std::optional<double> to_double(const BigInt& n) {
     return f.value();
 }
 
-std::string decimal(size_t n) { return BigInt::from_uint64(static_cast<uint64_t>(n)).to_decimal(); }
-
 // b58encode(decode_fixed(text.strip(), length)) for normalize_pubkey and normalize_signature.
 Result<std::string> normalize(const Json& text, int64_t length, std::string_view what) {
     if (!text.is_str()) {
@@ -133,14 +131,14 @@ Result<std::vector<uint8_t>> decode_fixed(const Json& text, const Json& length) 
         size_t chars = py::len(text.as_str());
         if (static_cast<double>(chars) > *limit) {
             // n converted to a finite float above, so it is below 2**1024: at most 309 digits
-            return Err::value_error("too long for " + n.to_decimal() + " bytes: " + detail::decimal(chars) +
+            return Err::value_error("too long for " + n.to_decimal() + " bytes: " + py::dec(chars) +
                                     " characters");
         }
     }
     SCFG_TRY(std::vector<uint8_t> raw, b58decode(text));
     if (BigInt::from_uint64(static_cast<uint64_t>(raw.size())) != n) {
         // n is below 2**1024 (see above): at most 309 digits; b58decode took text, so it is a str
-        return Err::value_error("expected " + n.to_decimal() + " bytes, got " + detail::decimal(raw.size()) + ": " +
+        return Err::value_error("expected " + n.to_decimal() + " bytes, got " + py::dec(raw.size()) + ": " +
                                 py::repr_str(text.as_str()));
     }
     return raw;
