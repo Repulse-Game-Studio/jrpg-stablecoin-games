@@ -1,5 +1,7 @@
 #include "ScfgDev.h"
 
+#include "ScfgDevLog.h"
+
 #include "EngineAnalytics.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/AutomationTest.h"
@@ -9,6 +11,8 @@
 #include "Scfg/Json.h"
 
 IMPLEMENT_PRIMARY_GAME_MODULE(FDefaultGameModuleImpl, ScfgDev, "ScfgDev");
+
+DEFINE_LOG_CATEGORY(LogScfgDev);
 
 #if WITH_DEV_AUTOMATION_TESTS
 
