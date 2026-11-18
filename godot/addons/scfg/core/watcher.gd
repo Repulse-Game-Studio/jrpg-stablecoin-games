@@ -19,7 +19,9 @@
 ## tx_not_a_payment / tx_not_landed verdict is about, or null).
 ##
 ## Errors: an RpcError or RpcUnavailable becomes `error: "network_unavailable"` (Python's
-## `except (RpcUnavailable, RpcError)`); any other ScfgErr is returned for the Engine to contain.
+## `except (RpcUnavailable, RpcError)`) unless a verdict on the hint was reached earlier in the
+## step, which is kept; an Abandoned (the tick yields) returns that verdict too, else is returned
+## for the tick to stop at; any other ScfgErr is returned for the Engine to contain.
 ## Record fields are read the way Python indexes them (a missing one is a KeyError), and values
 ## compare with Python's `==` (ScfgPy.py_eq), so a malformed record is an error, never a guess.
 ##
@@ -297,11 +299,18 @@ static func _scan(rec: Dictionary, rpc: Variant, chain: Dictionary, wallet: Vari
 
 
 ## `out` after a failed RPC call: Python's `except (RpcUnavailable, RpcError)` sets
-## network_unavailable and returns the outcome; any other error propagates.
+## network_unavailable and returns the outcome, and its `except Abandoned` (the tick yields to a
+## command, worker.gd) returns it too when it holds a verdict, else hands the Abandoned on; any
+## other error propagates. A verdict on the hint from earlier in this step wins either way
+## (backends/solana.gd): the hint is already cleared, and later steps are plain "waiting", so it
+## would never be reported; the rest of the step waits for the next tick.
 ## @fallible
 static func _network(out: Dictionary, err: ScfgErr) -> Variant:
 	if err.is_a("RpcUnavailable") or err.is_a("RpcError"):
-		out["error"] = "network_unavailable"
+		if out["error"] == null:
+			out["error"] = "network_unavailable"
+		return out
+	if err.is_a("Abandoned") and out["error"] != null:
 		return out
 	return err
 

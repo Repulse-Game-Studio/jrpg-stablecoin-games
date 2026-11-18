@@ -46,3 +46,54 @@ func test_a_start_does_not_wait_behind_the_watching_of_pending_payments() -> boo
 	node.release()
 	w.stop()
 	return T.done()
+
+
+## The hinted transaction reverted (eth_getTransactionReceipt status 0x0); every other request
+## hangs while `hang` is set.
+class RevertingNode:
+	extends F.HangingNode
+
+	func post_json(url: String, payload: Dictionary, timeout: float) -> Variant:
+		if payload["method"] == "eth_getTransactionReceipt":
+			methods.append(payload["method"])
+			var receipt := {"status": "0x0", "blockNumber": "0x3e8", "logs": []}
+			return {"jsonrpc": "2.0", "id": payload["id"], "result": receipt}
+		return await super.post_json(url, payload, timeout)
+
+
+## Review V1: the tick judged the hint (reverted) and cleared it, then waits on its next request;
+## a command makes it yield. The verdict is still reported, not lost with the step.
+func test_a_hint_verdict_reached_before_the_tick_yields_is_reported() -> bool:
+	var tree := Engine.get_main_loop() as SceneTree
+	var cfg: Variant = ScfgConfig.build_config({"wallet": DEV, "chains": ["base"], "testnet": true})
+	ScfgConfig.add_item(cfg, "chapter2", {"code": 37, "price": "4.99", "token": "USDC", "title": "Chapter 2"})
+	var node := RevertingNode.new()
+	var errors := []
+	var engine := ScfgEngine.new(cfg, {"transport": node, "clock": func() -> int: return 1700000000,
+		"on_error": func(x: Variant) -> void: errors.append(x)})
+	var rec: Variant = await engine.start_session("unlock", "base", {"item": "chapter2"})
+	T.ok(rec is Dictionary, str(rec))
+	var sid: Variant = rec["id"]
+	var tx := "0x" + "ab".repeat(32)
+	T.eq(engine.report_hint(sid, tx), null, "the hint is recorded")
+	var w := ScfgWorker.new(engine, {"interval": func() -> float: return 60.0,
+		"on_error": func(x: Variant) -> void: errors.append(x), "tree": tree})
+	node.hang = true
+	w.start()
+	var waited := 0
+	while node.hung == 0 and waited < 300:
+		await tree.process_frame
+		waited += 1
+	T.ok(node.hung > 0, "the tick went on to its next request after the verdict")
+	T.eq(engine.pending[sid]["hint_tx"], null, "the hint is cleared already")
+	tree.create_timer(5.0).timeout.connect(node.release)  # a command left waiting fails below
+	var job := w.submit(func(_e: Variant) -> Variant: return "the player's command")
+	T.eq(await job.wait(), "the player's command", "the command ran")
+	var got := []
+	for o: Dictionary in w.drain_outcomes():
+		got.append([o["session_id"], o["error"], o["hint_tx"]])
+	T.eq(got, [[sid, "tx_reverted", tx]], "the verdict is reported")
+	T.eq(errors, [])
+	node.release()
+	w.stop()
+	return T.done()

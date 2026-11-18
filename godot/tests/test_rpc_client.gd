@@ -240,6 +240,25 @@ func test_an_endpoint_is_not_asked_with_less_than_the_floor_left() -> bool:
 	return T.done()
 
 
+## Review V5, the floor's boundary: with exactly MIN_ATTEMPT left C is asked, with that timeout;
+## with less (1.9 s) it is not, and stays live.
+func test_the_floor_is_asked_at_exactly_min_attempt_left() -> bool:
+	var c_ := "https://c.rpc"
+	for pair: Array in [[3, true], [3.1, false]]:
+		var b_takes: Variant = pair[0]
+		var asked: bool = pair[1]
+		var clock := F.FakeClock.new()
+		var t := TimedTransport.new(clock, {B: b_takes})
+		var rpc := ScfgRpcClient.new([A, B, c_], {"transport": t, "clock": clock.fn})
+		T.is_err(await rpc.block_number(), "RpcUnavailable", "B takes %s s" % b_takes)
+		var expected: Array = [[A, 10.0], [B, 5.0]]
+		if asked:
+			expected.append([c_, ScfgRpcClient.MIN_ATTEMPT])
+		T.eq(t.calls, expected, "B takes %s s: C asked %s" % [b_takes, asked])
+		T.eq(c_ in rpc.live_urls(), not asked, "B takes %s s: C live" % b_takes)
+	return T.done()
+
+
 func test_malformed_response_counts_as_endpoint_failure() -> bool:
 	for bad: Variant in ["not a dict", {"jsonrpc": "2.0", "id": 1}, null, [1], 5.0]:
 		var r := _client({A: F.always(bad), B: F.always(F.ok("0x2"))})
