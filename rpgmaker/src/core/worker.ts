@@ -64,6 +64,22 @@ export class Job<T> {
     return this._state === "failed" ? this._error : null;
   }
 
+  private _abandoned = false;
+
+  /** Whether abandon() found it running: its RPC requests are refused from then on. */
+  get abandoned(): boolean {
+    return this._abandoned;
+  }
+
+  /**
+   * worker.py's abandon(): a job that has not started is cancelled (it never runs); a running one
+   * is refused its next RPC request with Abandoned, so the commands queued behind it wait at most
+   * for the request in flight.
+   */
+  abandon(): void {
+    if (!this.cancel()) this._abandoned = true;
+  }
+
   /** Cancels a job that has not started; false once it is running or finished. */
   cancel(): boolean {
     if (this._state === "cancelled") return true;
@@ -211,10 +227,13 @@ export class Worker {
     while (this._commands.length > 0) {
       const { fn, job } = this._commands.shift()!;
       if (!job._start()) continue;
+      this.engine.refuseRequests = () => job.abandoned; // this job's requests, refused once abandoned
       try {
         job._succeed(await fn(this.engine));
       } catch (e) {
         job._fail(e);
+      } finally {
+        this.engine.refuseRequests = null;
       }
     }
     if (this._first) {

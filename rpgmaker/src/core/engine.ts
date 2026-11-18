@@ -7,7 +7,7 @@
  */
 import { backendFor } from "./backends/index.ts";
 import type { Chain } from "./chains.ts";
-import type { Transport } from "./coio.ts";
+import { Abandoned, type Transport } from "./coio.ts";
 import { acceptedWalletsFor, enabledChains, registry, walletFor, type Config } from "./config.ts";
 import { deepCopy } from "./copy.ts";
 import type { Dec } from "./decimal.ts";
@@ -77,6 +77,11 @@ export class Engine {
   receipts: Record<string, any>;
   clock: () => number;
   transport: Transport | undefined;
+  /**
+   * While it returns true, the requests of the Engine's own RPC clients are refused with Abandoned:
+   * the Worker points it at the job it runs (worker.py's per-job transport).
+   */
+  refuseRequests: (() => boolean) | null = null;
   entropy: Entropy;
   unready: Set<string>;
   private _rpc_factory: (chain: Chain) => any;
@@ -92,7 +97,15 @@ export class Engine {
     this.entropy = opts.entropy ?? defaultEntropy;
     this._rpc_factory = opts.rpc_factory ?? ((chain) => {
       if (this.transport === undefined) throw new TypeError("Engine needs a transport to build RPC clients");
-      return backendFor(chain).makeRpc(chain, this.transport, this.clock);
+      const refusing: Transport = {
+        postJson: (url, payload, timeout) => {
+          if (this.refuseRequests !== null && this.refuseRequests()) {
+            return Promise.reject(new Abandoned(`abandoned before its request to ${url}`));
+          }
+          return this.transport!.postJson(url, payload, timeout);
+        },
+      };
+      return backendFor(chain).makeRpc(chain, refusing, this.clock);
     });
     this._rpcs = new Map();
     this.unready = new Set();

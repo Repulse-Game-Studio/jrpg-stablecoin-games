@@ -5,6 +5,11 @@ import type { Engine, Snapshot } from "./engine.ts";
 import { Dec } from "./decimal.ts";
 import { makeStepOutcome, type StepOutcome } from "./watcher.ts";
 import { CancelledError, Job, Worker } from "./worker.ts";
+import { Abandoned, TransportError } from "./coio.ts";
+import { TESTNET } from "./chains.ts";
+import { addItem, buildConfig } from "./config.ts";
+import { Engine as RealEngine } from "./engine.ts";
+import { FakeTransport } from "../../test/rpc_fakes.ts";
 
 const tick = (): Promise<void> => new Promise((r) => setImmediate(r));
 const settle = async (): Promise<void> => {
@@ -531,4 +536,38 @@ test("test_timer_firing_during_a_wake_triggered_run_yields_one_follow_up", async
   assert.equal(maxLive, 1);
   assert.equal(e.ticks, 2);
   w.stop();
+});
+
+// test_worker.py's test_an_abandoned_running_job_is_refused_its_next_request, with the real Engine:
+// the player picks another network while a start waits on its first endpoint, which fails.
+test("test_an_abandoned_running_job_is_refused_its_next_request", async () => {
+  const cfg = buildConfig({ wallet: "0x52908400098527886E0F7030069857D2E4169EE7", chains: ["base"], testnet: true });
+  addItem(cfg, "chapter2", { code: 37, price: "4.99", token: "USDC", title: "Chapter 2" });
+  const urls = TESTNET["base"]!.rpc;
+  assert.ok(urls.length >= 2, "Base Sepolia has a second endpoint to fall back to");
+  let start: Job<any> | null = null;
+  const handlers: Record<string, (m: string) => unknown> = {};
+  for (const u of urls) handlers[u] = () => ({ jsonrpc: "2.0", id: 1, result: "0x10" });
+  handlers[urls[0]!] = () => {
+    start!.abandon(); // while its first request is in flight
+    throw new TransportError("timed out");
+  };
+  const transport = new FakeTransport(handlers as never);
+  const engine = new RealEngine(cfg, { transport, clock: () => 1700000000 });
+  const w = new Worker(engine);
+  const job = w.submit((e) => e.startSession("unlock", "base", { item: "chapter2" }));
+  start = job;
+  await w.runOnce();
+  assert.ok(job.exception() instanceof Abandoned, String(job.exception()));
+  assert.deepEqual(transport.calls.filter((c) => c[1] === "eth_blockNumber").map((c) => c[0]), [urls[0]]);
+  assert.equal(engine.refuseRequests, null, "cleared after the job");
+});
+
+test("test_abandoning_a_queued_job_cancels_it", async () => {
+  const w = new Worker(asEngine(new FakeEngine()));
+  let ran = false;
+  const job = w.submit(async () => { ran = true; });
+  job.abandon();
+  await w.runOnce();
+  assert.ok(job.cancelled() && !ran && !job.abandoned);
 });

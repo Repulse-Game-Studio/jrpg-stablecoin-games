@@ -675,6 +675,7 @@ export class CheckoutController {
     const fut = this._future;
     this._future = null;
     if (fut === null) return;
+    fut.abandon(); // a queued start never runs; a running one makes no further request
     const submit = this.submit;
     const discard = (): void => {
       if (fut.cancelled() || fut.exception() !== null) return;

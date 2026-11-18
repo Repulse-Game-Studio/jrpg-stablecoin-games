@@ -419,3 +419,25 @@ test("anOversizedErrorAnswerIsTooLarge", async () => {
   await assert.rejects(new NodeHttpsTransport({ https, http, max_response_bytes: 100 }).postJson(url, {}, 5),
     isTransportError(null, /^response too large$/));
 });
+
+// U12 of the Unity testbed: a DNS server that never answers. Node's request timeout starts only once
+// the socket connects, so the lookup needs a timer of its own (rpc.py's resolve_within).
+test("aNameLookupThatNeverAnswersIsBoundedByTheTimeout", async () => {
+  const stuck = {
+    request() {
+      const req = {
+        on() { return req; },
+        setTimeout() { return req; }, // Node's socket timer: never armed while the lookup hangs
+        destroy() { return req; },
+        end() { return req; },
+      };
+      return req;
+    },
+  };
+  const t = new NodeHttpsTransport({ https: stuck, http: stuck });
+  const started = Date.now();
+  await assert.rejects(within(t.postJson("https://never-resolves.example/", {}, 0.2), 3000),
+    (e: unknown) => e instanceof TransportError && /timed out resolving never-resolves.example/.test(e.message));
+  const ms = Date.now() - started;
+  assert.ok(ms >= 150 && ms < 2000, `at the timeout (${ms} ms)`);
+});

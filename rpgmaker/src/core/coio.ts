@@ -33,6 +33,17 @@ export function declaredLength(value: unknown): number | null {
   return typeof value === "string" && /^[0-9]+$/.test(value.trim()) ? Number(value.trim()) : null;
 }
 
+/**
+ * Thrown into a job the caller abandoned (worker.ts Job.abandon), at its next RPC request. Not a
+ * TransportError, so no endpoint cools down (worker.py's Abandoned).
+ */
+export class Abandoned extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "Abandoned";
+  }
+}
+
 export interface Transport {
   postJson(url: string, payload: object, timeout: number): Promise<unknown>;
 }

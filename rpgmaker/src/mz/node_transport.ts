@@ -10,7 +10,10 @@
  *   - a POST with `Content-Type: application/json` and `User-Agent: scfg/0.1`;
  *   - `timeout` (seconds) bounds every wait on the socket, the connection and each read of the
  *     answer, not the whole exchange (urllib's socket timeout): a silent server is a
- *     TransportError("timed out");
+ *     TransportError("timed out"). The name lookup is bounded by it too (rpc.py's
+ *     resolve_within): Node's request timeout starts only once the socket is connecting, so a DNS
+ *     server that never answers held a request far longer (measured: Node's own 5 s, the
+ *     Unity testbed's resolver about 20 s);
  *   - a 2xx answer is decoded as UTF-8 JSON, else TransportError("invalid JSON response") (JSON as
  *     the core's Python reads it, pystr.ts jsonLoads: an integer literal of more than 4300 digits
  *     is not JSON);
@@ -156,7 +159,13 @@ export class NodeHttpsTransport implements Transport {
       const text = JSON.stringify(payload);
       const length = new TextEncoder().encode(text).length;
       let settled = false;
+      let lookupTimer: ReturnType<typeof setTimeout> | null = null;
+      const stopLookupTimer = () => {
+        if (lookupTimer !== null) clearTimeout(lookupTimer);
+        lookupTimer = null;
+      };
       const fail = (message: string, code: string | null = null) => {
+        stopLookupTimer();
         if (settled) return;
         settled = true;
         reject(withCode(new TransportError(message), code));
@@ -201,6 +210,7 @@ export class NodeHttpsTransport implements Transport {
             res.on("error", (e: unknown) => fail(messageOf(e), codeOf(e)));
             res.on("aborted", () => fail("the connection was closed before the answer was complete"));
             res.on("end", () => {
+              stopLookupTimer();
               if (settled) return;
               settled = true;
               const raw = new Uint8Array(size);
@@ -220,6 +230,14 @@ export class NodeHttpsTransport implements Transport {
           }
         });
         req.on("error", (e: unknown) => fail(messageOf(e), codeOf(e)));
+        // the name lookup has no socket timer yet: give it (and the connect) `timeout` of its own
+        lookupTimer = setTimeout(() => {
+          fail(`timed out resolving ${target.hostname}`);
+          destroyQuietly();
+        }, Math.max(1, timeout * 1000));
+        req.on("socket", (socket: any) => {
+          if (socket && typeof socket.once === "function") socket.once("connect", stopLookupTimer);
+        });
         // urllib's socket timeout: every wait on the socket (connect, each read) has `timeout`
         req.setTimeout(Math.max(1, timeout * 1000), () => {
           fail("timed out");
