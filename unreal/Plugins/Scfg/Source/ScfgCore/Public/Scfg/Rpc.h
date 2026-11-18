@@ -65,7 +65,7 @@ inline bool network_failure(const Err& e) { return e.is_a("RpcUnavailable") || e
 // Python suggested_range: the next eth_getLogs range to try after err rejected a `tried`-block request. Uses
 // the largest limit the provider states that is at least MIN_LOG_RANGE and below tried ("limited to 0 - 50 blocks
 // range"), otherwise halves (floor), but not below MIN_LOG_RANGE. A number is a run of Python 3.9's \d (any
-// Unicode 13 decimal digit); one of more than 18 significant digits is ignored (Ruling 6, ints::digit_run_value),
+// Unicode 13 decimal digit); one of more than 18 significant digits is ignored (ints::digit_run_value),
 // so no long run is converted.
 SCFGCORE_API BigInt suggested_range(const Err& err, const BigInt& tried);
 

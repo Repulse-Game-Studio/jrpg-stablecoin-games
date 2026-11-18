@@ -1,7 +1,7 @@
 // Twin of scfg_core/ints.py: Python's int() for text the core reads from storage, a page or an RPC, with
 // CPython's limit on the number of decimal digits enforced explicitly (converting a very long digit string
 // costs quadratic time); json_loads (an RPC answer's integer literals through int_from) and
-// digit_run_value (a number in a node's error message, at most 18 significant digits, Ruling 6).
+// digit_run_value (a number in a node's error message, at most 18 significant digits).
 #nullable enable
 using System.Globalization;
 using System.Numerics;
@@ -15,7 +15,7 @@ namespace Scfg.Core
 
         /// <summary>
         /// A digit run read out of a node's error message (an EVM range limit, a Solana transaction version) is a
-        /// number only up to this many significant digits (Ruling 6): every range or version a request can carry
+        /// number only up to this many significant digits: every range or version a request can carry
         /// is below 10**18.
         /// </summary>
         public const int DigitRunLimit = 18;

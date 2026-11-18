@@ -26,7 +26,7 @@ namespace Scfg.Core.Solana
         /// the newer version a -32015 "Transaction version (N) is not supported" names, else null. Only meta, slot
         /// and accountKeys are read, so any version can be read. The match is Python's
         /// <c>re.search(r"version \((\d+)\)", message, re.IGNORECASE)</c> (<see cref="FindNamedVersion"/>); a
-        /// number of more than 18 significant digits is no match (Ruling 6: a request cannot carry it as an int).
+        /// number of more than 18 significant digits is no match (a request cannot carry it as an int).
         /// </summary>
         public static long? NamedVersion(RpcError error, long txVersion)
         {

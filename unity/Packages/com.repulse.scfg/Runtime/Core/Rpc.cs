@@ -157,7 +157,7 @@ namespace Scfg.Core
         /// Python <c>suggested_range</c>: the next eth_getLogs range to try after <paramref name="err"/> rejected a
         /// <paramref name="tried"/>-block request. Uses the limit when the provider states one ("limited to 0 - 50
         /// blocks range"), otherwise halves. A number is a run of Python's <c>\d</c> (any Unicode 13 decimal
-        /// digit); one of more than 18 significant digits is ignored (Ruling 6, <see cref="Ints.DigitRunValue"/>),
+        /// digit); one of more than 18 significant digits is ignored (<see cref="Ints.DigitRunValue"/>),
         /// so no long run is converted.
         /// </summary>
         public static long SuggestedRange(RpcError err, long tried)

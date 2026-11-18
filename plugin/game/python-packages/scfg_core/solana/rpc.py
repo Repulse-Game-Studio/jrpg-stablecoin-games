@@ -48,7 +48,7 @@ class SolanaRpc:
     def _named_version(self, error: RpcError) -> int | None:
         """The newer version a -32015 "Transaction version (N) is not supported" names.
         Only meta, slot and accountKeys are read, so any version can be read. A number of more
-        than 18 significant digits is no match (Ruling 6: a request cannot carry it as an int)."""
+        than 18 significant digits is no match (a request cannot carry it as an int)."""
         if error.code != _UNSUPPORTED_VERSION:
             return None
         found = _NAMED_VERSION.search(error.message)

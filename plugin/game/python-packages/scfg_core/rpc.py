@@ -78,7 +78,7 @@ def suggested_range(err: RpcError, tried: int) -> int:
     """Next eth_getLogs range to try after `err` rejected a `tried`-block request.
 
     Uses the limit when the provider states one ("limited to 0 - 50 blocks range"),
-    otherwise halves. A number of more than 18 significant digits is ignored (Ruling 6: it is
+    otherwise halves. A number of more than 18 significant digits is ignored (it is
     above any range, and converting a long digit run would cost quadratic time).
     """
     stated = [digit_run_value(n) for n in _NUMBER.findall(err.message)]

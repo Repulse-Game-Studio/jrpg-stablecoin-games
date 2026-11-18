@@ -2,7 +2,7 @@
 // Twin of scfg_core/ints.py: Python's int() for text the core reads from storage, a page or an RPC, with CPython's
 // limit on the number of decimal digits enforced explicitly (converting a very long digit string costs quadratic
 // time); json_loads (an RPC answer's integer literals through int_from) and digit_run_value (a number in a node's
-// error message, at most 18 significant digits, Ruling 6).
+// error message, at most 18 significant digits).
 #pragma once
 
 #include "Scfg/BigInt.h"
@@ -21,7 +21,7 @@ namespace scfg::ints {
 // CPython's default sys.get_int_max_str_digits().
 inline constexpr size_t INT_MAX_STR_DIGITS = 4300;
 // A digit run read out of a node's error message (an EVM range limit, a Solana transaction version) is a number
-// only up to this many significant digits (Ruling 6): every range or version a request can carry is below 10**18.
+// only up to this many significant digits: every range or version a request can carry is below 10**18.
 inline constexpr size_t DIGIT_RUN_LIMIT = 18;
 
 // int(value) (py::py_int), refusing a str with more than INT_MAX_STR_DIGITS decimal characters as CPython does

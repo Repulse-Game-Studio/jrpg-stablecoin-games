@@ -35,7 +35,7 @@ inline constexpr int64_t UNSUPPORTED_VERSION = -32015;
 // Python SolanaRpc._named_version for a client at tx_version: the newer version a -32015 "Transaction version (N)
 // is not supported" names, else nullopt. The match is re.search(r"version \((\d+)\)", message, re.IGNORECASE):
 // the leftmost one only, its letters matched as Python 3.9 folds them (ſ matches s; İ and ı match i), \d any
-// Unicode 13 decimal digit. A number of more than 18 significant digits is no match (Ruling 6: a request cannot
+// Unicode 13 decimal digit. A number of more than 18 significant digits is no match (a request cannot
 // carry it as an int), so no long run is converted. Linear in the message.
 SCFGCORE_API std::optional<int64_t> named_version(const Err& error, int64_t tx_version);
 
