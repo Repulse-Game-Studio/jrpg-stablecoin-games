@@ -15,17 +15,15 @@ any EVM chain you add yourself.
 
 ## From a git URL
 
-1. Open **Window > Package Manager**, click **+** and pick **Add package from git URL...**.
+1. Open **Window > Package Management > Package Manager**, click **+** and pick **Add package from git URL...**.
 2. Paste this URL and click **Add**:
 
    ```
    https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games.git?path=unity/Packages/com.repulse.scfg#v0.3.0
    ```
 
-   The `#v0.3.0` at the end pins a release tag. The Unity package first ships in release 0.3.0, so this tag
-   exists from that release on; until then the Package Manager answers that the revision is not found, and the
-   only way in is `#main` (or a commit hash) instead, at your own risk: the main branch is not a release, and you
-   should not ship from it. The Package Manager needs `git` installed on your machine for this.
+   The `#v0.3.0` at the end pins a release tag; use the tag of the release you want. The Package Manager needs
+   `git` installed on your machine for this.
 
 ## From the release tarball
 
@@ -35,7 +33,8 @@ any EVM chain you add yourself.
    to `dist/`.
 2. Put the file where it stays, for example in a `Packages/` or `Vendor/` folder of your project that you commit:
    the project's manifest refers to it by its path.
-3. Open **Window > Package Manager**, click **+**, pick **Add package from tarball...** and choose the file.
+3. Open **Window > Package Management > Package Manager**, click **+**, pick **Add package from tarball...** and
+   choose the file.
 
 The tarball also carries this guide as one file, `Documentation~/scfg-unity-guide.md`, next to the license.
 

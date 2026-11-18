@@ -13,8 +13,8 @@ A misused call reports `scfg: <message>` with `Debug.LogError` and:
   `"item.unknown"`, `"configure.not_called"`);
 - queries such as `Owns` report and return their neutral value (`false`).
 
-An exception thrown by your own handler (a `Pay` callback, an event) is logged with `Debug.LogException` and does
-not stop the package. Setup advice (a token the wallet cannot receive yet, a corrupt state file moved aside) is a
+An exception thrown by your own handler (a `Pay` callback, an event) is logged as one `scfg: ... threw:` error line,
+then the exception (`Debug.LogException`), and does not stop the package. Setup advice (a token the wallet cannot receive yet, a corrupt state file moved aside) is a
 `Debug.LogWarning` in development builds and in the editor only.
 
 | Code | Meaning |
@@ -22,13 +22,15 @@ not stop the package. Setup advice (a token the wallet cannot receive yet, a cor
 | `configure.not_called` | A call that needs `Configure` came before it |
 | `configure.after_start` | `Configure` after payments started (the frame after the first successful `Configure`) |
 | `configure.after_add_chain` | `AddChain` after `Configure` |
-| `wallet.missing`, `address.invalid`, `solana_address.invalid` | No payout wallet, or one that is not a valid address |
+| `wallet.missing`, `address.invalid`, `solana_address.invalid`, `solana_address.not_on_curve` | No payout wallet, or one that is not a valid address |
 | `item.unknown` | `Pay` for an item `AddItem` did not declare |
-| `item.invalid_code`, `item.duplicate_code`, `item.duplicate_id`, `item.invalid_price`, `item.min_price_above_price` | A bad `AddItem` |
-| `chains.unknown`, `tokens.unknown`, `token.not_enabled`, `config.no_usable_token` | A chain or token that is not built in, not enabled, or that no wallet can receive |
-| `rpc.not_https`, `rpc_urls.unknown_chain`, `confirmations.unknown_chain` | A bad `RpcUrls` or `Confirmations` entry |
+| `item.invalid_id`, `item.invalid_code`, `item.duplicate_code`, `item.duplicate_id`, `item.invalid_price`, `item.invalid_title`, `item.min_price_above_price` | A bad `AddItem` |
+| `chains.unknown`, `chains.wrong_network`, `tokens.unknown`, `token.not_enabled`, `config.no_usable_token` | A chain or token that is not built in, not on this network, not enabled, or that no wallet can receive |
+| `methods.none_enabled`, `methods.bad_timeout`, `methods.qr_disabled_chain` | A bad `Methods` |
+| `rpc.not_https`, `rpc_urls.unknown_chain`, `confirmations.unknown_chain`, `confirmations.invalid`, `confirmations.solana_fixed` | A bad `RpcUrls` or `Confirmations` entry |
+| `chain.*` (`chain.invalid_key`, `chain.is_builtin`, `chain.duplicate_chain_id`, `chain.bad_explorer_tx`, ...) | A bad `AddChain` |
 | `accent.invalid` | `Accent` is not `"#rrggbb"` |
-| `tip.needs_amount_and_token`, `tip.below_minimum` | A tip without `Amount` and `Token`, or below the minimum |
+| `tip.needs_amount_and_token`, `tip.below_minimum`, `payment.below_min_price` | A tip without `Amount` and `Token` or below the minimum, or an unlock `Amount` below the item's `MinPrice` |
 | `sheet.unavailable` | No screen could be shown (`SCFG.SheetHost` is `null`, or it returned `null` or threw) |
 | `TypeError` | A `null` argument (`Configure(null)`, a `null` request) |
 
@@ -150,7 +152,7 @@ buy link's `onrampEnabled`, `onrampUrl` and `onrampChains` (`ScfgOptions.Onramp`
   several, none is applied (reported in play mode and in the player) and a build fails.
 - An asset with neither wallet is **not applied** at startup: that is the opt-out for a game that configures from
   code, not an error. `settings.HasWallet` says which. If the asset has items and nothing configured SCFG by the end
-  of the first frame, one plain Console line says so.
+  of the first frame, a warning says so (development builds and the editor).
 - A wallet supplied at runtime (one per build, or read from a file) can still use the asset's options and items:
   `settings.Apply(wallet, solanaWallet)` (either may be `null`) applies the asset with those wallets instead of its
   own and returns the first error code, or `null`. Call it before payments start, as any `Configure`:
@@ -291,7 +293,7 @@ void OnDisable() { SCFG.PaymentResolved -= OnResolved; SCFG.ReceiptsChanged -= R
 With **Enter Play Mode Options** and domain reload off, every play session starts from a fresh state: the last
 session's subscriptions are dropped, so subscribe from your startup code as above.
 
-## Pausing the game and input
+## Pausing the game while the sheet is open
 
 The sheet covers the game, takes focus and runs on unscaled time, but it does **not** stop your scripts. A game
 whose `Update` keeps reading the confirm key (`Input.GetKeyDown`, an Input System action) would act on keys the
@@ -315,7 +317,7 @@ Time.timeScale = timeScale;
 On desktop the checkout page, the RPC requests and the payment checks run from the package's own per-frame update,
 so they stop whenever the player stops. With **Run In Background** off (Player Settings > Resolution and
 Presentation), a player that loses the focus stops its frames, and the player has to switch to the browser to pay
-there. So while a payment sheet, a checkout kept for its browser page (**Keep playing**) or a restore screen is
+there. So while a payment sheet, a checkout kept for its browser page (**Continue playing**) or a restore screen is
 open, the package sets `Application.runInBackground = true`. When the last of them closes (a kept checkout closes
 once its payment is final or the browser page times out), at quit and when play mode starts again without a
 domain reload, it puts back the value it found. Your game does not need to change the setting. If your own code
@@ -330,7 +332,7 @@ the east button goes back (on the first step, it closes the sheet as a cancel). 
 Toolkit's navigation events, which both the Input Manager and the Input System's UI input module send, so it works
 with either.
 
-## Customising the screens
+## Customising the sheet
 
 The default screens are UI Toolkit. Each screen gets its own `UIDocument` on the package's PanelSettings, at sort
 order 1000, above your own UI Toolkit panels unless they sort higher; your Canvas, TextMeshPro and prefabs are never touched. From least to most
