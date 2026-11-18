@@ -47,7 +47,9 @@ tarball), the package folder unity/Packages/com.repulse.scfg/ under package/:
     package/Documentation~/scfg-unity-guide.md (Unity guide, joined from docs/developers/unity/)
     package/Third Party Notices.md     (notices of the third-party code the package ports)
 
-Tests/ stays out (it needs the dev project's test setup). The package's own LICENSE.md must be
+Tests/ ships too (testbed U6): Unity compiles a package's test assemblies only in a project that lists
+it under "testables" in Packages/manifest.json, so the package's own edit-mode and play-mode tests
+run there and nowhere else. The package's own LICENSE.md must be
 the repository's LICENSE, its .meta files complete and its checkout page copy current.
 
 Usage: uv run python tools/package.py [--engine renpy|godot|rpgmaker|unity|unreal]
@@ -101,7 +103,7 @@ Leave the Logo parameter empty if you have no logo; this folder can then stay as
 UNITY_PAGES = "developers/unity/"
 UNITY_GUIDE_TITLE = "# Stablecoin for Games: Unity Developer Guide"
 UNITY_PACKAGE = ROOT / "unity" / "Packages" / "com.repulse.scfg"
-UNITY_SKIP_TOP = {"Tests", "Tests.meta"}
+UNITY_SKIP_TOP: set[str] = set()  # top-level entries of the package folder the tarball leaves out
 UNITY_GUIDE_NAME = "Documentation~/scfg-unity-guide.md"
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 
@@ -481,7 +483,7 @@ def unity_problems(package=UNITY_PACKAGE):
 
 def unity_files_to_ship(package=UNITY_PACKAGE):
     """(path, name) for the tarball's files under package/, sorted: everything in the package
-    folder but Tests/, hidden entries and editor backups (files ending in ~, which the .meta check
+    folder but hidden entries and editor backups (files ending in ~, which the .meta check
     skips; the Samples~ and Documentation~ folders do ship)."""
     for path in sorted(package.rglob("*")):
         rel = path.relative_to(package)

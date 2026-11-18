@@ -178,7 +178,18 @@ Packages/com.repulse.scfg/
 │   └── link.xml       (what IL2CPP must keep; the package hands it to the linker)
 ├── Editor/            (the SCFG Settings inspector and build step, the link.xml hook)
 ├── Samples~/          (Showcase and Demo, imported from the Package Manager)
+├── Tests/             (the package's own edit-mode and play-mode tests, see below)
 └── Documentation~/
+```
+
+The package's tests compile only in a project that asks for them. To run them, add the package to `testables` in
+your project's `Packages/manifest.json`, then open **Window > General > Test Runner**:
+
+```json
+{
+  "dependencies": { "com.repulse.scfg": "file:../scfg-unity-<version>.tgz", "...": "..." },
+  "testables": ["com.repulse.scfg"]
+}
 ```
 
 Receipts and pending payments are stored in `Application.persistentDataPath/scfg/state.json`, global to the

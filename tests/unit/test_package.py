@@ -318,7 +318,7 @@ def test_the_unity_package_is_ready_to_ship():
     assert manifest["name"] == "com.repulse.scfg"
 
 
-def test_unity_tgz_is_the_package_under_package_without_tests(tmp_path):
+def test_unity_tgz_is_the_package_under_package_tests_included(tmp_path):
     target = package.build_unity_tgz(tmp_path)
     assert target.name == f"scfg-unity-{package.__version__}.tgz"
     with tarfile.open(target, "r:gz") as tar:
@@ -335,7 +335,11 @@ def test_unity_tgz_is_the_package_under_package_without_tests(tmp_path):
                  "package/Editor/ScfgSettingsEditor.cs", "package/Samples~/Showcase/ScfgShowcase.cs",
                  "package/Samples~/Demo/ScfgDemo.cs", "package/Documentation~/index.md"):
         assert must in names, must
-    assert not [n for n in names if n.startswith("package/Tests")]
+    # the package's own tests ship (testbed U6): they compile only where the project lists the
+    # package under "testables"
+    for must in ("package/Tests.meta", "package/Tests/Editor/Scfg.Tests.Editor.asmdef",
+                 "package/Tests/Runtime/Scfg.Tests.Runtime.asmdef"):
+        assert must in names, must
     assert not [n for n in names if "/." in n]
     assert manifest["version"] == package.semver(package.__version__)
     assert guide.startswith(package.UNITY_GUIDE_TITLE)
