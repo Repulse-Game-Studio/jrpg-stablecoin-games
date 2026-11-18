@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The package internals the e2e driver reaches by reflection (E2EInternals.cs), kept through the IL2CPP players'
+  Managed Stripping Level High. Only these members: the rest of the package survives stripping with its own link.xml
+  alone, which is what the e2e proves.
+-->
+<linker>
+  <assembly fullname="Scfg.Unity">
+    <type fullname="Scfg.SCFG">
+      <property name="Current" />
+    </type>
+    <type fullname="Scfg.SCFG/State">
+      <field name="Platform" />
+      <field name="Waits" />
+      <field name="OwnTransport" />
+    </type>
+    <type fullname="Scfg.SCFG/ScreenWait">
+      <field name="Screen" />
+    </type>
+    <type fullname="Scfg.ScfgScreenView">
+      <property name="Keys" />
+      <property name="Focused" />
+      <method name="Control" />
+      <method name="Press" />
+    </type>
+  </assembly>
+</linker>

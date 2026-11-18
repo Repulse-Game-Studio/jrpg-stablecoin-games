@@ -5,9 +5,10 @@
 //
 // A release (non-development) StandaloneLinux64 player of the empty Assets/E2E/E2E.unity scene (the driver bootstraps
 // itself from SCFG_E2E_CONFIG). IL2CPP builds use Managed Stripping Level High, to prove the core and the glue survive
-// it with only the package's link.xml (handed over by Scfg.Editor.ScfgLinkXml). The player settings it changes are put
-// back afterwards, so ProjectSettings.asset stays as committed. Exit code 0 on success, 1 otherwise; a success also logs
-// "Build succeeded!" for GameCI (GameCiSuccess).
+// it with only the package's link.xml (handed over by Scfg.Editor.ScfgLinkXml; the e2e's own Assets/E2E/link.xml keeps
+// only the internals E2EInternals reaches by reflection). The player settings it changes are put back afterwards, so
+// ProjectSettings.asset stays as committed. Exit code 0 on success, 1 otherwise; a success also logs "Build succeeded!"
+// for GameCI (GameCiSuccess).
 #nullable enable
 using System;
 using System.IO;
@@ -145,7 +146,6 @@ namespace Scfg.E2E
             var oldStripping = PlayerSettings.GetManagedStrippingLevel(target);
             var oldProduct = PlayerSettings.productName;
             var oldCompany = PlayerSettings.companyName;
-            var oldDefines = PlayerSettings.GetScriptingDefineSymbols(target);
             var oldRunInBackground = PlayerSettings.runInBackground;
             try
             {
@@ -175,7 +175,6 @@ namespace Scfg.E2E
                 PlayerSettings.SetManagedStrippingLevel(target, oldStripping);
                 PlayerSettings.productName = oldProduct;
                 PlayerSettings.companyName = oldCompany;
-                PlayerSettings.SetScriptingDefineSymbols(target, oldDefines);
                 PlayerSettings.runInBackground = oldRunInBackground;
                 AssetDatabase.SaveAssets();
             }

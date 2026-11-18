@@ -14,9 +14,10 @@
 // goes to its log file). Commands: snapshot, click {name, in: "screen" | "game"},
 // action {action: "ui_accept" | "ui_cancel"} (a navigation event to the focused control), owns {item}, user_dir,
 // quit. A sheet is pressed the way a player presses it: its own button actions (ScfgScreenView.Press) or navigation
-// events. Every error, exception, assert and warning the game logs is also printed as "SCFG-PROBLEM <type>: <text>",
-// and "SCFG-QUITTING" is printed when the game quits on its own. The platform is a recording one: Copy and Open go to
-// the snapshot's "copied" and "opened" lists (no real browser or clipboard).
+// events; E2EInternals reaches that and the other package internals the driver needs. Every error, exception, assert
+// and warning the game logs is also printed as "SCFG-PROBLEM <type>: <text>", and "SCFG-QUITTING" is printed when the
+// game quits on its own. The platform is a recording one: Copy and Open go to the snapshot's "copied" and "opened"
+// lists (no real browser or clipboard).
 //
 // THE WEB DRIVER (WebGL players; Plugins/ScfgE2E.jslib). The config is window.scfgE2EConfig, a JSON string of the same
 // document plus an optional "chain" (SCFG_E2E_CHAIN's override); anything but a string is refused ("e2e config
@@ -25,7 +26,7 @@
 // one command per frame); problems go to window.scfgE2EProblems. The platform stays the real one, so Copy, Paste and
 // links go through the page's bridge (the runner reads the browser's clipboard). A click with "press": false does not
 // press: it answers {"at": [x, y]}, the button's centre in canvas pixels from the top left, for the runner's mouse.
-// Extra commands: state (persistentDataPath/scfg/state.json as JSON, or null), post {url, payload, timeout} (a POST
+// Extra commands: state (the facade's state file as JSON, or null), post {url, payload, timeout} (a POST
 // through the facade's own UnityWebRequestTransport, the one its RPC clients use: only SCFG.Pump pumps it, so the
 // download cap proves the facade does), post_result (null while it runs, then {"value"} or {"error"}) and
 // fs_persistent (ScfgWeb.jslib's answer: did Unity's IndexedDB database open). A web snapshot's screens also carry
@@ -80,6 +81,7 @@ namespace Scfg.E2E
         [DllImport("__Internal")] private static extern string ScfgE2ETake();
         [DllImport("__Internal")] private static extern void ScfgE2EReply(string text);
         [DllImport("__Internal")] private static extern void ScfgE2EProblem(string text);
+        [DllImport("__Internal")] private static extern int ScfgWebFsPersistent(); // the package's ScfgWeb.jslib
 #else
         private static readonly bool Web = false;
         private static string ScfgE2EConfigType() => "undefined";
@@ -88,6 +90,7 @@ namespace Scfg.E2E
         private static string? ScfgE2ETake() => null;
         private static void ScfgE2EReply(string text) { }
         private static void ScfgE2EProblem(string text) { }
+        private static int ScfgWebFsPersistent() => 1;
 #endif
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -194,6 +197,8 @@ namespace Scfg.E2E
         /// <summary>Reads the e2e config and configures SCFG; returns why it cannot, or null.</summary>
         private string? Setup()
         {
+            var missing = E2EInternals.Missing();
+            if (missing.Count > 0) return "the package has none of " + string.Join(", ", missing) + " (E2EInternals.cs)";
             object? doc;
             try
             {
@@ -217,7 +222,7 @@ namespace Scfg.E2E
                     return "SCFG_E2E_CHAIN: " + e.Message;
                 }
             }
-            if (!Web) SCFG.Current.Platform = _platform; // on the web the page's clipboard and window.open are the real ones
+            if (!Web) E2EInternals.SetPlatform(_platform); // on the web the page's clipboard and window.open are the real ones
             var options = new ScfgOptions
             {
                 Wallet = kw.Get("wallet") as string,
@@ -265,7 +270,7 @@ namespace Scfg.E2E
                 tokens = new Dictionary<string, Token>();
                 foreach (var kv in tk) tokens[kv.Key] = Chains.MakeToken((string)kv.Value!);
             }
-            Chains.Override(testnet, baseChain.With(rpc, confirmations, tokens));
+            E2EInternals.OverrideChain(testnet, baseChain.With(rpc, confirmations, tokens));
         }
 
         private bool Owned => SCFG.Owns(Item);
@@ -323,7 +328,7 @@ namespace Scfg.E2E
         }
 
         private static IEnumerable<ScfgScreenView> Views() =>
-            SCFG.Current.Waits.Select(w => w.Screen).OfType<ScfgScreenView>().Where(v => !v.Ended);
+            E2EInternals.Screens().OfType<ScfgScreenView>().Where(v => !v.Ended);
 
         private object? Run(JsonObject cmd)
         {
@@ -343,7 +348,7 @@ namespace Scfg.E2E
                     }
                     var view = Views().LastOrDefault() ?? throw new InvalidOperationException("no screen is open");
                     if (cmd.Get("press") is bool press && !press) return new JsonObject { { "at", Where(view, name) } };
-                    if (!view.Press(name)) throw new InvalidOperationException("no enabled button " + name + " on the screen");
+                    if (!E2EInternals.Press(view, name)) throw new InvalidOperationException("no enabled button " + name + " on the screen");
                     return true;
                 }
                 case "action":
@@ -367,15 +372,15 @@ namespace Scfg.E2E
                 case "user_dir":
                     return Application.persistentDataPath;
                 case "fs_persistent":
-                    return ScfgBrowserJs.Create()?.FsPersistent();
+                    return Web ? ScfgWebFsPersistent() != 0 : (bool?)null;
                 case "state":
                 {
-                    var path = Path.Combine(Application.persistentDataPath, "scfg", "state.json");
+                    var path = Path.Combine(Application.persistentDataPath, SCFG.StateFolder, SCFG.StateFileName);
                     return File.Exists(path) ? Json.Loads(File.ReadAllText(path)) : null;
                 }
                 case "post":
                 {
-                    var transport = SCFG.Current.OwnTransport
+                    var transport = E2EInternals.OwnTransport()
                                     ?? throw new InvalidOperationException("the facade has no transport of its own yet");
                     var payload = cmd.Get("payload") as JsonObject ?? new JsonObject();
                     _post = transport.PostJson((string)cmd["url"]!, payload, cmd.Get("timeout") is long t ? t : 30);
@@ -406,8 +411,8 @@ namespace Scfg.E2E
             foreach (var v in Views())
             {
                 var buttons = new List<object?>();
-                foreach (var key in v.Keys)
-                    if (v.Control(key) is Button b && b.style.display != DisplayStyle.None)
+                foreach (var key in E2EInternals.Keys(v))
+                    if (E2EInternals.Control(v, key) is Button b && b.style.display != DisplayStyle.None)
                         buttons.Add(new JsonObject
                         {
                             { "name", key }, { "text", ButtonText(b) }, { "disabled", !b.enabledInHierarchy },
@@ -415,14 +420,14 @@ namespace Scfg.E2E
                 var texts = v.Root.Query<Label>().ToList().Where(l => !(l.parent is Button))
                     .Select(l => (object?)l.text).ToList();
                 var fields = new JsonObject();
-                foreach (var key in v.Keys)
-                    if (v.Control(key) is TextField f) fields[key] = f.value;
+                foreach (var key in E2EInternals.Keys(v))
+                    if (E2EInternals.Control(v, key) is TextField f) fields[key] = f.value;
                 string? error = v is ScfgSheetView sv ? sv.Controller.Core.Error
                     : v is ScfgRestoreView rv ? rv.Controller.Core.Error : null;
                 screens.Add(new JsonObject
                 {
                     { "kind", v is ScfgSheetView ? "sheet" : "restore" }, { "buttons", buttons }, { "texts", texts },
-                    { "focus", v.Focused }, { "fields", fields }, { "error", error },
+                    { "focus", E2EInternals.Focused(v) }, { "fields", fields }, { "error", error },
                 });
             }
             return new JsonObject
@@ -435,7 +440,7 @@ namespace Scfg.E2E
         /// <summary>A control's centre in the player's screen pixels, from the top left (where the runner's mouse clicks).</summary>
         private static List<object?> Where(ScfgScreenView view, string name)
         {
-            if (!(view.Control(name) is VisualElement control) || control.style.display == DisplayStyle.None || !control.enabledInHierarchy)
+            if (!(E2EInternals.Control(view, name) is VisualElement control) || control.style.display == DisplayStyle.None || !control.enabledInHierarchy)
                 throw new InvalidOperationException("no enabled button " + name + " on the screen");
             control.Focus(); // scrolls it into view, as a player tabbing to it
             var panel = control.panel ?? throw new InvalidOperationException(name + " is not on a panel");
