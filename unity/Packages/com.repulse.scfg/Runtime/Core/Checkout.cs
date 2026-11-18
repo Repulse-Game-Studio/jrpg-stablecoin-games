@@ -25,7 +25,6 @@ using Scfg.Core.Solana;
 
 namespace Scfg.Core
 {
-    /// <summary>checkout.py's module tables, read-only (Unity's domain reload off keeps statics between plays).</summary>
     /// <summary>The buy link's state on a checkout step (Python's checkout.onramp_view).</summary>
     public readonly struct OnrampView
     {
@@ -41,6 +40,7 @@ namespace Scfg.Core
         }
     }
 
+    /// <summary>checkout.py's module tables, read-only (Unity's domain reload off keeps statics between plays).</summary>
     public static class Checkout
     {
         private static readonly string[] OnrampPages = { "browser", "qr", "manual" }; // static-ok: private table, only read

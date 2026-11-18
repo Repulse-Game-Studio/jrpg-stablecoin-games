@@ -22,7 +22,6 @@ using Scfg.Core.Solana;
 
 namespace Scfg.Core
 {
-    /// <summary>Python's <c>Config</c> dataclass (named apart from the static <see cref="Config"/> that builds it).</summary>
     /// <summary>
     /// configure's onramp, merged and checked: the "No USDC yet? Buy some with a card" link. Python's Config.onramp
     /// dict {"enabled", "url", "chains"}.
@@ -46,6 +45,7 @@ namespace Scfg.Core
         public static OnrampOptions Off() => new OnrampOptions(false, Paylinks.DefaultOnrampUrl, new string[0]);
     }
 
+    /// <summary>Python's <c>Config</c> dataclass (named apart from the static <see cref="Config"/> that builds it).</summary>
     public sealed class ConfigData
     {
         /// <summary>EVM payout address; null for a Solana-only game.</summary>
