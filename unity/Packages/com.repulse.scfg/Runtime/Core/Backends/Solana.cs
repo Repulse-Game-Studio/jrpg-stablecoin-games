@@ -366,6 +366,12 @@ namespace Scfg.Core
                 if (output.Error == null) output.Error = "network_unavailable";
                 return output;
             }
+            catch (Abandoned) when (output.Error != null)
+            {
+                // The tick yields to a command (Worker): a verdict reached earlier in this step is reported now (as
+                // above); the rest of the step waits for the next tick. Without one, Abandoned goes on up to Engine.Tick.
+                return output;
+            }
         }
 
         private static bool Qualifies(Transfer? t, JsonObject rec, Chain chain, JsonObject receipts) =>

@@ -319,7 +319,16 @@ namespace Scfg.Core
             }
             catch (Exception e) when (e is RpcUnavailable || e is RpcError)
             {
-                output.Error = "network_unavailable";
+                // A verdict on the hint from earlier in this step wins (Backends/Solana.cs): the hint is already cleared,
+                // and later steps are plain "waiting", so it would never be reported.
+                if (output.Error == null) output.Error = "network_unavailable";
+                return output;
+            }
+            catch (Abandoned) when (output.Error != null)
+            {
+                // The tick yields to a command (Worker). A verdict on the hint reached earlier in this step is reported
+                // now, for the same reason; the rest of the step waits for the next tick. Without one, Abandoned goes on
+                // up to Engine.Tick.
                 return output;
             }
         }

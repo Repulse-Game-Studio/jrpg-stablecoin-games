@@ -281,6 +281,24 @@ namespace Scfg.Core.Tests
             Assert.That(rpc.LiveUrls(), Is.EqualTo(new[] { C }));
         }
 
+        [TestCase(3L, true)]
+        [TestCase(4L, false)]
+        public void TheFloorIsAskedAtExactlyMinAttemptLeft(long bTakes, bool asked)
+        {
+            // Review V5 (test_the_floor_is_asked_at_exactly_min_attempt_left), the floor's boundary: with exactly
+            // MinAttempt left C is asked, with that timeout; with less it is not, and stays live. The RpcClient's clock
+            // counts whole seconds, so the side just under is 1 s left here (Python's is 1.9 s: B takes 3.1 s).
+            const string C = "https://c.rpc";
+            var clock = new Clock();
+            var t = new TimedTransport(clock, new Dictionary<string, long> { { B, bTakes } });
+            var rpc = new RpcClient(new[] { A, B, C }, t, clock: clock.Call);
+            Assert.ThrowsAsync<RpcUnavailable>(() => rpc.BlockNumber());
+            var expected = new List<(string, double)> { (A, 10.0), (B, 5.0) };
+            if (asked) expected.Add((C, Rpc.MinAttempt));
+            Assert.That(t.Calls, Is.EqualTo(expected));
+            Assert.That(rpc.LiveUrls().Contains(C), Is.EqualTo(!asked));
+        }
+
         [Test]
         public void TheClockIsSettableAndReadOnEveryCall()
         {
