@@ -7,6 +7,8 @@
 //
 // Configure once per run, before payments start: play this scene first. Loaded again later in the same run, it carries
 // on with the configuration it made the first time (the Console shows the refused second Configure).
+#nullable enable
+using System.Linq;
 using Scfg;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -20,24 +22,28 @@ namespace Scfg.Samples.Demo
         // Solana too), or in the project's SCFG Settings asset (Assets > Create > SCFG Settings), which this scene uses
         // when both fields here are blank. With neither, the scene does not configure SCFG and says so: it never pays a
         // placeholder address.
+        [Tooltip("Your EVM payout address (0x...). Blank: the project's SCFG Settings asset is used.")]
         [SerializeField] private string wallet = "";
+        [Tooltip("Your Solana payout address (base58). Blank: the project's SCFG Settings asset is used.")]
         [SerializeField] private string solanaWallet = "";
 
         private const string Item = "chapter2";
         private const string ItemTitle = "Chapter 2: The Fall";
 
-        private Label _chapter;
-        private Label _status;
-        private Button _unlock;
-        private Button _tip;
-        private Button _restore;
+        private Label _chapter = null!;
+        private Label _status = null!;
+        private Button _unlock = null!;
+        private Button _tip = null!;
+        private Button _restore = null!;
         private bool _busy;
-        private PanelSettings _panel;
+        private PanelSettings? _panel;
 
         private void Start()
         {
             BuildScreen();
-            var (evm, solana) = Wallets();
+            // Looked up once: with several SCFG Settings assets in the project, each lookup reports it in the Console.
+            var settings = ScfgSettings.Find();
+            var (evm, solana) = Wallets(settings);
             if (evm == null && solana == null)
             {
                 _status.text = "No wallet is set, so SCFG is not configured and nothing can be paid. Put your wallet"
@@ -45,18 +51,17 @@ namespace Scfg.Samples.Demo
                                + " Create > SCFG Settings), then play the scene again.";
                 return;
             }
-            var err = Configure(evm, solana);
-            if (err == "configure.after_start" && SCFG.ItemTitle(Item) == ItemTitle)
-            {
-                // this scene was loaded before in this run: payments started with the configuration it made then
-            }
-            else if (err == "configure.after_start")
+            var err = Configure(settings, evm, solana);
+            // configure.after_start with this demo's item declared: this scene was loaded before in this run, and
+            // payments started with the configuration it made then, so it carries on
+            bool loadedBefore = err == "configure.after_start" && SCFG.ItemTitle(Item) == ItemTitle;
+            if (err == "configure.after_start" && !loadedBefore)
             {
                 _status.text = "Payments already started with a configuration made elsewhere: play this scene first, or"
                                + " remove the SCFG Settings asset.";
                 return;
             }
-            else if (err != null)
+            if (err != null && !loadedBefore)
             {
                 _status.text = "SCFG refused the configuration: see the Console.";
                 return;
@@ -75,32 +80,56 @@ namespace Scfg.Samples.Demo
         }
 
         // Configures SCFG. Null, or the error code Configure or AddItem refused it with (and logged).
-        private static string Configure(string evm, string solana)
+        private static string? Configure(ScfgSettings? settings, string? evm, string? solana)
         {
-            // With an SCFG Settings asset in the project, its options are the starting point (networks, tokens,
-            // accent, logo, buy link ...); the demo adds only its wallets and testnet, and its own item.
-            var settings = ScfgSettings.Find();
-            var options = settings != null ? settings.ToOptions() : new ScfgOptions();
-            options.Wallet = evm;
-            options.SolanaWallet = solana;
-            options.Testnet = true; // Sepolia / Arbitrum Sepolia / Amoy / Base Sepolia / Solana Devnet: no real money
-            var err = SCFG.Configure(options);
+            var err = SCFG.Configure(TestnetOptions(settings, evm, solana));
             if (err == null)
                 err = SCFG.AddItem(Item, new ScfgItem { Code = 1, Price = "1.00", Token = "USDC", Title = ItemTitle });
             return err;
         }
 
-        // The payout wallets: this component's fields when one is set, else the project's SCFG Settings asset, else none.
-        private (string Evm, string Solana) Wallets()
+        // The options: with an SCFG Settings asset in the project, its options are the starting point (accent, logo,
+        // buy link ...), and the demo adds only its wallets and testnet (its own item comes after). The demo always
+        // runs on the test networks, so it keeps the asset's networks and tokens only when the asset is set to testnet
+        // (a release asset's choices, USDT say, may exist on no test network), and of those networks only the ones it
+        // has a wallet for ("solana" is the Solana network; every other key is an EVM network).
+        private static ScfgOptions TestnetOptions(ScfgSettings? settings, string? evm, string? solana)
+        {
+            var options = settings != null ? settings.ToOptions() : new ScfgOptions();
+            options.Wallet = evm;
+            options.SolanaWallet = solana;
+            options.Testnet = true; // Sepolia, Arbitrum Sepolia, Amoy, Base Sepolia, Arc Testnet, Solana Devnet: no real money
+            if (settings != null && !settings.testnet)
+            {
+                options.Chains = null;
+                options.Tokens = null;
+                if (options.Onramp != null) options.Onramp.Chains = null;
+                return options;
+            }
+            if (options.Chains != null)
+            {
+                var chains = options.Chains.Where(key => key == "solana" ? solana != null : evm != null).ToList();
+                options.Chains = chains.Count > 0 ? chains : null;
+            }
+            if (options.Onramp?.Chains != null)
+            {
+                var chains = options.Chains;
+                var buy = options.Onramp.Chains.Where(key => evm != null && (chains == null || chains.Contains(key))).ToList();
+                options.Onramp.Chains = buy.Count > 0 ? buy : null;
+            }
+            return options;
+        }
+
+        // The payout wallets: this component's fields when one is set, else the SCFG Settings asset's, else none.
+        private (string? Evm, string? Solana) Wallets(ScfgSettings? settings)
         {
             if (!string.IsNullOrWhiteSpace(wallet) || !string.IsNullOrWhiteSpace(solanaWallet))
                 return (Trim(wallet), Trim(solanaWallet));
-            var settings = ScfgSettings.Find();
             if (settings != null && settings.HasWallet) return (Trim(settings.wallet), Trim(settings.solanaWallet));
             return (null, null);
         }
 
-        private static string Trim(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+        private static string? Trim(string? s) => string.IsNullOrWhiteSpace(s) ? null : s!.Trim();
 
         private void Refresh()
         {
@@ -109,15 +138,28 @@ namespace Scfg.Samples.Demo
             _unlock.style.display = owned ? DisplayStyle.None : DisplayStyle.Flex;
         }
 
+        // Awaits a payment or restore flow with the game paused and the buttons busy, then puts the time scale back (the
+        // game may already have been paused or in slow motion).
+        private async Awaitable<T> WhilePaused<T>(Awaitable<T> flow)
+        {
+            _busy = true;
+            float timeScale = Time.timeScale;
+            Time.timeScale = 0;
+            try
+            {
+                return await flow;
+            }
+            finally
+            {
+                Time.timeScale = timeScale;
+                _busy = false;
+            }
+        }
+
         private async void OnUnlock()
         {
             if (_busy) return;
-            _busy = true;
-            float timeScale = Time.timeScale; // put back after: the game may already be paused or in slow motion
-            Time.timeScale = 0;
-            ScfgPaymentResult r = await SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = Item });
-            Time.timeScale = timeScale;
-            _busy = false;
+            ScfgPaymentResult r = await WhilePaused(SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = Item }));
             if (this == null) return; // the game quit with the sheet open
             _status.text = r.Status switch
             {
@@ -133,12 +175,7 @@ namespace Scfg.Samples.Demo
         private async void OnTip()
         {
             if (_busy) return;
-            _busy = true;
-            float timeScale = Time.timeScale; // put back after: the game may already be paused or in slow motion
-            Time.timeScale = 0;
-            ScfgPaymentResult r = await SCFG.Pay(ScfgPayKind.Tip, new ScfgPayRequest { Amount = "1.00", Token = "USDC" });
-            Time.timeScale = timeScale;
-            _busy = false;
+            ScfgPaymentResult r = await WhilePaused(SCFG.Pay(ScfgPayKind.Tip, new ScfgPayRequest { Amount = "1.00", Token = "USDC" }));
             if (this == null) return;
             if (r.Status == ScfgPaymentStatus.Paid) _status.text = "Thank you for the " + r.Amount + " USDC tip!";
             FocusFirst();
@@ -147,12 +184,7 @@ namespace Scfg.Samples.Demo
         private async void OnRestore()
         {
             if (_busy) return;
-            _busy = true;
-            float timeScale = Time.timeScale; // put back after: the game may already be paused or in slow motion
-            Time.timeScale = 0;
-            ScfgRestoreResult r = await SCFG.Restore();
-            Time.timeScale = timeScale;
-            _busy = false;
+            ScfgRestoreResult r = await WhilePaused(SCFG.Restore());
             if (this == null) return;
             if (r.Status == ScfgRestoreStatus.Restored) _status.text = "Purchases restored.";
             Refresh();

@@ -10,6 +10,7 @@
 //
 // Configure once per run, before payments start: play this scene first. Loaded again later in the same run, it carries
 // on with the configuration it made the first time (the Console shows the refused second Configure).
+#nullable enable
 using System.Collections.Generic;
 using System.Linq;
 using Scfg;
@@ -27,7 +28,9 @@ namespace Scfg.Samples.Showcase
         // Solana too), or in the project's SCFG Settings asset (Assets > Create > SCFG Settings), which this scene uses
         // when both fields here are blank. With neither, the scene does not configure SCFG and says so: it never pays a
         // placeholder address.
+        [Tooltip("Your EVM payout address (0x...). Blank: the project's SCFG Settings asset is used.")]
         [SerializeField] private string wallet = "";
+        [Tooltip("Your Solana payout address (base58). Blank: the project's SCFG Settings asset is used.")]
         [SerializeField] private string solanaWallet = "";
 
         // The accent color of the payment sheet, as "#rrggbb".
@@ -50,28 +53,30 @@ namespace Scfg.Samples.Showcase
         private static readonly string[] TipAmounts = { "0.50", "1.00", "3.00" };
         private const string TipToken = "USDC";
 
-        private UIDocument _document;
-        private VisualElement _itemsBox;
-        private VisualElement _tipsBox;
-        private Label _summary;
-        private Label _receipts;
-        private ScrollView _log;
+        private UIDocument _document = null!;
+        private VisualElement _itemsBox = null!;
+        private VisualElement _tipsBox = null!;
+        private Label _summary = null!;
+        private Label _receipts = null!;
+        private ScrollView _log = null!;
         private readonly Dictionary<string, Label> _itemStates = new Dictionary<string, Label>();
         private readonly Dictionary<string, List<Button>> _itemButtons = new Dictionary<string, List<Button>>();
         private bool _busy;
         private float _timeScale = 1;
-        private PanelSettings _panel;
+        private PanelSettings? _panel;
 
         private void Start()
         {
             BuildScreen();
-            var (evm, solana) = ScfgSampleWallets.Find(wallet, solanaWallet);
+            // Looked up once: with several SCFG Settings assets in the project, each lookup reports it in the Console.
+            var settings = ScfgSettings.Find();
+            var (evm, solana) = ScfgSampleWallets.Find(settings, wallet, solanaWallet);
             if (evm == null && solana == null)
             {
                 Log(ScfgSampleWallets.Missing);
                 return;
             }
-            var err = Configure(evm, solana);
+            var err = Configure(settings, evm, solana);
             if (err == "configure.after_start" && Items.All(i => SCFG.ItemTitle(i.Id) == i.Item.Title))
             {
                 Log("SCFG was configured by an earlier load of this scene; carrying on with that configuration.");
@@ -97,16 +102,9 @@ namespace Scfg.Samples.Showcase
         // Configures SCFG and declares the items. Configure and AddItem return null on success, or the error code they
         // already logged (with Debug.LogError); so does this. With an SCFG Settings asset in the project, the asset is
         // applied first and this call replaces it, as long as payments have not started (this scene is played first).
-        private static string Configure(string evm, string solana)
+        private static string? Configure(ScfgSettings? settings, string? evm, string? solana)
         {
-            // With an SCFG Settings asset in the project, its options are the starting point (its networks, tokens,
-            // accent, logo, buy link ...), so what you set there shows here too; this scene adds only its wallets and
-            // testnet, and its own items below. Without one, the scene's own options.
-            var settings = ScfgSettings.Find();
-            var options = settings != null ? settings.ToOptions() : new ScfgOptions();
-            options.Wallet = evm;
-            options.SolanaWallet = solana;
-            options.Testnet = true; // Sepolia, Arbitrum Sepolia, Amoy, Base Sepolia, Arc Testnet, Solana Devnet
+            var options = TestnetOptions(settings, evm, solana);
             options.Accent ??= Accent;
             // Optional, among others: Chains, Tokens, Methods, Logo, RpcUrls, Onramp.
             var err = SCFG.Configure(options);
@@ -118,6 +116,39 @@ namespace Scfg.Samples.Showcase
             }
             SCFG.Notify = true; // a "Payment confirmed" toast for payments that confirm in the background
             return null;
+        }
+
+        // The options: with an SCFG Settings asset in the project, its options are the starting point (accent, logo, buy
+        // link ...), so what you set there shows here too; this scene adds only its wallets and testnet, and its own
+        // items. It always runs on the test networks, so it keeps the asset's networks and tokens only when the asset is
+        // set to testnet (a release asset's choices, USDT say, may exist on no test network), and of those networks only
+        // the ones it has a wallet for ("solana" is the Solana network; every other key is an EVM network). Without an
+        // asset, the scene's own options.
+        private static ScfgOptions TestnetOptions(ScfgSettings? settings, string? evm, string? solana)
+        {
+            var options = settings != null ? settings.ToOptions() : new ScfgOptions();
+            options.Wallet = evm;
+            options.SolanaWallet = solana;
+            options.Testnet = true; // Sepolia, Arbitrum Sepolia, Amoy, Base Sepolia, Arc Testnet, Solana Devnet
+            if (settings != null && !settings.testnet)
+            {
+                options.Chains = null;
+                options.Tokens = null;
+                if (options.Onramp != null) options.Onramp.Chains = null;
+                return options;
+            }
+            if (options.Chains != null)
+            {
+                var chains = options.Chains.Where(key => key == "solana" ? solana != null : evm != null).ToList();
+                options.Chains = chains.Count > 0 ? chains : null;
+            }
+            if (options.Onramp?.Chains != null)
+            {
+                var chains = options.Chains;
+                var buy = options.Onramp.Chains.Where(key => evm != null && (chains == null || chains.Contains(key))).ToList();
+                options.Onramp.Chains = buy.Count > 0 ? buy : null;
+            }
+            return options;
         }
 
         // --- 2. The shop -----------------------------------------------------------------------------------
@@ -148,7 +179,7 @@ namespace Scfg.Samples.Showcase
         // --- 3. Paying, restoring, exporting ----------------------------------------------------------------
 
         // Opens the payment sheet for an item. amount overrides the price (null keeps it).
-        private async void Unlock(string id, string amount)
+        private async void Unlock(string id, string? amount)
         {
             if (_busy) return;
             var request = new ScfgPayRequest { Item = id, Amount = amount };
@@ -304,7 +335,7 @@ namespace Scfg.Samples.Showcase
             _log.schedule.Execute(() => _log.ScrollTo(line));
         }
 
-        private static string ErrorSuffix(string error) => error == null ? "" : " (error: " + error + ")";
+        private static string ErrorSuffix(string? error) => error == null ? "" : " (error: " + error + ")";
 
         private static string Short(string hash) => hash.Length <= 14 ? hash : hash.Substring(0, 8) + "..." + hash.Substring(hash.Length - 6);
 
@@ -394,23 +425,22 @@ namespace Scfg.Samples.Showcase
         private static readonly Color ButtonTextColor = new Color(0.1f, 0.1f, 0.12f);
     }
 
-    // Where the scene finds the payout wallets (the Demo does the same in its Wallets()): the component's fields when one is set,
-    // else the project's SCFG Settings asset, else none.
+    // Where the scene finds the payout wallets: the component's fields when one is set, else the SCFG Settings asset's,
+    // else none.
     internal static class ScfgSampleWallets
     {
         public const string Missing = "No wallet is set, so SCFG is not configured and nothing can be paid. Put your wallet"
             + " address in this component's Wallet field, or in an SCFG Settings asset (Assets > Create > SCFG Settings),"
             + " then play the scene again.";
 
-        public static (string Evm, string Solana) Find(string wallet, string solanaWallet)
+        public static (string? Evm, string? Solana) Find(ScfgSettings? settings, string? wallet, string? solanaWallet)
         {
             if (!Blank(wallet) || !Blank(solanaWallet)) return (Trim(wallet), Trim(solanaWallet));
-            var settings = ScfgSettings.Find();
             if (settings != null && settings.HasWallet) return (Trim(settings.wallet), Trim(settings.solanaWallet));
             return (null, null);
         }
 
-        private static bool Blank(string s) => string.IsNullOrWhiteSpace(s);
-        private static string Trim(string s) => Blank(s) ? null : s.Trim();
+        private static bool Blank(string? s) => string.IsNullOrWhiteSpace(s);
+        private static string? Trim(string? s) => Blank(s) ? null : s!.Trim();
     }
 }

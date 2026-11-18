@@ -4,14 +4,15 @@ Without --unity: package.json lists exactly the folders in Samples~, and every f
 them has its .meta (the Package Manager copies the .meta files on import, so a scene keeps its
 script references). With --unity: the samples are also copied into the dev project
 (unity/Project/Assets/Samples/, git-ignored), as the Package Manager's Import button does; the
-editor compiles them and opens each sample's scene (ScfgSamplesCheck.Check: no missing script, the
-sample's component there). The copy is removed afterwards.
+editor compiles them, opens each sample's scene (Scfg.Maintenance.ScfgSamplesCheck.Check: no
+missing script, the sample's component there) and runs each sample's Configure with SCFG Settings
+assets it must accept. The copy is removed afterwards.
 
     uv run python tools/check_unity_samples.py [--unity ~/Unity/Hub/Editor/<version>/Editor/Unity]
 
 --make-scenes (maintainers, with --unity) writes each sample's scene in the dev project with
-ScfgSamplesCheck.MakeScenes and copies it, and the .meta files Unity made for the sample's files,
-back into Samples~.
+Scfg.Maintenance.ScfgSamplesCheck.MakeScenes and copies it, and the .meta files Unity made for
+the sample's files, back into Samples~.
 """
 
 from __future__ import annotations
@@ -66,7 +67,7 @@ def problems(samples: Path = SAMPLES, package_json: Path = PACKAGE / "package.js
 
 def run_editor(unity: str, method: str, log: Path) -> int:
     cmd = [unity, "-batchmode", "-nographics", "-quit", "-projectPath", str(PROJECT),
-           "-executeMethod", f"ScfgSamplesCheck.{method}", "-logFile", str(log)]
+           "-executeMethod", f"Scfg.Maintenance.ScfgSamplesCheck.{method}", "-logFile", str(log)]
     return subprocess.run(cmd, timeout=TIMEOUT).returncode
 
 
