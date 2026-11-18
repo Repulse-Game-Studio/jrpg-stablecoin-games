@@ -7,6 +7,9 @@
     "name": "Repulse"
   },
   "description": "USDC/USDT tips and unlock purchases paid straight to the developer's wallet. No server, no accounts.",
+  "documentationUrl": "https://jrpg.com/stablecoinforgames/docs/developers/unity/",
+  "changelogUrl": "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases",
+  "licensesUrl": "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/blob/main/LICENSE",
   "dependencies": {
     "com.unity.modules.imageconversion": "1.0.0",
     "com.unity.modules.ui": "1.0.0",
