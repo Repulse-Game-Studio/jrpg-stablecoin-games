@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/scfg.gd (see ScfgFacade.h).
 #include "ScfgFacade.h"
 

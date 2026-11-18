@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the Tier 2 runner, replaying conformance/vectors/tier2/*.json against the C++ Engine. A mirror of
 // conformance/python/scfg_conformance/replay.py (build_config_from, build_engine, run_action, encode_returns,
 // snapshot_json, candidate_from_json, ScriptedEntropy, ReplayTransport, replay) and of unity/core-tests/Tier2.cs;

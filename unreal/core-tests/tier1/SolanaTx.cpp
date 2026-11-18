@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/solana_tx.json adapters (conformance/python/scfg_conformance/tier1.py's solana_tx block;
 // unity/core-tests/Tier1.cs). Bytes travel as hex; compact_u16's n is passed as the vector gives it, with Python's
 // errors for a value that is not an int.

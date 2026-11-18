@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the cooperative driver half of coio.py (run_sync, Sync, synced) as C++20 coroutines.
 //
 // Python's core is generators: a function that may need the network yields a Request and is resumed with the

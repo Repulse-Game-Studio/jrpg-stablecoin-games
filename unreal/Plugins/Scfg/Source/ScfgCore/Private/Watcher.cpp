@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/watcher.py (see Watcher.h).
 #include "Scfg/Watcher.h"
 

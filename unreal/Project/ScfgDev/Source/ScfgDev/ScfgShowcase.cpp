@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: godot/showcase/main.gd's Unreal form (see ScfgShowcase.h). Read it top to bottom: 1. configure,
 // 2. build the shop, 3. pay, restore, export, clear, 4. listen, 5. show the state.
 #include "ScfgShowcase.h"

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: Python's float repr() and float() of a literal, the same under every C locale.
 //
 // Both rest on the C library (snprintf's exact %e digits, strtod's correct rounding) and never on its locale: the

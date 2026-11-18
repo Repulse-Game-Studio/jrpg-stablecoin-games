@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the plugin's own access to UScfgSubsystem's private parts (its friend), for the plugin's modules
 // (the async nodes, the tests, the development project's e2e driver), never a game's: the facade (a Private type) and
 // the async starts that leave the teardown to the caller.

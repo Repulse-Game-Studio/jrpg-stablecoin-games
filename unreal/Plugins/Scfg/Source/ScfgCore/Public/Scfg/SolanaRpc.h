@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/solana/rpc.py (and of unity/.../Core/Solana/Rpc.cs): Solana JSON-RPC on top of the shared
 // failover client, ::scfg::rpc::RpcClient (the EVM one; inside scfg::solana, `rpc` alone names this namespace).
 //

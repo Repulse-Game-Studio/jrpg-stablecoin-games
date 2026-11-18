@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/qr_view.gd (see SScfgQrView.h).
 #include "UI/SScfgQrView.h"
 

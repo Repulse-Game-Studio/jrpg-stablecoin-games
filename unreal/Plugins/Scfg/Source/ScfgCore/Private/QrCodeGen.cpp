@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/_qrcodegen.py (Project Nayuki's QR Code generator, ported to C++; see QrCodeGen.h).
 //
 // QR Code generator library (Python)

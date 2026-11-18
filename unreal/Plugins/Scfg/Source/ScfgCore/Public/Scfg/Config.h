@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/config.py (and of unity/.../Core/Config.cs, rpgmaker/src/core/config.ts).
 // Developer configuration: validation of configure()/add_item() arguments.
 //

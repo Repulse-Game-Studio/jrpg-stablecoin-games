@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // The payment core: plain C++20, no Unreal header outside Private/ScfgCoreModule.cpp (unreal/README.md, "Under UBT").
 using UnrealBuildTool;
 

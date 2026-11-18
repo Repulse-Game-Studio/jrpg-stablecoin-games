@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/engine.py (and of unity/.../Core/Engine.cs): the Engine composes config, sessions, watcher,
 // receipts and restore.
 //

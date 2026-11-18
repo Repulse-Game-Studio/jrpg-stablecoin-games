@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: Tier2.<id> replays each conformance/vectors/tier2 vector through support/Tier2 (one runtime test
 // per vector file), and Tier2Tests checks the runner itself (as unity/core-tests/Tier2Tests.cs): a vector that does
 // not match fails, malformed data is a difference rather than an abort, and an Err that stands for no Python

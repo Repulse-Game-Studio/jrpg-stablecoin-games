@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the scanner and the file-level checks behind LintTests.
 #include "support/Lint.h"
 
@@ -117,8 +118,9 @@ std::string core_dir() {
 
 std::string tests_dir() { return (fs::path(SCFG_REPO_ROOT) / "unreal" / "core-tests").generic_string(); }
 
-// Every .h and .cpp under root, rel = prefix + the path relative to root, sorted by rel.
-static std::vector<File> files_under(const std::string& dir, const std::string& prefix, std::string* error) {
+// Every .h and .cpp (and .cs, with cs) under root, rel = prefix + the path relative to root, sorted by rel.
+static std::vector<File> files_under(const std::string& dir, const std::string& prefix, std::string* error,
+                                     bool cs = false) {
     auto report = [error](const std::string& what) {
         if (error != nullptr) *error += (error->empty() ? "" : "; ") + what;
     };
@@ -132,7 +134,7 @@ static std::vector<File> files_under(const std::string& dir, const std::string& 
             continue;
         }
         std::string ext = it->path().extension().string();
-        if (ext != ".h" && ext != ".cpp") continue;
+        if (ext != ".h" && ext != ".cpp" && !(cs && ext == ".cs")) continue;
         std::ifstream in(it->path(), std::ios::binary);
         File f;
         f.rel = prefix + it->path().lexically_relative(root).generic_string();
@@ -148,6 +150,18 @@ static std::vector<File> files_under(const std::string& dir, const std::string& 
 std::vector<File> core_files(std::string* error) { return files_under(core_dir(), "", error); }
 
 std::vector<File> test_files(std::string* error) { return files_under(tests_dir(), "core-tests/", error); }
+
+std::vector<File> source_files(std::string* error) {
+    const fs::path unreal = fs::path(SCFG_REPO_ROOT) / "unreal";
+    std::vector<File> out;
+    for (const char* dir : {"Plugins/Scfg/Source", "Project/ScfgDev/Source", "core-tests", "core-driver",
+                            "core-exports"}) {
+        std::vector<File> some = files_under((unreal / dir).generic_string(), std::string(dir) + "/", error, true);
+        std::move(some.begin(), some.end(), std::back_inserter(out));
+    }
+    std::sort(out.begin(), out.end(), [](const File& a, const File& b) { return a.rel < b.rel; });
+    return out;
+}
 
 std::string basename(std::string_view rel) {
     size_t slash = rel.rfind('/');
@@ -404,11 +418,14 @@ std::vector<std::string> only_std_includes(const File& f) {
 std::vector<std::string> names_its_twin(const File& f) {
     static const std::string py_root = std::string(SCFG_REPO_ROOT) + "/plugin/game/python-packages/";
     static const std::regex twin("scfg_core/[A-Za-z0-9_/]+\\.py");
-    const std::string why = "the first comment line says `Twin of scfg_core/<module>.py` or `No Python twin: ...`";
+    const std::string why =
+        "the first comment line after the copyright line says `Twin of scfg_core/<module>.py` or `No Python twin: ...`";
     Views v = lint::views(f.text);
-    for (size_t n = 0; n < v.raw.size(); ++n) {
-        std::string line = v.raw[n];
-        if (n == 0 && line.rfind("\xEF\xBB\xBF", 0) == 0) line.erase(0, 3);
+    if (!v.raw.empty() && v.raw[0].rfind("\xEF\xBB\xBF", 0) == 0) v.raw[0].erase(0, 3);
+    // The copyright line comes first (copyright() checks it); the twin comment is the first comment after it.
+    size_t first = !v.raw.empty() && v.raw[0] == kCopyright ? 1 : 0;
+    for (size_t n = first; n < v.raw.size(); ++n) {
+        const std::string& line = v.raw[n];
         if (line.find_first_not_of(" \t\r") == std::string::npos) continue;
         if (line.rfind("//", 0) != 0) break;
         if (line.find("No Python twin") != std::string::npos) return {};
@@ -424,6 +441,18 @@ std::vector<std::string> names_its_twin(const File& f) {
         return hits;
     }
     return {at(f, 1, "no twin comment", why)};
+}
+
+std::vector<std::string> copyright(const File& f) {
+    const std::string why = "Fab 4.3.6.1.b: every source file starts with the publisher's notice, " +
+                            std::string(kCopyright);
+    std::vector<std::string> lines = split_lines(f.text);
+    std::vector<std::string> hits;
+    if (lines[0] != kCopyright) hits.push_back(at(f, 1, "line 1 is not the copyright line", why));
+    for (size_t n = 1; n < lines.size(); ++n) {
+        if (lines[n] == kCopyright) hits.push_back(at(f, n + 1, "the copyright line again", why));
+    }
+    return hits;
 }
 
 // ---- exports (F3) ----

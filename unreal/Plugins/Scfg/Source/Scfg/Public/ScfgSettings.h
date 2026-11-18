@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the SCFG project settings (Project Settings > Plugins > SCFG, saved to Config/DefaultGame.ini), the
 // twin of Unity's SCFG Settings asset (ScfgSettings.cs): configuration without code. Code stays the source of truth.
 //

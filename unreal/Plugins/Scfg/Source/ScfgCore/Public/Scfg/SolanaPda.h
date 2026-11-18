@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/solana/pda.py (and of unity/.../Core/Solana/Pda.cs, rpgmaker/src/core/solana/pda.ts).
 // Program-derived addresses and associated token accounts (classic SPL Token program).
 #pragma once

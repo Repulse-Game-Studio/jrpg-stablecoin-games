@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the SCFG project settings (Public/ScfgSettings.h), Scfg.Glue.Settings.<name>, the twins of Unity's
 // SettingsTests (unity-p3-5: unity/Packages/com.repulse.scfg/Tests/Editor/SettingsTests.cs) for what both have:
 //   AValidAssetPassesValidate                 -> AValidSettingsPassValidate

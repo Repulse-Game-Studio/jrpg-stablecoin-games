@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // The glue module's automation tests, Scfg.Glue.* (unreal/README.md, "The glue module"). UncookedOnly in
 // Scfg.uplugin, as ScfgCoreTests: built into the editor and uncooked targets, never into a cooked game
 // (tools/run_unreal_build.py fails a game build that links it).

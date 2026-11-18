@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/errors.py, plus Python's built-in exception classes: a Python exception as a value.
 //
 // The core never throws or catches, as the lints check: it builds with or without exceptions (Unreal's editor

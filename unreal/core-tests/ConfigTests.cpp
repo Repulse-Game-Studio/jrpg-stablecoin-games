@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::chains, scfg::config and scfg::payments beyond the tier1 configuration vectors:
 // what the C# port recorded as divergences and this port does as Python does (2**70 confirmations, the
 // AttributeError of a non-dict methods/rpc_urls/confirmations, a tip's non-str title and item, {!a} as ascii(), a

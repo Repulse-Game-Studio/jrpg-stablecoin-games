@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/theme.gd (the "Margin" look, itself Ren'Py's scfg_* styles in scfg_screens.rpy): the
 // screens' FSlateStyleSet. A light sheet, ink text, outlined buttons and options with rounded corners, and the
 // developer's accent (configure's "#rrggbb") for the selected option, the pinned forward button, the focus ring and

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/payments.py (and of unity/.../Core/Payments.cs, rpgmaker/src/core/payments.ts).
 // Validation of a pay() request, independent of chain and network.
 //

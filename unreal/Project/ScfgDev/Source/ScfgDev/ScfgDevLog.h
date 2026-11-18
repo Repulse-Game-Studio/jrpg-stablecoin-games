@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // The development project's log category: the showcase and the e2e driver.
 #pragma once
 

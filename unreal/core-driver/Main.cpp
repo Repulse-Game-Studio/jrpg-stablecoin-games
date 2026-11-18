@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the JSON-lines driver that runs the C++ Engine as a child process for the Python integration
 // tests (tests/integration/cpp_driver.py), so the same Anvil / solana-test-validator fixtures exercise every core.
 // A port of unity/core-driver/Program.cs.

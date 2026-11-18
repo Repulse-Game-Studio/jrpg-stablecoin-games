@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/sheet.gd (see SScfgPaymentSheet.h).
 #include "UI/SScfgPaymentSheet.h"
 

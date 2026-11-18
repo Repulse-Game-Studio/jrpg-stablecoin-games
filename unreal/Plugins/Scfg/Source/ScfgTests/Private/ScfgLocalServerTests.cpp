@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the localhost checkout server in the editor (Scfg.Glue.LocalServer.*): the core's
 // local_server::CheckoutServer on the engine's sockets (ScfgLocalServer.h), made by the facade's default factory and
 // pumped on the game thread, against a real HTTP client (FHttpModule) and raw loopback sockets. Its HTTP rules are the

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // The Unreal glue around the payment core (unreal/README.md, "The glue module"): the worker that drives the core's
 // Engine on the game thread, the FHttpModule transport, the UTF-8 bridge, the store (state.json), the facade with its
 // game-instance subsystem and Blueprint API, the localhost checkout server, and the Slate screens (Private/UI).

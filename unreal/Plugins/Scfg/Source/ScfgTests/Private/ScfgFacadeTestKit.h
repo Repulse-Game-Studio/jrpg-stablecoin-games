@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the doubles of godot/tests/test_scfg_api.gd and test_scfg_flows.gd for the facade tests
 // (Scfg.Glue.Facade.*): fake EVM nodes behind the worker's own transport (FakeChain), a headless sheet host that
 // records what the flows ask for and lets a test script the player (FakeHost and FakeSheet), a fake platform (no

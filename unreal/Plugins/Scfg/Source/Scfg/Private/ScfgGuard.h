@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the glue's shared misuse helpers, in one place (final review F6): the thread guard of the public
 // calls, the code-or-kind rule of a Failed result, and the Failed "RuntimeError" results of a call that could not run.
 //

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/screen_base.gd (see SScfgScreen.h).
 #include "UI/SScfgScreen.h"
 

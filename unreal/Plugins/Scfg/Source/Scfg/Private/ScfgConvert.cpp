@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: see ScfgConvert.h.
 #include "ScfgConvert.h"
 

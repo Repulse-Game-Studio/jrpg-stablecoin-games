@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/keccak.py and scfg_core/_xkcp.py: keccak256 and the Keccak-f[1600] permutation.
 #include "Scfg/Keccak.h"
 

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/amounts.json adapters (conformance/python/scfg_conformance/tier1.py's "# amounts"
 // block; unity/core-tests/Tier1.cs's RegisterAmounts).
 #include "support/Tier1.h"

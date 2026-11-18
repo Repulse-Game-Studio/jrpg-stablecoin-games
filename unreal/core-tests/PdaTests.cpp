@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::solana::pda beyond the tier1/pda.json vectors: the seed limits (16 seeds leave no
 // room for a bump), that find_program_address leaves the caller's seeds alone (the C# port reused one array), and
 // associated_token_address's errors. Every expectation is scfg_core's own output (python3 with

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::BigInt (Python's int) and scfg::bytes (bytes.hex / bytes.fromhex / base64).
 #include "support/Test.h"
 

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 #include "ScfgDev.h"
 
 #include "ScfgDevLog.h"

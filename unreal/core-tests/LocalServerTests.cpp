@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: local_server::CheckoutServer and its Handler (LocalServer.h) over the in-memory sockets of
 // support/FakeSockets.h, with a fake clock: what only a server without Python's http.server has to prove, the twins of
 // godot/tests/test_local_server.gd. Its HTTP behaviour against local_server.py lives in the shared suite

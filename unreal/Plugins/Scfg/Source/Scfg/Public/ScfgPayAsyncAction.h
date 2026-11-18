@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the Blueprint forms of `await Scfg.pay(...)` and `await Scfg.restore()` (godot/addons/scfg/scfg.gd):
 // async nodes that show the screen and fire OnResolved once, when the player closes it (or at once: AlreadyOwned,
 // Failed). They are UScfgSubsystem::PayAsync and RestoreAsync.

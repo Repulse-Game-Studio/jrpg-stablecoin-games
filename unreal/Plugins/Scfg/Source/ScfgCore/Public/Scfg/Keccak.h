@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/keccak.py and scfg_core/_xkcp.py (and of unity/.../Core/Keccak.cs, rpgmaker/src/core/keccak.ts).
 // Keccak-256 as used by Ethereum: the original Keccak padding (suffix 0x01), not NIST SHA3-256 (0x06). The
 // permutation and the sponge follow the Keccak team's public-domain reference implementation (XKCP's

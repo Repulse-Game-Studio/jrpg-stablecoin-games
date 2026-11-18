@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: JSON value equality as conformance/README.md defines it for params and outputs (does not depend
 // on the test runner; the *Tests.cpp files assert on what it returns, ruling R6).
 //

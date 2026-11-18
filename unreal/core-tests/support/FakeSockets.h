@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: in-memory sockets for local_server::CheckoutServer (LocalServer.h), the stand-in for the real ones
 // that godot/tests/test_local_server.gd drives through its Recorder: every connection is a Pipe the test writes to
 // and reads from as the client, every socket call the server makes is counted (a pump that waited on a socket would

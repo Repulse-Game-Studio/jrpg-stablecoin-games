@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the ScfgEditor module (ScfgEditor.Build.cs): registers the "SCFG" Message Log page and the settings'
 // details customization, and the Validate action (ScfgSettingsValidation.h).
 #include "ScfgSettingsDetails.h"

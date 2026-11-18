@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the in-house test runner (no third-party framework, no exceptions).
 //
 //   SCFG_TEST(Group, Name) { SCFG_CHECK_EQ(t, a, b); }   registers Group.Name before main runs

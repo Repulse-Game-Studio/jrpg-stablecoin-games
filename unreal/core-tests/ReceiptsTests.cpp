@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::receipts beyond the tier1/receipts.json vectors: the receipt_key forms (EVM hashes
 // lowercased, Solana signatures and "0X" kept), a stored log_index of any size formatted exactly (the C# port raised
 // OverflowException beyond int64), duplicate add_receipt, the malformed-store classes, and compute_ownership's

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/rpc.py's UrllibTransport (see ScfgHttpTransport.h).
 #include "ScfgHttpTransport.h"
 

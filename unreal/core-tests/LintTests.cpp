@@ -1,4 +1,8 @@
+// Copyright 2026 Repulse
 // No Python twin: the lints that every file under Source/ScfgCore must pass.
+//
+// One lint reaches further: EveryFileStartsWithCopyright checks every C++ and C# file under unreal/ that we wrote
+// (lint::source_files: the plugin, the dev project, core-tests, core-driver, core-exports).
 //
 // THE LINE RULES LIVE HERE: (label, regex, why, prefilter), matched against each line with comments removed and
 // the text of string and char literals blanked (so "try again" in a message is fine). The file-level checks
@@ -222,6 +226,23 @@ SCFG_TEST(LintTests, ModuleFileIsMinimal) {
 }
 SCFG_TEST(LintTests, ExportsMarked) { run_check(t, lint::exports); }
 SCFG_TEST(LintTests, EveryFileNamesItsTwin) { run_check(t, lint::names_its_twin); }
+// Fab 4.3.6.1.b, over all of unreal/'s sources (not only the core): line 1 is the publisher's notice, once.
+SCFG_TEST(LintTests, EveryFileStartsWithCopyright) {
+    std::string error;
+    std::vector<File> all = lint::source_files(&error);
+    t.check(error.empty(), "listing the sources failed: " + error);
+    t.check(all.size() > 250, "source_files() found only " + std::to_string(all.size()));
+    std::set<std::string> kinds;
+    std::vector<std::string> hits;
+    for (const File& f : all) {
+        for (const char* ext : {".h", ".cpp", ".Build.cs", ".Target.cs"}) {
+            if (lint::ends_with(f.rel, ext)) kinds.insert(ext);
+        }
+        for (std::string& h : lint::copyright(f)) hits.push_back(std::move(h));
+    }
+    SCFG_CHECK_EQ(t, kinds.size(), 4);
+    t.check(hits.empty(), "lint violations under " + std::string(SCFG_REPO_ROOT) + "/unreal:\n" + lint::join(hits));
+}
 SCFG_TEST(LintTests, UniqueBasenames) {
     SCFG_CHECK(t, !files().empty());
     t.check(g_files_error.empty(), "listing the core failed: " + g_files_error);
@@ -429,6 +450,39 @@ SCFG_TEST(LintTests, FileChecksBite) {
     SCFG_CHECK_EQ(t, lint::names_its_twin({"Private/A.cpp", "// Twin of scfg_core/nosuch.py\n"}).size(), 1);
     SCFG_CHECK_EQ(t, lint::names_its_twin({"Private/A.cpp", "#pragma once\n// No Python twin: late\n"}).size(), 1);
     SCFG_CHECK_EQ(t, lint::names_its_twin({"Private/A.cpp", "// Copyright\n// No Python twin: second\n"}).size(), 1);
+    // After the copyright line (and only that exact line), the next comment line is the twin comment.
+    SCFG_CHECK(t, lint::names_its_twin({"Private/A.cpp", "// Copyright 2026 Repulse\n// No Python twin: second\n"}).empty());
+    SCFG_CHECK(t, lint::names_its_twin({"Private/A.cpp", "// Copyright 2026 Repulse\n// Twin of scfg_core/config.py\n"}).empty());
+    SCFG_CHECK_EQ(t, lint::names_its_twin({"Private/A.cpp", "// Copyright 2026 Repulse\n// Twin of scfg_core/nosuch.py\n"}).size(), 1);
+    SCFG_CHECK_EQ(t, lint::names_its_twin({"Private/A.cpp", "// Copyright 2026 Repulse\n#pragma once\n// No Python twin: late\n"}).size(), 1);
+    SCFG_CHECK_EQ(t, lint::names_its_twin({"Private/A.cpp", "// Copyright 2026 Repulse\n// Copyright 2026 Repulse\n// No Python twin: x\n"}).size(), 1);
+    SCFG_CHECK_EQ(t, lint::names_its_twin({"Private/A.cpp", "// Copyright 2026 Repulse\n"}).size(), 1);
+
+    for (const char* good : {
+             "// Copyright 2026 Repulse\n// No Python twin: a\n",
+             "// Copyright 2026 Repulse\r\n// No Python twin: a\r\n",
+             "// Copyright 2026 Repulse\nusing UnrealBuildTool;\n",
+             "// Copyright 2026 Repulse",
+         }) {
+        t.check(lint::copyright({"Private/A.cpp", good}).empty(), std::string("copyright line missed: ") + good);
+    }
+    for (const char* bad : {
+             "",
+             "// No Python twin: a\n",
+             "// No Python twin: a\n// Copyright 2026 Repulse\n",
+             "// Copyright 2025 Repulse\n// No Python twin: a\n",
+             "// Copyright 2026 Repulse Ltd\n",
+             "// copyright 2026 Repulse\n",
+             " // Copyright 2026 Repulse\n",
+             "\xEF\xBB\xBF// Copyright 2026 Repulse\n",
+             "/* Copyright 2026 Repulse */\n",
+             "// Copyright 2026 Repulse\n// Copyright 2026 Repulse\n",
+             "// Copyright 2026 Repulse\nint x;\n// Copyright 2026 Repulse\n",
+         }) {
+        t.check(!lint::copyright({"Private/A.cpp", bad}).empty(), std::string("not the copyright line: ") + bad);
+    }
+    std::vector<std::string> twice = lint::copyright({"Plugins/A.h", "// Copyright 2026 Repulse\n\n// Copyright 2026 Repulse\n"});
+    if (SCFG_CHECK_EQ(t, twice.size(), 1)) SCFG_CHECK(t, twice[0].rfind("Plugins/A.h:3: the copyright line again (", 0) == 0);
     SCFG_CHECK_EQ(t, lint::names_its_twin({"Private/A.cpp", ""}).size(), 1);
 
     std::vector<File> same = {{"Private/Rpc.cpp", ""}, {"Private/Solana/rpc.cpp", ""}, {"Public/Scfg/Rpc.h", ""}};

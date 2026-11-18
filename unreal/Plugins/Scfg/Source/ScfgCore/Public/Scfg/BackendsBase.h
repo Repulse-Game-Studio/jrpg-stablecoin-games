@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/backends/base.py (and of unity/.../Core/Backends/Base.cs): the interface every chain family
 // implements (BackendsEvm.h, BackendsSolana.h).
 //

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/solana/tx.py (and of unity/.../Core/Solana/Tx.cs, rpgmaker/src/core/solana/tx.ts).
 // Legacy Solana transactions, serialized without any library.
 //

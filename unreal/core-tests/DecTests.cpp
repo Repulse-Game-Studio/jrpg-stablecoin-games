@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of Dec beyond the vectors, ported from unity/core-tests/DecTests.cs (itself from
 // rpgmaker/src/core/decimal.test.ts) plus the int64 exponent the C# port clamped. Every expected string is
 // CPython 3.12's str(Decimal(...)) under the default context, checked with python3.

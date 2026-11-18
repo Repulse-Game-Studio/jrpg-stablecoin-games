@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the Tier 1 runner, replaying conformance/vectors/tier1/*.json against the C++ core (as
 // conformance/python/scfg_conformance/tier1.py's run_case, unity/core-tests/Tier1.cs and conformance/js/tier1.ts).
 // Does not depend on the test runner (ruling R6): it returns failure messages and Tier1Tests.cpp asserts on them.

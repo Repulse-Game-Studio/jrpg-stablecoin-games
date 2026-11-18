@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the test doubles of tests/unit/fakes.py that the checkout and restore controller tests use
 // (FakeClock, FakeChain, FakeSolanaChain, transfer_log, immediate_submitter) and test_checkout_abandoned_start.py's
 // DeferredSubmitter, for CheckoutTests, CheckoutStepsTests, CheckoutSolanaTests, CheckoutAbandonedStartTests and

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/default_sheet_host.gd (see ScfgDefaultSheetHost.h).
 #include "ScfgDefaultSheetHost.h"
 

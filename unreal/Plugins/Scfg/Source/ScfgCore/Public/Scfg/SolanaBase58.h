@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/solana/base58.py (and of unity/.../Core/Solana/Base58.cs, rpgmaker/src/core/solana/base58.ts).
 // Base58 (Bitcoin alphabet), as used for Solana addresses and signatures.
 //

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/solana/tx.py (see SolanaTx.h).
 #include "Scfg/SolanaTx.h"
 

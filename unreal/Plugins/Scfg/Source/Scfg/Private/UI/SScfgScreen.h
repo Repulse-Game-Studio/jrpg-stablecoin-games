@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/screen_base.gd: what the payment sheet (SScfgPaymentSheet) and the restore screen
 // (SScfgRestoreScreen) share. A full-screen widget that dims the game and takes its input, with the light sheet docked
 // on the right (FScfgStyle), keyboard and gamepad focus, and small builders for labels, buttons, options and fields.

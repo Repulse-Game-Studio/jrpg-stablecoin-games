@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the module registration of ScfgTests; its tests are the Scfg*Tests.cpp files beside it.
 //
 // THE PROJECT'S OWN STATE FILE. Every facade of the tests has a state directory of its own (FWorld's temporary one).

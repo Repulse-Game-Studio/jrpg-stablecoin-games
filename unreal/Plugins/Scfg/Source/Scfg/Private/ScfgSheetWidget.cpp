@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the UMG wrapper of the Slate screens (see ScfgSheetWidget.h).
 #include "ScfgSheetWidget.h"
 

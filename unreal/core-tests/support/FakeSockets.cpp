@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: see FakeSockets.h.
 #include "support/FakeSockets.h"
 

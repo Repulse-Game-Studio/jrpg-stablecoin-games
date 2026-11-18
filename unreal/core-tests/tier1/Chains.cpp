@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/chains.json adapter (tier1_config.py's get_chains; unity/core-tests/Tier1.cs).
 #include "support/ConfigJson.h"
 #include "support/Tier1.h"

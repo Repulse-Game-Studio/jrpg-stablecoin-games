@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/reverify.py (and of unity/.../Core/Reverify.cs): launch-time re-verification of stored receipts
 // against the chain.
 //

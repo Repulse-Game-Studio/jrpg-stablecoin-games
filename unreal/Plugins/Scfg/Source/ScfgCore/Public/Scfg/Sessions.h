@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/sessions.py (and of unity/.../Core/Sessions.cs, rpgmaker/src/core/sessions.ts).
 // Pending payment sessions.
 //

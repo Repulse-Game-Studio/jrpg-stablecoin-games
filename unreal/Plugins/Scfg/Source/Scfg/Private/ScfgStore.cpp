@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/store.gd (see ScfgStore.h), with conformance/python/scfg_conformance/state_schema.py's
 // pending-record check.
 #include "ScfgStore.h"

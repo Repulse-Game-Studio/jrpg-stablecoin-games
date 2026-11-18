@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::solana::tx beyond the tier1/solana_tx.json vectors: the byte layouts of
 // SetComputeUnitLimit, SetComputeUnitPrice and TransferChecked (which have no vectors), more than 255 accounts as
 // Python's ValueError (the C# port's byte casts wrapped), an empty message as Python's IndexError (C#: ValueError),

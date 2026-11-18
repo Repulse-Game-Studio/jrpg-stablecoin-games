@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the C++ seam for a custom payment sheet or restore screen, the Unreal-typed view of the core's
 // CheckoutController / RestoreController (Godot's ScfgCheckoutController, which a replacement sheet scene binds to;
 // Unity's ScfgCheckoutController). The plugin's own Slate screens (SScfgPaymentSheet, SScfgRestoreScreen) are built

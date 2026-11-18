@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the build_chain adapter of tier1/custom_chains.json (tier1_config.py's _build_chain; unity/
 // core-tests/Tier1.cs). The topic's build_config cases use tier1/Config.cpp's adapter.
 #include "support/ConfigJson.h"

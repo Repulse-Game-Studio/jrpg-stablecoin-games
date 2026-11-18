@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/page_messages.json adapters (conformance/python/scfg_conformance/tier1.py's
 // parse_tx_message and parse_build_message; unity/core-tests/Tier1.cs's RegisterPageMessages).
 #include "support/Tier1.h"

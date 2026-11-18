@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the core's text under non-English C locales (tr_TR.UTF-8 and de_DE.UTF-8, or another installed
 // locale with a decimal comma), where printf("%g"), strtod and toupper('i') change.
 #include "support/Locales.h"

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: see ScfgTestHttpClient.h.
 #include "ScfgTestHttpClient.h"
 

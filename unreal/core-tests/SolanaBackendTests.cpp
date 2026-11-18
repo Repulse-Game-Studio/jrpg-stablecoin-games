@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: checks of BackendsSolana.cpp below what the Tier 2 vectors pin, ported from
 // unity/core-tests/SolanaBackendTests.cs and extended where the C# ledger kept a receipt Python drops. Every expected
 // value here was produced by the Python reference (scfg_core.backends.solana) on the same input: transfer_to's

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/scfg.gd (the Scfg autoload) and of Unity's SCFG facade, itself the twin of Ren'Py's
 // scfg_api.rpy: where this file is silent, scfg.gd's behaviour is the reference. UScfgSubsystem (ScfgSubsystem.h) is
 // the Blueprint and C++ face of it; this is the engine-object-free part, so the tests drive it directly.

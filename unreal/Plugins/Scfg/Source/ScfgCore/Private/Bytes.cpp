@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: Python's bytes.hex(), bytes.fromhex() and base64.b64encode().
 #include "Scfg/Bytes.h"
 

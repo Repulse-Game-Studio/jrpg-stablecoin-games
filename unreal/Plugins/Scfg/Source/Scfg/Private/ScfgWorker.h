@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/worker.py's Worker and godot/addons/scfg/core/worker.gd's ScfgWorker: the single owner of the
 // Engine, which it drives on the game thread from FTSTicker, one command at a time.
 //

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the configuration adapters of conformance/python/scfg_conformance/tier1_config.py (unity/
 // core-tests/Tier1.cs's RegisterConfig), shared by tier1/{Chains,Config,CustomChains,Items,Payments}.cpp and, later,
 // the Tier 2 runner and the driver. Does not depend on the test runner (ruling R6).

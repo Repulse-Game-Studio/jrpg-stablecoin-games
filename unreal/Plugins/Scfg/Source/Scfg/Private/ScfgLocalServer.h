@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the Unreal side of the localhost checkout server (ruling R2-13: our own server, its HTTP logic in the
 // core's scfg::local_server, LocalServer.h, the twin of scfg_core/local_server.py). What is left for the engine:
 // - the sockets: a TCP listener from ISocketSubsystem bound to 127.0.0.1 on a random port (never 0.0.0.0, never a

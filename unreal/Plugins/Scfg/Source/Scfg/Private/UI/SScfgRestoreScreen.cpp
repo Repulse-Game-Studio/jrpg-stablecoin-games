@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/restore.gd (see SScfgRestoreScreen.h).
 #include "UI/SScfgRestoreScreen.h"
 

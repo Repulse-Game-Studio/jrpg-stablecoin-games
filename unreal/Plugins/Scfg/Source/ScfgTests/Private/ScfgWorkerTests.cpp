@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: FScfgWorker's behaviour, the twin of tests/unit/test_worker.py and godot/tests/test_worker.gd
 // (their non-thread, non-frame-pump parts), with the real Engine over a fake transport that answers each JSON-RPC
 // request on a later frame, and a private FTSTicker that each test ticks by hand (one "frame": the fake's answers due

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the CPython 3.9 built-ins the core relies on (str.strip(), str.isdecimal(), int(), len(), ==,
 // d[key], truthiness, repr(), str.format() with one argument, str.lower() for an ASCII search, s.encode("utf-8"),
 // urllib.parse.quote, str() of an int), mirroring unity/.../Py.cs and rpgmaker/src/core/pystr.ts, whose tables (the

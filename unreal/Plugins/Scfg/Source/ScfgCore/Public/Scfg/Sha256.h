@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: hashlib.sha256(data).digest() (FIPS 180-4), for the core's Solana addresses.
 #pragma once
 

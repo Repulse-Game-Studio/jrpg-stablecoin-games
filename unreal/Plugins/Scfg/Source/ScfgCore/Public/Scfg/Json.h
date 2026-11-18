@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: a JSON value as Python's json module makes it (None, bool, int, float, str, list, dict), and
 // json.loads / json.dumps.
 //

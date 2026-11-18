@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/local_server.py (CheckoutServer), with godot/addons/scfg/local_server.gd as the template for
 // serving HTTP without Python's http.server: the localhost checkout server for desktop browser wallets.
 //

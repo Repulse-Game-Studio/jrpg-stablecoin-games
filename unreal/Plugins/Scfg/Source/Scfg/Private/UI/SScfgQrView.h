@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/qr_view.gd: a QR code drawn from the core's module runs (scfg::paylinks::qr_rects, the
 // same geometry as Ren'Py's scfg.QR): black runs on white, with a quiet zone of BORDER modules around them, as solid
 // boxes at the largest integer scale (at least 1) that fits both the target size and the space the layout gives it,

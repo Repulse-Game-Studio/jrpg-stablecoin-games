@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/solana/rpc.py: SolanaRpc and its _named_version.
 #include "Scfg/SolanaRpc.h"
 

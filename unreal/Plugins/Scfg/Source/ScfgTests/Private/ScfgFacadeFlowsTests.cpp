@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/tests/test_scfg_flows.gd: Pay and Restore through the sheet host, background "keep playing" payments,
 // callbacks versus OnPaymentResolved, notifications, wallet-app links and the clipboard, test for test
 // (Scfg.Glue.Facade.Flows.<the Godot name>), through FScfgFacade with the headless host, the fake platform and the fake

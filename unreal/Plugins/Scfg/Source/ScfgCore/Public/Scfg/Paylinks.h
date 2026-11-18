@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/paylinks.py (and of unity/.../Core/Paylinks.cs, rpgmaker/src/core/paylinks.ts).
 // Payment links (EIP-681) and QR code geometry. The QR matrix comes from QrCodeGen.h (Project Nayuki's generator).
 // Rendering is left to the engine: qr_rects merges each row's dark modules into horizontal runs, so the screen draws

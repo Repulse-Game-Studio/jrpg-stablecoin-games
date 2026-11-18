@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of worker.py's submit() as the controllers use it (see ScfgSubmitter.h).
 #include "ScfgSubmitter.h"
 

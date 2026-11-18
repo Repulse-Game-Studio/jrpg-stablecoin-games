@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: Python's int, a signed arbitrary-precision integer.
 //
 // Sign and magnitude, the magnitude in little-endian 32-bit limbs (uint64_t intermediates: no __int128, as MSVC

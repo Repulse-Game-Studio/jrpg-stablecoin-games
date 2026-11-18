@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::py (the CPython 3.9 built-ins the core relies on) and scfg::pyfloat (float repr()
 // and parsing). Expected values are CPython's (python3 -c ...); 3.9's wording where it differs from 3.12's.
 #include "support/Test.h"

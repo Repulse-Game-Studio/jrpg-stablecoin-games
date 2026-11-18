@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/receipts.json adapters (conformance/python/scfg_conformance/tier1.py's receipts block;
 // unity/core-tests/Tier1.cs). Stores are shallow copies (dict(i["store"])); a transfer is rebuilt from its "class".
 #include "support/Tier1.h"

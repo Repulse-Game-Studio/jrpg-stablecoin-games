@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/restore.py (see Restore.h).
 #include "Scfg/Restore.h"
 

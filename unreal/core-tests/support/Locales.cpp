@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: reruns a test body under non-English C locales (see Locales.h).
 #include "support/Locales.h"
 

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/backends/solana.py (see BackendsSolana.h).
 #include "Scfg/BackendsSolana.h"
 

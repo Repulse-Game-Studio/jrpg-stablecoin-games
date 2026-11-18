@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/solana/paylinks.py (and of unity/.../Core/Solana/Paylinks.cs, rpgmaker/.../solana/paylinks.ts).
 // Solana Pay transfer-request links (https://docs.solanapay.com/spec).
 #pragma once

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the Validate button's action on the SCFG project settings (ScfgSettings.h), Unity's
 // ScfgSettingsEditor.Verdict: the core's validation, shown on the "SCFG" page of the Message Log and, from the button,
 // as a notification. The check itself is UScfgSettings::Validate() (no UI), which the tests call too.

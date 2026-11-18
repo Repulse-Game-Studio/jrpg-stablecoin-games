@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the query nodes of the SCFG API (godot/addons/scfg/scfg.gd's queries): Owns, HasTipped, TipTotal
 // and Supported (pure), Receipts and Pending (impure: they copy every record), each on the world context's game instance's UScfgSubsystem. The calls
 // with effects are the subsystem's own BlueprintCallable functions, and Pay / Restore its async nodes

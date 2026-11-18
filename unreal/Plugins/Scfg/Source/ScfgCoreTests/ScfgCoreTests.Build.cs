@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // The phase 1 conformance runners (unreal/core-tests) as Unreal automation tests, Scfg.Core.* (unreal/README.md,
 // "Under UBT"). UncookedOnly in Scfg.uplugin: built into the editor and uncooked targets, never into a cooked game.
 using System.IO;

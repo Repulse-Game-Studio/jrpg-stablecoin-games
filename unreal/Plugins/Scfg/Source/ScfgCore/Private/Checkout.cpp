@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/checkout.py (see Checkout.h), line by line, with godot/addons/scfg/core/checkout.gd as the
 // generator-free template.
 #include "Scfg/Checkout.h"

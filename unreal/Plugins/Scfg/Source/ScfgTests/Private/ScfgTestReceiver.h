@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: an object the Blueprint-layer tests bind the subsystem's dynamic delegates and the async nodes'
 // output pins to (a dynamic delegate needs a UFUNCTION).
 #pragma once

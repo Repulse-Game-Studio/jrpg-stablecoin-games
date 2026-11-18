@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests/unit/fakes.py's doubles for the controller tests (see CheckoutFakes.h).
 #include "support/CheckoutFakes.h"
 

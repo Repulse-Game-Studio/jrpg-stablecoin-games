@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the conformance vectors as Unreal automation tests, run inside the editor process (UBT's clang and
 // bundled libc++, the engine's allocator, its locale and its stack) by the same runners as the CMake binary:
 //

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/sessions.py (see Sessions.h).
 #include "Scfg/Sessions.h"
 

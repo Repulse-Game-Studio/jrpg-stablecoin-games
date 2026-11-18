@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: a value or the Python exception (scfg::Err) that took its place, and the macros that propagate it.
 //
 //   Result<Json> loads(std::string_view s);          // Python: def loads(s) -> Any, may raise

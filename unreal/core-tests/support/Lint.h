@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the scanner behind LintTests (literal blanking, the core's file list, line rules, file checks).
 #pragma once
 
@@ -28,6 +29,10 @@ std::vector<File> core_files(std::string* error = nullptr);
 std::string tests_dir();
 // Every .h and .cpp under tests_dir(), rel prefixed "core-tests/" ("core-tests/CoTests.cpp"), sorted.
 std::vector<File> test_files(std::string* error = nullptr);
+// Every C++ and C# file we wrote under unreal/: the .h, .cpp and .cs files (the .Build.cs and .Target.cs) under the
+// plugin's Source/, the dev project's Source/, core-tests/, core-driver/ and core-exports/, rel relative to unreal/
+// ("Plugins/Scfg/Source/Scfg/Private/ScfgSubsystem.cpp"), sorted.
+std::vector<File> source_files(std::string* error = nullptr);
 // "Private/Version.cpp" -> "Version.cpp".
 std::string basename(std::string_view rel);
 bool ends_with(std::string_view s, std::string_view suffix);
@@ -54,7 +59,11 @@ std::vector<std::string> pragma_once(const File& f);        // a header without 
 std::vector<std::string> coroutine_params(const File& f);   // Co<T> f(const X&), auto f(X*) -> Co<T>, lambdas too
 std::vector<std::string> coroutine_lambdas(const File& f);  // co_await/co_return/co_yield in a lambda body (R8)
 std::vector<std::string> only_std_includes(const File& f);  // <x> not standard C++20, "x" not Public/Scfg/<x>.h
-std::vector<std::string> names_its_twin(const File& f);     // first comment line names no (existing) twin
+std::vector<std::string> names_its_twin(const File& f);     // the comment after kCopyright names no (existing) twin
+// The publisher's notice that the Fab guidelines require in every source file (4.3.6.1.b); the copyright check
+// below wants it as line 1, and names_its_twin reads the comment after it.
+inline constexpr std::string_view kCopyright = "// Copyright 2026 Repulse";
+std::vector<std::string> copyright(const File& f);          // line 1 is not kCopyright, or kCopyright comes again
 std::vector<std::string> duplicate_basenames(const std::vector<File>& all);  // case-insensitive, as on Windows
 // A public header's declarations that an Unreal module must export (F3): a non-inline free function, a friend
 // function or an extern variable without SCFGCORE_API; a non-template class with a member declared here and defined

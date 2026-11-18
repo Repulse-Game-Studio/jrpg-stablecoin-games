@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: Python's int (sign and magnitude, 32-bit limbs, Knuth's algorithm D for division).
 #include "Scfg/BigInt.h"
 

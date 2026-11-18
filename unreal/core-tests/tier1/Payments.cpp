@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/payments.json adapter (tier1_config.py's _prepare_payment; unity/core-tests/Tier1.cs).
 // item, amount, token and title are passed only when the case has them, each through decode_value.
 #include "support/ConfigJson.h"

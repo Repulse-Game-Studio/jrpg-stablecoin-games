@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/restore.py (and of unity/.../Core/Restore.cs): restoring purchases from a transaction hash, the
 // chain being the ledger.
 //

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg.gd's _Platform (and Unity's IScfgPlatform): where the game runs and how it reaches the world outside
 // (the browser, the wallet app, the clipboard). The tests replace it. The web build has no Unreal twin (UE5 has no
 // web target); a phone or tablet is Android or iOS.

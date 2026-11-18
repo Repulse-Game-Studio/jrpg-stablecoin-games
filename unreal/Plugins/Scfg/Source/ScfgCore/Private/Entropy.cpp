@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: Python's `secrets` (see Entropy.h). The one file of the core that may use <random> (ruling R3).
 #include "Scfg/Entropy.h"
 

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/backends/__init__.py (and of unity/.../Core/Backends/Index.cs): chain-family backends,
 // everything that differs between EVM chains and Solana.
 //

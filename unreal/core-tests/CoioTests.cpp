@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the transport rules of Coio.h (parse_rpc_body: rpc.UrllibTransport's body rules, as the GDScript
 // ScfgCoio.parse_rpc_body and Coio.cs's ParseRpcBody read them; response_from_envelope: tests/unit/test_coio.py's
 // envelope cases). Ported from unity/core-tests/CoioTests.cs.

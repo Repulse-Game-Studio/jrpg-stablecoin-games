@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // The showcase's end-to-end driver: tools/run_unreal_e2e.py plays the showcase through it the way a player does, as
 // godot/demo/e2e/e2e_driver.gd does for the Godot demo. Compiled only outside Shipping, and made only when the command
 // line has -scfg-e2e=<config.json>; without it the showcase runs as a player gets it.

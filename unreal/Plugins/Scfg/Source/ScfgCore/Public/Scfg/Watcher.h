@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/watcher.py (and of unity/.../Core/Watcher.cs): the payment watcher, advancing one pending EVM
 // session per call.
 //

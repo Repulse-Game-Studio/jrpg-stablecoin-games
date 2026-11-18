@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: hashlib.sha256 (FIPS 180-4, section 6.2).
 #include "Scfg/Sha256.h"
 

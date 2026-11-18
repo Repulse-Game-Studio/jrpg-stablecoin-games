@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/amounts.py.
 #include "Scfg/Amounts.h"
 

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: a dict[str, V] in insertion order, as Python's dict keeps it (the chain registries, a chain's
 // tokens, a Config's custom chains, items, rpc_urls and confirmations).
 //

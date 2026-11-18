@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/sheet_host.gd (ScfgSheetHost) and Unity's IScfgSheetHost / IScfgScreen: the interface
 // between the payment and restore flows (UScfgSubsystem's Pay and Restore) and the screens that show them. The
 // subsystem holds one (SetSheetHost); the plugin's Slate sheet (FScfgDefaultSheetHost, ScfgDefaultSheetHost.h) is the

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/qr.json adapters (conformance/python/scfg_conformance/tier1.py's qr_matrix and qr_rects;
 // unity/core-tests/Tier1.cs). A matrix travels as one "0"/"1" string per row; qr_rects as {"size", "rects"}.
 #include "support/Tier1.h"

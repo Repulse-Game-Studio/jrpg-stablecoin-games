@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the Blueprint and C++ value types of the SCFG API (UScfgSubsystem), the twins of Godot's
 // configure() / add_chain() / add_item() / pay() option dictionaries and of its ScfgPaymentResult and ScfgRestoreResult
 // (godot/addons/scfg/payment_result.gd, restore_result.gd), and of Unity's ScfgOptions, ScfgItem, ScfgPayRequest.

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/keccak.json adapter (conformance/python/scfg_conformance/tier1.py's _keccak256;
 // unity/core-tests/Tier1.cs's RegisterKeccak).
 #include "support/Tier1.h"

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of worker.py's Worker.submit as the controllers see it (Submitter.h): the core's scfg::worker::Submitter on
 // FScfgWorker. Each command goes to the worker's command of the same name, with its std::function OnDone wrapped for
 // TUniqueFunction (an empty one becomes a no-op: a fire-and-forget command, whose Err the worker still reports).

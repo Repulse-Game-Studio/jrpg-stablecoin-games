@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/reverify.py (see Reverify.h).
 #include "Scfg/Reverify.h"
 

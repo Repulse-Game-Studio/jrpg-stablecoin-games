@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/rpc.py (and of unity/.../Core/Rpc.cs, rpgmaker/src/core/rpc.ts): the Ethereum JSON-RPC
 // client with endpoint failover (RpcClient), is_range_error, suggested_range and the error parsing.
 //

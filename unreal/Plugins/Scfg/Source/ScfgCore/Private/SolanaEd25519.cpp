@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/solana/ed25519.py: point decompression on BigInt mod 2**255 - 19.
 #include "Scfg/SolanaEd25519.h"
 

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/base58.json adapters (conformance/python/scfg_conformance/tier1.py's base58 block;
 // unity/core-tests/Tier1.cs). Text and length are passed through untouched, as tier1.py does; bytes travel as hex.
 #include "support/Tier1.h"

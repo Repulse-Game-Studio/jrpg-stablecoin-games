@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: every player-facing text of the Unreal screens (the payment sheet, the restore screen, the
 // notifications), in English, by id. The ids are RPG Maker's (rpgmaker/src/mz/texts.ts, "ID SCHEME"), the one id
 // scheme the engines share:

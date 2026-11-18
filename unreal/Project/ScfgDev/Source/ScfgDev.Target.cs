@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 using UnrealBuildTool;
 
 public class ScfgDevTarget : TargetRules

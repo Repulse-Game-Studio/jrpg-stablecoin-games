@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/evm.py (and of unity/.../Core/Evm.cs, rpgmaker/src/core/evm.ts).
 // EVM helpers: addresses (EIP-55) and event topics, and the ERC-20 Transfer log.
 //

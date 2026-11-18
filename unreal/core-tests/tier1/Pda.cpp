@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/pda.json adapters (conformance/python/scfg_conformance/tier1.py's pda block;
 // unity/core-tests/Tier1.cs). Seeds travel as hex, the program id as base58 (decode_fixed(program_id, 32)).
 #include "support/Tier1.h"

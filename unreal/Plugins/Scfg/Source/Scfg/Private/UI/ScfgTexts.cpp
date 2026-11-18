@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the screens' English texts by id (see ScfgTexts.h).
 #include "UI/ScfgTexts.h"
 

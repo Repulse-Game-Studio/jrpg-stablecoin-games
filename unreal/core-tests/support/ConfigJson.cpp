@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tier1_config.py's adapters and canonical.py's to_jsonable of the config dataclasses (see
 // ConfigJson.h).
 #include "support/ConfigJson.h"

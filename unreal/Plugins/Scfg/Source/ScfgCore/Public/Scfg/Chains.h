@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/chains.py (and of unity/.../Core/Chains.cs, rpgmaker/src/core/chains.ts).
 // Registry of supported chains and stablecoin contracts.
 //

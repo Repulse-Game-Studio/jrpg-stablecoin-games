@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the mobile checkout path of the glue (phase 3, best effort), Scfg.Glue.Mobile.<name>, run on Linux
 // with the mobile override: the fake platform's bMobile (ScfgFacadeTestKit.h), or FScfgEnginePlatform(true), the
 // engine's own platform told it is a phone. On a phone (PLATFORM_ANDROID || PLATFORM_IOS, ScfgPlatform.h) the checkout

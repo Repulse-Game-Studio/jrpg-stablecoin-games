@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: Python's float repr() and float() of a literal (see PyFloat.h). The one core file that calls the
 // C library's number formatting and parsing (ruling R3); it keeps them locale-proof by never handing strtod, or
 // reading back from snprintf, a decimal point: snprintf's output is read up to its digits and exponent whatever the

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: Python's bytes.hex() and bytes.fromhex() (without its whitespace skipping), and
 // base64.b64encode(b).decode("ascii").
 #pragma once

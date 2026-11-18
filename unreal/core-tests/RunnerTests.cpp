@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of the test runner itself, and that ctest runs every group.
 #include "support/Lint.h"
 #include "support/Test.h"

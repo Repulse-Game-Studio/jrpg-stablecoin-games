@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/restore_flow.py (and of godot/addons/scfg/core/restore_flow.gd, its generator-free port): the
 // state behind the restore screen, independent of any engine.
 //

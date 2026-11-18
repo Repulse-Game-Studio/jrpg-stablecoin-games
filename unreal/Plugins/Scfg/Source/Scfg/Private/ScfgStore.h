@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // The player's payment state on disk, the twin of godot/addons/scfg/store.gd (ScfgStore) and of Ren'Py's
 // persistent.scfg_pending / persistent.scfg_receipts: FPaths::ProjectSavedDir()/Scfg/state.json, global to the
 // install and never inside a save slot. Saved/ is a per-user writable location in a packaged game.

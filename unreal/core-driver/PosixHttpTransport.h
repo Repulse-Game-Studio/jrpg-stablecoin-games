@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the integration driver's real transport (Python's rpc.UrllibTransport, which reads an HTTP answer
 // the same way). Test-only, never shipped: it uses POSIX sockets, which the core may not, and it blocks.
 //

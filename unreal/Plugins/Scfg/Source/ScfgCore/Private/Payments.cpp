@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/payments.py: prepare_payment, check for check in Python's order.
 #include "Scfg/Payments.h"
 

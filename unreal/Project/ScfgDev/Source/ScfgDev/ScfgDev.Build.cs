@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // The development project's game module: the showcase (a minimal game over the Scfg plugin's public API:
 // ScfgShowcase.h) and, outside Shipping, the end-to-end driver tools/run_unreal_e2e.py talks to (ScfgE2EDriver.h).
 using System.IO;

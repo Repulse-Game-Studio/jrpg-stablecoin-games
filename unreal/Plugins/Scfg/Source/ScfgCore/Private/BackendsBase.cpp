@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/backends/base.py (see BackendsBase.h): the RPC object's alternatives.
 #include "Scfg/BackendsBase.h"
 

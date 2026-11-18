@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/rpc_errors.json adapters (conformance/python/scfg_conformance/tier1.py's
 // _suggested_range and _named_version; unity/core-tests/Tier1.cs's RegisterRpcErrors).
 #include "support/Tier1.h"

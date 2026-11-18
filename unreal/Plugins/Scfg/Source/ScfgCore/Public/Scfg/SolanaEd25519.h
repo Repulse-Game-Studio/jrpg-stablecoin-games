@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/solana/ed25519.py (and of unity/.../Core/Solana/Ed25519.cs, rpgmaker/src/core/solana/ed25519.ts).
 // Is a 32-byte value a valid ed25519 public key (a point on the curve)?
 //

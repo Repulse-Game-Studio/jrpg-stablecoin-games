@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // The showcase: one screen that uses the Scfg plugin's whole public API, the Unreal twin of godot/showcase (main.gd) and
 // of Unity's Showcase sample. Read ScfgShowcase.cpp top to bottom: 1. configure, 2. build the shop, 3. pay, restore,
 // export, clear, 4. listen, 5. show the state. Testnet only: no real money moves.

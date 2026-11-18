@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/toast.gd: a short notification ("Payment confirmed: ...") at the top right of the
 // screen, shown by FScfgDefaultSheetHost::Notify when the subsystem's Notify is on (Ren'Py's renpy.notify). It fades
 // out after SECONDS of real time (Slate's tick: a paused game or a time dilation of 0 does not hold it) and then asks

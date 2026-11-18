@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: godot/demo/e2e/e2e_driver.gd's Unreal form (see ScfgE2EDriver.h).
 #include "ScfgE2EDriver.h"
 

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: a session start the player moved away from (another network, another tip amount, Cancel) must not
 // leave a session behind: it would be watched for 24 h and reported expired to on_result 30 minutes later, for a
 // payment the player never saw. The twins of tests/unit/test_checkout_abandoned_start.py one for one (same names,

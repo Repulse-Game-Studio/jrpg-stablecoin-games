@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: UScfgSubsystem's facade with the tests' hooks (the subsystem's friend), shared by the Blueprint and
 // the sheet tests, and the project settings blanked for a test that makes a real game instance.
 #pragma once

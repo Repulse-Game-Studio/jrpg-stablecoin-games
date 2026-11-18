@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the CPython 3.9 built-ins the core relies on (see Py.h), ported from unity/.../Py.cs and
 // rpgmaker/src/core/pystr.ts, whose tables are copied here.
 #include "Scfg/Py.h"

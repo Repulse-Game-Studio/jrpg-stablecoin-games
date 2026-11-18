@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/page_messages.py (see PageMessages.h).
 #include "Scfg/PageMessages.h"
 

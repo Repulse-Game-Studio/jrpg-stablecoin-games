@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/transfers.py (and of unity/.../Core/Transfers.cs, which also holds evm.py's TransferLog; here
 // that is scfg::evm::TransferLog in Evm.h, beside its Python home).
 // A token transfer to the developer, in a form shared by every chain family. Receipts and restore candidates are

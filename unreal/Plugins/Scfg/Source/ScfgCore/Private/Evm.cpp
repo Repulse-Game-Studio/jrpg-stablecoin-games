@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/evm.py: EIP-55 addresses, event topics and parse_transfer_log.
 #include "Scfg/Evm.h"
 

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the facade tests' doubles (see ScfgFacadeTestKit.h).
 #include "ScfgFacadeTestKit.h"
 

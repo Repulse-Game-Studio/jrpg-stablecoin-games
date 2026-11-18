@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/solana/paylinks.py (see SolanaPaylinks.h).
 #include "Scfg/SolanaPaylinks.h"
 

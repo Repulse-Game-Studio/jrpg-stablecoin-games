@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/items.json adapter (tier1_config.py's _add_item; unity/core-tests/Tier1.cs).
 #include "support/ConfigJson.h"
 #include "support/Tier1.h"

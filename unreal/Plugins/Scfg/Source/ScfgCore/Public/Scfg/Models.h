@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/models.py (and of unity/.../Core/Models.cs, rpgmaker/src/core/models.ts).
 // Value objects shared with the developer's script.
 #pragma once

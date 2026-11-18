@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the Slate screen tests' rig (see ScfgSheetTestKit.h).
 #include "ScfgSheetTestKit.h"
 

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::ints (twin of scfg_core/ints.py). Expected values are ints.py's own outputs
 // (python3 -c "from scfg_core import ints; print(ints.digit_run_value(...))").
 #include "support/Test.h"

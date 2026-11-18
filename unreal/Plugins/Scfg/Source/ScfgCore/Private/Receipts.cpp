@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/receipts.py (see Receipts.h).
 #include "Scfg/Receipts.h"
 

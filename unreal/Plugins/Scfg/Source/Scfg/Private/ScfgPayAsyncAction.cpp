@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: see ScfgPayAsyncAction.h.
 #include "ScfgPayAsyncAction.h"
 

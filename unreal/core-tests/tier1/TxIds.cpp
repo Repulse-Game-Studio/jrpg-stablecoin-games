@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/tx_ids.json adapters (conformance/python/scfg_conformance/tier1.py's normalize_tx_hash
 // and normalize_any_tx; unity/core-tests/Tier1.cs's RegisterTxIds). normalize_signature, the third fn of the file, is
 // registered with the base58 topic.

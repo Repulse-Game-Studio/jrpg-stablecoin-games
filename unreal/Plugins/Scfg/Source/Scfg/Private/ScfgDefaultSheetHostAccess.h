@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the plugin's own access to FScfgDefaultSheetHost's mouse hooks (its friend), which take the private
 // FScfgMouseWish (UI/SScfgScreen.h), for the plugin's tests and the development project's e2e driver.
 #pragma once

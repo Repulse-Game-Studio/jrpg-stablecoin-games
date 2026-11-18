@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: see ScfgGuard.h.
 #include "ScfgGuard.h"
 

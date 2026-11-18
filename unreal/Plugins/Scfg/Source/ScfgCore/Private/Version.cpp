@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the plugin's version.
 #include "Scfg/Version.h"
 

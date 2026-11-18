@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the export check of ruling R2-3. Linked against scfg_core_shared, the core built as a shared
 // library with -fvisibility=hidden where only SCFGCORE_API is visible, as an Unreal module that depends on ScfgCore
 // links against libUnrealEditor-ScfgCore.so. It calls into several of the core's files (Json, Amounts, Config,

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::solana::base58 and scfg::solana::ed25519 beyond tier1/base58.json and
 // tier1/ed25519.json: Python's exact messages, decode_fixed's length bound counted in code points and its float
 // arithmetic up to the OverflowError boundary, what normalize_pubkey strips and decode_fixed does not, and the curve

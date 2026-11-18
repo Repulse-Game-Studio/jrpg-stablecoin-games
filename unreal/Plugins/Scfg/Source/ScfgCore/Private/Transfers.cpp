@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/transfers.py: the Transfer dataclass is all of the module (Transfers.h); this is its ==.
 #include "Scfg/Transfers.h"
 

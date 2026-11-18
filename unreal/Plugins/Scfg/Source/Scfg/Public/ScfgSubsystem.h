@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/scfg.gd's API (the Scfg autoload) and Unity's SCFG facade: the SCFG game-instance
 // subsystem, one per game instance, created and torn down with it (it survives level loads).
 //

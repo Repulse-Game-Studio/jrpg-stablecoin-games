@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the Tier 2 runner (see Tier2.h).
 #include "support/Tier2.h"
 

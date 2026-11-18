@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the Unreal layer around the facade (Scfg.Glue.Facade.Blueprint.*): UScfgSubsystem's functions,
 // dynamic delegates and events, the Pay and Restore async nodes (each output pin once), the Blueprint library, the
 // value conversions, and the Submitter adapter's lifetime rules (ScfgSubmitter.h). Godot has no counterpart (its API

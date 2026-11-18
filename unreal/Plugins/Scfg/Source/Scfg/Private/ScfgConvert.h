@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the bridge between the API's value types (ScfgTypes.h) and the core's Json keyword arguments and
 // result models: Godot passes its option dictionaries to the core as they are (ScfgConfig.build_config(o)), and
 // payment_result.gd / restore_result.gd's from_core() are the other direction.

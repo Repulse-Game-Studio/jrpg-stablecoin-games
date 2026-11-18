@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/tests/test_sheet.gd and test_restore_screen.gd (and of the screens' parts of test_overlay.gd): the
 // Slate payment sheet and restore screen of the default host, driven through FSlateApplication by simulated keys,
 // gamepad buttons and sticks (ScfgSheetTestKit.h), Scfg.Glue.Sheet.<name>.

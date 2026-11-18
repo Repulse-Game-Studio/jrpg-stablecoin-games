@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/backends/evm.py (see BackendsEvm.h).
 #include "Scfg/BackendsEvm.h"
 

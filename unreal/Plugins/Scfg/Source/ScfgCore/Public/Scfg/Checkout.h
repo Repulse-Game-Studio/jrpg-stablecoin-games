@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/checkout.py (and of godot/addons/scfg/core/checkout.gd, its generator-free port): the state
 // behind the payment screen, independent of any engine.
 //

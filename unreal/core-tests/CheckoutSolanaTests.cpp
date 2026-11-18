@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: CheckoutController (and RestoreController) on Solana, the twins of tests/unit/test_checkout_solana.py
 // one for one (same names, same assertions), over a real Engine on the fake nodes of support/CheckoutFakes.h with
 // the immediate submitter.

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the plugin's own payment sheet or restore screen as a code-built UUserWidget, for a game whose
 // sheet host shows its UI through UMG (no .uasset: RebuildWidget returns the Slate screen).
 //

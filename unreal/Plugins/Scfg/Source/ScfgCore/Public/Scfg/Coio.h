@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/coio.py, its transport half (TransportError, Request, response_from_envelope), and of
 // rpc.UrllibTransport's rules for reading an HTTP answer (parse_rpc_body), as unity/.../Core/Coio.cs ports them.
 //

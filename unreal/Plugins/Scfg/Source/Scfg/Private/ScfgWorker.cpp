@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/worker.py and godot/addons/scfg/core/worker.gd (see ScfgWorker.h).
 #include "ScfgWorker.h"
 

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::sha256 against hashlib.sha256: the FIPS 180-4 (and NIST CAVP) messages "", "abc",
 // the 448-bit and the 896-bit message and one million 'a', plus the padding boundaries around one and two blocks
 // (55/56 and 119/120 bytes, where the length no longer fits the last block). Every digest is what python3's

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/rpc.py: RpcClient, is_range_error, suggested_range, _parse_error, _is_rate_error.
 // The one file waived for <chrono>/steady_clock (ruling R3): the default monotonic clock, Python's time.monotonic.
 #include "Scfg/Rpc.h"

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/local_server.py (CheckoutServer and its Handler), ported from godot/addons/scfg/local_server.gd's
 // connection state machine. See LocalServer.h.
 #include "Scfg/LocalServer.h"

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the Unreal-typed view of the core's controllers for the screens (see ScfgCheckoutController.h).
 #include "ScfgCheckoutController.h"
 

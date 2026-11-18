@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: FScfgStore, the twin of godot/tests/test_store.gd one test at a time, then the store's own rules
 // (the worker round trip, saving only what changed, the retries, a dumps Err, the record-level check). Every test works
 // in its own directory under FPaths::ProjectSavedDir()/ScfgTests/<random>, removed afterwards.

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/toast.gd (see SScfgToast.h).
 #include "UI/SScfgToast.h"
 

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/solana/base58.py: base58 encode/decode and the fixed-length Solana forms.
 #include "Scfg/SolanaBase58.h"
 

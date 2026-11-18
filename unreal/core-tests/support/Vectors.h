@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: locates and reads the shared conformance vectors (does not depend on the test runner).
 #pragma once
 

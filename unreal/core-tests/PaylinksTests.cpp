@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::paylinks and scfg::solana::paylinks beyond the tier1/paylinks.json and qr.json
 // vectors: astral characters and lone surrogates in a Solana Pay label or message, the characters quote(v, safe='')
 // encodes, negative and huge units, str()'s 4300-digit limit on an EIP-681 int (py::int_str), and qr_rects' runs.

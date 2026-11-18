@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/backends/solana.py (and of unity/.../Core/Backends/Solana.cs): Solana behind the Backend
 // interface. Payments are found by their Solana Pay reference, by a reported signature, or by scanning the
 // developer's token account for the exact encoded amount. A payment counts once the cluster marks its transaction

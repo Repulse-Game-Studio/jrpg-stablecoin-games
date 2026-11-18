@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/chains.py: Token's normalisation, Chain's methods and the built-in registries.
 #include "Scfg/Chains.h"
 

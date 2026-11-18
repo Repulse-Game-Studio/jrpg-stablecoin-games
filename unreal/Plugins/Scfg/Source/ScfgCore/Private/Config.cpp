@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/config.py: build_chain, build_config, enabled_chains and add_item, check for check in Python's
 // order.
 #include "Scfg/Config.h"

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the test runner's registry, selection and main().
 #include "support/Test.h"
 

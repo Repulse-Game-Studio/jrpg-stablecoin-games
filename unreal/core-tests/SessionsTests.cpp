@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::sessions (sessions.py has no vector topic of its own; normalize_tx_hash's vectors
 // are tier1/tx_ids.json, which the Tier1 group runs): create_session's record and draw order, list_sessions' order
 // and its TypeErrors (the C# port gave a KeyError for a record that is not a dict), set_hint, set_ui_status, the

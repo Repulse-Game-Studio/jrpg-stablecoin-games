@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/theme.gd (see ScfgStyle.h).
 #include "UI/ScfgStyle.h"
 

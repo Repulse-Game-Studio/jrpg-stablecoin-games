@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/backends/__init__.py (see Backends.h).
 #include "Scfg/Backends.h"
 

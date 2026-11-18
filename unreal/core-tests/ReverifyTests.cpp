@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: checks of Reverify.cpp below what the Tier 2 vectors pin. Every expectation is the Python
 // reference's (scfg_core.engine.Engine.reverify through conformance's replay.build_engine and ReplayTransport) on the
 // same setup and node answers, printed by the script quoted in full above each test: a stored log_index (or block)

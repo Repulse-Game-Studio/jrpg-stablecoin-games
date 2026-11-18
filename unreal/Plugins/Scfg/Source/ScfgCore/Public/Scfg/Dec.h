@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: a finite Python decimal.Decimal under the default context (28 digits, round half even, Emax
 // 999999, Emin -999999, Overflow and InvalidOperation trapped), limited to what the payment core does with one:
 // Decimal(str | int | float), str(), +, comparisons, quantize, adjusted() and the exact digit shifts of

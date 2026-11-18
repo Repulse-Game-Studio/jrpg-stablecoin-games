@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/receipts.py (and of unity/.../Core/Receipts.cs, rpgmaker/src/core/receipts.ts).
 // Receipts: verified on-chain transfers to the developer, stored in `persistent`.
 //

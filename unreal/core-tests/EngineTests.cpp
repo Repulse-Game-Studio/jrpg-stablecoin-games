@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: Engine behaviour the Tier 2 vectors do not reach (their runner always passes its own RPC factory
 // and error handler), ported from unity/core-tests/EngineTests.cs, plus what the C++ port adds: cancellation and
 // teardown (a suspended tick destroyed, a transport that drops its requests), stored values carried as Python carries

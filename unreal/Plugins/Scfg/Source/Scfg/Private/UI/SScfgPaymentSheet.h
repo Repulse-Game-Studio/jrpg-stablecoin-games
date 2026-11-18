@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/sheet.gd (itself the `scfg_payment` screen of plugin/game/scfg/scfg_screens.rpy): the
 // payment sheet FScfgDefaultSheetHost shows for UScfgSubsystem::Pay.
 //

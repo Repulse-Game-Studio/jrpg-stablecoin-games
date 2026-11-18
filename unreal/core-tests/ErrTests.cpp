@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::Err (Python's exception classes as values), Result and SCFG_TRY.
 // SCFG_CO_TRY and SCFG_CO_TRY_VOID are tested in CoTests.cpp, with the coroutine type they return through.
 #include "support/Test.h"

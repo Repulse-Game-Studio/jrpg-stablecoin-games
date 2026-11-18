@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/engine.py (see Engine.h).
 #include "Scfg/Engine.h"
 

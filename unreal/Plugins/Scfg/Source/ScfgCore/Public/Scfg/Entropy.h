@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: Python's `secrets` module as the payment core uses it (token_hex, randbelow, token_bytes, and
 // token_urlsafe for the checkout page's secret).
 //

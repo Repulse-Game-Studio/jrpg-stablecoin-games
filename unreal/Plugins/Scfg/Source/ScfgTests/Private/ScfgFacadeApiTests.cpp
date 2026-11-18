@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/tests/test_scfg_api.gd: the facade's configuration, queries, persistence and results, test for test
 // (Scfg.Glue.Facade.Api.<the Godot name>), through FScfgFacade over the fake nodes (ScfgFacadeTestKit.h).
 //

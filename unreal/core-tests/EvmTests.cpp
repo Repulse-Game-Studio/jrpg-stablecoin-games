@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::evm and scfg::transfers beyond tier1/evm_address.json: Python's error classes and
 // messages for malformed logs (what scfg_core.evm raises, python3 -c ...; 3.9's wording where 3.12's differs), the
 // int(x, 16) the log index and block number go through (unbounded, as Python's int), and the accepted str.lower()

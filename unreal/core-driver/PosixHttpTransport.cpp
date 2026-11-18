@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the integration driver's blocking HTTP/1.1 transport over a POSIX socket (PosixHttpTransport.h).
 #include "PosixHttpTransport.h"
 

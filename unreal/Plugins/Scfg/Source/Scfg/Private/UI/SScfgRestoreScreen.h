@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/restore.gd (itself the `scfg_restore` screen of plugin/game/scfg/scfg_screens.rpy):
 // the restore screen FScfgDefaultSheetHost shows for UScfgSubsystem::Restore.
 //

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the subsystem around FScfgFacade (see ScfgSubsystem.h).
 #include "ScfgSubsystem.h"
 

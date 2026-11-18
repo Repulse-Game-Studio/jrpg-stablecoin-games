@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/_qrcodegen.py (Project Nayuki's QR Code generator, vendored; and of unity/.../Core/QrCodeGen.cs).
 //
 // QR Code generator library (Python)

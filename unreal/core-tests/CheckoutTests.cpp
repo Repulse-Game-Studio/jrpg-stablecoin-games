@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::checkout::CheckoutController, the twins of tests/unit/test_checkout.py one for one
 // (same names, same assertions), over a real Engine whose chains are the fakes of support/CheckoutFakes.h and the
 // immediate submitter (each command runs at once).

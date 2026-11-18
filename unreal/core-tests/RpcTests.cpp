@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: RpcClient and SolanaRpc driven by fake transports, ported from unity/core-tests/RpcTests.cs (itself
 // from tests/unit/test_rpc_client.py, tests/unit/test_solana_rpc.py and rpgmaker's rpc.test.ts). These pin what no
 // vector reaches: rotation, cooldown doubling and its cap on the injected clock, rate errors, an error answer

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::amounts beyond tier1/amounts.json (the Decimal-typed overloads, the error classes
 // and messages, the decode precision boundary), ported from unity/core-tests/DecTests.cs. Every expectation is what
 // python3 gives for plugin/game/python-packages/scfg_core/amounts.py.

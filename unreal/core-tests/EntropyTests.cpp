@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::Entropy (Python's `secrets`): randbelow's ValueError, and that its rejection
 // sampling is exactly uniform. A byte source that hands out every byte pattern once must give every value in [0, n)
 // equally often, which modulo reduction cannot (256 % 6 != 0). Also SystemEntropy's sizes, hex and a loose

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the Scfg module's registration (see ScfgModule.h) and its log category.
 #include "ScfgModule.h"
 

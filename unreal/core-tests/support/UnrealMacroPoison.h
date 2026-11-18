@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: force-included (-include) before every core file in the scfg_core_poisoned target.
 //
 // Unreal and the Windows headers it pulls in #define plain words as macros. In the core they would silently turn a

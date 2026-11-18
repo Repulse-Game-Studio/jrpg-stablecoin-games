@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/worker.py's submit(): the hand-off through which the checkout and restore controllers
 // (Checkout.h, RestoreFlow.h) run Engine commands, and how a command's result comes back to them.
 //

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/ints.py: int() with the digit limit, json_loads and digit_run_value (see Ints.h).
 #include "Scfg/Ints.h"
 

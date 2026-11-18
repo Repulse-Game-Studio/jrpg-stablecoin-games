@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::qrcodegen beyond the tier1/qr.json vectors: every version boundary of every mode and
 // level, the level boost and the mask choice, forced masks, every version's function patterns (the alignment centres
 // of ISO/IEC 18004 Table E.1, version 32's step 26 included), the segment builders and every error.

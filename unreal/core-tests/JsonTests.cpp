@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::Json (Python's json.loads / json.dumps and its dict and list), deep_copy and
 // the test-side json_eq. Expected texts are CPython's own output (python3 -c "import json; ...").
 #include "support/JsonEq.h"

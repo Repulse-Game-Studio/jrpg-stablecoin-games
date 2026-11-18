@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/coio.py (response_from_envelope) and of rpc.UrllibTransport's answer rules (parse_rpc_body).
 #include "Scfg/Coio.h"
 

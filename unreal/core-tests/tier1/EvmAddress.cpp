@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/evm_address.json adapters (conformance/python/scfg_conformance/tier1.py's evm block;
 // unity/core-tests/Tier1.cs's RegisterEvm). The address and the log are passed through untouched, as tier1.py
 // does: a non-str address or a non-dict log is the core's own error.

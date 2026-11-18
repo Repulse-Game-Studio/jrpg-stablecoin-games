@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: tests of scfg::keccak beyond tier1/keccak.json: the empty-string digest every Ethereum library
 // prints, the Transfer event signature, the rate boundaries (one and two 136-byte blocks, where the padding needs
 // a block of its own) and one million 'a'. Every digest is what scfg_core.keccak.keccak256(m).hex() prints.

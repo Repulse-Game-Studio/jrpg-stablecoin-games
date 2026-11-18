@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the details panel of the SCFG project settings, Unity's ScfgSettingsEditor inspector: a Validate
 // category at the top with the button (ScfgEditor::ValidateSettings, with a notification), and Configure()'s options
 // shown as rows of the Configure category rather than one folded struct.

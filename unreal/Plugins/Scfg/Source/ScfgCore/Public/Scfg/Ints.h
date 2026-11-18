@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/ints.py: Python's int() for text the core reads from storage, a page or an RPC, with CPython's
 // limit on the number of decimal digits enforced explicitly (converting a very long digit string costs quadratic
 // time); json_loads (an RPC answer's integer literals through int_from) and digit_run_value (a number in a node's

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/amounts.py (and of unity/.../Core/Amounts.cs, rpgmaker/src/core/amounts.ts).
 // Money handling: parsing developer/player amounts and the price|code|nonce codec.
 //

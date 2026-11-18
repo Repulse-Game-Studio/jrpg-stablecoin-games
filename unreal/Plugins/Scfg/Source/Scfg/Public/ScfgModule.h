@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the Scfg glue module (unreal/README.md, "The glue module").
 #pragma once
 

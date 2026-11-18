@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: Tier2Deferred.<id> replays every Tier 2 vector a second time with a transport
 // that completes requests only from the runner's pump loop, one per turn, as Unreal's HTTP callbacks complete them on
 // a later tick (unity/core-tests/Tier2SingleThreadTest.cs's role): every networked step must suspend, and resume

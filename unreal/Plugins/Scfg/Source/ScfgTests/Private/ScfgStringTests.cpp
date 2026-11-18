@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: ScfgString (the glue's UTF-8 <-> FString bridge) and its lone surrogate policy (ScfgString.h).
 #include "Misc/AutomationTest.h"
 

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/rpc.py's UrllibTransport (and of godot/addons/scfg/core/http_transport.gd): the core's JSON-RPC
 // POSTs through Unreal's FHttpModule, on the game thread.
 //

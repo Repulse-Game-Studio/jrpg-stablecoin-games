@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the stepped payment sheet (CheckoutController::step() and its navigation), the twins of
 // tests/unit/test_checkout_steps.py one for one (same names, same assertions), over a real Engine on the fake nodes
 // of support/CheckoutFakes.h with the immediate submitter.

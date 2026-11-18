@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: Python's decimal.Decimal under the default context (see Dec.h). The arithmetic follows
 // _pydecimal (Decimal.__add__, _normalize, _fix, quantize, _rescale, __str__); parse follows the C decimal's
 // numeric_as_ascii and libmpdec's literal limits.

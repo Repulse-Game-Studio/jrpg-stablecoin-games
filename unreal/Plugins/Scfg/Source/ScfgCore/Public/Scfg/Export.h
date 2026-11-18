@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: SCFGCORE_API, the symbol export macro of the ScfgCore module.
 //
 // UBT defines SCFGCORE_API for every module it builds: DLLEXPORT while it compiles ScfgCore itself, DLLIMPORT in a

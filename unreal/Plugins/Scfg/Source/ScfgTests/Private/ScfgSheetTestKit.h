@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the rig of the Slate screen tests (Scfg.Glue.Sheet.*), the twin of godot/tests/ui_env.gd. The
 // editor runs them under -nullrhi: FSlateApplication is up with the null renderer (real fonts, no GPU), so widgets are
 // built, laid out, painted (which ticks them) and receive input through FSlateApplication::ProcessKeyDownEvent /

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: JSON value equality as conformance/README.md defines it (see JsonEq.h).
 #include "support/JsonEq.h"
 

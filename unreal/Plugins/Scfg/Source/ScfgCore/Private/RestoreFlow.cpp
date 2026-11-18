@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/restore_flow.py (see RestoreFlow.h), with godot/addons/scfg/core/restore_flow.gd as the
 // generator-free template.
 #include "Scfg/RestoreFlow.h"

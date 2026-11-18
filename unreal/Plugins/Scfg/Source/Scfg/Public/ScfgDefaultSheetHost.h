@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/default_sheet_host.gd: the sheet host UScfgSubsystem uses when the game set none
 // (SetSheetHost). It shows the plugin's own Slate payment sheet and restore screen (SScfgPaymentSheet,
 // SScfgRestoreScreen), each as its own widget on the game instance's game viewport

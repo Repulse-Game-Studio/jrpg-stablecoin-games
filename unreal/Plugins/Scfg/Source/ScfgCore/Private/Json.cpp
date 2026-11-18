@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the JSON value, deep_copy, and Python's json.loads / json.dumps (see Json.h). The reader is
 // CPython's _json scanner, by hand, over UTF-8 bytes.
 #include "Scfg/Json.h"

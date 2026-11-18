@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the glue's one bridge between the core's strings (std::string, UTF-8) and Unreal's FString
 // (TCHAR: UTF-16 on every platform the plugin builds for).
 //

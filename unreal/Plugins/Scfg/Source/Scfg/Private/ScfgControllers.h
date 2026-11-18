@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg.gd's _Checkout and _Restore (and Unity's ScfgCheckoutController / ScfgRestoreController): what a payment
 // sheet or a restore screen binds to (IScfgSheetHost.h). Each holds the core's controller (Core(): read its fields,
 // call its methods from buttons), the flow's id and the call's callback, plus the buttons that leave the game.

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/paylinks.py (see Paylinks.h).
 #include "Scfg/Paylinks.h"
 

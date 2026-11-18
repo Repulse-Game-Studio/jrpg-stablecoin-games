@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the JSON-lines driver of the shared localhost checkout server suite (tests/server_security/, its
 // `cpp_server` half): it runs one scfg::local_server::CheckoutServer (Plugins/Scfg/Source/ScfgCore, LocalServer.h)
 // at a time on real POSIX sockets bound to 127.0.0.1, with fake callbacks, and pumps it every 2 ms as the glue pumps it

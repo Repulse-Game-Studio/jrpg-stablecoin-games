@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/backends/evm.py (and of unity/.../Core/Backends/Evm.cs): EVM chains, the watcher,
 // re-verification and restore code behind the Backend interface.
 //

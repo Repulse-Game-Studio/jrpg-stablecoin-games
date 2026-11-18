@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: a raw HTTP client for the localhost checkout server tests (Scfg.Glue.LocalServer.*,
 // Scfg.Glue.Facade.Flows.*): an FSocket connected to 127.0.0.1:<port> that sends exactly the bytes given and reads
 // until the server closes, pumping the server (Pump) in between, so a test drives both ends on the game thread without

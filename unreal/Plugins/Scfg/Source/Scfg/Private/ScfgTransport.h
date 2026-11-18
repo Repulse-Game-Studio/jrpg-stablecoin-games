@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the transport the worker owns (scfg::coio::Transport, Coio.h), plus the shutdown that ends the
 // teardown order Jobs -> Engine -> transport (Co.h, "Teardown order").
 #pragma once

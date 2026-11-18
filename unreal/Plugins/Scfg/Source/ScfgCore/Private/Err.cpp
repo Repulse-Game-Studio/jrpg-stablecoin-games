@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // Twin of scfg_core/errors.py, plus Python's built-in exception classes (the class tree of err.gd's BASES).
 #include "Scfg/Err.h"
 

@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: FScfgHttpTransport against a real HTTP endpoint, a tiny JSON-RPC node that the test serves itself
 // with the engine's HTTPServer on 127.0.0.1 (a random free port; never 8000). Latent tests: FHttpModule answers on a
 // later frame, when FHttpManager ticks, and each test waits for it frame by frame (bounded).

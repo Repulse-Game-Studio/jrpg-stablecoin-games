@@ -1,3 +1,4 @@
+// Copyright 2026 Repulse
 // No Python twin: the tier1/ed25519.json adapter (conformance/python/scfg_conformance/tier1.py's is_on_curve;
 // unity/core-tests/Tier1.cs).
 #include "support/Tier1.h"
