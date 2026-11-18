@@ -4,6 +4,7 @@
 extends RefCounted
 
 const T := preload("res://tests/t.gd")
+const F := preload("res://tests/fakes.gd")
 
 
 ## An Engine stand-in: tick/reverify/snapshot as coroutines, with an optional tick hook.
@@ -680,4 +681,43 @@ func test_worker_builds_the_default_scheduler_from_a_tree() -> bool:
 	w.stop()
 	T.eq(e.ticks, 1)
 	T.eq(e.reverified, 1)
+	return T.done()
+
+
+## test_worker.py's test_an_abandoned_running_job_is_refused_its_next_request, with the real Engine:
+## the player picks another network while a start waits on its first endpoint, which fails.
+func test_an_abandoned_running_job_is_refused_its_next_request() -> bool:
+	var cfg: Variant = ScfgConfig.build_config({"wallet": "0x52908400098527886E0F7030069857D2E4169EE7",
+		"chains": ["base"], "testnet": true})
+	ScfgConfig.add_item(cfg, "chapter2", {"code": 37, "price": "4.99", "token": "USDC", "title": "Chapter 2"})
+	var urls: Array = ScfgChains.TESTNET["base"]["rpc"]
+	T.ok(urls.size() >= 2, "Base Sepolia has a second endpoint to fall back to")
+	var box := {}
+	var handlers := {}
+	for u: Variant in urls:
+		handlers[u] = func(_m: String, _p: Variant) -> Variant: return {"jsonrpc": "2.0", "id": 1, "result": "0x10"}
+	handlers[urls[0]] = func(_m: String, _p: Variant) -> Variant:
+		(box["job"] as ScfgJob).abandon()  # while its first request is in flight
+		return ScfgCoio.transport_error("timed out")
+	var transport := F.FakeTransport.new(handlers)
+	var engine := ScfgEngine.new(cfg, {"transport": transport, "clock": func() -> int: return 1700000000})
+	var w := ScfgWorker.new(engine, {})
+	var job := w.submit(func(e: Variant) -> Variant: return await e.start_session("unlock", "base", {"item": "chapter2"}))
+	box["job"] = job
+	await w.run_once()
+	T.is_err(job.result(), "Abandoned")
+	var asked := transport.calls.filter(func(c: Array) -> bool: return c[1] == "eth_blockNumber").map(
+		func(c: Array) -> Variant: return c[0])
+	T.eq(asked, [urls[0]], "the second endpoint is not asked")
+	T.ok(not engine.refuse_requests.is_valid(), "cleared after the job")
+	return T.done()
+
+
+func test_abandoning_a_queued_job_cancels_it() -> bool:
+	var w := _worker(FakeEngine.new())
+	var ran := []
+	var job := w.submit(func(_e: Variant) -> void: ran.append(1))
+	job.abandon()
+	await w.run_once()
+	T.eq([job.cancelled(), ran, job.abandoned], [true, [], false])
 	return T.done()

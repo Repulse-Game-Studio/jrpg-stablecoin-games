@@ -75,6 +75,18 @@ func cancel() -> bool:
 	return true
 
 
+## Whether abandon() found it running: its RPC requests are refused from then on.
+var abandoned := false
+
+
+## worker.py's abandon(): a job that has not started is cancelled (it never runs); a running one is
+## refused its next RPC request with an Abandoned ScfgErr (not a TransportError, so no endpoint
+## cools down), so the commands queued behind it wait at most for the request in flight.
+func abandon() -> void:
+	if not cancel():
+		abandoned = true
+
+
 ## The worker is about to run it: false when it was cancelled first.
 func _start() -> bool:
 	if _state != State.PENDING:

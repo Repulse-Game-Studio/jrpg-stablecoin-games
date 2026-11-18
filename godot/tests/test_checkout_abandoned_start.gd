@@ -86,9 +86,9 @@ func test_a_failed_abandoned_start_needs_no_discard() -> bool:
 	var engine: ScfgEngine = m["engine"]
 	var sub: F.DeferredSubmitter = m["submit"]
 	ctl.choose_network("arbitrum")
-	ctl.cancel()
 	var entry: Array = sub.queue.pop_front()
-	(entry[1] as ScfgJob)._start()
+	T.ok((entry[1] as ScfgJob)._start(), "the start is running when the player cancels")
+	ctl.cancel()
 	(entry[1] as ScfgJob)._fail(ScfgErr.make("RuntimeError", "rpc down"))
 	await sub.run()
 	T.eq(engine.pending, {})
@@ -109,4 +109,33 @@ func test_abandoning_an_already_finished_start_discards_at_once() -> bool:
 	ctl.cancel()
 	await sub.run()
 	T.eq(engine.pending, {}, "and was discarded")
+	return T.done()
+
+
+func test_a_superseded_start_that_has_not_run_is_cancelled_and_never_runs() -> bool:
+	var m := _setup()
+	var ctl: ScfgCheckoutController = m["ctl"]
+	var engine: ScfgEngine = m["engine"]
+	var sub: F.DeferredSubmitter = m["submit"]
+	ctl.choose_network("arbitrum")
+	var first: ScfgJob = (sub.queue[0] as Array)[1]
+	ctl.choose_network("base")
+	T.ok(first.cancelled(), "the new pick does not queue behind it")
+	await sub.run()
+	ctl.poll()
+	T.eq([ctl.state, ctl.chain_key], ["waiting", "base"])
+	T.eq(sub.queue, [], "nothing ran for arbitrum, so nothing is left to discard")
+	T.eq(engine.pending.values().map(func(r: Dictionary) -> Variant: return r["chain"]), ["base"])
+	return T.done()
+
+
+func test_a_running_superseded_start_is_marked_abandoned() -> bool:
+	var m := _setup()
+	var ctl: ScfgCheckoutController = m["ctl"]
+	var sub: F.DeferredSubmitter = m["submit"]
+	ctl.choose_network("arbitrum")
+	var first: ScfgJob = (sub.queue[0] as Array)[1]
+	T.ok(first._start())
+	ctl.choose_network("base")
+	T.ok(not first.cancelled() and first.abandoned, "its next RPC request is refused (test_worker.gd)")
 	return T.done()

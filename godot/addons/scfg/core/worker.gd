@@ -129,7 +129,12 @@ func _pass() -> Variant:
 		if not fn.is_valid():
 			job._fail(ScfgErr.make("RuntimeError", "command is not a valid Callable"))
 			continue
+		var refusing: bool = "refuse_requests" in engine
+		if refusing:
+			engine.refuse_requests = func() -> bool: return job.abandoned  # this job's requests, refused once abandoned
 		var value: Variant = await fn.call(engine)
+		if refusing:
+			engine.refuse_requests = Callable()
 		if value is ScfgErr:
 			job._fail(value)
 		else:

@@ -51,6 +51,32 @@ var unready: Dictionary = {}
 var init_error: Variant = null
 var _rpc_factory: Callable
 var _rpcs: Dictionary = {}
+## While it returns true, the default RPC clients' requests are refused with an Abandoned ScfgErr:
+## the worker points it at the job it runs (worker.py's per-job transport).
+var refuse_requests: Callable = Callable()
+var _refusing: RefusingTransport = null
+
+
+## The Engine's transport, refusing requests while refuse_requests says so. It holds the Engine
+## weakly: the Engine holds its RPC clients, which hold this.
+class RefusingTransport:
+	extends ScfgCoio.Transport
+
+	var _engine: WeakRef
+
+	func _init(engine_: Object) -> void:
+		_engine = weakref(engine_)
+
+	## @fallible
+	## @coroutine
+	func post_json(url: String, payload: Dictionary, timeout: float) -> Variant:
+		var e: Variant = _engine.get_ref()
+		if e == null or e.transport == null:
+			return ScfgErr.make("RuntimeError", "no transport to reach %s" % url)
+		var refuse: Callable = e.refuse_requests
+		if refuse.is_valid() and refuse.call():
+			return ScfgErr.make("Abandoned", "abandoned before its request to %s" % url)
+		return await e.transport.post_json(url, payload, timeout)
 
 
 func _init(config_: Dictionary, opts: Dictionary = {}) -> void:
@@ -170,7 +196,9 @@ func _default_rpc_factory(c: Dictionary) -> Variant:
 	if backend is ScfgErr:
 		return backend
 	var typed: ScfgBaseBackend = backend
-	return typed.make_rpc(c, transport, Callable())
+	if _refusing == null:
+		_refusing = RefusingTransport.new(self)
+	return typed.make_rpc(c, _refusing, Callable())
 
 
 # --- payments ---------------------------------------------------------------------------------

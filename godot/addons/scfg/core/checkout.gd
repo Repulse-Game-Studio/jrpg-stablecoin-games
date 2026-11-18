@@ -709,6 +709,7 @@ func _abandon_start() -> void:
 	_future = null
 	if not fut is ScfgJob:
 		return
+	(fut as ScfgJob).abandon()  # a queued start never runs; a running one makes no further request
 	var sub := submit
 	# Future.add_done_callback: runs at once when the job is done, else when it settles. The
 	# callback holds the job weakly, so a start that never finishes leaves no cycle behind.
