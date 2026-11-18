@@ -25,8 +25,10 @@ ONRAMP_URL = ("https://thirdweb.com/bridge/buy-widget?chain={chain_id}"
               "&paymentMethods=card")
 ONRAMP_FIELDS = ("amount", "chain", "chain_id", "token", "token_address")
 ONRAMP_PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
-# On a chain whose gas coin is the token (Arc), the payment's fee is paid in it too.
-ONRAMP_GAS_UNITS = 10_000  # 0.01
+# 6-decimal units in a cent: the buy page's amount is rounded up to whole cents.
+UNITS_PER_CENT = 10_000
+# On a chain whose gas coin is the token (Arc), the payment's fee is paid in it too: a cent.
+ONRAMP_GAS_UNITS = UNITS_PER_CENT
 # Before a session exists its exact amount is not known: it is the price plus the item code and
 # nonce in the last four decimals (amounts.encode), at most 0.009999. The buy link then adds that
 # most, so it never suggests less than the payment will need.
@@ -42,7 +44,7 @@ def onramp_amount(units: int, gas_is_token: bool) -> str:
     """The amount suggested on the buy page: the payment (6-decimal units), plus a cent for
     the fee where the token is the gas coin, rounded up to whole cents: 4993742 -> '5.00'."""
     total = units + (ONRAMP_GAS_UNITS if gas_is_token else 0)
-    cents = -(-total // 10_000)
+    cents = -(-total // UNITS_PER_CENT)
     return f"{cents // 100}.{cents % 100:02d}"
 
 

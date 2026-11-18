@@ -49,6 +49,8 @@ const HINT_VERDICTS := ["tx_reverted", "tx_not_a_payment", "tx_not_landed"]
 ## Order of the steps; the three method pages share a place.
 const STEP_ORDER := {"amount": 0, "network": 1, "method": 2, "browser": 3, "qr": 3, "manual": 3,
 	"waiting": 4, "done": 5}
+## The three method pages.
+const ONRAMP_PAGES := ["browser", "qr", "manual"]
 
 static var MESSAGES := {
 	"network_unavailable": "Can't reach the network. Retrying...",
@@ -59,6 +61,8 @@ static var MESSAGES := {
 	"invalid_amount": "Enter an amount of at least %s with up to 2 decimals." % str(ScfgPayments.MIN_TIP),
 	"browser_unavailable": "Couldn't start the browser checkout. Use another method.",
 	"start_failed": "Couldn't start the payment. Check your connection and try again.",
+	# A start every endpoint failed: back on the network step, nothing retries until the player
+	# picks a network again (network_unavailable is the waiting state's, which the worker retries).
 	"start_unreachable": "Can't reach the network. Pick a network to try again.",
 	"solana_unavailable": "Payments on Solana aren't available right now.",
 	"internal_error": "Something went wrong while checking the payment. Retrying...",
@@ -276,7 +280,7 @@ static func onramp_view(cfg: Dictionary, pay_token: String, pay_chain: Variant, 
 			ScfgPaylinks.onramp_amount(int(u), c["native_token"] == pay_token))
 		if url is ScfgErr:
 			return url
-	var here := at_step == "method" or (at_step in ["browser", "qr", "manual"] and not path.has("method"))
+	var here := at_step == "method" or (at_step in ONRAMP_PAGES and not path.has("method"))
 	var hint := false
 	if on and here and url == null and go_back:
 		for key: Variant in option_keys:

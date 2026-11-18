@@ -15,8 +15,10 @@ extends RefCounted
 ## tokenAddress is not in thirdweb's iframe docs, but the hosted page honours it (paylinks.py).
 const ONRAMP_URL := "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
 const ONRAMP_FIELDS: Array[String] = ["amount", "chain", "chain_id", "token", "token_address"]
-## On a chain whose gas coin is the token (Arc), the payment's fee is paid in it too.
-const ONRAMP_GAS_UNITS := 10_000  # 0.01
+## 6-decimal units in a cent: the buy page's amount is rounded up to whole cents.
+const UNITS_PER_CENT := 10_000
+## On a chain whose gas coin is the token (Arc), the payment's fee is paid in it too: a cent.
+const ONRAMP_GAS_UNITS := UNITS_PER_CENT
 ## Before a session exists: the most the item code and nonce add to the price (0.009999).
 const ONRAMP_EXACT_UNITS := 9_999
 
@@ -37,7 +39,7 @@ static func eip681_transfer_uri(opts: Dictionary) -> Variant:
 ## where the token is the gas coin, rounded up to whole cents: 4993742 -> "5.00".
 static func onramp_amount(units: int, gas_is_token: bool) -> String:
 	var total := units + (ONRAMP_GAS_UNITS if gas_is_token else 0)
-	var cents := total / 10_000 + (1 if total % 10_000 > 0 else 0)  # ceil
+	var cents := total / UNITS_PER_CENT + (1 if total % UNITS_PER_CENT > 0 else 0)  # ceil
 	return "%d.%02d" % [cents / 100, cents % 100]
 
 

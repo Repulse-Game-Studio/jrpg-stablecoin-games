@@ -532,6 +532,9 @@ static func _merge_methods(methods: Variant, chains: Array) -> Variant:
 # --- onramp ----------------------------------------------------------------------------------
 
 
+const _HTTPS := "https://"
+
+
 ## An https:// URL of printable ASCII (no spaces) whose only braces are placeholders from
 ## ONRAMP_FIELDS, like "{chain_id}".
 ## @fallible
@@ -544,8 +547,8 @@ static func _onramp_url(value: Variant) -> Variant:
 				printable = false
 				break
 	# a host must follow https://: its first character is not a brace, "/", "?" or "#"
-	if (not printable or not str(value).begins_with("https://") or str(value).length() > ONRAMP_URL_LIMIT
-			or str(value).substr(8, 1) in ["", "{", "}", "/", "?", "#"]):
+	if (not printable or not str(value).begins_with(_HTTPS) or str(value).length() > ONRAMP_URL_LIMIT
+			or str(value).substr(_HTTPS.length(), 1) in ["", "{", "}", "/", "?", "#"]):
 		return config_error("onramp.bad_url", "onramp url must be an https:// URL with a host, without spaces, at most %d characters: %s" % [
 			ONRAMP_URL_LIMIT, ScfgPy.py_repr(value)])
 	var parts := ScfgPaylinks.onramp_split(str(value))

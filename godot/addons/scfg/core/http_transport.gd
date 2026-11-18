@@ -67,6 +67,12 @@ func close() -> void:
 		(waiter as _Waiter).left_tree()
 
 
+## The waiter's own result codes, beside HTTPRequest's (never negative): the host left the tree
+## (or close() ended the request), or the request's Cancel fired.
+const _GONE := -1
+const _CANCELLED := -2
+
+
 ## One finished request, whichever comes first: HTTPRequest's request_completed, or the
 ## HTTPRequest leaving the tree before it (its host was removed or freed), which would otherwise
 ## leave the caller suspended forever. `left_tree` is connected deferred (see the header).
@@ -83,12 +89,12 @@ class _Waiter:
 	func left_tree() -> void:
 		if not done:
 			done = true
-			finished.emit([-1, 0, PackedStringArray(), PackedByteArray()])
+			finished.emit([_GONE, 0, PackedStringArray(), PackedByteArray()])
 
 	func cancelled() -> void:
 		if not done:
 			done = true
-			finished.emit([-2, 0, PackedStringArray(), PackedByteArray()])
+			finished.emit([_CANCELLED, 0, PackedStringArray(), PackedByteArray()])
 
 
 ## The HostGone error (Godot only, see the header): the host Node is not there to carry a request.
@@ -133,14 +139,14 @@ func post_json_cancellable(url: String, payload: Dictionary, timeout: float, can
 	if cancel != null and cancel.cancelled.is_connected(waiter.cancelled):
 		cancel.cancelled.disconnect(waiter.cancelled)
 	var result: int = got[0]
-	if result == -2:
+	if result == _CANCELLED:
 		# Nobody waits for the answer any more: stop the request and free it now.
 		if is_instance_valid(req):
 			req.tree_exiting.disconnect(waiter.left_tree)
 			req.cancel_request()
 			req.queue_free()
 		return _cancelled(url)
-	if result == -1:
+	if result == _GONE:
 		# The host left the tree (or was freed with the request), or close() ended the request. A
 		# host still holding the HTTPRequest: stop it and free it, so it never answers later.
 		if is_instance_valid(req):

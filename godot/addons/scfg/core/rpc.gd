@@ -38,9 +38,9 @@ const COOLDOWN_MAX := 600.0
 ## Measured on the client's clock, so a session start on a chain whose endpoints all hang fails
 ## after 15 s whatever the number of urls.
 const CALL_BUDGET := 15.0
-## The least of the budget an endpoint is asked with: under it the endpoints left are skipped (not
-## cooled down) and the call is RpcUnavailable, so no endpoint is cooled down for failing a request
-## it was given a sliver of time for.
+## The least of the budget an endpoint is asked with (the floor): under it the endpoints left are
+## skipped (not cooled down) and the call is RpcUnavailable, so no endpoint is cooled down for
+## failing a request it was given a sliver of time for.
 const MIN_ATTEMPT := 2.0
 ## The smallest eth_getLogs block range (also the smallest max_log_range a chain may declare:
 ## ScfgConfig.MIN_LOG_RANGE is this constant).

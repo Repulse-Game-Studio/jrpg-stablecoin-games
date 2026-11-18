@@ -21,8 +21,10 @@ export const ONRAMP_URL = "https://thirdweb.com/bridge/buy-widget?chain={chain_i
 export const ONRAMP_FIELDS: readonly string[] = ["amount", "chain", "chain_id", "token", "token_address"];
 /** Python's `re.compile(r"\{([^{}]*)\}")`, global (for matchAll and replace). */
 export const ONRAMP_PLACEHOLDER = /\{([^{}]*)\}/g;
-// On a chain whose gas coin is the token (Arc), the payment's fee is paid in it too.
-const ONRAMP_GAS_UNITS = 10_000n; // 0.01
+// 6-decimal units in a cent: the buy page's amount is rounded up to whole cents.
+const UNITS_PER_CENT = 10_000n;
+// On a chain whose gas coin is the token (Arc), the payment's fee is paid in it too: a cent.
+const ONRAMP_GAS_UNITS = UNITS_PER_CENT;
 // Before a session exists: the most the item code and nonce add to the price (0.009999).
 export const ONRAMP_EXACT_UNITS = 9_999n;
 
@@ -37,8 +39,8 @@ export function eip681TransferUri(args: { token_address: string; chain_id: numbe
  */
 export function onrampAmount(units: Units, gasIsToken: boolean): string {
   const total = units + (gasIsToken ? ONRAMP_GAS_UNITS : 0n);
-  const q = total / 10_000n; // truncates: one more cent for a remainder (units are never negative)
-  const cents = total > q * 10_000n ? q + 1n : q;
+  const q = total / UNITS_PER_CENT; // truncates: one more cent for a remainder (units are never negative)
+  const cents = total > q * UNITS_PER_CENT ? q + 1n : q;
   return `${cents / 100n}.${String(cents % 100n).padStart(2, "0")}`;
 }
 

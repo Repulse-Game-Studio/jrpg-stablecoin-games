@@ -269,12 +269,12 @@ func _step_method(body: VBoxContainer) -> void:
 ## (ScfgCheckoutController.shows_onramp). On a network without a buy page (Solana), when another
 ## one has it, it points there instead and goes back to the network step (shows_onramp_hint).
 func _onramp_link(step: VBoxContainer) -> void:
-	if controller.shows_onramp_hint:
-		step.add_child(button("onramp_hint", tr("No %s yet? Pick another network to buy some with a card")
-			% controller.spec["token"], "ScfgSmall", _back))
-	elif controller.shows_onramp:
+	if controller.shows_onramp:
 		step.add_child(button("onramp", tr("No %s yet? Buy some with a card") % controller.spec["token"], "ScfgSmall",
 			_open_onramp))
+	elif controller.shows_onramp_hint:
+		step.add_child(button("onramp_hint", tr("No %s yet? Pick another network to buy some with a card")
+			% controller.spec["token"], "ScfgSmall", _back))
 
 
 func _step_browser(body: VBoxContainer) -> void:

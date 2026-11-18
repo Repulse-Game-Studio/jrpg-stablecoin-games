@@ -43,9 +43,9 @@ COOLDOWN_MAX = 600.0
 # on the RpcClient's clock, so a session start on a chain whose endpoints all hang fails after
 # 15 s whatever the number of urls.
 CALL_BUDGET = 15.0
-# The least of the budget an endpoint is asked with: under it the endpoints left are skipped (not
-# cooled down) and the call is RpcUnavailable, so no endpoint is cooled down for failing a
-# request it was given a sliver of time for.
+# The least of the budget an endpoint is asked with (the floor): under it the endpoints left are
+# skipped (not cooled down) and the call is RpcUnavailable, so no endpoint is cooled down for
+# failing a request it was given a sliver of time for.
 MIN_ATTEMPT = 2.0
 MIN_LOG_RANGE = 10
 _RATE_HINTS = ("rate limit", "too many requests", "rate-limit")
