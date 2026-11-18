@@ -4,7 +4,8 @@
 // Public RPC endpoints are free but unreliable: they rate-limit, go down, and cap eth_getLogs block ranges. The
 // client tries endpoints in order on every call, skipping ones in cooldown (30 s doubling to 10 min, on the
 // injected Clock), within a total budget of Rpc.CallBudget seconds per call (each attempt waits at most what is left
-// of it, so a chain with four dead endpoints says so after 15 s, not 40), and remembers per endpoint the largest eth_getLogs range it accepts. Every network method is
+// of it, so a chain with four dead endpoints says so after 15 s, not 40; an endpoint is not asked with less than
+// Rpc.MinAttempt seconds left), and remembers per endpoint the largest eth_getLogs range it accepts. Every network method is
 // async and awaits the injected ITransport where Python's generator yields a Request. Response ids are never
 // checked against request ids, as in Python.
 //
@@ -89,12 +90,19 @@ namespace Scfg.Core
 
         /// <summary>
         /// Python <c>CALL_BUDGET</c>: the most seconds one Call spends across a chain's endpoints. The first attempt
-        /// gets the full per-request timeout (10 s), each later one min(timeout, what is left); once nothing is left
+        /// gets the full per-request timeout (10 s), each later one min(timeout, what is left); once less than MinAttempt is left
         /// the endpoints not tried yet are skipped (not cooled down) and the call is RpcUnavailable. Measured on the
         /// RpcClient's Clock, so a session start on a chain whose endpoints all hang fails after 15 s whatever the
         /// number of urls.
         /// </summary>
         public const double CallBudget = 15.0;
+
+        /// <summary>
+        /// Python <c>MIN_ATTEMPT</c>: the least of the budget an endpoint is asked with. Under it the endpoints left are
+        /// skipped (not cooled down) and the call is RpcUnavailable, so no endpoint is cooled down for failing a
+        /// request it was given a sliver of time for.
+        /// </summary>
+        public const double MinAttempt = 2.0;
 
         /// <summary>The smallest eth_getLogs block range a chain may be configured with.</summary>
         public const long MinLogRange = 10;
@@ -429,7 +437,7 @@ namespace Scfg.Core
             {
                 if (_state[url].Until > now) continue;
                 double left = deadline - Clock();
-                if (left <= 0) break; // CallBudget spent: the rest are not tried (nor cooled down)
+                if (left < Rpc.MinAttempt) break; // CallBudget spent: the rest are not tried (nor cooled down)
                 var res = await Attempt(url, method, prms, now, Math.Min(Timeout, left));
                 if (res == null) continue;
                 if (res.IsError) throw res.Error!;

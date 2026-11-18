@@ -90,7 +90,8 @@ namespace Scfg.Core.Tests
     /// id is ignored; params match by JSON equality (<see cref="JsonEq"/>: key order ignored, 1 equals 1.0, true is
     /// not 1). A recorded transport_error is the transport's failure (a TransportError). A call with <c>elapsed</c> (a
     /// request that hung) must have been made with that timeout, and moves the clock by it (<see cref="Wait"/>) before
-    /// its transport_error is raised.
+    /// its transport_error is raised. A call with <c>took</c> (a slow answer) moves the clock by it before it is
+    /// answered, and its timeout must be over it.
     /// </summary>
     public sealed class ReplayTransport : ITransport
     {
@@ -109,7 +110,8 @@ namespace Scfg.Core.Tests
         public Func<Func<object?>, Task<object?>>? Deliver { get; set; }
 
         /// <summary>
-        /// Moves the runner's clock forward by a hung call's <c>elapsed</c> seconds (replay.py's <c>wait</c>);
+        /// Moves the runner's clock forward by a hung call's <c>elapsed</c> or a slow call's <c>took</c> seconds
+        /// (replay.py's <c>wait</c>);
         /// <see cref="Tier2.Replay(JsonObject, ReplayTransport, Action{string})"/> sets it to the clock the Engine and
         /// every RpcClient read.
         /// </summary>
@@ -139,6 +141,15 @@ namespace Scfg.Core.Tests
                 if (_used[i] || !(c.Get("url") is string u) || u != url || !Equals(c.Get("method"), method)
                     || !JsonEq.Equal(c.Get("params"), prms)) continue;
                 _used[i] = true;
+                if (c.ContainsKey("took"))
+                {
+                    if (!(c.Get("took") is long took))
+                        return Task.FromException<object?>(new ReplayError("a recorded call's took is not an int"));
+                    if (timeout <= took)
+                        Problems.Add(url + " " + Coio.Str(method) + ": timeout " + timeout.ToString("R", CultureInfo.InvariantCulture)
+                                     + " is not over the " + took.ToString(CultureInfo.InvariantCulture) + " s the answer took");
+                    Wait?.Invoke(took);
+                }
                 if (c.ContainsKey("elapsed"))
                 {
                     if (!(c.Get("elapsed") is long elapsed))

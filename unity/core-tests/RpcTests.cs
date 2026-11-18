@@ -267,6 +267,21 @@ namespace Scfg.Core.Tests
         }
 
         [Test]
+        public void AnEndpointIsNotAskedWithLessThanTheFloorLeft()
+        {
+            // Review T5: A hangs (10 s), B fails after 4 s: 1 s is left, under MinAttempt, so C is not asked with a
+            // sliver of time, nor cooled down for failing it.
+            const string C = "https://c.rpc";
+            var clock = new Clock();
+            var t = new TimedTransport(clock, new Dictionary<string, long> { { B, 4 } });
+            var rpc = new RpcClient(new[] { A, B, C }, t, clock: clock.Call);
+            Assert.That(Rpc.MinAttempt, Is.EqualTo(2.0));
+            Assert.ThrowsAsync<RpcUnavailable>(() => rpc.BlockNumber());
+            Assert.That(t.Calls, Is.EqualTo(new List<(string, double)> { (A, 10.0), (B, 5.0) }));
+            Assert.That(rpc.LiveUrls(), Is.EqualTo(new[] { C }));
+        }
+
+        [Test]
         public void TheClockIsSettableAndReadOnEveryCall()
         {
             var (c, _, _) = Client(new Dictionary<string, Handler> { { A, Fakes.Down } });
