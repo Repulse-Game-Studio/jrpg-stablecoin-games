@@ -218,6 +218,22 @@ def test_a_missing_editor_fails(tmp_path, capsys):
     assert "cannot start" in capsys.readouterr().err
 
 
+def test_without_engine_or_ue_root_nothing_runs(tmp_path, monkeypatch, capsys):
+    """No machine default: neither --engine nor $UE_ROOT is one line and exit 2, before any build
+    or editor."""
+    monkeypatch.delenv("UE_ROOT", raising=False)
+    monkeypatch.setattr(run_unreal_tests.run_unreal_build, "build",
+                        lambda *a, **kw: pytest.fail("a build started"))
+    assert run_unreal_tests.main(["--report-dir", str(tmp_path / "report")]) == 2
+    assert capsys.readouterr().err == "run_unreal_tests: " + run_unreal_tests.NO_ENGINE + "\n"
+    assert not (tmp_path / "report").exists()
+    fake_editor(tmp_path, report=make_report(passed=1))
+    monkeypatch.setenv("UE_ROOT", str(tmp_path))  # $UE_ROOT is the engine when --engine is not given
+    assert run_unreal_tests.main(["--project", str(tmp_path / "P.uproject"), "--no-build",
+                                  "--report-dir", str(tmp_path / "report")]) == 0
+    assert json.loads((tmp_path / "argv.json").read_text())[0] == str(tmp_path / "P.uproject")
+
+
 def test_an_installed_engine_gets_the_installed_ddc_graph_without_zen(tmp_path):
     fake_editor(tmp_path, report=make_report(passed=1))
     (tmp_path / "Engine" / "Build").mkdir(parents=True, exist_ok=True)

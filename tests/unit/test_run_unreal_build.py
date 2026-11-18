@@ -84,7 +84,7 @@ def test_main_passes_a_clean_build_through_and_saves_the_log(tmp_path, capsys):
 
 
 def test_main_fails_on_a_warning_of_ours_even_when_ubt_exits_zero(tmp_path, capsys):
-    path = run_unreal_build.ROOT / "unreal/Plugins/Scfg/Source/ScfgCore/Private/Py.cpp"
+    path = TOOL.parents[1] / "unreal/Plugins/Scfg/Source/ScfgCore/Private/Py.cpp"
     engine = fake_build_sh(tmp_path, printing(f"{path}:1:1: warning: shadows a member\n", 0))
     args = ["--engine", engine, "--target", "ScfgDev", "--config", "Shipping"]
     assert run_unreal_build.main(args) == 1
@@ -100,7 +100,7 @@ def test_main_kills_a_build_that_overruns(tmp_path, capsys):
 
 
 def test_main_kills_a_grandchild_that_outlives_build_sh(tmp_path, capsys):
-    # Build.sh exits at once, leaving a descendant that holds its stdout (R1)
+    # Build.sh exits at once, leaving a descendant that holds its stdout
     marker = tmp_path / "survived"
     grandchild = tmp_path / "grandchild.py"
     grandchild.write_text(f"import time\ntime.sleep(4)\nopen({str(marker)!r}, 'w').close()\n")
@@ -129,6 +129,29 @@ def test_main_gives_up_on_a_holder_outside_the_group(tmp_path, capsys, monkeypat
 def test_main_reports_a_missing_engine(tmp_path, capsys):
     assert run_unreal_build.main(["--engine", str(tmp_path / "nope")]) == 1
     assert "cannot start" in capsys.readouterr().err
+
+
+def test_the_engine_is_engine_else_ue_root_and_never_a_machine_default(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("UE_ROOT", raising=False)
+    assert run_unreal_build.main([]) == 2
+    err = capsys.readouterr().err
+    assert err == "run_unreal_build: " + run_unreal_build.NO_ENGINE + "\n"
+    assert "UE_ROOT" in err and "--engine" in err
+    monkeypatch.setenv("UE_ROOT", "")  # an empty variable is no engine either
+    assert run_unreal_build.main([]) == 2
+    monkeypatch.setenv("UE_ROOT", str(tmp_path / "from-env"))
+    assert run_unreal_build.main([]) == 1
+    assert f"cannot start {tmp_path / 'from-env'}/" in capsys.readouterr().err
+    assert run_unreal_build.main(["--engine", str(tmp_path / "given")]) == 1  # --engine wins
+    assert f"cannot start {tmp_path / 'given'}/" in capsys.readouterr().err
+
+
+def test_engine_root_reads_the_argument_then_the_environment():
+    engine_root = run_unreal_build.engine_root
+    assert engine_root(None, {}) is None
+    assert engine_root("", {"UE_ROOT": ""}) is None
+    assert engine_root(None, {"UE_ROOT": "/ue"}) == Path("/ue")
+    assert engine_root("/given", {"UE_ROOT": "/ue"}) == Path("/given")
 
 
 def test_main_drops_the_targets_cached_build_plan_only(tmp_path):

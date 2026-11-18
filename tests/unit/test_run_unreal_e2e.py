@@ -21,6 +21,12 @@ import run_unreal_e2e as e2e  # noqa: E402
 OUTER, XVFB_RUN, ME, XVFB = 100, 200, 300, 301
 
 
+@pytest.fixture(autouse=True)
+def an_engine(monkeypatch):
+    """main() needs an engine (--engine or $UE_ROOT); these tests never start one."""
+    monkeypatch.setenv("UE_ROOT", "/ue")
+
+
 def table(*extra, display=":99", xvfb_parent=XVFB_RUN, xvfb_name="/usr/bin/Xvfb"):
     """A process table: the outer run, xvfb-run under it, this run and the Xvfb under xvfb-run."""
     return [
@@ -94,8 +100,8 @@ def test_the_outer_run_reruns_itself_under_xvfb_run_without_the_desktop():
     assert cmd[:2] == ["xvfb-run", "-a"] and cmd[-2:] == ["--family", "arc"]
     env = e2e.outer_env({"DISPLAY": ":0", "WAYLAND_DISPLAY": "wayland-0", "XAUTHORITY": "/x",
                          "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/bus", "PATH": "/bin",
-                         "LD_LIBRARY_PATH": "/appimage/lib"}, "tok", 4242)
-    assert env == {"PATH": "/bin", e2e.INNER_ENV: "tok", e2e.OUTER_PID_ENV: "4242"}
+                         "LD_LIBRARY_PATH": "/appimage/lib"}, 4242)
+    assert env == {"PATH": "/bin", e2e.INNER_ENV: "1", e2e.OUTER_PID_ENV: "4242"}
 
 
 def test_the_game_environment_forces_lavapipe_and_isolates_the_game(tmp_path):
@@ -104,7 +110,7 @@ def test_the_game_environment_forces_lavapipe_and_isolates_the_game(tmp_path):
                         "LD_LIBRARY_PATH": "/appimage/lib", "HOME": "/home/dev", "PATH": "/bin"},
                        tmp_path / "home")
     assert env["DISPLAY"] == ":99" and env["XAUTHORITY"] == "/tmp/xvfb-run.x/Xauthority"
-    assert env["VK_ICD_FILENAMES"] == env["VK_DRIVER_FILES"] == e2e.LAVAPIPE_ICD
+    assert env["VK_ICD_FILENAMES"] == env["VK_DRIVER_FILES"] == e2e.DEFAULT_LAVAPIPE_ICD
     assert env["SDL_VIDEODRIVER"] == "x11"
     for gone in ("WAYLAND_DISPLAY", "LD_LIBRARY_PATH"):
         assert gone not in env
@@ -115,6 +121,9 @@ def test_the_game_environment_forces_lavapipe_and_isolates_the_game(tmp_path):
     assert env["GIO_USE_VFS"] == "local"
     for key in ("HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME"):
         assert Path(env[key]).is_relative_to(tmp_path / "home"), key
+    # a system whose lavapipe is elsewhere names its ICD file
+    env = e2e.game_env({e2e.LAVAPIPE_ENV: "/opt/mesa/lvp_icd.json"}, tmp_path / "home")
+    assert env["VK_ICD_FILENAMES"] == env["VK_DRIVER_FILES"] == "/opt/mesa/lvp_icd.json"
 
 
 def test_the_config_names_the_control_socket_and_the_chain_and_is_private(tmp_path):
@@ -180,7 +189,7 @@ def test_the_showcase_plugin_stages_its_own_logo_and_falls_back_to_the_projects(
     """ConfigureInCode's logo is the showcase plugin's Resources/logo.png when the plugin is inside
     the project, which its Build.cs stages with a packaged game (the packaged run checks it is
     staged), else the project's Content/Showcase/logo.png: the dev project's copy, the same file."""
-    plugin = e2e.ROOT / "unreal" / "Plugins" / "ScfgShowcase"
+    plugin = ROOT / "unreal" / "Plugins" / "ScfgShowcase"
     assert e2e.PLUGIN_LOGO == "ScfgShowcase/Resources/logo.png"
     logo = (plugin.parent / e2e.PLUGIN_LOGO).read_bytes()
     assert logo.startswith(b"\x89PNG")
@@ -188,19 +197,20 @@ def test_the_showcase_plugin_stages_its_own_logo_and_falls_back_to_the_projects(
     build = (plugin / "Source" / "ScfgShowcase" / "ScfgShowcase.Build.cs").read_text()
     assert 'RuntimeDependencies.Add(Path.Combine(PluginDirectory, "Resources", "logo.png")' in build
     source = (plugin / "Source" / "ScfgShowcase" / "Private" / "ScfgShowcase.cpp").read_text()
-    assert 'LOGO_FILE = TEXT("Resources/logo.png")' in source
-    assert f'PROJECT_LOGO = TEXT("{e2e.SHOWCASE_LOGO}")' in source
+    assert 'PluginLogo = TEXT("Resources/logo.png")' in source
+    assert f'ProjectLogo = TEXT("{e2e.SHOWCASE_LOGO}")' in source
 
 
 def test_the_no_wallet_start_blanks_the_settings_wallet_and_expects_the_showcases_refusal():
     """The third start overrides the settings' Options with no wallet (one -ini value, no comma);
-    the HUD's text is the showcase's NO_WALLET, and the two warnings it allows are exactly the
+    the HUD's text is the showcase's NoWalletMessage, and the two warnings it allows are exactly the
     plugin's and the showcase's."""
     assert e2e.NO_WALLET_ARGS == ("-ini:Game:[/Script/Scfg.ScfgSettings]:Options=(bTestnet=True)",)
     assert "," not in e2e.NO_WALLET_ARGS[0]
-    source = (e2e.ROOT / "unreal" / "Plugins" / "ScfgShowcase" / "Source" / "ScfgShowcase"
+    source = (ROOT / "unreal" / "Plugins" / "ScfgShowcase" / "Source" / "ScfgShowcase"
               / "Private" / "ScfgShowcase.cpp").read_text()
-    assert 'TEXT("No wallet is set, so SCFG is not configured and nothing "\n\t"can be paid.' in source
+    assert ('NoWalletMessage = TEXT("No wallet is set, so SCFG is not configured "\n\t"and nothing '
+            'can be paid.') in source
     assert "0x52908400098527886E0F7030069857D2E4169EE7" not in source
     log = "\n".join([
         "[1][0]LogScfg: Warning: scfg: the SCFG settings (Project Settings > Plugins > SCFG) have "
@@ -412,7 +422,7 @@ def test_kill_group_kills_the_child_and_what_it_started(tmp_path):
         time.sleep(0.05)
     child = int(pids.read_text())
     assert os.getpgid(child) == proc.pid != os.getpgid(0)
-    e2e.kill_group(proc.pid, grace=0.5)
+    e2e.terminate_group(proc.pid, grace=0.5)
     proc.wait(5)
     assert _wait_gone([child]) == []
     deadline = time.monotonic() + 5  # the killed child is a zombie until its new parent reaps it
@@ -462,6 +472,70 @@ def test_the_inner_run_refuses_a_display_that_is_not_its_own(monkeypatch, capsys
     assert "refusing to start a game" in capsys.readouterr().out
 
 
+def test_without_engine_or_ue_root_nothing_runs(monkeypatch, capsys):
+    """No machine default: neither --engine nor $UE_ROOT is one line and exit 2, before the outer
+    run starts anything."""
+    monkeypatch.delenv("UE_ROOT")
+    monkeypatch.delenv(e2e.INNER_ENV, raising=False)
+    monkeypatch.setattr(e2e, "run_outer", lambda argv: pytest.fail("the run started"))
+    for argv in ([], ["--showcase"], ["--family", "solana", "--packaged"]):
+        assert e2e.main(argv) == 2
+        assert capsys.readouterr().out == f"Unreal e2e: {e2e.NO_ENGINE}\n"
+    monkeypatch.setenv("UE_ROOT", "")
+    assert e2e.main([]) == 2
+    seen = []
+    monkeypatch.setattr(e2e, "run_outer", lambda argv: seen.append(argv) or 0)
+    assert e2e.main(["--engine", "/given"]) == 0 and seen == [["--engine", "/given"]]
+
+
+def _inner(monkeypatch, tmp_path, icd=True, files=()):
+    """An inner run on its own Xvfb (own_xvfb passes) with an engine of `files` in tmp_path."""
+    monkeypatch.setenv(e2e.INNER_ENV, "1")
+    monkeypatch.setattr(e2e, "own_xvfb", lambda *a: None)
+    icd_file = tmp_path / "lvp_icd.json"
+    if icd:
+        icd_file.write_text("{}")
+    monkeypatch.setenv(e2e.LAVAPIPE_ENV, str(icd_file))
+    for f in files:
+        (tmp_path / f).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / f).write_text("")
+    monkeypatch.setenv("UE_ROOT", str(tmp_path))
+
+    def must_not_run(*a, **kw):
+        raise AssertionError("the run started")
+
+    monkeypatch.setattr(e2e.tempfile, "mkdtemp", must_not_run)
+    monkeypatch.setattr(e2e.subprocess, "Popen", must_not_run)
+
+
+RUN_UAT = "Engine/Build/BatchFiles/RunUAT.sh"
+BUILD_SH = "Engine/Build/BatchFiles/Linux/Build.sh"
+EDITOR = "Engine/Binaries/Linux/UnrealEditor"
+
+
+def test_the_inner_run_needs_lavapipe(monkeypatch, tmp_path, capsys):
+    _inner(monkeypatch, tmp_path, icd=False, files=(RUN_UAT, BUILD_SH, EDITOR))
+    for argv in (["--family", "evm"], ["--showcase", "--packaged"]):
+        assert e2e.main(argv) == 2
+        out = capsys.readouterr().out
+        assert out.startswith("Unreal e2e: Mesa's lavapipe Vulkan driver is missing: no ")
+        assert e2e.LAVAPIPE_ENV in out and len(out.splitlines()) == 1
+
+
+@pytest.mark.parametrize("argv, needed, present", [
+    (["--showcase", "--packaged"], RUN_UAT, (BUILD_SH, EDITOR)),
+    (["--family", "solana"], BUILD_SH, (RUN_UAT, EDITOR)),
+    (["--showcase", "--no-build"], EDITOR, (RUN_UAT, BUILD_SH)),
+])
+def test_the_inner_run_needs_the_engine_program_it_starts_first(monkeypatch, tmp_path, capsys,
+                                                                argv, needed, present):
+    _inner(monkeypatch, tmp_path, files=present)
+    assert e2e.main(argv) == 2
+    out = capsys.readouterr().out
+    assert out == f"Unreal e2e: no {tmp_path / needed}: is {tmp_path} an Unreal Engine 5.8 " \
+                  "(--engine, $UE_ROOT)?\n"
+
+
 def test_the_outer_run_needs_xvfb_run(monkeypatch, capsys):
     monkeypatch.delenv(e2e.INNER_ENV, raising=False)
     monkeypatch.setattr(e2e.shutil, "which", lambda name: None)
@@ -497,7 +571,7 @@ def test_the_outer_run_kills_its_session_when_done(monkeypatch):
 
 
 def test_live_goes_with_the_showcase_only(capsys):
-    """--live is the showcase tour's opt-in HTTPS check (final review F2): alone it is refused."""
+    """--live is the showcase tour's opt-in HTTPS check: alone it is refused."""
     with pytest.raises(SystemExit) as exit_info:
         e2e.main(["--live"])
     assert exit_info.value.code == 2

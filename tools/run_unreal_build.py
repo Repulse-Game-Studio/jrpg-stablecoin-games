@@ -7,8 +7,9 @@
 
 Runs `<engine>/Engine/Build/BatchFiles/Linux/Build.sh <target> Linux <config>
 -Project=<uproject> -WaitMutex -NoHotReload -UBAHost=127.0.0.1` (UBT's build accelerator would
-otherwise listen on every interface, 0.0.0.0:1345). The engine is --engine, else $UE_ROOT, else
-/mnt/files/UnrealEngine. UBT's output is passed through as it comes and, with --log, saved too.
+otherwise listen on every interface, 0.0.0.0:1345). The engine is --engine, else $UE_ROOT; with
+neither the run exits with 2 at once. UBT's output is passed through as it comes and, with --log,
+saved too.
 
 The build counts as green only when UBT exits 0 *and* its output has no `warning:` or `error:`
 line, except one located in an engine file and reached through engine files only (its "In file
@@ -26,7 +27,6 @@ exits.
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import signal
 import subprocess
@@ -35,9 +35,17 @@ import threading
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_ENGINE = "/mnt/files/UnrealEngine"
-DEFAULT_PROJECT = ROOT / "unreal" / "Project" / "ScfgDev" / "ScfgDev.uproject"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from unreal_common import (  # noqa: E402
+    DEFAULT_PROJECT,
+    ENGINE_HELP,
+    NO_ENGINE,
+    TEST_MODULES,
+    engine_root,
+    kill_group_now,
+)
+
 DEFAULT_TIMEOUT = 3600.0
 KILL_GRACE = 5.0   # seconds the output may take to close after the kill
 # Kill the child's group and exit on these: an outer `timeout`, a Ctrl-C, a closed terminal or ssh.
@@ -86,14 +94,6 @@ def verdict(returncode: int, output: str, engine: Path) -> str | None:
     return None
 
 
-def kill_group(pgid: int) -> None:
-    """SIGKILL every process of the group, whether or not its leader is still alive."""
-    try:
-        os.killpg(pgid, signal.SIGKILL)
-    except (ProcessLookupError, PermissionError):
-        pass   # the whole group is gone already
-
-
 def run_streamed(cmd: list[str], timeout: float, log_path: str | None = None,
                  linger: float | None = None) -> tuple[int | None, str]:
     """Run cmd in a session of its own, passing its output through as it comes (and to log_path).
@@ -116,7 +116,7 @@ def run_streamed(cmd: list[str], timeout: float, log_path: str | None = None,
 
     def stop(signum):
         proc_ = cell["proc"]
-        kill_group(proc_.pid)
+        kill_group_now(proc_.pid)
         print(f"{Path(sys.argv[0]).name}: signal {signum}: killed the process group of "
               f"{cmd[0]} (pid {proc_.pid})", file=sys.stderr, flush=True)
         raise SystemExit(128 + signum)
@@ -176,7 +176,7 @@ def run_streamed(cmd: list[str], timeout: float, log_path: str | None = None,
                 timed_out = True
         if timed_out:
             returncode = None
-            kill_group(proc.pid)
+            kill_group_now(proc.pid)
             reader.join(KILL_GRACE)   # a holder outside the group may keep it open: give up then
             try:
                 proc.wait(timeout=KILL_GRACE)
@@ -221,23 +221,22 @@ def drop_makefile(project: Path, target: str, platform: str, config: str) -> lis
     return found
 
 
-# Modules that must never be linked into a game (Scfg.uplugin: UncookedOnly), and one that must.
-UNCOOKED_ONLY = ("ScfgCoreTests", "ScfgTests")
+# A module every game links (the test-only ones, TEST_MODULES, it must not).
 SHIPPED = "ScfgCore"
 
 
 def game_link_problem(project: Path, target: str, platform: str, config: str) -> str | None:
     """For a game target (a single monolithic binary): None when its link inputs, UBT's
     Intermediate/Build/<platform>/*/<target>/<config>/<binary>.rsp, hold an object of ScfgCore and
-    none of an UncookedOnly module, else why not. The receipt (.target) of a monolithic target
-    lists no modules, so the link inputs are what tells."""
+    none of a test-only module (TEST_MODULES), else why not. The receipt (.target) of a monolithic
+    target lists no modules, so the link inputs are what tells."""
     binary = target if config == "Development" else f"{target}-{platform}-{config}"
     base = Path(project).resolve().parent / "Intermediate" / "Build" / platform
     found = sorted(base.glob(f"*/{target}/{config}/{binary}.rsp"))
     if not found:
         return f"no link inputs of {binary} under {base} to check for test modules"
     text = found[0].read_text(encoding="utf-8", errors="replace")
-    for module in UNCOOKED_ONLY:
+    for module in TEST_MODULES:
         if f"/{module}/" in text:
             return f"{binary} links the test-only module {module} ({found[0]})"
     if f"/{SHIPPED}/" not in text:
@@ -284,9 +283,7 @@ def main(argv=None) -> int:
                         help="Debug, DebugGame, Development, Test or Shipping "
                              "(default Development)")
     parser.add_argument("--platform", default="Linux", help="the target platform (default Linux)")
-    parser.add_argument("--engine", default=os.environ.get("UE_ROOT") or DEFAULT_ENGINE,
-                        help=f"the engine's root directory (default $UE_ROOT, else "
-                             f"{DEFAULT_ENGINE})")
+    parser.add_argument("--engine", help=ENGINE_HELP)
     parser.add_argument("--project", default=str(DEFAULT_PROJECT),
                         help="the .uproject (default the dev project)")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
@@ -297,7 +294,11 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if not args.timeout > 0:
         parser.error("--timeout must be a positive number of seconds")
-    why = build(Path(args.engine), Path(args.project), args.target, args.config, args.platform,
+    engine = engine_root(args.engine)
+    if engine is None:
+        print(f"run_unreal_build: {NO_ENGINE}", file=sys.stderr)
+        return 2
+    why = build(engine, Path(args.project), args.target, args.config, args.platform,
                 args.timeout, args.log, args.ubt_args)
     if why is not None:
         print(f"run_unreal_build: FAILED: {why}", file=sys.stderr)

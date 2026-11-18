@@ -423,8 +423,10 @@ class Game:
         self._log.close()
 
 
-def wait_for(game: Game, what: str, pred, timeout: float = 60, tick=None):
-    """Snapshots until pred(snapshot) holds; `tick()` runs between them (a block, a page wait)."""
+def wait_for(game: Game, what: str, pred, timeout: float = 60, tick=None,
+             detail: str | None = None):
+    """Snapshots until pred(snapshot) holds; `tick()` runs between them (a block, a page wait).
+    `detail` goes into the timeout's message, in parentheses after `what`."""
     deadline = time.monotonic() + timeout
     snap = None
     while time.monotonic() < deadline:
@@ -435,7 +437,9 @@ def wait_for(game: Game, what: str, pred, timeout: float = 60, tick=None):
             tick()
         else:
             time.sleep(0.1)
-    raise E2EError(f"timed out waiting for {what}; the screen shows:\n{json.dumps(snap, indent=1)}")
+    about = f" ({detail})" if detail else ""
+    raise E2EError(f"timed out waiting for {what}{about}; the screen shows:\n"
+                   f"{json.dumps(snap, indent=1)}")
 
 
 def sheet(snap: dict) -> dict | None:

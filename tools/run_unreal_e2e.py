@@ -19,7 +19,7 @@ shows. Per run (godot/demo's scenarios, tools/run_godot_e2e.py):
   2. Tip with the browser wallet: open the localhost page the game opens, in Playwright Chromium
      with a mock wallet (EIP-6963 for evm/arc, Wallet Standard for solana), and pay there. The tip
      is opened by a real click on the HUD right after the unlock sheet closed.
-  3. Real-window input (task 7's kept cases): the sheet's mouse wish names the game window's real
+  3. Real-window input: the sheet's mouse wish names the game window's real
      SViewport; in a game that hides the cursor, with a sheet open, the game window is
      deactivated and activated again by a second native window of the game, and the whole
      application is deactivated by another X client taking the X focus and activated again by
@@ -55,8 +55,8 @@ item goes out), and each must answer a number above 0. With --packaged that is t
 with the engine's certificate bundle the plugin stages (Scfg.Build.cs), which the run checks is
 there. The editor's twin is Scfg.Live.Https (SCFG_LIVE=1, unreal/README.md).
 
---showcase --packaged --live --no-certificates checks that the plugin fails closed (ruling
-R5-4): the game runs with its certificate bundle replaced by an empty file
+--showcase --packaged --live --no-certificates checks that the plugin fails closed: the game runs
+with its certificate bundle replaced by an empty file
 (-ini:Engine:[SSL]:OverrideCertificateBundlePath=<empty>, honoured outside Shipping) and the
 system's off (-ini:Engine:[SSL]:bUsePlatformProvidedCertificates=False), so the SSL module has no
 root certificate and libcurl could not verify a peer; each live call must then be refused with
@@ -100,11 +100,16 @@ the game logs except the measured engine ones (ALLOWED).
 
 Network: the control socket, Anvil, the game's checkout page and UBA are on 127.0.0.1, on ports
 the kernel picks. The game process itself has the engine's trace control listener on
-0.0.0.0:1985 (ruling R2-5). solana-test-validator (Agave 4.3) runs with --bind-address 127.0.0.1
-(gossip, repair, TVU, TPU on loopback), but its RPC and pubsub (TCP <rpc>, <rpc>+1), its faucet
-(TCP) and one UDP socket on port 8000 listen on 0.0.0.0, and Agave 4.3 has no option for those:
-an accepted test-time exposure (ruling R2-16; the foreign MCP's TCP 127.0.0.1:8000 is not
-touched). Screenshots of the sheet (one per run) go to --screenshots.
+0.0.0.0:1985, which has no switch. solana-test-validator (Agave 4.3) runs with --bind-address
+127.0.0.1 (gossip, repair, TVU, TPU on loopback), but its RPC and pubsub (TCP <rpc>, <rpc>+1), its
+faucet (TCP) and one UDP socket on port 8000 listen on 0.0.0.0, and Agave 4.3 has no option for
+those: an accepted test-time exposure. Screenshots of the sheet (one per run) go to --screenshots.
+
+The engine is --engine, else $UE_ROOT. A missing prerequisite ends the run with exit code 2 and one
+line, before anything is built or started: no engine given; the engine's binary the run starts
+first (RunUAT.sh with --packaged, else Build.sh, or with --no-build the UnrealEditor binary);
+Mesa's lavapipe ICD file (/usr/share/vulkan/icd.d/lvp_icd.json, or the file $SCFG_LAVAPIPE_ICD
+names); xvfb-run; the family's chain tool.
 
     uv run python tools/run_unreal_e2e.py --family solana [--packaged] [--screenshots DIR]
     uv run python tools/run_unreal_e2e.py --showcase [--packaged | --no-build] [--live]
@@ -130,23 +135,43 @@ from dataclasses import dataclass
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
-ROOT = TOOLS.parent
-DEFAULT_ENGINE = Path(os.environ.get("UE_ROOT", "/mnt/files/UnrealEngine"))
-PROJECT = ROOT / "unreal" / "Project" / "ScfgDev" / "ScfgDev.uproject"
-# The engine's software Vulkan driver (Mesa lavapipe).
-LAVAPIPE_ICD = "/usr/share/vulkan/icd.d/lvp_icd.json"
+sys.path.insert(0, str(TOOLS))
+
+import run_godot_e2e as godot  # noqa: E402  (the chain families and the browser launch)
+from run_godot_e2e import (  # noqa: E402  (the sheet's snapshot helpers, the same in both)
+    CONFIRMED,
+    ITEM,
+    E2EError,
+    button,
+    has_button,
+    no_screen,
+    sheet,
+    shows,
+)
+from unreal_common import (  # noqa: E402
+    DEFAULT_PROJECT,
+    NO_ENGINE,
+    ddc_graph,
+    engine_root,
+    group_alive,
+    terminate_group,
+)
+
+PROJECT = DEFAULT_PROJECT
+# The engine's software Vulkan driver (Mesa lavapipe): its ICD file, the Debian/Ubuntu path unless
+# $SCFG_LAVAPIPE_ICD names another (lavapipe_icd).
+DEFAULT_LAVAPIPE_ICD = "/usr/share/vulkan/icd.d/lvp_icd.json"
+LAVAPIPE_ENV = "SCFG_LAVAPIPE_ICD"
 # The X server's screen: the 1280x720 game window and room around it for the second window.
 XVFB_SCREEN = "1600x900x24"
 WINDOW = (1280, 720)
-# Set by the outer run for the inner one: the token proves the inner run was started by it.
+# Set by the outer run for the inner one, which it tells to run the games (own_xvfb does the
+# checking: an inner run whose parent is not an xvfb-run the outer run started refuses to).
 INNER_ENV = "SCFG_UNREAL_E2E_INNER"
 OUTER_PID_ENV = "SCFG_UNREAL_E2E_OUTER_PID"
 # Variables that would reach the developer's desktop session (or a library path of the caller's).
 DESKTOP_VARS = ("DISPLAY", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR",
                 "XAUTHORITY", "LD_LIBRARY_PATH", "SESSION_MANAGER", "DESKTOP_SESSION")
-ITEM = "chapter2"
-ITEMS = {ITEM: {"code": 1, "price": "1.00", "token": "USDC", "title": "Chapter 2: The Fall"}}
-CONFIRMED = "Payment confirmed. Thank you!"
 # The showcase's HUD (unreal/Plugins/ScfgShowcase, ScfgShowcase.h): its buttons by name, and its
 # readout of the owned items.
 UNLOCK = f"Unlock.{ITEM}"
@@ -173,19 +198,15 @@ ALLOWED = (
     # The engine's check of reflected struct members at the end of the initial load builds each
     # struct twice and compares: FDataflowToolNodeSnapshot::Date is FDateTime::Now()
     # (DataflowToolNode.h:47), so the check fails whenever the clock ticks between the two (seen
-    # once in a bad-config start, task 4.1); its line and the automation echo of it.
+    # once in a bad-config start); its line and the automation echo of it.
     re.compile(r"\b(LogAutomationTest: Error: )?LogClass: (Error: )?StructProperty "
                r"FDataflowToolNodeSnapshot::Date is not initialized properly"),
     # Ours, by design: the e2e driver refuses every LaunchURL (it records the URL instead, through
-    # FCoreDelegates::ShouldLaunchUrl), and the plugin warns that the link did not open (phase 3
-    # review P3-1; the scheme only, never the link).
+    # FCoreDelegates::ShouldLaunchUrl), and the plugin warns that the link did not open (the
+    # scheme only, never the link).
     re.compile(r"\bLogScfg: Warning: scfg: cannot open the (http|ethereum|solana): link: "
                r"LaunchURL cancelled by delegate$"),
 )
-
-
-class E2EError(Exception):
-    pass
 
 
 # --- the X server guard ----------------------------------------------------------------------
@@ -247,11 +268,11 @@ def outer_command(argv: list) -> list:
             sys.executable, str(Path(__file__).resolve()), *argv]
 
 
-def outer_env(environ: dict, token: str, outer_pid: int) -> dict:
+def outer_env(environ: dict, outer_pid: int) -> dict:
     """The environment of the inner run: no desktop session variables (xvfb-run sets DISPLAY and
-    XAUTHORITY itself), plus the token and the outer pid that own_xvfb checks."""
+    XAUTHORITY itself), plus INNER_ENV and the outer pid that own_xvfb checks."""
     env = {k: v for k, v in environ.items() if k not in DESKTOP_VARS}
-    env[INNER_ENV] = token
+    env[INNER_ENV] = "1"
     env[OUTER_PID_ENV] = str(outer_pid)
     return env
 
@@ -429,33 +450,6 @@ def new_group_kwargs() -> dict:
     return {"preexec_fn": os.setpgrp}  # pragma: no cover (Python < 3.11)
 
 
-def kill_group(pgid: int, grace: float = 5.0) -> None:
-    """SIGTERM the process group, then SIGKILL what is left after `grace` seconds."""
-    try:
-        os.killpg(pgid, signal.SIGTERM)
-    except ProcessLookupError:
-        return
-    deadline = time.monotonic() + grace
-    while time.monotonic() < deadline:
-        if not group_alive(pgid):
-            return
-        time.sleep(0.1)
-    try:
-        os.killpg(pgid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
-
-
-def group_alive(pgid: int) -> bool:
-    try:
-        os.killpg(pgid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
 def run_tree(sid: int, processes: list, me: int | None = None) -> list:
     """The live processes of session `sid` and every process descended from one of them, also in
     sessions of their own (Playwright starts the browser in one): what the outer run ends. Found
@@ -523,10 +517,16 @@ def write_config(path: Path, family_config: dict, chain: dict | None, port: int,
 NO_BUS = "unix:path=/nonexistent/scfg-e2e-no-bus"
 
 
+def lavapipe_icd(environ: dict) -> str:
+    """Mesa lavapipe's ICD file: $SCFG_LAVAPIPE_ICD when set, else DEFAULT_LAVAPIPE_ICD."""
+    return environ.get(LAVAPIPE_ENV) or DEFAULT_LAVAPIPE_ICD
+
+
 def game_env(environ: dict, home: Path) -> dict:
     """The game's environment: the inner run's (DISPLAY is the Xvfb's) with lavapipe forced, SDL
     on X11, a session bus address that goes nowhere (NO_BUS), no accessibility bridge, no gvfs,
     no caller library path, and HOME/XDG in `home`."""
+    icd = lavapipe_icd(environ)
     env = {k: v for k, v in environ.items()
            if k not in ("WAYLAND_DISPLAY", "LD_LIBRARY_PATH", "XDG_RUNTIME_DIR", "SESSION_MANAGER")}
     env.update({
@@ -538,16 +538,11 @@ def game_env(environ: dict, home: Path) -> dict:
         "XDG_CONFIG_HOME": str(home / ".config"),
         "XDG_DATA_HOME": str(home / ".local" / "share"),
         "XDG_CACHE_HOME": str(home / ".cache"),
-        "VK_ICD_FILENAMES": LAVAPIPE_ICD,
-        "VK_DRIVER_FILES": LAVAPIPE_ICD,
+        "VK_ICD_FILENAMES": icd,
+        "VK_DRIVER_FILES": icd,
         "SDL_VIDEODRIVER": "x11",
     })
     return env
-
-
-def ddc_graph(engine: Path) -> str:
-    installed = (engine / "Engine" / "Build" / "InstalledBuild.txt").is_file()
-    return "InstalledNoZenLocalFallback" if installed else "NoZenLocalFallback"
 
 
 def game_command(engine: Path, config: Path, user_dir: Path, staged: Path | None = None) -> list:
@@ -710,58 +705,17 @@ class Game:
             self.conn.close()
             self.conn = None
         if self.proc.poll() is None:
-            kill_group(self.proc.pid)
+            terminate_group(self.proc.pid)
             self.proc.wait()
         elif group_alive(self.proc.pid):
-            kill_group(self.proc.pid)  # a helper the game started (a shader compiler)
+            terminate_group(self.proc.pid)  # a helper the game started (a shader compiler)
         self._log.close()
 
 
 def wait_for(game: Game, what: str, pred, timeout: float = 90, tick=None) -> dict:
-    """Snapshots until pred(snapshot) holds; `tick()` runs between them (a block, a page wait)."""
-    deadline = time.monotonic() + timeout
-    snap = None
-    while time.monotonic() < deadline:
-        snap = game.snapshot()
-        if pred(snap):
-            return snap
-        if tick is not None:
-            tick()
-        else:
-            time.sleep(0.1)
-    raise E2EError(f"timed out waiting for {what} (the last click: {game.last_click}); the "
-                   f"screen shows:\n{json.dumps(snap, indent=1)}")
-
-
-def sheet(snap: dict) -> dict | None:
-    """The newest open payment sheet's view."""
-    for view in reversed(snap["screens"]):
-        if view["kind"] == "sheet":
-            return view
-    return None
-
-
-def button(view: dict | None, name: str) -> dict | None:
-    for b in (view or {}).get("buttons", []):
-        if b["name"] == name:
-            return b
-    return None
-
-
-def has_button(name: str, text: str | None = None):
-    def pred(snap):
-        b = button(sheet(snap), name)
-        return b is not None and not b["disabled"] and (text is None or b["text"] == text)
-
-    return pred
-
-
-def shows(text: str):
-    return lambda snap: text in (sheet(snap) or {}).get("texts", [])
-
-
-def no_screen(snap: dict) -> bool:
-    return not snap["screens"]
+    """run_godot_e2e.wait_for, whose timeout also names the last click."""
+    return godot.wait_for(game, what, pred, timeout, tick,
+                          detail=f"the last click: {game.last_click}")
 
 
 def copy_value(game: Game, name: str) -> str:
@@ -1011,16 +965,28 @@ def tip_by_browser_wallet(game: Game, fam, browser, state_file: Path) -> None:
 
 
 def real_window_input(game: Game) -> dict:
-    """Task 7's kept cases, in the real window. Returns what was observed (for the report)."""
+    """The real-window input cases. Returns what was observed (for the report)."""
     seen = {}
     wish = game.call("wish")
     seen["wish"] = wish
     expect(wish.get("viewport_type") == "SViewport" and wish.get("is_game_viewport_widget")
            and wish.get("in_game_window") and wish.get("window_viewport_is_its_viewport"),
            "the sheet's mouse wish should name the game window's own SViewport", wish)
+    seen.update(activation_keeps_the_sheet(game))
+    seen.update(hidden_sheet_leaves_input_to_the_game(game))
+    seen.update(lock_always_is_given_back(game))
+    seen.update(cursor_shown_clicks(game))
+    return seen
 
+
+def activation_keeps_the_sheet(game: Game) -> dict:
+    """In a game that hides the cursor, with a sheet open: the game window deactivated and
+    activated again by a second native window, then the whole application by another X client
+    (and a real X click). The sheet keeps the focus and the mouse, takes the clicks, and gives the
+    capture back when it closes. Returns what was observed."""
+    seen = {}
     # a game that hides the cursor: the viewport holds the mouse
-    state = game.call("input_mode", mode="game")
+    game.call("input_mode", mode="game")
     state = wait_for(game, "the game-only input mode",
                      lambda s: s["input"]["captor"] == "viewport", 30)["input"]
     seen["game_mode"] = state
@@ -1056,7 +1022,7 @@ def real_window_input(game: Game) -> dict:
     game.click("forward")  # a real click on the sheet after the activation
     wait_for(game, "the method step after the activation", has_button("method_browser"))
     game.key("Escape")
-    snap = wait_for(game, "back on the amount step", has_button("forward", "Next"))
+    wait_for(game, "back on the amount step", has_button("forward", "Next"))
 
     # Another application takes the X focus (a window of this runner's own X client): the whole
     # application is deactivated. On Linux the engine activates it again on a mouse button in
@@ -1082,7 +1048,7 @@ def real_window_input(game: Game) -> dict:
         client.click((r[0] + r[2] / 2, r[1] + r[3] / 2), game.snapshot)
     finally:
         client.close()
-    snap = wait_for(game, "the X click on Next taken", has_button("method_browser"), 30)
+    wait_for(game, "the X click on Next taken", has_button("method_browser"), 30)
     snap = holds_for(game, "after the application activation the sheet keeps the focus and the "
                      "mouse", lambda s: s["input"]["app_active"] and s["input"]["focus"] == "sheet"
                      and s["input"]["captor"] != "viewport" and not s["input"]["high_precision"]
@@ -1091,7 +1057,7 @@ def real_window_input(game: Game) -> dict:
     game.key("Escape")
     wait_for(game, "back on the amount step", has_button("forward", "Next"))
     game.key("Escape")
-    snap = wait_for(game, "the sheet to close", no_screen)
+    wait_for(game, "the sheet to close", no_screen)
     snap = wait_for(game, "the capture given back",
                     lambda s: s["input"]["captor"] == "viewport", 30)
     seen["game_mode_after_close"] = snap["input"]
@@ -1103,10 +1069,15 @@ def real_window_input(game: Game) -> dict:
     print("  game-only input, sheet open: the window deactivated and activated again (a second "
           "window), then the application (another X client, back with a real X click); the "
           "sheet kept the focus and the mouse, took the clicks, and gave the capture back")
+    return seen
 
-    # an open sheet the game hides without closing it (a supported state, ruling R2-18), on the
-    # game's own widget-path code (GSlateFastWidgetPath: every game's, the automation tests run the
-    # editor's): it leaves the game's input alone, and takes it back when it is drawn again
+
+def hidden_sheet_leaves_input_to_the_game(game: Game) -> dict:
+    """An open sheet the game hides without closing it (a supported state), on the game's own
+    widget-path code (GSlateFastWidgetPath: every game's, the automation tests run the editor's):
+    it leaves a real key and a real click to the game, and takes the input back when it is drawn
+    again. Returns what was observed."""
+    seen = {}
     game.call("open", what="tip")
     snap = wait_for(game, "the tip sheet before the hide", has_button("forward", "Next"))
     nxt = button(sheet(snap), "forward")["rect"]
@@ -1143,9 +1114,14 @@ def real_window_input(game: Game) -> dict:
     wait_for(game, "the capture given back", lambda s: s["input"]["captor"] == "viewport", 30)
     print("  hidden open sheet: a real key and a real click (where its Next button is) were the "
           "game's, which kept its focus and capture; drawn again, the sheet took them back")
+    return seen
 
-    # a cursor shown and locked to the window (LockAlways)
-    state = game.call("input_mode", mode="lock_always")
+
+def lock_always_is_given_back(game: Game) -> dict:
+    """A cursor shown and locked to the window (LockAlways): an open sheet releases the lock, and
+    its close gives it back without forcing a capture. Returns what was observed."""
+    seen = {}
+    game.call("input_mode", mode="lock_always")
     state = wait_for(game, "the lock-always input mode",
                      lambda s: s["input"]["captor"] == "none", 30)["input"]
     seen["lock_always"] = state
@@ -1160,14 +1136,20 @@ def real_window_input(game: Game) -> dict:
     expect(holds == "viewport", f"the sheet should hold the viewport's lock, not {holds}")
     game.key("Escape")
     wait_for(game, "the sheet to close", no_screen)
-    snap = wait_for(game, "the lock back", lambda s: s["input"]["cursor_locked"] is True, 30)
+    wait_for(game, "the lock back", lambda s: s["input"]["cursor_locked"] is True, 30)
     snap = holds_for(game, "closed under LockAlways: the lock back and no capture forced",
                      lambda s: s["input"]["captor"] == "none" and s["input"]["cursor_locked"])
     seen["lock_always_after_close"] = snap["input"]
     print("  LockAlways: the lock released while the sheet was open, back after the close, and "
           "no capture forced")
+    return seen
 
-    # the showcase's own cursor-showing mode: a click on the empty screen is the world's ...
+
+def cursor_shown_clicks(game: Game) -> dict:
+    """The showcase's own cursor-showing mode: a click on the empty screen is the world's, a HUD
+    click after a close reaches the HUD, and a click on the dimmed game while a screen is open
+    reaches neither. Returns what was observed."""
+    seen = {}
     game.call("input_mode", mode="ui")
     clicks = game.snapshot()["world_clicks"]
     empty = (WINDOW[0] * 0.8, WINDOW[1] * 0.85)  # no HUD there, and outside the docked sheet
@@ -1188,7 +1170,7 @@ def real_window_input(game: Game) -> dict:
               "closes the screen", lambda s: s["world_clicks"] == clicks
               and any(v["kind"] == "restore" for v in s["screens"]))
     game.key("Escape")
-    snap = wait_for(game, "the restore screen to close", no_screen)
+    wait_for(game, "the restore screen to close", no_screen)
     wait_for(game, "the restore status",
              lambda s: "Restore: cancelled" in s["game"]["texts"])
     print("  cursor shown: a click on the empty screen reached the world; a HUD click after a "
@@ -1260,7 +1242,7 @@ PLUGIN_LOGO = "ScfgShowcase/Resources/logo.png"
 # The third start: the dev project's settings without their wallet (their items stay), as a project
 # that has not set one; the command line overrides the Game ini's key (no comma may be in it).
 NO_WALLET_ARGS = ("-ini:Game:[/Script/Scfg.ScfgSettings]:Options=(bTestnet=True)",)
-# What the HUD and the log say then (UScfgShowcaseGameInstance::NO_WALLET).
+# What the HUD and the log say then (UScfgShowcaseGameInstance::NoWalletMessage).
 NO_WALLET = "No wallet is set, so SCFG is not configured and nothing can be paid."
 # The two warnings that start must log, and may: the plugin's (settings with items but no wallet
 # were not applied, and nothing configured SCFG in the first frame) and the showcase's refusal.
@@ -1305,7 +1287,7 @@ def closed_on_first_step(game: Game, press: str, what: str, first_step) -> dict:
     snap = wait_for(game, f"the {what} on its first step", first_step)
     expect(snap["paused"], f"the showcase should pause the game while the {what} is open", snap)
     game.key("Escape")
-    snap = wait_for(game, f"the {what} to close", no_screen)
+    wait_for(game, f"the {what} to close", no_screen)
     return wait_for(game, "the game to run again", lambda s: not s["paused"], 10)
 
 
@@ -1341,11 +1323,11 @@ def showcase_tour(game: Game, saved: Path, shots: Path) -> dict:
 
     # Notifications off and on again
     game.click("Notify", "game")
-    snap = wait_for(game, "notifications off", lambda s: logged("SetNotify(false)")(s)
-                    and (hud_button(s, "Notify") or {}).get("text") == "Notify: off")
+    wait_for(game, "notifications off", lambda s: logged("SetNotify(false)")(s)
+             and (hud_button(s, "Notify") or {}).get("text") == "Notify: off")
     game.click("Notify", "game")
-    snap = wait_for(game, "notifications on", lambda s: logged("SetNotify(true)")(s)
-                    and (hud_button(s, "Notify") or {}).get("text") == "Notify: on")
+    wait_for(game, "notifications on", lambda s: logged("SetNotify(true)")(s)
+             and (hud_button(s, "Notify") or {}).get("text") == "Notify: on")
     print("  Notify: off, then on")
 
     # Restore purchases: the restore screen, closed with Escape
@@ -1360,9 +1342,9 @@ def showcase_tour(game: Game, saved: Path, shots: Path) -> dict:
 
     # A tip: the sheet on its amount step, closed with Escape
     closed_on_first_step(game, TIP, "tip sheet", has_button("forward", "Next"))
-    snap = wait_for(game, "the tip result", lambda s: "Tip: cancelled" in hud(s)
-                    and logged("PayAsync(Tip, Amount 1.00, Token USDC)")(s)
-                    and logged("tip result: cancelled")(s))
+    wait_for(game, "the tip result", lambda s: "Tip: cancelled" in hud(s)
+             and logged("PayAsync(Tip, Amount 1.00, Token USDC)")(s)
+             and logged("tip result: cancelled")(s))
     print("  Tip 1.00 USDC: cancelled on the amount step")
 
     # An unlock: the sheet on its network step (the testnets), closed with Escape
@@ -1458,11 +1440,15 @@ LIVE_REPLY_TIMEOUT = 60.0
 TLS_UNAVAILABLE = "TLS certificate verification unavailable"
 # The engine's root certificate bundle as the plugin stages it with a Linux game (Scfg.Build.cs).
 STAGED_BUNDLE = Path("Linux", "Engine", "Content", "Certificates", "ThirdParty", "cacert.pem")
-# --no-certificates: the bundle replaced by an empty file (SslCertificateManager.cpp:318-326, not in
-# Shipping) and the system's bundle off (UnixPlatformSslCertificateManager.cpp:18-22).
+
+
 def no_certificates_args(empty_bundle: Path) -> list:
+    """--no-certificates: the bundle replaced by an empty file (SslCertificateManager.cpp:318-326,
+    not in Shipping) and the system's bundle off (UnixPlatformSslCertificateManager.cpp:18-22)."""
     return [f"-ini:Engine:[SSL]:OverrideCertificateBundlePath={empty_bundle}",
             "-ini:Engine:[SSL]:bUsePlatformProvidedCertificates=False"]
+
+
 # --no-certificates: the transport's reason, logged once per transport (ScfgHttpTransport.cpp).
 REFUSAL_LINE = "LogScfg: Error: scfg: refusing https:// RPC requests: " + TLS_UNAVAILABLE
 # --no-certificates: the lines that run is meant to log.
@@ -1517,15 +1503,9 @@ def live_https(game: Game, refused: bool = False) -> list:
 
 def run_showcase(args, started: float) -> int:
     """--showcase: the tour, in the inner run (own_xvfb already checked)."""
-    work = Path(tempfile.mkdtemp(prefix="scfg-unreal-showcase-"))
-    shots = Path(args.screenshots).resolve() if args.screenshots else work
-    shots.mkdir(parents=True, exist_ok=True)
-    engine = Path(args.engine)
-    games = []
-    control = Control()
-    times = {}
-    failed = False
-    try:
+    run = InnerRun(args, started, "scfg-unreal-showcase-", "Unreal showcase tour")
+    work, engine, control, times = run.work, run.engine, run.control, run.times
+    with run:
         mode = "packaged" if args.packaged else "editor build"
         print(f"Unreal showcase tour ({mode}), DISPLAY {os.environ['DISPLAY']} (Xvfb of this "
               f"run), work {work}")
@@ -1561,9 +1541,8 @@ def run_showcase(args, started: float) -> int:
                   ("nowallet", [*NO_WALLET_ARGS, *no_certs]))
         for label, extra in starts:
             t = time.monotonic()
-            game = Game(game_command(engine, config, user_dir, staged) + extra, env,
-                        work / f"showcase_{label}.log", control, f"showcase ({label})")
-            games.append(game)
+            game = run.start(game_command(engine, config, user_dir, staged) + extra, env,
+                             work / f"showcase_{label}.log", f"showcase ({label})")
             start = game.connect()
             game.focus()
             saved = Path(game.call("saved_dir"))
@@ -1571,7 +1550,7 @@ def run_showcase(args, started: float) -> int:
                 raise E2EError(f"the game's saved data is not isolated: {saved}")
             if label == "settings":
                 print(f"1. configured from the project settings (started in {start:.1f} s)")
-                tour = showcase_tour(game, saved, shots)
+                tour = showcase_tour(game, saved, run.shots)
             elif label == "code":
                 print(f"2. configured in code, {CODE_SWITCH} (started in {start:.1f} s)")
                 showcase_from_code(game, tour)
@@ -1581,10 +1560,7 @@ def run_showcase(args, started: float) -> int:
             else:
                 print(f"3. no wallet in the project settings (started in {start:.1f} s)")
                 showcase_without_a_wallet(game)
-            code = game.quit()
-            output = game.output()
-            tail = game.tail()  # before close(), which closes the log
-            game.close()
+            code, output, tail = quit_and_collect(game)
             if args.no_certificates and code in TEARDOWN_CRASH_CODES:
                 output, exited = before_exit(output)
                 if exited:
@@ -1610,25 +1586,7 @@ def run_showcase(args, started: float) -> int:
             raise E2EError("the game logged errors or warnings (not in ALLOWED), or crashed:\n"
                            + "\n".join(bad))
         (work / "tour.json").write_text(json.dumps(tour, indent=1))
-    except Exception as e:
-        print(e if isinstance(e, E2EError) else traceback.format_exc())
-        print(f"Unreal showcase tour FAILED after {time.monotonic() - started:.1f} s "
-              f"(logs in {work})")
-        failed = True
-        return 1
-    finally:
-        for game in games:
-            game.close()
-        control.close()
-        if failed and not args.keep:
-            remove_work(work / "archive")  # the logs stay, the 1 GB archive goes
-    shown = ", ".join(f"{k} {v:.1f} s" for k, v in times.items())
-    kept = work if args.keep else None
-    if kept is None:
-        remove_work(work)
-    print(f"Unreal showcase tour PASSED in {time.monotonic() - started:.1f} s ({shown}); "
-          + (f"logs in {kept}" if kept else "work directory removed (--keep keeps it)"))
-    return 0
+    return run.result()
 
 
 # --- building --------------------------------------------------------------------------------
@@ -1643,12 +1601,12 @@ def run_grouped(cmd: list, log: Path, timeout: float, env: dict | None = None) -
         try:
             return proc.wait(timeout)
         except subprocess.TimeoutExpired:
-            kill_group(proc.pid)
+            terminate_group(proc.pid)
             proc.wait()
             raise E2EError(f"{cmd[0]} ran longer than {timeout:g} s (log: {log})") from None
         finally:
             if group_alive(proc.pid):
-                kill_group(proc.pid)
+                terminate_group(proc.pid)
 
 
 def build_editor(engine: Path, work: Path) -> None:
@@ -1790,6 +1748,95 @@ def remove_work(path: Path) -> None:
     shutil.rmtree(path, ignore_errors=True)
 
 
+def quit_and_collect(game: Game) -> tuple[int, str, str]:
+    """Quits the game the normal way and closes it: (its exit code, its log, the log's tail)."""
+    code = game.quit()
+    output = game.output()
+    tail = game.tail()  # before close(), which closes the log
+    game.close()
+    return code, output, tail
+
+
+class InnerRun:
+    """What the payments run and the showcase tour share: a new work directory, where the
+    screenshots go, the control socket, the games started and the times. Used as
+    `with run: ...` and then `return run.result()`. An exception in the block fails the run: it
+    is printed (with its traceback unless it is an E2EError) with the FAILED line and not raised
+    further. At the end of the block, passed or not, every game is closed, then the control socket,
+    then each of `cleanups` runs; a failed run then removes the packaged archive (the logs stay)
+    unless --keep. result() is 1 for a failed run; for a passed one it prints the PASSED line and
+    removes the work directory unless --keep, and is 0."""
+
+    def __init__(self, args, started: float, prefix: str, title: str):
+        self.args, self.started, self.title = args, started, title
+        self.work = Path(tempfile.mkdtemp(prefix=prefix))
+        self.shots = Path(args.screenshots).resolve() if args.screenshots else self.work
+        self.shots.mkdir(parents=True, exist_ok=True)
+        self.engine = Path(args.engine)
+        self.games: list = []
+        self.control = Control()
+        self.times: dict = {}
+        self.cleanups: list = []
+        self.failed = False
+
+    def start(self, cmd: list, env: dict, log: Path, label: str) -> Game:
+        """Starts a game on the run's control socket; it is closed with the run."""
+        game = Game(cmd, env, log, self.control, label)
+        self.games.append(game)
+        return game
+
+    def __enter__(self) -> InnerRun:
+        return self
+
+    def __exit__(self, kind, error, tb) -> bool:
+        if isinstance(error, Exception):
+            print(error if isinstance(error, E2EError)
+                  else "".join(traceback.format_exception(kind, error, tb)))
+            print(f"{self.title} FAILED after {time.monotonic() - self.started:.1f} s "
+                  f"(logs in {self.work})")
+            self.failed = True
+        for game in self.games:
+            game.close()
+        self.control.close()
+        for cleanup in self.cleanups:
+            cleanup()
+        if self.failed and not self.args.keep:
+            # once the games are closed: the logs stay, the 1 GB archive goes
+            remove_work(self.work / "archive")
+        return self.failed  # a failure is reported here; a KeyboardInterrupt or SystemExit goes on
+
+    def result(self) -> int:
+        if self.failed:
+            return 1
+        shown = ", ".join(f"{k} {v:.1f} s" for k, v in self.times.items())
+        kept = self.work if self.args.keep else None
+        if kept is None:
+            remove_work(self.work)
+        print(f"{self.title} PASSED in {time.monotonic() - self.started:.1f} s ({shown}); "
+              + (f"logs in {kept}" if kept else "work directory removed (--keep keeps it)"))
+        return 0
+
+
+def missing_prerequisite(engine: Path, packaged: bool, build: bool, environ: dict) -> str | None:
+    """Why the run cannot start, in one line, or None: Mesa's lavapipe ICD file (lavapipe_icd),
+    and the engine's program the run starts first (RunUAT.sh with --packaged, else Build.sh for
+    the editor build, or without a build the UnrealEditor binary)."""
+    icd = lavapipe_icd(environ)
+    if not Path(icd).is_file():
+        return (f"Mesa's lavapipe Vulkan driver is missing: no {icd} (install mesa-vulkan-drivers, "
+                f"or set {LAVAPIPE_ENV} to its ICD file)")
+    batch = engine / "Engine" / "Build" / "BatchFiles"
+    if packaged:
+        needed = batch / "RunUAT.sh"
+    elif build:
+        needed = batch / "Linux" / "Build.sh"
+    else:
+        needed = engine / "Engine" / "Binaries" / "Linux" / "UnrealEditor"
+    if not needed.is_file():
+        return f"no {needed}: is {engine} an Unreal Engine 5.8 (--engine, $UE_ROOT)?"
+    return None
+
+
 def run_inner(args) -> int:
     started = time.monotonic()
     why = own_xvfb(os.environ.get("DISPLAY"), os.getpid(),
@@ -1797,11 +1844,12 @@ def run_inner(args) -> int:
     if why is not None:
         print(f"Unreal e2e: refusing to start a game: {why}")
         return 2
+    why = missing_prerequisite(Path(args.engine), args.packaged, not args.no_build, os.environ)
+    if why is not None:
+        print(f"Unreal e2e: {why}")
+        return 2
     if args.showcase:
         return run_showcase(args, started)
-    sys.path.insert(0, str(TOOLS))
-    import run_godot_e2e as godot  # noqa: E402  (the chain families and the browser launch)
-
     fam_cls = godot.FAMILIES[args.family]
     exe = shutil.which(fam_cls.tool)
     if not exe:
@@ -1809,17 +1857,10 @@ def run_inner(args) -> int:
         return 2
     from playwright.sync_api import sync_playwright
 
-    work = Path(tempfile.mkdtemp(prefix="scfg-unreal-e2e-"))
-    shots = Path(args.screenshots).resolve() if args.screenshots else work
-    shots.mkdir(parents=True, exist_ok=True)
-    engine = Path(args.engine)
-    fam = None
-    games = []
-    control = Control()
-    times = {}
     mode = "packaged" if args.packaged else "default"
-    failed = False
-    try:
+    run = InnerRun(args, started, "scfg-unreal-e2e-", f"Unreal e2e ({args.family}, {mode})")
+    work, engine, control, times = run.work, run.engine, run.control, run.times
+    with run:
         print(f"Unreal e2e: {args.family}, {mode} mode, DISPLAY {os.environ['DISPLAY']} "
               f"(Xvfb of this run), work {work}")
         t = time.monotonic()
@@ -1833,15 +1874,14 @@ def run_inner(args) -> int:
         env = game_env(os.environ, work / "home")
 
         def make_game(config: Path, label: str) -> Game:
-            game = Game(game_command(engine, config, user_dir, staged), env,
-                        work / f"{label.replace(' ', '_')}.log", control, label)
-            games.append(game)
-            return game
+            return run.start(game_command(engine, config, user_dir, staged), env,
+                             work / f"{label.replace(' ', '_')}.log", label)
 
         t = time.monotonic()
         bad_configs_quit_at_once(make_game, work, control)
         times["bad_configs"] = time.monotonic() - t
         fam = fam_cls(exe, work)
+        run.cleanups.append(fam.cleanup)
         config = work / "e2e_config.json"
         write_config(config, fam.config(), fam.chain(), control.port, control.token)
         outputs = []
@@ -1857,7 +1897,7 @@ def run_inner(args) -> int:
                 raise E2EError(f"the game's saved data is not isolated: {state_file}")
             print(f"1. unlock by manual transfer (game started in {times['start1']:.1f} s)")
             t = time.monotonic()
-            unlock_by_manual_transfer(game, fam, state_file, shots, args.family)
+            unlock_by_manual_transfer(game, fam, state_file, run.shots, args.family)
             times["unlock"] = time.monotonic() - t
             print("2. tip through the browser wallet")
             t = time.monotonic()
@@ -1868,10 +1908,8 @@ def run_inner(args) -> int:
             seen = real_window_input(game)
             times["real_window"] = time.monotonic() - t
             (work / "real_window.json").write_text(json.dumps(seen, indent=1))
-            code = game.quit()
-            outputs.append(game.output())
-            tail = game.tail()  # before close(), which closes the log
-            game.close()
+            code, output, tail = quit_and_collect(game)
+            outputs.append(output)
             if code != 0:
                 raise E2EError(f"the game exited with {code}:\n{tail}")
             print("4. restart")
@@ -1880,10 +1918,8 @@ def run_inner(args) -> int:
             times["start2"] = game.connect()
             game.focus()
             still_owned_after_restart(game)
-            code = game.quit()
-            outputs.append(game.output())
-            tail = game.tail()  # before close(), which closes the log
-            game.close()
+            code, output, tail = quit_and_collect(game)
+            outputs.append(output)
             if code != 0:
                 raise E2EError(f"the restarted game exited with {code}:\n{tail}")
             times["restart"] = time.monotonic() - t
@@ -1892,29 +1928,7 @@ def run_inner(args) -> int:
         if bad:
             raise E2EError("the game logged errors or warnings (not in ALLOWED), or crashed:\n"
                            + "\n".join(bad))
-    except Exception as e:
-        print(e if isinstance(e, E2EError) else traceback.format_exc())
-        print(f"Unreal e2e ({args.family}, {mode}) FAILED after "
-              f"{time.monotonic() - started:.1f} s (logs in {work})")
-        failed = True
-        return 1
-    finally:
-        for game in games:
-            game.close()
-        control.close()
-        if fam is not None:
-            fam.cleanup()
-        if failed and not args.keep:
-            # once the games are closed: the logs stay, the 1 GB archive goes
-            remove_work(work / "archive")
-    shown = ", ".join(f"{k} {v:.1f} s" for k, v in times.items())
-    kept = work if args.keep else None
-    if kept is None:
-        remove_work(work)
-    print(f"Unreal e2e ({args.family}, {mode}) PASSED in {time.monotonic() - started:.1f} s "
-          f"({shown}); "
-          + (f"logs in {kept}" if kept else "work directory removed (--keep keeps it)"))
-    return 0
+    return run.result()
 
 
 def run_outer(argv: list) -> int:
@@ -1923,8 +1937,7 @@ def run_outer(argv: list) -> int:
     if not shutil.which("xvfb-run"):
         print("Unreal e2e: xvfb-run not found (install xvfb); the game never runs on your display")
         return 2
-    token = secrets.token_hex(8)
-    proc = subprocess.Popen(outer_command(argv), env=outer_env(os.environ, token, os.getpid()),
+    proc = subprocess.Popen(outer_command(argv), env=outer_env(os.environ, os.getpid()),
                             start_new_session=True)
     sid = proc.pid
 
@@ -1953,7 +1966,8 @@ def main(argv=None) -> int:
                     help="chain family (default: evm)")
     ap.add_argument("--packaged", action="store_true",
                     help="BuildCookRun a Development game and run the staged game")
-    ap.add_argument("--engine", default=str(DEFAULT_ENGINE), help="the UE 5.8 install")
+    ap.add_argument("--engine", help="the UE 5.8 install's root directory (default $UE_ROOT; one "
+                    "of the two is needed)")
     ap.add_argument("--no-build", action="store_true",
                     help="default mode: use the editor build as it is")
     ap.add_argument("--screenshots", help="where the sheet's screenshot goes (default: the "
@@ -1980,6 +1994,11 @@ def main(argv=None) -> int:
         ap.error("--live goes with --showcase")
     if args.no_certificates and not (args.live and args.packaged):
         ap.error("--no-certificates goes with --showcase --packaged --live")
+    engine = engine_root(args.engine)
+    if engine is None:
+        print(f"Unreal e2e: {NO_ENGINE}")
+        return 2
+    args.engine = engine
     if os.environ.get(INNER_ENV):
         return run_inner(args)
     return run_outer(argv)

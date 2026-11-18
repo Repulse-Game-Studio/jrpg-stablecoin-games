@@ -13,6 +13,7 @@ of ours. Then runs
         -notraceserver -NoZenAutoLaunch -ddc=<graph without ZenLocal>
         -ReportExportPath=<report dir> -abslog=<report dir>/editor.log
 
+The engine is --engine, else $UE_ROOT; with neither the run exits with 2 at once. The editor runs
 in a session of its own under --timeout (default 1800 s; on expiry, or on a SIGTERM, SIGINT or
 SIGHUP to this script, every process of the session is killed), passing its output through.
 
@@ -47,17 +48,22 @@ SCFG_LIVE=1, which the editor inherits: `SCFG_LIVE=1 ... --filter Scfg.Live`.
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import sys
 import tempfile
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-_spec = importlib.util.spec_from_file_location("run_unreal_build", HERE / "run_unreal_build.py")
-run_unreal_build = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(run_unreal_build)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import run_unreal_build  # noqa: E402
+from unreal_common import (  # noqa: E402
+    DEFAULT_PROJECT,
+    ENGINE_HELP,
+    NO_ENGINE,
+    ddc_graph,
+    engine_root,
+)
 
 DEFAULT_FILTER = "Scfg.Core"
 DEFAULT_TIMEOUT = 1800.0
@@ -65,13 +71,6 @@ DEFAULT_TIMEOUT = 1800.0
 # DDC service it starts, may hold it): the run is over when the editor is.
 LINGER = 30.0
 SHOWN = 20   # failing tests listed one by one
-
-
-def ddc_graph(engine: Path) -> str:
-    """BaseEngine.ini's DDC graph without ZenLocal: the Installed variant on an installed engine
-    (Engine/Build/InstalledBuild.txt), whose default graph is Installed too."""
-    installed = (engine / "Engine" / "Build" / "InstalledBuild.txt").is_file()
-    return "InstalledNoZenLocalFallback" if installed else "NoZenLocalFallback"
 
 
 def editor_command(engine: Path, project: Path, test_filter: str, report_dir: Path) -> list[str]:
@@ -172,18 +171,15 @@ def verdict(returncode: int, report: dict | str, expect: int | None) -> tuple[st
     return summary, None
 
 
-def main(argv=None) -> int:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--filter", default=DEFAULT_FILTER,
                         help=f"the automation test filter (default {DEFAULT_FILTER})")
     parser.add_argument("--expect", type=int,
                         help="fail unless at least this many tests passed")
-    parser.add_argument("--engine",
-                        default=os.environ.get("UE_ROOT") or run_unreal_build.DEFAULT_ENGINE,
-                        help=f"the engine's root directory (default $UE_ROOT, else "
-                             f"{run_unreal_build.DEFAULT_ENGINE})")
-    parser.add_argument("--project", default=str(run_unreal_build.DEFAULT_PROJECT),
+    parser.add_argument("--engine", help=ENGINE_HELP)
+    parser.add_argument("--project", default=str(DEFAULT_PROJECT),
                         help="the .uproject (default the dev project)")
     parser.add_argument("--target", default="ScfgDevEditor",
                         help="the editor target to build first (default ScfgDevEditor)")
@@ -201,26 +197,27 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if not (args.timeout > 0 and args.build_timeout > 0):
         parser.error("--timeout and --build-timeout must be positive numbers of seconds")
-    engine, project = Path(args.engine), Path(args.project)
+    return args
 
-    if not args.no_build:
-        why = run_unreal_build.build(engine, project, args.target, "Development",
-                                     timeout=args.build_timeout)
-        if why is not None:
-            print(f"run_unreal_tests: FAILED: the build failed: {why}", file=sys.stderr)
-            return 1
 
-    if args.report_dir:
-        report_dir = Path(args.report_dir).resolve()
+def report_folder(given: str | None) -> Path:
+    """The report directory, without an old index.json or editor.log (a stale report never
+    passes): `given`, made if need be, else a new temporary directory."""
+    if given:
+        report_dir = Path(given).resolve()
         report_dir.mkdir(parents=True, exist_ok=True)
     else:
         report_dir = Path(tempfile.mkdtemp(prefix="scfg-unreal-tests-"))
-    index = report_dir / "index.json"
-    index.unlink(missing_ok=True)
-    editor_log = report_dir / "editor.log"
-    editor_log.unlink(missing_ok=True)
+    (report_dir / "index.json").unlink(missing_ok=True)
+    (report_dir / "editor.log").unlink(missing_ok=True)
+    return report_dir
 
-    cmd = editor_command(engine, project, args.filter, report_dir)
+
+def run_editor(engine: Path, project: Path, test_filter: str, report_dir: Path, timeout: float,
+               log: str | None) -> tuple[int | None, str] | str:
+    """Runs the editor's tests: (its exit code, its output), the code None when it overran
+    `timeout` and was killed; or why it could not be started."""
+    cmd = editor_command(engine, project, test_filter, report_dir)
     chosen = os.environ.get("SCFG_VECTORS")
     print("run_unreal_tests: vectors: " + (f"$SCFG_VECTORS={chosen}" if chosen else
                                            "$SCFG_VECTORS unset: found above the plugin's folder"),
@@ -231,18 +228,18 @@ def main(argv=None) -> int:
         "SCFG_LIVE unset: Scfg.Live.* is not registered (no network)"), flush=True)
     print("run_unreal_tests: " + " ".join(cmd), flush=True)
     try:
-        returncode, output = run_unreal_build.run_streamed(cmd, args.timeout, args.log,
-                                                           linger=LINGER)
+        return run_unreal_build.run_streamed(cmd, timeout, log, linger=LINGER)
     except OSError as e:
-        print(f"run_unreal_tests: FAILED: cannot start {cmd[0]}: {e}", file=sys.stderr)
-        return 1
-    if returncode is None:
-        print(f"run_unreal_tests: FAILED: the editor did not finish within {args.timeout:g} s "
-              f"and was killed", file=sys.stderr)
-        return 1
+        return f"cannot start {cmd[0]}: {e}"
 
-    report = read_report(index)
-    summary, why = verdict(returncode, report, args.expect)
+
+def judge(returncode: int, output: str, report_dir: Path, project: Path,
+          expect: int | None) -> str | None:
+    """Reads the editor's report and log, prints the summary (and the failing tests): None when
+    the run is green, else why not."""
+    report = read_report(report_dir / "index.json")
+    summary, why = verdict(returncode, report, expect)
+    editor_log = report_dir / "editor.log"
     try:
         full_log = editor_log.read_text(encoding="utf-8", errors="replace")
     except OSError:
@@ -254,16 +251,42 @@ def main(argv=None) -> int:
         why = (f"{len(opened)} store(s) opened the project's own payment state file (a test "
                f"facade must not): {opened[0].strip()}")
     if isinstance(report, dict) and (read := vectors_read(report)):
-        source = "$SCFG_VECTORS" if chosen else "found above the plugin"
+        source = "$SCFG_VECTORS" if os.environ.get("SCFG_VECTORS") else "found above the plugin"
         print(f"run_unreal_tests: the tests read the vectors in {read} ({source})", flush=True)
     print(f"run_unreal_tests: {summary} (report: {report_dir})", flush=True)
+    if why is not None and isinstance(report, dict):
+        failures = failing(report)
+        for line in failures[:SHOWN]:
+            print(f"  {line}", file=sys.stderr)
+        if len(failures) > SHOWN:
+            print(f"  ... and {len(failures) - SHOWN} more", file=sys.stderr)
+    return why
+
+
+def main(argv=None) -> int:
+    args = parse_args(argv)
+    engine, project = engine_root(args.engine), Path(args.project)
+    if engine is None:
+        print(f"run_unreal_tests: {NO_ENGINE}", file=sys.stderr)
+        return 2
+    if not args.no_build:
+        why = run_unreal_build.build(engine, project, args.target, "Development",
+                                     timeout=args.build_timeout)
+        if why is not None:
+            print(f"run_unreal_tests: FAILED: the build failed: {why}", file=sys.stderr)
+            return 1
+    report_dir = report_folder(args.report_dir)
+    ran = run_editor(engine, project, args.filter, report_dir, args.timeout, args.log)
+    if isinstance(ran, str):
+        print(f"run_unreal_tests: FAILED: {ran}", file=sys.stderr)
+        return 1
+    returncode, output = ran
+    if returncode is None:
+        print(f"run_unreal_tests: FAILED: the editor did not finish within {args.timeout:g} s "
+              f"and was killed", file=sys.stderr)
+        return 1
+    why = judge(returncode, output, report_dir, project, args.expect)
     if why is not None:
-        if isinstance(report, dict):
-            failures = failing(report)
-            for line in failures[:SHOWN]:
-                print(f"  {line}", file=sys.stderr)
-            if len(failures) > SHOWN:
-                print(f"  ... and {len(failures) - SHOWN} more", file=sys.stderr)
         print(f"run_unreal_tests: FAILED: {why}", file=sys.stderr)
         return 1
     return 0
