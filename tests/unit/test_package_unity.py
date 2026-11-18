@@ -55,3 +55,19 @@ def test_the_csharp_version_constant_must_be_the_cores(tmp_path):
     assert len(found) == 1 and "9.9.9" in found[0], found
     source.unlink()
     assert "None" in version_problems(package.unity_problems(copy))[0]
+
+
+def notices_problems(found):
+    return [p for p in found if package.UNITY_NOTICES_NAME in p]
+
+
+def test_the_notices_file_is_current_and_shipped(tmp_path):
+    copy = copy_package(tmp_path)
+    assert notices_problems(package.unity_problems(copy)) == []
+    text = (copy / package.UNITY_NOTICES_NAME).read_text(encoding="utf-8")
+    assert "Copyright (c) Project Nayuki. (MIT License)" in text and "CC0" in text
+    names = [name for _, name in package.unity_files_to_ship(copy)]
+    assert "package/" + package.UNITY_NOTICES_NAME in names
+    assert "package/" + package.UNITY_NOTICES_NAME + ".meta" in names
+    (copy / package.UNITY_NOTICES_NAME).write_text(text.replace("Nayuki", "Someone"), encoding="utf-8")
+    assert len(notices_problems(package.unity_problems(copy))) == 1

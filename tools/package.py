@@ -45,6 +45,7 @@ tarball), the package folder unity/Packages/com.repulse.scfg/ under package/:
                                        must Runtime/Core/PackageVersion.cs's PackageVersion.Text)
     package/Runtime/, Editor/, Samples~/, Documentation~/ ... (the package, every .meta included)
     package/Documentation~/scfg-unity-guide.md (Unity guide, joined from docs/developers/unity/)
+    package/Third Party Notices.md     (notices of the third-party code the package ports)
 
 Tests/ stays out (it needs the dev project's test setup). The package's own LICENSE.md must be
 the repository's LICENSE, its .meta files complete and its checkout page copy current.
@@ -396,6 +397,37 @@ def unity_package_manifest(package=UNITY_PACKAGE):
     return json.loads((package / "package.json").read_text(encoding="utf-8"))
 
 
+UNITY_NOTICES_NAME = "Third Party Notices.md"
+
+
+def unity_notices(package=UNITY_PACKAGE):
+    """The notices of the code the package ports, for its Third Party Notices.md (the name Unity's
+    own packages use).
+
+    The Nayuki notice is read from Runtime/Core/QrCodeGen.cs, where the port keeps it, so the two
+    cannot drift. The file is committed in the package (a git-URL install gets the folder as it
+    is), and unity_problems checks it is current.
+    """
+    lines = (package / "Runtime" / "Core" / "QrCodeGen.cs").read_text(encoding="utf-8").splitlines()
+    start = lines.index("// QR Code generator library (Python)")
+    end = next(i for i, line in enumerate(lines) if line.startswith("// Ported to C#"))
+    qr = "\n".join(line[3:] if line.startswith("// ") else "" for line in lines[start:end])
+    return (
+        "# Third-party notices\n\n"
+        "## QR Code generator (Runtime/Core/QrCodeGen.cs)\n\n"
+        "A C# port of Project Nayuki's QR Code generator library (Python). The original notice\n"
+        "follows.\n\n"
+        "```\n"
+        f"{qr.strip()}\n"
+        "```\n\n"
+        "## Keccak-256 (Runtime/Core/Keccak.cs)\n\n"
+        "A C# port of XKCP's CompactFIPS202 sponge (Gilles Van Assche, https://keccak.team/).\n"
+        "To the extent possible under law, the implementer has waived all copyright and related\n"
+        "or neighboring rights to the source code (CC0,\n"
+        "http://creativecommons.org/publicdomain/zero/1.0/).\n"
+    )
+
+
 UNITY_VERSION_CONSTANT = re.compile(r'public const string Text = "([^"]*)";')
 
 
@@ -434,6 +466,12 @@ def unity_problems(package=UNITY_PACKAGE):
         ROOT / "LICENSE"
     ).read_text(encoding="utf-8"):
         out.append(f"{license_copy.name} is not a copy of LICENSE")
+    notices = package / UNITY_NOTICES_NAME
+    if not notices.is_file() or notices.read_text(encoding="utf-8") != unity_notices(package):
+        out.append(
+            f"{UNITY_NOTICES_NAME} is missing or stale: uv run python tools/package.py "
+            "--engine unity --write-notices"
+        )
     out += check_unity_meta.problems(package.parent)
     out += check_unity_samples.problems(package / "Samples~", package / "package.json")
     web = package / sync_web_page.UNITY_TARGET.relative_to(UNITY_PACKAGE)
@@ -506,7 +544,19 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--engine", choices=("renpy", "godot", "rpgmaker", "unity", "unreal"), default="renpy"
     )
+    parser.add_argument(
+        "--write-notices",
+        action="store_true",
+        help=f"with --engine unity: (re)write the package's {UNITY_NOTICES_NAME}, then exit",
+    )
     args = parser.parse_args(argv)
+    if args.write_notices:
+        if args.engine != "unity":
+            parser.error("--write-notices goes with --engine unity")
+        target = UNITY_PACKAGE / UNITY_NOTICES_NAME
+        target.write_bytes(unity_notices().encode("utf-8"))
+        print(f"wrote {target}")
+        return 0
     if args.engine == "unreal":
         import package_unreal
 
