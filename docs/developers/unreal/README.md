@@ -1,7 +1,7 @@
 # For Unreal developers
 
 Stablecoin for Games for **Unreal Engine 5.6 or newer**: accept **USDC** and **USDT** tips and unlock purchases in
-your game, paid **directly to your own wallet**. There is no server, no account and no middleman: the plugin watches
+your game, paid **directly to your own wallet**. There is no server, no account and no middleman in the payment: the plugin watches
 the blockchain itself. It is a code plugin, `Scfg`, in C++ (its payment core is engine-independent C++20) with no
 `.uasset` content, usable from C++ and from Blueprint. It is a **preview**: tested only on UE 5.8.4, in Linux
 desktop builds, against local test chains. UE 5.6 is the minimum: each release has one zip per engine version (5.6,

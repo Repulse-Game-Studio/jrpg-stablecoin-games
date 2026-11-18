@@ -122,6 +122,9 @@ jobs:
 
           Install guides: https://jrpg.com/stablecoinforgames/docs/
           NOTES
+          # this version's CHANGELOG.md section (its "## <version>" heading up to the next one) goes on top
+          awk -v h="## $VERSION" '$0 == h { f = 1; next } /^## / { f = 0 } f' CHANGELOG.md > /tmp/changes.md
+          if [ -s /tmp/changes.md ]; then cat /tmp/changes.md /tmp/notes.md > /tmp/all-notes.md && mv /tmp/all-notes.md /tmp/notes.md; fi
           gh release create "$GITHUB_REF_NAME" \
             "dist/scfg-renpy-$VERSION.zip" \
             "dist/scfg-godot-$VERSION.zip" \

@@ -7,8 +7,11 @@
 [PyPI](https://pypi.org/project/stablecoin-games-renpy/)
 
 Accept **USDC/USDT tips and unlock purchases** in your game, paid straight to the developer's wallet, on
-Ethereum, Arbitrum, Polygon, Base, **Arc** and **Solana**. No server, no accounts, no middleman: the game
-watches the blockchain itself.
+Ethereum, Arbitrum, Polygon, Base, **Arc** and **Solana**. No server, no accounts, no middleman in the payment:
+the game watches the blockchain itself. Players with no stablecoin yet get an optional "Buy some with a card" link
+to a third-party provider (thirdweb by default, on by default on mainnet; `onramp={"enabled": False}` turns it off,
+see [the buy link](docs/developers/configure/README.md#the-buy-link)); what they buy there lands in their own
+wallet, and the payment itself still goes straight to yours.
 
 | Engine | You add | Status | Docs |
 |---|---|---|---|
@@ -206,7 +209,8 @@ The desktop e2e defaults to SDL's offscreen video driver. Where that isn't avail
    and the Unreal `unreal/Plugins/Scfg/Scfg.uplugin` (`VersionName`) with `scfg::VERSION` in
    `unreal/Plugins/Scfg/Source/ScfgCore/Private/Version.cpp`. `tools/package.py` refuses an archive whose
    version file differs, and `test.yml` builds every archive on each push. Set `npm/package.json` too (the npm
-   job writes the tag's version into it before publishing, so it is not checked). Merge it to `main`.
+   job writes the tag's version into it before publishing, so it is not checked). Add the version's section to
+   `CHANGELOG.md` (`## 0.3.0`): `release.yml` puts it at the top of the release notes. Merge it to `main`.
 2. Check that the editor workflows ran green on that commit: `unity.yml` (the Unity suites and e2e, needs the
    Unity license secrets) and `unreal.yml` (the Unreal editor build, automation tests and e2e, on the self-hosted
    runner). Neither runs on a tag, and `release.yml` runs only the cores' tests, so this is the only editor gate
