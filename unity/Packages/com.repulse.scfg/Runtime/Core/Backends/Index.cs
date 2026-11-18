@@ -5,13 +5,15 @@
 // transaction-id format or payment matching goes through BackendFor(chain). One stateless backend per family,
 // registered EVM first, then Solana: NormalizeAnyTx tries the families in that order, as Python does.
 #nullable enable
+using System;
 using System.Collections.Generic;
 
 namespace Scfg.Core
 {
     public static class Backends
     {
-        private static readonly IBackend[] All = { new EvmBackend(), new SolanaBackend() };
+        // Read-only: Registered hands it out, and the backends hold no state.
+        private static readonly IReadOnlyList<IBackend> All = Array.AsReadOnly(new IBackend[] { new EvmBackend(), new SolanaBackend() });
 
         /// <summary>The backend of a family; a ValueError for an unknown one.</summary>
         public static IBackend BackendForFamily(string family)

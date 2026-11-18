@@ -11,9 +11,15 @@
 // transfer() logs there and at the 0x3600 interface (6 decimals). Such a token names the emitter as its LogAddress,
 // and Chain.ParseTransfer reads only that stream, floored to 6-decimal units.
 //
-// Mainnet and Testnet are mutable dictionaries: the integration driver points entries at local nodes.
+// Mainnet, Testnet and every Chain are read-only through the public API: with Unity's domain reload off, statics
+// survive between play sessions, so nothing a game does may change them. The integration driver and the tests point
+// an entry at a local node through the internal Chains.Override and restore the built-in tables with
+// Chains.ResetRegistries (InternalsVisibleTo in AssemblyInfo.cs).
 #nullable enable
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
 using System.Numerics;
 using Scfg.Core.Solana;
 
@@ -55,8 +61,9 @@ namespace Scfg.Core
     }
 
     /// <summary>
-    /// Python's frozen <c>Chain</c> dataclass. Immutable; <see cref="With"/> stands in for
-    /// <c>dataclasses.replace</c>. The integers are 64-bit here (Python's are unbounded).
+    /// Python's frozen <c>Chain</c> dataclass. Immutable: the constructor copies <c>rpc</c> and <c>tokens</c> into
+    /// read-only collections. <see cref="With"/> stands in for <c>dataclasses.replace</c>. The integers are 64-bit
+    /// here (Python's are unbounded).
     /// </summary>
     public sealed class Chain
     {
@@ -70,7 +77,7 @@ namespace Scfg.Core
         public string NativeSymbol { get; }
         public string FeeHint { get; }
         /// <summary>Symbol to token, in declaration order.</summary>
-        public Dictionary<string, Token> Tokens { get; }
+        public IReadOnlyDictionary<string, Token> Tokens { get; }
         public bool Testnet { get; }
         /// <summary>"evm" or "solana".</summary>
         public string Family { get; }
@@ -82,19 +89,22 @@ namespace Scfg.Core
 
         public Chain(string key, long chainId, string name, IReadOnlyList<string> rpc, long confirmations,
                      long maxLogRange, string explorerTx, string nativeSymbol, string feeHint,
-                     Dictionary<string, Token>? tokens = null, bool testnet = false, string family = "evm",
+                     IReadOnlyDictionary<string, Token>? tokens = null, bool testnet = false, string family = "evm",
                      string walletChain = "", string nativeToken = "", long minFeeWei = 0)
         {
             Key = key;
             ChainId = chainId;
             Name = name;
-            Rpc = rpc;
+            Rpc = Array.AsReadOnly((rpc ?? throw new TypeError("rpc must be a list of URLs")).ToArray());
             Confirmations = confirmations;
             MaxLogRange = maxLogRange;
             ExplorerTx = explorerTx;
             NativeSymbol = nativeSymbol;
             FeeHint = feeHint;
-            Tokens = tokens ?? new Dictionary<string, Token>();
+            var copy = new Dictionary<string, Token>();
+            if (tokens != null)
+                foreach (var kv in tokens) copy.Add(kv.Key, kv.Value);
+            Tokens = new ReadOnlyDictionary<string, Token>(copy);
             Testnet = testnet;
             Family = family;
             WalletChain = walletChain;
@@ -104,7 +114,7 @@ namespace Scfg.Core
 
         /// <summary><c>dataclasses.replace</c> for the fields a caller changes: a null argument keeps the field.</summary>
         public Chain With(IReadOnlyList<string>? rpc = null, long? confirmations = null,
-                          Dictionary<string, Token>? tokens = null) =>
+                          IReadOnlyDictionary<string, Token>? tokens = null) =>
             new Chain(Key, ChainId, Name, rpc ?? Rpc, confirmations ?? Confirmations, MaxLogRange, ExplorerTx,
                       NativeSymbol, FeeHint, tokens ?? Tokens, Testnet, Family, WalletChain, NativeToken, MinFeeWei);
 
@@ -149,21 +159,21 @@ namespace Scfg.Core
         public static Token MakeToken(string address, int decimals = 6, string logAddress = "", int logDecimals = 0) =>
             new Token(address, decimals, logAddress, logDecimals);
 
-        private static Dictionary<string, Token> Toks(params (string Symbol, string Address)[] tokens)
+        private static IReadOnlyDictionary<string, Token> Toks(params (string Symbol, string Address)[] tokens)
         {
             var d = new Dictionary<string, Token>();
             foreach (var (symbol, address) in tokens) d[symbol] = new Token(address);
             return d;
         }
 
-        private static Dictionary<string, Token> ArcTokens() =>
+        private static IReadOnlyDictionary<string, Token> ArcTokens() =>
             new Dictionary<string, Token>
             {
                 ["USDC"] = new Token(ArcUsdc, logAddress: ArcSystemEmitter, logDecimals: 18),
             };
 
         /// <summary>The built-in mainnet chains. The first RPC endpoint of a chain should be the most generous.</summary>
-        public static readonly Dictionary<string, Chain> Mainnet = new Dictionary<string, Chain>
+        private static Dictionary<string, Chain> BuiltinMainnet() => new Dictionary<string, Chain>
         {
             ["ethereum"] = new Chain(
                 "ethereum", 1, "Ethereum",
@@ -219,7 +229,8 @@ namespace Scfg.Core
                 family: "solana", walletChain: "solana:mainnet"),
         };
 
-        public static readonly Dictionary<string, Chain> Testnet = new Dictionary<string, Chain>
+        /// <summary>The built-in testnet chains, under the mainnet keys.</summary>
+        private static Dictionary<string, Chain> BuiltinTestnet() => new Dictionary<string, Chain>
         {
             ["ethereum"] = new Chain(
                 "ethereum", 11155111, "Sepolia",
@@ -255,8 +266,46 @@ namespace Scfg.Core
                 testnet: true, family: "solana", walletChain: "solana:devnet"),
         };
 
-        public static readonly string[] DisplayOrder = { "arbitrum", "base", "arc", "polygon", "ethereum" };
+        // The live tables behind the read-only views; only Override and ResetRegistries write them.
+        private static readonly Dictionary<string, Chain> MainnetTable = BuiltinMainnet(); // static-ok: private, written only by the internal Override/ResetRegistries
+        private static readonly Dictionary<string, Chain> TestnetTable = BuiltinTestnet(); // static-ok: private, written only by the internal Override/ResetRegistries
 
-        public static Dictionary<string, Chain> GetChains(bool testnet) => testnet ? Testnet : Mainnet;
+        /// <summary>The built-in mainnet chains (read-only).</summary>
+        public static readonly IReadOnlyDictionary<string, Chain> Mainnet = new ReadOnlyDictionary<string, Chain>(MainnetTable);
+        /// <summary>The built-in testnet chains (read-only).</summary>
+        public static readonly IReadOnlyDictionary<string, Chain> Testnet = new ReadOnlyDictionary<string, Chain>(TestnetTable);
+
+        public static readonly IReadOnlyList<string> DisplayOrder =
+            Array.AsReadOnly(new[] { "arbitrum", "base", "arc", "polygon", "ethereum" });
+
+        public static IReadOnlyDictionary<string, Chain> GetChains(bool testnet) => testnet ? Testnet : Mainnet;
+
+        /// <summary>
+        /// Test and driver hook: replace the built-in entry <c>chain.Key</c> of one network (keeping the registry's
+        /// order), so the integration driver can point it at a local node. Only an existing key (else a KeyError) on
+        /// the chain's own network (else a ValueError). Undo with <see cref="ResetRegistries"/>.
+        /// </summary>
+        internal static void Override(bool testnet, Chain chain)
+        {
+            if (chain == null) throw new TypeError("chain must be a Chain");
+            var table = testnet ? TestnetTable : MainnetTable;
+            if (!table.ContainsKey(chain.Key)) throw new KeyError(chain.Key);
+            if (chain.Testnet != testnet)
+                throw new ValueError("chain " + Py.Repr(chain.Key) + " is not a " + (testnet ? "testnet" : "mainnet") + " chain");
+            table[chain.Key] = chain;
+        }
+
+        /// <summary>Test and driver hook: rebuild both registries from code, undoing every <see cref="Override"/>.</summary>
+        internal static void ResetRegistries()
+        {
+            Refill(MainnetTable, BuiltinMainnet());
+            Refill(TestnetTable, BuiltinTestnet());
+        }
+
+        private static void Refill(Dictionary<string, Chain> table, Dictionary<string, Chain> builtin)
+        {
+            table.Clear();
+            foreach (var kv in builtin) table.Add(kv.Key, kv.Value);
+        }
     }
 }

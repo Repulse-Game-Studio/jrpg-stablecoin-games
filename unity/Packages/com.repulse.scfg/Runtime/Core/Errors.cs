@@ -4,6 +4,8 @@
 // (DecimalException, InvalidOperation, Overflow). The classes follow Python's tree: ConfigError is a
 // ValueError, OverflowError and the decimal signals are ArithmeticErrors and not ValueErrors.
 // RpcError and TransportError are added with rpc.py's and coio.py's twins. Also errors.py's print_error.
+// RuntimeError (Python's built-in) and concurrent.futures' CancelledError and InvalidStateError are added with
+// worker.py's twin (Worker.cs): a Job is Python's Future.
 #nullable enable
 using System;
 
@@ -88,6 +90,28 @@ namespace Scfg.Core
     public class Overflow : DecimalException
     {
         public Overflow(string message) : base(message) { }
+    }
+
+    /// <summary>Python <c>RuntimeError</c>: <see cref="Job.Result"/> of a job that is not done.</summary>
+    public class RuntimeError : Exception
+    {
+        public RuntimeError() { }
+        public RuntimeError(string message) : base(message) { }
+    }
+
+    /// <summary>
+    /// Python <c>concurrent.futures.CancelledError</c>: the outcome of a <see cref="Job"/> cancelled before it ran
+    /// (<see cref="Job.Result"/> throws it, <see cref="Job.Exception"/> returns it).
+    /// </summary>
+    public sealed class CancelledError : Exception
+    {
+        public CancelledError() : base("job cancelled") { }
+    }
+
+    /// <summary>Python <c>concurrent.futures.InvalidStateError</c>: completing a <see cref="Job"/> that is already done.</summary>
+    public sealed class InvalidStateError : Exception
+    {
+        public InvalidStateError(string message) : base(message) { }
     }
 
     /// <summary>

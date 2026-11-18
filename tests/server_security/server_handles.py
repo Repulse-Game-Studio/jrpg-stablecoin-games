@@ -1,6 +1,6 @@
-"""The three localhost checkout servers behind one test interface, for test_server_security.py.
+"""The four localhost checkout servers behind one test interface, for test_server_security.py.
 
-A server is described by a plain, JSON-able config (so the GDScript and the Node one can get it
+A server is described by a plain, JSON-able config (so the GDScript, Node and C# ones can get it
 over a driver channel) and wrapped in a handle with the same members for every implementation:
 
     port, secret, url        what the page URL is built from
@@ -24,6 +24,9 @@ godot/tests/integration/server_driver.gd in one headless Godot per test session;
 GodotServer is a fresh ScfgCheckoutServer in it (the driver stops the previous one first).
 NodeDriver runs rpgmaker/test/integration/server_driver.ts in one Node per test session, with the
 same protocol; each NodeServer is a fresh CheckoutServer of rpgmaker/src/mz/local_server.ts.
+CsDriver runs unity/server-driver (built once per session with `dotnet build -c Release`) in one
+.NET process per test session, with the same protocol again; each CsServer is a fresh
+Scfg.Desktop.CheckoutServer (unity/Packages/com.repulse.scfg/Runtime/Desktop/LocalServer.cs).
 """
 from __future__ import annotations
 
@@ -51,6 +54,9 @@ DRIVER = "res://tests/integration/server_driver.gd"
 RPGMAKER = ROOT / "rpgmaker"
 NODE_DRIVER = RPGMAKER / "test" / "integration" / "server_driver.ts"
 MIN_NODE = (22, 18)  # runs .ts directly (type stripping), as tests/integration/js_driver.py
+CS_PROJECT = ROOT / "unity" / "server-driver"
+CS_DLL = CS_PROJECT / "bin" / "Release" / "net8.0" / "Scfg.Server.Driver.dll"
+CS_BUILD_TIMEOUT = 600
 REPLY_PREFIX = b"SCFG-REPLY "
 REPLY_TIMEOUT = 60
 
@@ -97,6 +103,59 @@ def node_binary():
     if not (RPGMAKER / "node_modules").is_dir():
         give_up("rpgmaker/node_modules missing (cd rpgmaker && npm ci)")
     return node
+
+
+def find_dotnet():
+    """Path of the `dotnet` host: PATH, then $DOTNET_ROOT/dotnet, then ~/.dotnet/dotnet; else None.
+    (The same rule as tests/integration/cs_driver.py.)"""
+    found = shutil.which("dotnet")
+    if found:
+        return found
+    for base in (os.environ.get("DOTNET_ROOT"), os.path.expanduser("~/.dotnet")):
+        if base:
+            candidate = Path(base) / "dotnet"
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return str(candidate)
+    return None
+
+
+def _dotnet_env(dotnet):
+    return dict(os.environ, DOTNET_CLI_TELEMETRY_OPTOUT="1", DOTNET_NOLOGO="1",
+                DOTNET_ROOT=os.environ.get("DOTNET_ROOT") or str(Path(dotnet).resolve().parent))
+
+
+_cs_built = None  # (dotnet, None) or (None, why not): the build's outcome, kept for the session
+
+
+def _build_cs_driver():
+    dotnet = find_dotnet()
+    if dotnet is None:
+        return None, "dotnet not installed (the C# server needs the .NET 8 SDK)"
+    try:
+        out = subprocess.run([dotnet, "build", str(CS_PROJECT), "-c", "Release"], cwd=ROOT,
+                             env=_dotnet_env(dotnet), capture_output=True, text=True,
+                             timeout=CS_BUILD_TIMEOUT)
+    except (OSError, subprocess.SubprocessError) as e:
+        return None, f"dotnet build could not run: {e}"
+    if out.returncode != 0 or not CS_DLL.is_file():
+        return None, ("dotnet build unity/server-driver failed:\n"
+                      f"{out.stdout[-3000:]}{out.stderr[-1000:]}")
+    return dotnet, None
+
+
+def cs_binary():
+    """The `dotnet` host, once unity/server-driver is built (at most once per session). Skip when
+    dotnet is missing; with SCFG_REQUIRE_CS=1 (CI) fail instead, and a build that ran and failed
+    always fails. (The same rule as tests/integration/cs_driver.py.)"""
+    global _cs_built
+    if _cs_built is None:
+        _cs_built = _build_cs_driver()
+    dotnet, why = _cs_built
+    if dotnet is None:
+        broken = why.startswith("dotnet build")
+        give_up = pytest.fail if (broken or os.environ.get("SCFG_REQUIRE_CS") == "1") else pytest.skip
+        give_up(why)
+    return dotnet
 
 
 class PythonServer:
@@ -166,12 +225,12 @@ class LineDriver:
 
     hint = ""  # added to the "no reply" failure
 
-    def __init__(self, argv, cwd):
+    def __init__(self, argv, cwd, env=None):
         self._stderr = tempfile.TemporaryFile()
         self._noise = []
         self._out = b""
-        self._proc = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                      stderr=self._stderr)
+        self._proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.PIPE,
+                                      stdout=subprocess.PIPE, stderr=self._stderr)
 
     def call(self, op, **args):
         line = json.dumps({"op": op, **args}).encode()  # ASCII: Godot 4.3 reads stdin as Latin-1
@@ -248,12 +307,19 @@ class NodeDriver(LineDriver):
         super().__init__([node, str(NODE_DRIVER)], RPGMAKER)
 
 
+class CsDriver(LineDriver):
+    """One .NET process running unity/server-driver (built by cs_binary)."""
+
+    def __init__(self, dotnet):
+        super().__init__([dotnet, str(CS_DLL)], ROOT, env=_dotnet_env(dotnet))
+
+
 def _b64(data):
     return base64.b64encode(data).decode("ascii")
 
 
 class DriverServer:
-    """A server in a driver process (the GDScript or the Node one)."""
+    """A server in a driver process (the GDScript, the Node or the C# one)."""
 
     def __init__(self, config, driver):
         self._driver = driver
@@ -294,3 +360,7 @@ class GodotServer(DriverServer):
 
 class NodeServer(DriverServer):
     """rpgmaker/src/mz/local_server.ts in the Node driver."""
+
+
+class CsServer(DriverServer):
+    """unity/Packages/com.repulse.scfg/Runtime/Desktop/LocalServer.cs in the C# driver."""

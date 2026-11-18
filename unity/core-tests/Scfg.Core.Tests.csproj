@@ -14,5 +14,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../core/Scfg.Core.csproj" />
+    <ProjectReference Include="../desktop/Scfg.Desktop.csproj" />
   </ItemGroup>
 </Project>

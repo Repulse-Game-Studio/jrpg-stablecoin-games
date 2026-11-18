@@ -27,9 +27,14 @@ namespace Scfg.Core.Driver
         private static Engine? _engine;
         private static HttpClientTransport _transport = new HttpClientTransport();
 
+        /// <summary>
+        /// Points one built-in registry entry at a local node through the core's internal hook (the registries are
+        /// read-only to games). Each init starts from the built-in registries, so an earlier override never leaks.
+        /// </summary>
         private static void ApplyOverride(JsonObject o)
         {
-            var registry = Opt(o, "network") as string == "testnet" ? Chains.Testnet : Chains.Mainnet;
+            bool testnet = Opt(o, "network") as string == "testnet";
+            var registry = Chains.GetChains(testnet);
             var key = Opt(o, "key") as string;
             if (key == null || !registry.TryGetValue(key, out var baseChain)) throw new DriverError("unknown chain " + Json.Dumps(Opt(o, "key")));
             var rpc = (Opt(o, "rpc") as List<object?> ?? throw new DriverError("override.rpc must be a list")).Select(u => (string)u!).ToList();
@@ -40,7 +45,7 @@ namespace Scfg.Core.Driver
                 tokens = new Dictionary<string, Token>();
                 foreach (var kv in t) tokens[kv.Key] = Chains.MakeToken((string)kv.Value!);
             }
-            registry[key] = baseChain.With(rpc, confirmations, tokens);
+            Chains.Override(testnet, baseChain.With(rpc, confirmations, tokens));
         }
 
         /// <summary>A missing key reads as null (JavaScript's <c>cmd.key</c>), not as Py.Get's KeyError.</summary>
@@ -53,6 +58,7 @@ namespace Scfg.Core.Driver
             var op = Opt(cmd, "op") as string ?? throw new DriverError("a command needs a string op");
             if (op == "init")
             {
+                Chains.ResetRegistries();
                 if (Opt(cmd, "override") is JsonObject o) ApplyOverride(o);
                 var setup = new JsonObject
                 {

@@ -14,6 +14,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
@@ -114,8 +115,8 @@ namespace Scfg.Core
 
     public static class Config
     {
-        public static readonly string[] Tokens = { "USDC", "USDT" };
-        public static readonly string[] FeeHints = { "lowest", "low", "high" };
+        public static readonly IReadOnlyList<string> Tokens = Array.AsReadOnly(new[] { "USDC", "USDT" });
+        public static readonly IReadOnlyList<string> FeeHints = Array.AsReadOnly(new[] { "lowest", "low", "high" });
 
         public const string DefaultAccent = "#0e7c74";
         public const string Ink = "#17202e";
@@ -132,10 +133,11 @@ namespace Scfg.Core
         };
 
         // Raster formats only: an SVG served from the checkout page's origin could run script.
-        public static readonly IReadOnlyDictionary<string, string> LogoTypes = new Dictionary<string, string>
-        {
-            { ".png", "image/png" }, { ".jpg", "image/jpeg" }, { ".jpeg", "image/jpeg" }, { ".webp", "image/webp" },
-        };
+        public static readonly IReadOnlyDictionary<string, string> LogoTypes = new ReadOnlyDictionary<string, string>(
+            new Dictionary<string, string>
+            {
+                { ".png", "image/png" }, { ".jpg", "image/jpeg" }, { ".jpeg", "image/jpeg" }, { ".webp", "image/webp" },
+            });
 
         // ---- Python-shaped helpers ------------------------------------------------------------------------
 
@@ -154,12 +156,6 @@ namespace Scfg.Core
                 case ulong ul: n = ul; return true;
                 default: n = BigInteger.Zero; return false;
             }
-        }
-
-        private static long ToLong(BigInteger v, string what)
-        {
-            if (v < long.MinValue || v > long.MaxValue) throw new ValueError(what + " does not fit 64 bits");
-            return (long)v;
         }
 
         /// <summary>Python's iteration of a value, as <c>tuple(x)</c> and <c>for x in</c> see it.</summary>
@@ -335,10 +331,10 @@ namespace Scfg.Core
 
         // ---- build_chain ------------------------------------------------------------------------------------
 
-        private static readonly string[] ChainKeys =
+        private static readonly string[] ChainKeys = // static-ok: private keyword table, only read
             { "key", "name", "chain_id", "rpc", "tokens", "confirmations", "explorer_tx", "native_symbol",
               "fee_hint", "max_log_range", "testnet" };
-        private static readonly string[] ChainRequired =
+        private static readonly string[] ChainRequired = // static-ok: private keyword table, only read
             { "key", "name", "chain_id", "rpc", "tokens", "confirmations", "explorer_tx" };
 
         // Python: str.count("{}") (non-overlapping).
@@ -407,8 +403,8 @@ namespace Scfg.Core
             if (!(feeHint is string hint) || !FeeHints.Contains(hint))
                 throw new ConfigError(what + ": fee_hint must be one of " + string.Join(", ", FeeHints), "chain.bad_fee_hint");
             var maxLogRange = PositiveInt(maxLogRangeValue, what + ": max_log_range", MinLogRange);
-            return new Chain(keyText, ToLong(chainId, "chain_id"), Py.Strip(nameText), rpc,
-                             ToLong(confirmations, "confirmations"), ToLong(maxLogRange, "max_log_range"), explorer,
+            return new Chain(keyText, Ints.ToLong(chainId, "chain_id"), Py.Strip(nameText), rpc,
+                             Ints.ToLong(confirmations, "confirmations"), Ints.ToLong(maxLogRange, "max_log_range"), explorer,
                              (string)nativeSymbol!, hint, parsed, Py.Truthy(testnet));
         }
 
@@ -562,7 +558,7 @@ namespace Scfg.Core
 
         // ---- build_config -----------------------------------------------------------------------------------
 
-        private static readonly string[] ConfigKeys =
+        private static readonly string[] ConfigKeys = // static-ok: private keyword table, only read
             { "wallet", "testnet", "chains", "tokens", "methods", "rpc_urls", "confirmations", "previous_wallets",
               "logo", "accent", "custom_chains", "solana_wallet" };
 
@@ -679,7 +675,7 @@ namespace Scfg.Core
             string? logo = LogoArg(Opt(kwargs, "logo"));
             string accent = AccentArg(Opt(kwargs, "accent"));
             var confirmations = new Dictionary<string, long>();
-            foreach (var kv in confs) confirmations[kv.Key] = ToLong(kv.Value, "confirmations");
+            foreach (var kv in confs) confirmations[kv.Key] = Ints.ToLong(kv.Value, "confirmations");
 
             var cfg = new ConfigData(wallet, testnet, chains, tokens, merged, urls, confirmations, prev, sol, prevSol,
                                      logo, accent, custom);
@@ -738,8 +734,8 @@ namespace Scfg.Core
 
         // ---- add_item ---------------------------------------------------------------------------------------
 
-        private static readonly string[] ItemKeys = { "code", "price", "token", "title", "min_price" };
-        private static readonly string[] ItemRequired = { "code", "price", "token", "title" };
+        private static readonly string[] ItemKeys = { "code", "price", "token", "title", "min_price" }; // static-ok: private keyword table, only read
+        private static readonly string[] ItemRequired = { "code", "price", "token", "title" }; // static-ok: private keyword table, only read
 
         /// <summary>
         /// Declares an item on <paramref name="config"/>. <paramref name="kwargs"/> holds add_item's keyword arguments:

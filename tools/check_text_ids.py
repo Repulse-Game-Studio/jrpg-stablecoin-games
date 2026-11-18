@@ -15,6 +15,12 @@ DEFAULT_TEXTS), never parsed out of TypeScript. Checked:
   - Godot, BY VALUE ONLY for the sheet strings, which have no ids there (a `tr()` key is its own
     English): every other string of the Godot template (godot/addons/scfg/translations/scfg.pot)
     is the English of some RM text, under any id, so the engines show the same words.
+  - Unity, BY ID: the table in unity/Packages/com.repulse.scfg/Runtime/Unity/UI/ScfgUiTexts.cs
+    (its own entries; the checkout and restore messages it adds come from the C# core, whose
+    tests compare them with messages.json and restore_flow.py) holds exactly the RM ids that are
+    not checkout or restore messages, each with the RM English word for word, and every id the
+    Unity code passes to `ScfgUiTexts.Get("...")` / `ScfgUiTexts.Format("...")` (string
+    literals in the call, comparisons such as `== "solana"` aside) exists.
 `%d` and `%s` count as the same.
 """
 
@@ -38,6 +44,13 @@ POT = ROOT / "godot" / "addons" / "scfg" / "translations" / "scfg.pot"
 RESTORE_FLOW = ROOT / "godot" / "addons" / "scfg" / "core" / "restore_flow.gd"
 # the RM id of the Godot restore screen's message <code> (texts.ts's ID SCHEME)
 RESTORE_PREFIX = "restore_"
+UNITY_SRC = ROOT / "unity" / "Packages" / "com.repulse.scfg" / "Runtime" / "Unity"
+UNITY_TEXTS = UNITY_SRC / "UI" / "ScfgUiTexts.cs"
+UNITY_ENTRY = re.compile(r'^\s*\{ "([a-z][a-z0-9_]*)", "((?:[^"\\]|\\.)*)" \},\s*$', re.M)
+UNITY_CALL = re.compile(r"ScfgUiTexts\.(?:Get|Format)\(")
+UNITY_LITERAL = re.compile(r'"([^"\\\n]*)"')
+UNITY_COMPARISON = re.compile(r'[!=]=\s*"[^"\\\n]*"')
+TEXT_ID = re.compile(r"^[a-z][a-z0-9_]*$")
 
 CALL = re.compile(r'(?<![\w$])(?:text|_notify)\(\s*"([^"\\\n]+)"')
 BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
@@ -82,11 +95,83 @@ def pot_msgids(pot: Path = POT) -> list[str]:
     return [i for i in ids if i]
 
 
+def unity_texts(path: Path = UNITY_TEXTS) -> dict[str, str]:
+    """The Unity table's own entries (id -> English), in C# string syntax decoded as JSON."""
+    out: dict[str, str] = {}
+    for m in UNITY_ENTRY.finditer(path.read_text(encoding="utf-8")):
+        out[m.group(1)] = json.loads(f'"{m.group(2)}"')
+    return out
+
+
+def _call_args(code: str, start: int) -> str:
+    """The text of a call's arguments, from just after its "(" to the matching ")"."""
+    depth, i, in_str = 1, start, False
+    while i < len(code) and depth:
+        c = code[i]
+        if in_str:
+            if c == "\\":
+                i += 1
+            elif c == '"':
+                in_str = False
+        elif c == '"':
+            in_str = True
+        elif c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+        i += 1
+    return code[start:i - 1]
+
+
+def unity_used_ids(src: Path = UNITY_SRC) -> dict[str, str]:
+    """Id -> a file that asks for it, from the .cs files under `src`."""
+    found: dict[str, str] = {}
+    for path in sorted(src.rglob("*.cs")):
+        code = path.read_text(encoding="utf-8")
+        code = re.sub(r"^\s*//.*$", "", code, flags=re.M)
+        for m in UNITY_CALL.finditer(code):
+            args = UNITY_COMPARISON.sub("", _call_args(code, m.end()))
+            for lit in UNITY_LITERAL.finditer(args):
+                if TEXT_ID.match(lit.group(1)):
+                    found.setdefault(lit.group(1), path.name)
+    return found
+
+
+def unity_problems(texts: dict[str, str], vectors: dict[str, str],
+                   table: Path = UNITY_TEXTS, src: Path = UNITY_SRC) -> list[str]:
+    if not table.exists():
+        return [f"missing {table}"]
+    own = unity_texts(table)
+    restore_ids = {RESTORE_PREFIX + code for code, _ in
+                   restore_messages(RESTORE_FLOW.read_text(encoding="utf-8"), RESTORE_FLOW.name)}
+    found: list[str] = []
+    for tid, english in sorted(own.items()):
+        if tid in vectors or tid in restore_ids:
+            found.append(f"Unity text {tid!r} is a message id: it comes from the C# core, "
+                         "not the table")
+        elif tid not in texts:
+            found.append(f"Unity text {tid!r} has no RM text")
+        elif texts[tid] != english:
+            found.append(f"Unity text {tid!r} is {english!r}, RM says {texts[tid]!r}")
+    for tid in sorted(texts):
+        if tid not in vectors and tid not in restore_ids and tid not in own:
+            found.append(f"RM text {tid!r} has no Unity text")
+    known = set(own) | set(vectors) | restore_ids
+    for tid, where in sorted(unity_used_ids(src).items()):
+        if tid not in known:
+            found.append(f"{where} asks for Unity text id {tid!r}, "
+                         "which the table does not define")
+    return found
+
+
 def _norm(s: str) -> str:
     return s.replace("%d", "%s")
 
 
 def problems(texts: dict[str, str] | None = None, src: Path = RM_SRC) -> list[str]:
+    """Every problem. Given `texts` (a test's stand-in for the RM table), the Unity table is not
+    compared: it is checked against the real RM table only (unity_problems)."""
+    real = texts is None
     texts = default_texts() if texts is None else texts
     found: list[str] = []
     vectors = json.loads(MESSAGES_JSON.read_text(encoding="utf-8"))["messages"]
@@ -109,6 +194,8 @@ def problems(texts: dict[str, str] | None = None, src: Path = RM_SRC) -> list[st
             elif _norm(texts[rid]) != _norm(english):
                 found.append(f"RM text {rid!r} is {texts[rid]!r}, "
                              f"Godot's restore message {code!r} says {english!r}")
+    if real:
+        found.extend(unity_problems(texts, vectors))
     have = {_norm(v) for v in texts.values()}
     if POT.exists():
         for msgid in pot_msgids():
@@ -127,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
         print(line, file=sys.stderr)
     if found:
         return 1
-    print("RM text ids are consistent")
+    print("RM and Unity text ids are consistent")
     return 0
 
 

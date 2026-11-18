@@ -1,11 +1,12 @@
-// No Python twin: the lints that every Runtime/Core file must pass.
+// No Python twin: the lints that every Runtime/Core and Runtime/Desktop file must pass, and the Sockets lint of
+// Runtime/Desktop.
 //
 // THE RULES LIVE HERE. Each lint is a table of (regex, why) below. A failure prints
 // "relative/path.cs:line: <pattern> (<why>)". Comments are ignored, and so is the text of string literals
 // (so "record not found" in a message is fine), but code inside the holes of an interpolated string
 // ($"{a.Trim()}") IS scanned. Rules marked raw are matched against the line with literals kept (used for
 // \d / \s inside a Regex). To opt a single line out of a ToString()/Format rule, end it with
-// `// culture-ok: <reason>`.
+// `// culture-ok: <reason>`, and out of a static-state rule with `// static-ok: <reason>`.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -24,12 +25,24 @@ namespace Scfg.Core.Tests
             public readonly string Why;
             public readonly bool Raw;
             public readonly Regex Re;
-            public Rule(string pattern, string why, bool raw = false)
+            /// <summary>When set, the rule fires only if its <c>type</c> group also matches this.</summary>
+            public readonly Regex? Type;
+            /// <summary>A static-state rule, waived by <c>// static-ok: reason</c>.</summary>
+            public readonly bool Static;
+            public Rule(string pattern, string why, bool raw = false, string? type = null, bool isStatic = false)
             {
                 Pattern = pattern;
                 Why = why;
                 Raw = raw;
                 Re = new Regex(pattern, RegexOptions.CultureInvariant);
+                Type = type == null ? null : new Regex(type, RegexOptions.CultureInvariant);
+                Static = isStatic;
+            }
+
+            public bool IsMatch(string line)
+            {
+                var m = Re.Match(line);
+                return m.Success && (Type == null || Type.IsMatch(m.Groups["type"].Value));
             }
         }
 
@@ -94,25 +107,107 @@ namespace Scfg.Core.Tests
             })
             .ToArray();
 
+        // Domain reload off (Unity's Enter Play Mode Options) keeps statics alive between play sessions, so no static
+        // may be writable: a static field must be readonly or const, a static readonly field must not have a mutable
+        // collection type (IReadOnlyList / IReadOnlyDictionary backed by a ReadOnlyCollection / ReadOnlyDictionary
+        // instead), and a static property has no setter. A field declaration is a line of modifiers, `static`, a
+        // type and a name followed by `=` or `;` (so a method, `=>` property, class, local function or `using
+        // static` never matches). A tuple-typed field (a parenthesised type) is not recognised.
+        private const string FieldModifiers = @"^\s*(?:(?:public|private|internal|protected|new|unsafe|volatile|readonly)\s+)*static\s+";
+        private const string FieldName = @"(?<type>[^=;(){}]+?)\s+@?[A-Za-z_][A-Za-z0-9_]*";
+        private const string FieldTail = FieldName + @"\s*(?:=(?![=>])|;)";
+        private const string ReadOnlyView = @"(?<![A-Za-z0-9_])(?:IReadOnly[A-Za-z]*|IEnumerable)\s*<";
+        private const string WritableLiteral =
+            @"(?:new\s*\[\s*\]|new\s+[A-Za-z_][A-Za-z0-9_.]*\s*\[|new\s+(?:List|Dictionary|HashSet|SortedDictionary|SortedList|SortedSet|Queue|Stack|LinkedList|JsonObject)\b)";
+        private const string MutableCollection =
+            @"(?<![A-Za-z0-9_])(?:I?List|I?Dictionary|HashSet|ISet|I?Collection|SortedDictionary|SortedList|SortedSet|Queue|Stack|ConcurrentDictionary|ConcurrentBag|ConcurrentQueue|LinkedList|StringBuilder)\s*<|\[[\s,]*\]|(?<![A-Za-z0-9_])(?:JsonObject|StringBuilder|ArrayList|Hashtable)(?![A-Za-z0-9_])";
+
+        private static readonly Rule[] StaticRules =
+        {
+            new Rule(@"^(?!.*\breadonly\b)" + FieldModifiers.Substring(1) + @"(?:(?:volatile|new|unsafe)\s+)*" + FieldTail,
+                     "a static field must be readonly or const (domain reload off keeps it between play sessions)", isStatic: true),
+            new Rule(@"^(?=.*\breadonly\b)" + FieldModifiers.Substring(1) + @"(?:(?:readonly|new|volatile)\s+)*" + FieldTail,
+                     "a static readonly collection is still writable; expose IReadOnlyList / IReadOnlyDictionary over a ReadOnly wrapper",
+                     type: MutableCollection, isStatic: true),
+            new Rule(@"\bstatic\b[^=;(]*\{[^}]*\bset\s*;",
+                     "a static property must not have a setter", isStatic: true),
+            // A read-only type is no protection when the object behind it is an array or a List: the initializer must
+            // wrap it (AsReadOnly, ReadOnlyCollection, ReadOnlyDictionary). One-line declarations only: an initializer
+            // on the following lines is not seen.
+            new Rule(@"^(?=.*\breadonly\b)(?!.*\b(?:AsReadOnly|ReadOnlyCollection|ReadOnlyDictionary)\b)" + FieldModifiers.Substring(1)
+                     + @"(?:(?:readonly|new|volatile)\s+)*" + FieldName + @"\s*=\s*" + WritableLiteral,
+                     "a read-only static over a writable literal (an array or collection literal); wrap it",
+                     type: ReadOnlyView, isStatic: true),
+            new Rule(@"^(?!.*\b(?:AsReadOnly|ReadOnlyCollection|ReadOnlyDictionary)\b)" + FieldModifiers.Substring(1)
+                     + FieldName + @"\s*\{\s*get\s*;\s*\}\s*=\s*" + WritableLiteral,
+                     "a read-only static property over a writable literal (an array or collection literal); wrap it",
+                     type: ReadOnlyView, isStatic: true),
+            new Rule(FieldModifiers + FieldName + @"\s*\{\s*get\s*;\s*\}",
+                     "a get-only static property of a mutable collection type is still writable",
+                     type: MutableCollection, isStatic: true),
+        };
+
+        // Runtime/Desktop only: the localhost server never waits on a socket. Its sockets are non-blocking (the
+        // NonBlockingSockets test), accepted only after Poll(0), read only as far as Available, and written with the
+        // out-SocketError overloads; nothing completes on the thread pool.
+        private static readonly Rule[] SocketRules = R(
+            (@"\b[A-Za-z_][A-Za-z0-9_]*Async\s*\(", "no *Async socket calls: they complete on the thread pool"),
+            (@"\b(?:Begin|End)(?:Accept|Connect|Disconnect|Receive|ReceiveFrom|ReceiveMessageFrom|Send|SendFile|SendTo|Read|Write)\w*\s*\(",
+                "no Begin/End (APM) calls: they complete on the thread pool"),
+            (@"\bTcpListener\b", "use a non-blocking Socket (AcceptTcpClient blocks)"),
+            (@"\bTcpClient\b", "use a non-blocking Socket"),
+            (@"\bNetworkStream\b", "a NetworkStream blocks"),
+            (@"\bThread\.Sleep\b", "never wait"),
+            (@"\.Poll\(\s*(?!0\s*,)", "Poll only with a zero timeout: any other waits"),
+            (@"\bSocket\.Select\(", "Socket.Select waits"),
+            // any assignment, an object initializer's `{ Blocking = true }` too
+            (@"(?<![A-Za-z0-9_])Blocking\s*=(?!=|\s*false\b)", "sockets stay non-blocking"),
+            (@"\.(?:Receive|Send)\((?![^;]*\bout\s+(?:SocketError|var)\b)",
+                "Receive/Send with the out SocketError overload (WouldBlock is a value, not an exception)"),
+            (@"\.Close\(\s*[^)\s]", "Close() without a timeout: a timeout makes Close wait (and Close(0) resets the connection)"),
+            (@"\bLingerState\b|\bSocketOptionName\.Linger\b", "a linger makes Close wait"),
+            (@"\.(?:Connect|Disconnect)\(", "Connect and Disconnect wait"),
+            (@"\bDns\.|\bGetHostEntry\b|\bGetHostAddresses\b|\bGetHostByName\b|\bDnsEndPoint\b",
+                "no DNS: a lookup blocks (the host is an IP address)"),
+            (@"\.(?:SendTo|ReceiveFrom|ReceiveMessageFrom|SendFile)\(",
+                "no SendTo/ReceiveFrom/SendFile: datagram and file transfers are not the server's, and SendFile waits"));
+
+        // Runtime/Core only: the core also runs in WebGL builds (no sockets, no synchronous file system), so it does no
+        // I/O of its own; the transport is injected and the store lives in the glue.
+        private static readonly Rule[] CoreIoRules = R(
+            (@"\bSystem\.Net\b", "no networking in the core: the transport is injected (and WebGL has no sockets)"),
+            (@"\bSocket\b", "no sockets in the core: the localhost server is Scfg.Desktop's"),
+            (@"\b(?:File|Directory|FileInfo|DirectoryInfo|FileStream|StreamReader|StreamWriter|DriveInfo)\s*(?:\.|\()",
+                "no file I/O in the core: the store lives in the glue"),
+            (@"\bnew\s+(?:FileStream|StreamReader|StreamWriter|FileInfo|DirectoryInfo)\b", "no file I/O in the core: the store lives in the glue"));
+
         private static readonly Rule[] AllRules =
-            UnityRules.Concat(ThreadRules).Concat(ReflectionRules).Concat(CultureRules).ToArray();
+            UnityRules.Concat(ThreadRules).Concat(ReflectionRules).Concat(CultureRules).Concat(StaticRules).ToArray();
 
         // A line is exempt from the ToString()/Format rules only through this marker in its raw text.
         private static readonly Regex CultureOk = new Regex(@"//\s*culture-ok:\s*\S", RegexOptions.CultureInvariant);
+        // ... and from a static-state rule only through this one.
+        private static readonly Regex StaticOk = new Regex(@"//\s*static-ok:\s*\S", RegexOptions.CultureInvariant);
 
-        private static string CoreDir()
+        private static string RuntimeDir()
         {
             var root = Vectors.FindUp("unity/Packages/com.repulse.scfg/Runtime/Core");
-            return Path.Combine(root, "unity", "Packages", "com.repulse.scfg", "Runtime", "Core");
+            return Path.Combine(root, "unity", "Packages", "com.repulse.scfg", "Runtime");
         }
 
-        private static List<string> CoreFiles()
+        private static List<string> Files(string dir)
         {
-            var files = Directory.GetFiles(CoreDir(), "*.cs", SearchOption.AllDirectories).ToList();
+            var path = Path.Combine(RuntimeDir(), dir);
+            var files = Directory.GetFiles(path, "*.cs", SearchOption.AllDirectories).ToList();
             files.Sort(StringComparer.Ordinal);
-            Assert.That(files, Is.Not.Empty, "scanned no files under " + CoreDir());
+            Assert.That(files, Is.Not.Empty, "scanned no files under " + path);
             return files;
         }
+
+        /// <summary>Every C# file of the package's runtime: Runtime/Core and Runtime/Desktop.</summary>
+        private static List<string> RuntimeFiles() => Files("Core").Concat(Files("Desktop")).ToList();
+
+        private static string Rel(string file) => Path.GetRelativePath(RuntimeDir(), file).Replace('\\', '/');
 
         private sealed class Frame
         {
@@ -208,7 +303,7 @@ namespace Scfg.Core.Tests
             return o.ToString().Split('\n');
         }
 
-        private static List<(int Line, Rule Rule)> Violations(string text, Rule[] rules, bool honourCultureOk)
+        private static List<(int Line, Rule Rule)> Violations(string text, Rule[] rules, bool honourMarkers)
         {
             var raw = text.Replace("\r\n", "\n").Split('\n');
             var code = Code(text);
@@ -218,24 +313,23 @@ namespace Scfg.Core.Tests
             {
                 foreach (var rule in rules)
                 {
-                    if (!rule.Re.IsMatch(rule.Raw ? kept[n] : code[n])) continue;
-                    bool formatRule = rule.Pattern.Contains("ToString") || rule.Pattern.Contains("tring");
-                    if (honourCultureOk && formatRule && CultureOk.IsMatch(raw[n])) continue;
+                    if (!rule.IsMatch(rule.Raw ? kept[n] : code[n])) continue;
+                    bool formatRule = !rule.Static && (rule.Pattern.Contains("ToString") || rule.Pattern.Contains("tring"));
+                    if (honourMarkers && formatRule && CultureOk.IsMatch(raw[n])) continue;
+                    if (honourMarkers && rule.Static && StaticOk.IsMatch(raw[n])) continue;
                     hits.Add((n + 1, rule));
                 }
             }
             return hits;
         }
 
-        private static void Scan(Rule[] rules, bool honourCultureOk = false)
+        private static void Scan(Rule[] rules, bool honourMarkers = false, List<string>? files = null)
         {
-            var core = CoreDir();
             var hits = new List<string>();
-            foreach (var file in CoreFiles())
+            foreach (var file in files ?? RuntimeFiles())
             {
-                var rel = Path.GetRelativePath(core, file).Replace('\\', '/');
-                foreach (var (line, rule) in Violations(File.ReadAllText(file), rules, honourCultureOk))
-                    hits.Add($"{rel}:{line}: {rule.Pattern} ({rule.Why})");
+                foreach (var (line, rule) in Violations(File.ReadAllText(file), rules, honourMarkers))
+                    hits.Add($"{Rel(file)}:{line}: {rule.Pattern} ({rule.Why})");
             }
             Assert.That(hits, Is.Empty, "lint violations:\n" + string.Join("\n", hits));
         }
@@ -243,20 +337,159 @@ namespace Scfg.Core.Tests
         [Test] public void NoUnityEngine() => Scan(UnityRules);
         [Test] public void NoThreadsOrTimers() => Scan(ThreadRules);
         [Test] public void NoReflection() => Scan(ReflectionRules);
-        [Test] public void NoCultureSensitiveText() => Scan(CultureRules, honourCultureOk: true);
+        [Test] public void NoCultureSensitiveText() => Scan(CultureRules, honourMarkers: true);
+        [Test] public void NoMutableStaticState() => Scan(StaticRules, honourMarkers: true);
+        [Test] public void NoWaitingSockets() => Scan(SocketRules, files: Files("Desktop"));
+        [Test] public void NoIoInTheCore() => Scan(CoreIoRules, files: Files("Core"));
+
+        [TestCase("using System.Net.Sockets;", "networking")]
+        [TestCase("var r = System.Net.WebRequest.Create(u);", "networking")]
+        [TestCase("var s = new Socket(a, b, c);", "sockets")]
+        [TestCase("var t = File.ReadAllText(p);", "file I/O")]
+        [TestCase("Directory.CreateDirectory(d);", "file I/O")]
+        [TestCase("using (var r = new StreamReader(p)) { }", "file I/O")]
+        [TestCase("var m = new MemoryStream();", "")]
+        [TestCase("// File.ReadAllText(p) is the glue's", "")]
+        [TestCase("var why = \"File.Delete(p)\";", "")]
+        public void CoreIoMatcherBites(string line, string ruleWhy)
+        {
+            var hits = Violations(line, CoreIoRules, honourMarkers: false).Select(h => h.Rule.Why).ToList();
+            if (ruleWhy.Length == 0)
+                Assert.That(hits, Is.Empty);
+            else
+                Assert.That(hits, Has.Some.Contains(ruleWhy));
+        }
+
+        // A socket is non-blocking from the start: each `new Socket(` and each `.Accept(` of a file is assigned to a
+        // variable (`v = new Socket(...)`, `var v = l.Accept()`), and a later `v.Blocking = false;` statement of that file's
+        // code (not a comment or a string) sets that variable. A socket that is not held in a plain variable (passed on,
+        // or configured with an object initializer) is refused. Limits: the check is textual, so it does not follow
+        // control flow (a `v.Blocking = false` in a branch that may not run counts), aliases or a variable reassigned
+        // between the two lines.
+        private static readonly Regex MakesSocket = new Regex(@"\bnew\s+Socket\s*\(|\.Accept\s*\(", RegexOptions.CultureInvariant);
+        private static readonly Regex AssignsSocket = new Regex(
+            @"(?<![A-Za-z0-9_.])(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:new\s+Socket\s*\(|[A-Za-z_][A-Za-z0-9_.]*\.Accept\s*\()",
+            RegexOptions.CultureInvariant);
+
+        internal static bool SocketsAreNonBlocking(string text)
+        {
+            var code = string.Join("\n", Code(text));
+            int made = MakesSocket.Matches(code).Count;
+            var assigned = AssignsSocket.Matches(code);
+            if (made == 0 || assigned.Count != made) return false;
+            foreach (Match m in assigned)
+            {
+                var name = m.Groups["name"].Value;
+                var sets = new Regex(@"(?<![A-Za-z0-9_.])" + name + @"\.Blocking\s*=\s*false\s*;", RegexOptions.CultureInvariant);
+                if (!sets.IsMatch(code, m.Index + m.Length)) return false;
+            }
+            return true;
+        }
+
+        [Test]
+        public void NonBlockingSockets()
+        {
+            var made = Files("Desktop").Where(f => MakesSocket.IsMatch(string.Join("\n", Code(File.ReadAllText(f))))).ToList();
+            Assert.That(made, Is.Not.Empty, "Runtime/Desktop makes no socket: the lint has nothing to check");
+            var bad = made.Where(f => !SocketsAreNonBlocking(File.ReadAllText(f))).Select(Rel).ToList();
+            Assert.That(bad, Is.Empty, "a socket made without `.Blocking = false`: " + string.Join(", ", bad));
+        }
+
+        [TestCase("var s = new Socket(f, t, p);\ns.Blocking = false;\nvar p = s.Accept();\np.Blocking = false;", true)]
+        [TestCase("var s = new Socket(f, t, p);\ns.Blocking = false;", true)]
+        [TestCase("var s = new Socket(f, t, p);", false)]
+        [TestCase("var s = new Socket(f, t, p);\n// s.Blocking = false;", false)]
+        [TestCase("var s = new Socket(f, t, p);\nvar x = \"s.Blocking = false\";", false)]
+        [TestCase("var s = new Socket(f, t, p);\ns.Blocking = false;\nvar p = s.Accept();", false)]
+        [TestCase("var s = new Socket(f, t, p);\ns.Blocking = true;", false)]
+        [TestCase("var x = 1;", false)]
+        // each socket's own variable: another variable's `.Blocking = false` does not count
+        [TestCase("var s = new Socket(f, t, p);\nvar q = new Socket(f, t, p);\ns.Blocking = false;\ns.Blocking = false;", false)]
+        [TestCase("var s = new Socket(f, t, p);\nother.Blocking = false;", false)]
+        [TestCase("s.Blocking = false;\nvar s = new Socket(f, t, p);", false)] // set before it is made
+        [TestCase("socket = new Socket(f, t, p);\nsocket.Blocking = false;\npeer = _listener.Accept();\npeer.Blocking = false;", true)]
+        [TestCase("Socket? s = null;\ns = new Socket(f, t, p);\ns.Blocking = false;", true)]
+        [TestCase("Use(new Socket(f, t, p));\nx.Blocking = false;", false)] // not held in a variable: not checked, refused
+        [TestCase("var s = new Socket(f, t, p) { Blocking = false };", false)] // spell it as its own statement
+        public void NonBlockingLintBites(string text, bool expected) =>
+            Assert.That(SocketsAreNonBlocking(text), Is.EqualTo(expected));
+
+        // Each case names a fragment of the ONE socket rule that must fire on it (empty = none may fire).
+        [TestCase("var n = await s.ReceiveAsync(buf, SocketFlags.None);", "Async")]
+        [TestCase("s.AcceptAsync(args);", "Async")]
+        [TestCase("var r = s.BeginAccept(cb, null);", "APM")]
+        [TestCase("var c = s.EndReceive(r);", "APM")]
+        [TestCase("s.BeginSend(b, 0, n, SocketFlags.None, cb, null);", "APM")]
+        [TestCase("var l = new TcpListener(IPAddress.Loopback, 0);", "TcpListener")]
+        [TestCase("using var c = new TcpClient();", "TcpClient")]
+        [TestCase("var st = new NetworkStream(s);", "NetworkStream")]
+        [TestCase("Thread.Sleep(1);", "never wait")]
+        [TestCase("if (s.Poll(1000, SelectMode.SelectRead)) x();", "Poll")]
+        [TestCase("if (s.Poll(-1, SelectMode.SelectRead)) x();", "Poll")]
+        [TestCase("if (s.Poll(0, SelectMode.SelectRead)) x();", "")]
+        [TestCase("Socket.Select(r, null, null, 1000);", "Select")]
+        [TestCase("s.Blocking = true;", "non-blocking")]
+        [TestCase("s.Blocking = flag;", "non-blocking")]
+        [TestCase("s.Blocking = false;", "")]
+        [TestCase("s.Blocking=false;", "")]
+        [TestCase("var b = s.Blocking == false || !s.Blocking;", "")]
+        [TestCase("var s = new Socket(f, t, p) { Blocking = true };", "non-blocking")]
+        [TestCase("var s = new Socket(f, t, p) { NoDelay = true, Blocking=flag };", "non-blocking")]
+        [TestCase("var e = Dns.GetHostEntry(\"localhost\");", "DNS")]
+        [TestCase("var a = System.Net.Dns.GetHostAddresses(host);", "DNS")]
+        [TestCase("var a = GetHostAddresses(host);", "DNS")]
+        [TestCase("var a = GetHostEntry(host);", "DNS")]
+        [TestCase("var ep = new DnsEndPoint(host, 0);", "DNS")]
+        [TestCase("var ok = IPAddress.TryParse(host, out var a);", "")]
+        [TestCase("s.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Linger, new LingerOption(true, 1));", "linger")]
+        [TestCase("s.SendTo(buf, ep);", "SendTo")]
+        [TestCase("var n = s.ReceiveFrom(buf, ref ep);", "SendTo")]
+        [TestCase("s.SendFile(path);", "SendTo")]
+        [TestCase("var n = s.Receive(buf);", "out SocketError")]
+        [TestCase("var n = s.Receive(buf, 0, n, SocketFlags.None);", "out SocketError")]
+        [TestCase("var n = s.Receive(buf, 0, n, SocketFlags.None, out SocketError e);", "")]
+        [TestCase("var n = s.Send(buf, 0, n, SocketFlags.None, out var e);", "")]
+        [TestCase("s.Send(buf);", "out SocketError")]
+        [TestCase("s.Close(0);", "Close()")]
+        [TestCase("s.Close(1000);", "Close()")]
+        [TestCase("s.Close();", "")]
+        [TestCase("s.LingerState = new LingerOption(true, 1);", "linger")]
+        [TestCase("s.Connect(ep);", "Connect")]
+        [TestCase("s.Disconnect(false);", "Connect")]
+        [TestCase("var p = s.Accept();", "")]
+        [TestCase("SendJson(c, 200, o); Send(c, 404, \"x\");", "")]
+        [TestCase("// s.BeginAccept(cb, null); s.Close(0);", "")]
+        public void SocketMatcherBites(string line, string ruleWhy)
+        {
+            var hits = Violations(line, SocketRules, honourMarkers: false).Select(h => h.Rule.Pattern + " | " + h.Rule.Why).ToList();
+            if (ruleWhy.Length == 0)
+            {
+                Assert.That(hits, Is.Empty);
+                return;
+            }
+            Assert.That(hits.Count, Is.EqualTo(1), "expected exactly one rule, got: " + string.Join(" | ", hits));
+            Assert.That(hits[0], Does.Contain(ruleWhy));
+        }
 
         [Test]
         public void EveryFileNamesItsTwin()
         {
-            var core = CoreDir();
             var bad = new List<string>();
-            foreach (var file in CoreFiles())
+            foreach (var file in RuntimeFiles())
             {
                 var head = File.ReadLines(file).Take(5).ToList();
                 if (!head.Any(l => l.Contains("Twin of scfg_core/") || l.Contains("No Python twin")))
-                    bad.Add($"{Path.GetRelativePath(core, file).Replace('\\', '/')}:1: missing 'Twin of scfg_core/' or 'No Python twin' in the first 5 lines");
+                    bad.Add($"{Rel(file)}:1: missing 'Twin of scfg_core/' or 'No Python twin' in the first 5 lines");
             }
             Assert.That(bad, Is.Empty, string.Join("\n", bad));
+        }
+
+        [Test]
+        public void TheLocalServerNamesItsTwin()
+        {
+            var file = Path.Combine(RuntimeDir(), "Desktop", "LocalServer.cs");
+            Assert.That(File.ReadLines(file).Take(5).Any(l => l.Contains("Twin of scfg_core/local_server.py")), Is.True,
+                        "Desktop/LocalServer.cs:1: missing 'Twin of scfg_core/local_server.py' in the first 5 lines");
         }
 
         // Unity has no project-level nullable setting, so each file turns annotations on itself. The directive must
@@ -275,11 +508,10 @@ namespace Scfg.Core.Tests
         [Test]
         public void EveryFileEnablesNullable()
         {
-            var core = CoreDir();
             var bad = new List<string>();
-            foreach (var file in CoreFiles())
+            foreach (var file in RuntimeFiles())
                 if (!EnablesNullableFirst(File.ReadAllText(file)))
-                    bad.Add($"{Path.GetRelativePath(core, file).Replace('\\', '/')}: '#nullable enable' must be the first line after the header comment");
+                    bad.Add($"{Rel(file)}: '#nullable enable' must be the first line after the header comment");
             Assert.That(bad, Is.Empty, string.Join("\n", bad));
         }
 
@@ -299,8 +531,8 @@ namespace Scfg.Core.Tests
             Assert.That(Vectors.Tier2Ids().Count(), Is.GreaterThan(100));
         }
 
-        // The lints must actually bite. Each case names a fragment of the ONE rule that must fire on it
-        // (empty = no rule may fire), so a line caught by the wrong rule fails.
+        // The lints must actually bite. Each case names a fragment of the ONE rule that must fire on it (of its
+        // pattern or its why; empty = no rule may fire), so a line caught by the wrong rule fails.
         [TestCase("using UnityEngine;", "UnityEngine")]
         [TestCase("var x = \"record Not found\"; // dynamic d", "")]
         [TestCase("public record Foo(int A);", "record")]
@@ -359,9 +591,58 @@ namespace Scfg.Core.Tests
         [TestCase("Task.Factory.StartNew(f);", "Factory")]
         [TestCase("var t = new Task(f);", @"new\s+Task")]
         [TestCase("var t = new TaskCompletionSource<int>();", "")]
+        // static state (the readonly rule's pattern starts with ^(?!, the collection rule's with ^(?=)
+        [TestCase("private static int _n;", @"^(?!")]
+        [TestCase("public static string Name = \"x\";", @"^(?!")]
+        [TestCase("static Engine? _engine;", @"^(?!")]
+        [TestCase("internal static volatile bool Flag = false;", @"^(?!")]
+        [TestCase("public static readonly string[] A = { \"a\" };", @"^(?=")]
+        [TestCase("private static readonly int[][] T =", @"^(?=")]
+        [TestCase("static readonly Dictionary<string, int> D = new Dictionary<string, int>();", @"^(?=")]
+        [TestCase("public static readonly List<int> L = new List<int>();", @"^(?=")]
+        [TestCase("private static readonly HashSet<string> H = new HashSet<string>();", @"^(?=")]
+        [TestCase("public static readonly JsonObject J = new JsonObject();", @"^(?=")]
+        [TestCase("public readonly static IList<string> I = new List<string>();", @"^(?=")]
+        [TestCase("public static readonly IDictionary<string, int> I = new Dictionary<string, int>();", @"^(?=")]
+        [TestCase("public static readonly IReadOnlyList<string> R = Array.AsReadOnly(new[] { \"a\" });", "")]
+        [TestCase("public static readonly IReadOnlyDictionary<string, int> R = new ReadOnlyDictionary<string, int>(d);", "")]
+        [TestCase("public static readonly IReadOnlyCollection<string> R = Array.AsReadOnly(new[] { \"a\" });", "")]
+        [TestCase("public static readonly ReadOnlyCollection<string> R = Array.AsReadOnly(new[] { \"a\" });", "")]
+        [TestCase("private static readonly Regex Re = new Regex(\"a\");", "")]
+        [TestCase("public static readonly Dec MinTip = Dec.Parse(\"0.50\")!;", "")]
+        [TestCase("public const int N = 5;", "")]
+        [TestCase("public static int F(int x = 1) => x;", "")]
+        [TestCase("public static string[] Names() => new string[0];", "")]
+        [TestCase("public static int P => 5;", "")]
+        [TestCase("public static IReadOnlyList<string> P { get; } = Array.AsReadOnly(new[] { \"a\" });", "")]
+        [TestCase("public static int P { get; set; }", @"set\s*;")]
+        [TestCase("public static int P { get; private set; }", @"set\s*;")]
+        [TestCase("using static System.Math;", "")]
+        [TestCase("public static class Foo", "")]
+        [TestCase("static int Local(int a) { return a; }", "")]
+        [TestCase("Func<int, int> f = static x => x;", "")]
+        [TestCase("var s = \"static int x;\";", "")]
+        // a read-only type over a writable literal (one-line declarations only), and get-only static properties
+        [TestCase("public static readonly IReadOnlyList<string> R = new[] { \"a\" };", "read-only static over")]
+        [TestCase("public static readonly IReadOnlyList<string> R = new string[] { \"a\" };", "read-only static over")]
+        [TestCase("public static readonly IReadOnlyList<int> R = new List<int> { 1 };", "read-only static over")]
+        [TestCase("public static readonly IReadOnlyDictionary<string, int> R = new Dictionary<string, int>();", "read-only static over")]
+        [TestCase("public static readonly IEnumerable<string> R = new HashSet<string>();", "read-only static over")]
+        [TestCase("public static readonly IReadOnlyCollection<string> R = new string[2];", "read-only static over")]
+        [TestCase("public static readonly IReadOnlyList<string> R = Array.AsReadOnly(new[] { \"a\" });", "")]
+        [TestCase("public static readonly IReadOnlyDictionary<string, int> R = new ReadOnlyDictionary<string, int>(new Dictionary<string, int>());", "")]
+        [TestCase("public static readonly IReadOnlyList<string> R = Build();", "")]
+        [TestCase("public static IReadOnlyList<string> P { get; } = new[] { \"a\" };", "read-only static property over")]
+        [TestCase("public static IReadOnlyList<string> P { get; } = new List<string>();", "read-only static property over")]
+        [TestCase("public static IReadOnlyList<string> P { get; } = Array.AsReadOnly(new[] { \"a\" });", "")]
+        [TestCase("public static List<string> P { get; } = new List<string>();", "get-only static property of a mutable")]
+        [TestCase("public static string[] P { get; } = { \"a\" };", "get-only static property of a mutable")]
+        [TestCase("internal static JsonObject P { get; } = new JsonObject();", "get-only static property of a mutable")]
+        [TestCase("public static Dec P { get; } = Dec.Parse(\"1\")!;", "")]
+        [TestCase("public static string Name { get; } = \"x\";", "")]
         public void MatcherBites(string line, string rulePattern)
         {
-            var hits = Violations(line, AllRules, honourCultureOk: false).Select(h => h.Rule.Pattern).ToList();
+            var hits = Violations(line, AllRules, honourMarkers: false).Select(h => h.Rule.Pattern + " | " + h.Rule.Why).ToList();
             if (rulePattern.Length == 0)
             {
                 Assert.That(hits, Is.Empty);
@@ -376,6 +657,16 @@ namespace Scfg.Core.Tests
         {
             Assert.That(Violations("var s = n.ToString(); // culture-ok: ints only", CultureRules, true), Is.Empty);
             Assert.That(Violations("var s = n.ToString(); // culture-ok:", CultureRules, true), Is.Not.Empty);
+        }
+
+        [Test]
+        public void StaticOkNeedsAReasonAndWaivesOnlyTheStaticRules()
+        {
+            Assert.That(Violations("private static readonly string[] A = { }; // static-ok: private, never written", StaticRules, true), Is.Empty);
+            Assert.That(Violations("private static int _n; // static-ok: test hook", StaticRules, true), Is.Empty);
+            Assert.That(Violations("private static readonly string[] A = { }; // static-ok:", StaticRules, true), Is.Not.Empty);
+            Assert.That(Violations("private static readonly string[] A = { }; // culture-ok: x", StaticRules, true), Is.Not.Empty);
+            Assert.That(Violations("var s = n.ToString(); // static-ok: x", CultureRules, true), Is.Not.Empty);
         }
     }
 }

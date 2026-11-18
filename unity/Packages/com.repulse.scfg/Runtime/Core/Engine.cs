@@ -36,7 +36,7 @@ namespace Scfg.Core
 
     public sealed class Engine
     {
-        private static readonly string[] SessionKeys = { "item", "amount", "token", "title" };
+        private static readonly string[] SessionKeys = { "item", "amount", "token", "title" }; // static-ok: private keyword table, only read
 
         public ConfigData Config { get; }
         /// <summary>Where a contained crash goes (one session's step, one stored receipt, one restore candidate).</summary>

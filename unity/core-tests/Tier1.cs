@@ -224,7 +224,7 @@ namespace Scfg.Core.Tests
             };
         }
 
-        private static JsonObject ChainsJson(Dictionary<string, Chain> chains)
+        private static JsonObject ChainsJson(IReadOnlyDictionary<string, Chain> chains)
         {
             var o = new JsonObject();
             foreach (var kv in chains) o[kv.Key] = ChainJson(kv.Value);

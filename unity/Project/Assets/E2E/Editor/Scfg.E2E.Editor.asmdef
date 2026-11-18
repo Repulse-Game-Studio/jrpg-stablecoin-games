@@ -1,0 +1,7 @@
+{
+    "name": "Scfg.E2E.Editor",
+    "rootNamespace": "Scfg.E2E",
+    "references": [],
+    "includePlatforms": ["Editor"],
+    "autoReferenced": false
+}

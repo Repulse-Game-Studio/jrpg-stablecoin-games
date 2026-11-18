@@ -1,0 +1,20 @@
+# Unity's generated folders: never committed
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/MemoryCaptures/
+*.csproj
+*.sln
+*.slnx
+.vs/
+.idea/
+# made by the editor when a PanelSettings asset is created; the package ships its own theme
+/Assets/UI Toolkit/
+/Assets/UI Toolkit.meta
+# the package samples, copied in by tools/check_unity_samples.py
+/Assets/Samples/
+/Assets/Samples.meta

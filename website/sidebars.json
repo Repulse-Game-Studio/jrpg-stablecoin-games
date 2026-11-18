@@ -47,6 +47,13 @@
     },
     {
       "type": "category",
+      "label": "For Unity developers",
+      "collapsed": false,
+      "link": {"type": "doc", "id": "developers/unity/README"},
+      "items": ["developers/unity/install", "developers/unity/api"]
+    },
+    {
+      "type": "category",
       "label": "For RPG Maker MZ developers",
       "collapsed": false,
       "link": {"type": "doc", "id": "developers/rpgmaker/README"},

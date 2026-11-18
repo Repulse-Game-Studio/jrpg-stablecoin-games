@@ -71,20 +71,25 @@ package = false
 
 [tool.pytest.ini_options]
 pythonpath = ["plugin/game/python-packages", "installer", "conformance/python"]
-# tests/server_security runs in the default run: its Python third always, its Godot third (marker
-# godot_server) when SCFG_GODOT names a Godot 4.3+ binary (skipped otherwise; SCFG_REQUIRE_GD=1
-# makes that a failure). Its Node third (marker node_server) and tests/rpgmaker_ui (marker
-# rpgmaker_ui) need Node 22.18+ and rpgmaker/node_modules: the default run deselects them. Naming
-# their directory on the command line, or SCFG_REQUIRE_JS=1, selects them again (unless -m is given
-# on the command line). CI: unit runs the default (the Python third); godot-core runs
-# `-m godot_server` per Godot version; rpgmaker-ui runs tests/rpgmaker_ui and `-m node_server` once.
+# tests/server_security runs in the default run: its Python quarter always, its Godot quarter
+# (marker godot_server) when SCFG_GODOT names a Godot 4.3+ binary (skipped otherwise;
+# SCFG_REQUIRE_GD=1 makes that a failure), its C# quarter (marker cs_server) when dotnet (the .NET 8
+# SDK) is on PATH, in $DOTNET_ROOT or in ~/.dotnet (skipped otherwise; SCFG_REQUIRE_CS=1 makes that
+# a failure). Its Node quarter (marker node_server) and tests/rpgmaker_ui (marker rpgmaker_ui) need
+# Node 22.18+ and rpgmaker/node_modules: the default run deselects them. Naming their directory on
+# the command line, or SCFG_REQUIRE_JS=1, selects them again (unless -m is given on the command
+# line). CI: unit and release.yml's test gate run the default (the Python quarter, and the C# one
+# with the runner image's preinstalled dotnet; the drivers roll forward to a newer runtime than 8.0);
+# godot-core runs `-m godot_server` per Godot version; rpgmaker-ui runs tests/rpgmaker_ui and
+# `-m node_server` once; cs-core runs `-m cs_server` with SCFG_REQUIRE_CS=1.
 testpaths = ["tests", "conformance/tests"]
 markers = [
     "integration: needs a local Anvil node (Foundry); run with -m integration",
     "live: reads real public chains (read-only, no key); run with -m live",
     "rpgmaker_ui: the RPG Maker sheet in headless Chrome (needs Node and rpgmaker/node_modules); run with -m rpgmaker_ui",
-    "node_server: the Node third of tests/server_security (needs Node and rpgmaker/node_modules); run with -m node_server",
-    "godot_server: the Godot third of tests/server_security (needs SCFG_GODOT); run alone with -m godot_server",
+    "node_server: the Node quarter of tests/server_security (needs Node and rpgmaker/node_modules); run with -m node_server",
+    "godot_server: the Godot quarter of tests/server_security (needs SCFG_GODOT); run alone with -m godot_server",
+    "cs_server: the C# quarter of tests/server_security (needs the .NET 8 SDK); run alone with -m cs_server",
 ]
 addopts = "-m 'not integration and not live and not rpgmaker_ui and not node_server'"
 

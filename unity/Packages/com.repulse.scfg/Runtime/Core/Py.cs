@@ -45,7 +45,7 @@ namespace Scfg.Core
         // The zero of every run of ten Unicode decimal digits (Nd) in CPython 3.9's unicodedata (Unicode
         // 13.0.0, the project's interpreter), copied from pystr.ts ND_ZEROS. Not .NET's tables: a newer
         // runtime has more digit sets (Tangsa U+16AC0, Kawi, Nag Mundari, ...) that Python 3.9 refuses.
-        private static readonly int[] NdZeros =
+        private static readonly int[] NdZeros = // static-ok: private lookup table, only read
         {
             0x30, 0x660, 0x6f0, 0x7c0, 0x966, 0x9e6, 0xa66, 0xae6, 0xb66, 0xbe6, 0xc66, 0xce6, 0xd66,
             0xde6, 0xe50, 0xed0, 0xf20, 0x1040, 0x1090, 0x17e0, 0x1810, 0x1946, 0x19d0, 0x1a80, 0x1a90,
@@ -251,6 +251,72 @@ namespace Scfg.Core
                 default: return true;
             }
         }
+
+        /// <summary>
+        /// Python <c>a == b</c> for JSON values: numbers by exact value across bool, int and float
+        /// (<c>True == 1 == 1.0</c>, <c>2**53 + 1 != 2.0**53</c>, NaN equals nothing), strings by code units, lists in
+        /// order, dicts by their key sets whatever the order, None only to None. Python compares the items of a
+        /// container by identity first, so the same reference inside a list or dict is equal to itself (a boxed NaN
+        /// too), while at the top level <c>x == x</c> is False for a NaN. Nested deeper than
+        /// <see cref="Json.MaxDepth"/> is a ValueError (Python's RecursionError).
+        /// <para>It covers the shapes <see cref="Json.Loads"/> and <see cref="JsonObject"/> produce: JsonObject,
+        /// <c>List&lt;object?&gt;</c>, string, bool, int / long / BigInteger, double and null. Any other list, dict or
+        /// number type (an array, a Dictionary, a float or a decimal) compares by its own Equals.</para>
+        /// </summary>
+        internal static bool Eq(object? a, object? b) => EqAt(a, b, 0);
+
+        private static bool EqAt(object? a, object? b, int depth)
+        {
+            if (depth > 0 && ReferenceEquals(a, b)) return true; // a container's items: identity first, as Python
+            if (a == null || b == null) return a == null && b == null; // None is None
+            if (IsNumber(a) && IsNumber(b)) return NumberEq(a, b);
+            switch (a)
+            {
+                case string s:
+                    return b is string t && string.Equals(s, t, StringComparison.Ordinal);
+                case List<object?> la:
+                {
+                    if (!(b is List<object?> lb) || la.Count != lb.Count) return false;
+                    if (depth >= Json.MaxDepth) throw new ValueError("value nested deeper than Json.MaxDepth (or a circular reference)");
+                    for (int i = 0; i < la.Count; i++)
+                        if (!EqAt(la[i], lb[i], depth + 1)) return false;
+                    return true;
+                }
+                case JsonObject oa:
+                {
+                    if (!(b is JsonObject ob) || oa.Count != ob.Count) return false;
+                    if (depth >= Json.MaxDepth) throw new ValueError("value nested deeper than Json.MaxDepth (or a circular reference)");
+                    foreach (var kv in oa)
+                        if (!ob.TryGetValue(kv.Key, out var v) || !EqAt(kv.Value, v, depth + 1)) return false;
+                    return true;
+                }
+                default:
+                    return a.Equals(b);
+            }
+        }
+
+        private static bool IsNumber(object v) => v is bool || v is int || v is long || v is BigInteger || v is double;
+
+        private static bool NumberEq(object a, object b)
+        {
+            if (a is double da) return b is double db ? da == db : FloatEqInt(da, IntOf(b));
+            if (b is double d) return FloatEqInt(d, IntOf(a));
+            return IntOf(a) == IntOf(b);
+        }
+
+        private static BigInteger IntOf(object v)
+        {
+            switch (v)
+            {
+                case bool x: return x ? BigInteger.One : BigInteger.Zero;
+                case int x: return x;
+                case long x: return x;
+                default: return (BigInteger)v;
+            }
+        }
+
+        private static bool FloatEqInt(double d, BigInteger n) =>
+            !double.IsNaN(d) && !double.IsInfinity(d) && Math.Floor(d) == d && new BigInteger(d) == n;
 
         /// <summary>
         /// Python <c>d[key]</c> on a JSON value: the value of a dict's key, a KeyError for a missing key, and a

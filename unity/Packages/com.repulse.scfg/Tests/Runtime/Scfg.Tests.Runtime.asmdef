@@ -1,0 +1,9 @@
+{
+    "name": "Scfg.Tests.Runtime",
+    "rootNamespace": "Scfg.Tests",
+    "references": ["Scfg.Core", "Scfg.Desktop", "Scfg.Unity", "UnityEngine.TestRunner"],
+    "precompiledReferences": ["nunit.framework.dll"],
+    "overrideReferences": true,
+    "autoReferenced": false,
+    "defineConstraints": ["UNITY_INCLUDE_TESTS"]
+}

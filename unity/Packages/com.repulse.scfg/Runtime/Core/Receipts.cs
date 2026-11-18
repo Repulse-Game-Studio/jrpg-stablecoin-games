@@ -64,7 +64,7 @@ namespace Scfg.Core
             var key = ReceiptKey(
                 Py.Get(receipt, "chain") as string ?? throw new TypeError("receipt chain must be a string"),
                 Py.Get(receipt, "tx_hash") as string ?? throw new TypeError("receipt tx_hash must be a string"),
-                (long)Py.Int(Py.Get(receipt, "log_index")));
+                Ints.ToLong(Py.Int(Py.Get(receipt, "log_index")), "log_index"));
             if (store.ContainsKey(key)) return false;
             store[key] = receipt;
             return true;

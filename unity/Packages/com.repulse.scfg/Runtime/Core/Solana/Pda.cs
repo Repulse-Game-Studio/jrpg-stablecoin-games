@@ -2,7 +2,6 @@
 // Program-derived addresses and associated token accounts (classic SPL Token program).
 #nullable enable
 using System;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace Scfg.Core.Solana
@@ -13,7 +12,7 @@ namespace Scfg.Core.Solana
         public const string AssociatedTokenProgramId = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
         public const int MaxSeedLen = 32;
         public const int MaxSeeds = 16;
-        private static readonly byte[] Marker = Encoding.ASCII.GetBytes("ProgramDerivedAddress");
+        private static readonly byte[] Marker = Encoding.ASCII.GetBytes("ProgramDerivedAddress"); // static-ok: private constant bytes, only copied from
 
         /// <summary>The address, or null when the hash lands on the curve.</summary>
         public static byte[]? CreateProgramAddress(byte[][] seeds, byte[] programId)
@@ -28,8 +27,7 @@ namespace Scfg.Core.Solana
             foreach (var s in seeds) { Buffer.BlockCopy(s, 0, buf, pos, s.Length); pos += s.Length; }
             Buffer.BlockCopy(programId, 0, buf, pos, programId.Length); pos += programId.Length;
             Buffer.BlockCopy(Marker, 0, buf, pos, Marker.Length);
-            byte[] digest;
-            using (var sha = SHA256.Create()) digest = sha.ComputeHash(buf);
+            var digest = Sha256.Hash(buf);
             return Ed25519.IsOnCurve(digest) ? null : digest;
         }
 

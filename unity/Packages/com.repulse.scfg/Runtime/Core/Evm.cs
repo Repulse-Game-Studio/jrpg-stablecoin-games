@@ -132,12 +132,6 @@ namespace Scfg.Core
 
         private static ValueError BadHex(string s) => new ValueError("invalid literal for int() with base 16: " + Py.Repr(s));
 
-        private static long ToLong(BigInteger v, string name)
-        {
-            if (v < long.MinValue || v > long.MaxValue) throw new ValueError("log " + name + " does not fit 64 bits");
-            return (long)v;
-        }
-
         private static string Lower(object? v, string name)
         {
             if (!(v is string s)) throw new TypeError("log " + name + " must be a string");
@@ -150,7 +144,7 @@ namespace Scfg.Core
         /// them out. The data must be exactly the 32-byte value ("0x" and 64 hex digits): an empty, shorter, longer
         /// or malformed one is not an ERC-20 Transfer either. A null log is a TypeError, a missing field a KeyError,
         /// and (where Python raises AttributeError) a field of the wrong type a TypeError. A log index or block
-        /// number beyond 64 bits is a ValueError (Python's ints are unbounded).
+        /// number beyond 64 bits is an OverflowError (Python's ints are unbounded).
         /// </summary>
         public static TransferLog? ParseTransferLog(JsonObject log)
         {
@@ -172,8 +166,8 @@ namespace Scfg.Core
             var recipient = TopicToAddress(topics[2]);
             var value = new BigInteger(Bytes.FromHex(d), isUnsigned: true, isBigEndian: true);
             var txHash = Lower(Py.Get(log, "transactionHash"), "transactionHash");
-            var logIndex = ToLong(IntHex(Py.Get(log, "logIndex")), "logIndex");
-            var blockNumber = ToLong(IntHex(Py.Get(log, "blockNumber")), "blockNumber");
+            var logIndex = Ints.ToLong(IntHex(Py.Get(log, "logIndex")), "logIndex");
+            var blockNumber = Ints.ToLong(IntHex(Py.Get(log, "blockNumber")), "blockNumber");
             var blockHash = Lower(Py.Get(log, "blockHash"), "blockHash");
             return new TransferLog(token, sender, recipient, value, txHash, logIndex, blockNumber, blockHash);
         }
