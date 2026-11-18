@@ -2,8 +2,8 @@
 
 Accept **USDC** and **USDT** tips and unlock purchases in your Unity game, paid **directly to your own wallet**.
 There is no server, no account and no middleman: the package watches the blockchain itself. Unity 6.3 LTS or newer;
-desktop (Windows, macOS, Linux) and WebGL builds; mobile is best effort and unverified. **Preview**: tested on Unity
-6000.6.9f1 against local test chains.
+desktop and WebGL builds: Windows and macOS are supported, unverified (Linux and WebGL are tested); mobile is best
+effort and unverified. **Preview**: tested on Unity 6000.6.9f1 against local test chains.
 
 ## Quick start
 
