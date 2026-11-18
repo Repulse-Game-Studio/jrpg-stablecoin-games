@@ -47,7 +47,7 @@ On Windows the editor is `Engine\Binaries\Win64\UnrealEditor.exe`, with the same
 Where the configuration comes from, as the HUD's **Configured from** line says:
 
 - **The project settings**, when they have a wallet and items: the plugin applies them by itself when the game instance starts, and the showcase only reads them.
-- **Code**, when the settings have no items (a fresh project where you only set the wallet), or when the game is started with `-scfg-showcase-code`: `ConfigureInCode()` calls `Configure()` with your wallet, testnet on, an accent color and the plugin's `Resources/logo.png`, then `AddItem()` for the three items.
+- **Code**, when the settings have no items (a fresh project where you only set the wallet), or when the game is started with `-scfg-showcase-code`: `ConfigureInCode()` starts from your project settings' options (their networks, RPC urls, buy link, accent and logo, so what you set there shows here, and their chain rows) and calls `Configure()` with your wallet and testnet on (the showcase's accent and the plugin's `Resources/logo.png` where the settings set none), then `AddItem()` for the three items.
 - **The command line**: `-scfg-showcase-wallet=0x...` (and `-scfg-showcase-solana-wallet=...`) gives the wallet instead of the settings. With settings items, they are applied with `ConfigureWithSettings(Wallet, SolanaWallet)`.
 
 With no wallet anywhere, the shop stays closed and the Output Log has `LogScfgShowcase: Warning: showcase: No wallet is set, ...`. Settings with **Testnet** off are refused too: the showcase runs on testnets only.

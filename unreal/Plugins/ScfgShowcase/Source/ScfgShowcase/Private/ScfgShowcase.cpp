@@ -25,8 +25,9 @@
 namespace ScfgShowcaseDetail
 {
 // --- 1. Configuration ------------------------------------------------------------------------------------------------
-// ConfigureInCode() uses these values, with -scfg-showcase-code or when the project settings have no items; the dev
-// project's settings (its Config/DefaultGame.ini, [/Script/Scfg.ScfgSettings]) hold the same items and accent.
+// ConfigureInCode() uses these values, with -scfg-showcase-code or when the project settings have no items, on top of
+// the settings' own options; the dev project's settings (its Config/DefaultGame.ini, [/Script/Scfg.ScfgSettings])
+// hold the same items and accent.
 //
 // There is no wallet here: the payments go to yours, from the command line or the project settings (FindWallets).
 
@@ -548,15 +549,32 @@ bool UScfgShowcaseGameInstance::Refuse(const FString& Why)
 bool UScfgShowcaseGameInstance::ConfigureInCode(const FScfgShowcaseWallets& Wallets)
 {
 	using namespace ScfgShowcaseDetail;
-	FScfgOptions Options;
+	// The project settings' options are the starting point (their networks, tokens, RPC urls, accent, logo, buy link
+	// ...), so what is set there shows here too (testbed U17); the showcase adds only its wallets, testnet and items,
+	// and its accent and logo where the settings have none. Their chain rows come first, so the options may name them.
+	const UScfgSettings* Settings = GetDefault<UScfgSettings>();
+	for (const FScfgSettingsChain& Row : Settings->Chains)
+	{
+		if (!Scfg()->AddChain(Row.Key, Row.Chain).IsEmpty())
+		{
+			return false;
+		}
+	}
+	FScfgOptions Options = Settings->Options;
 	Options.Wallet = Wallets.Wallet;              // an EVM 0x address
 	Options.SolanaWallet = Wallets.SolanaWallet;  // optional: Solana Devnet is offered too
 	Options.bTestnet = true;  // Sepolia, Arbitrum Sepolia, Amoy, Base Sepolia, Arc Testnet (Solana Devnet)
-	Options.Accent = ACCENT;
-	Options.Logo = LogoPath();
+	if (Options.Accent.IsEmpty())
+	{
+		Options.Accent = ACCENT;
+	}
+	if (Options.Logo.IsEmpty())
+	{
+		Options.Logo = LogoPath();
+	}
 	UE_LOG(LogScfgShowcase, Log, TEXT("showcase: the logo: %s"), Options.Logo.IsEmpty() ? TEXT("none found")
 		: *Options.Logo);
-	// Optional, among others: Chains, Tokens, Methods, RpcUrls, Confirmations.
+	// Optional, among others: Chains, Tokens, Methods, RpcUrls, Confirmations, Onramp.
 	if (!Scfg()->Configure(Options).IsEmpty())
 	{
 		return false;

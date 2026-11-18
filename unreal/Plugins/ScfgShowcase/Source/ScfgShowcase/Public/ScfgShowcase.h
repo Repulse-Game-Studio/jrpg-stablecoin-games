@@ -23,8 +23,10 @@
 // CONFIGURATION. The project settings, when they have a wallet and items: the plugin applies them by itself when the
 // game instance starts, and the showcase only reads them (the dev project's are in its Config/DefaultGame.ini). Settings
 // with items but the wallet from the command line are applied with ConfigureWithSettings(Wallet, SolanaWallet). In
-// code instead (ConfigureInCode: the showcase's three items, testnet, its accent and the logo in this plugin's
-// Resources/, or the project's Content/Showcase/logo.png), with -scfg-showcase-code on the command line, or when the
+// code instead (ConfigureInCode: the project settings' options and chain rows, so their networks, RPC urls and buy
+// link show, with the wallets, testnet, the showcase's three items, and its accent and the logo in this plugin's
+// Resources/ or the project's Content/Showcase/logo.png where the settings set none), with -scfg-showcase-code on the
+// command line, or when the
 // project's settings have no items (a fresh project with only its wallet set), which replaces the settings ("a code
 // call after it wins", ScfgSettings.h). Settings with Testnet off are refused: the showcase runs on testnets only.
 //
