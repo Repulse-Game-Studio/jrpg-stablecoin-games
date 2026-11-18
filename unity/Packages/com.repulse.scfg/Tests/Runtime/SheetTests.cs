@@ -106,6 +106,35 @@ namespace Scfg.Tests
             Assert.That(GameObject.Find("SCFG Payment Sheet"), Is.Null, "the host destroyed the sheet");
         }
 
+        // test_sheet.gd's test_the_buy_link_sits_on_the_method_step_and_opens_the_buy_page.
+        [UnityTest]
+        public IEnumerator TheBuyLinkSitsOnTheMethodStepAndOpensTheBuyPage()
+        {
+            _rig.Configure();
+            SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
+            yield return Frames();
+            var v = OpenSheet();
+            Assert.That(v.ShownStep, Is.EqualTo("method"));
+            var link = (Button?)v.Control("onramp");
+            Assert.That(link, Is.Not.Null, "on the method step");
+            Assert.That(v.Control("onramp_hint"), Is.Null);
+            Assert.That(link!.text, Is.EqualTo("No USDC yet? Buy some with a card"));
+            var order = v.FocusOrder.ToList();
+            Assert.That(order.IndexOf(link), Is.GreaterThan(order.IndexOf(v.Control("method_manual")!)),
+                        "after the methods in the focus order");
+            Assert.That(v.Press("method_qr"), Is.True);
+            yield return Frames();
+            Assert.That(v.ShownStep, Is.EqualTo("qr"));
+            Assert.That(v.Control("onramp"), Is.Null, "not on a method's page the method step led to");
+            Assert.That(v.Press("back"), Is.True);
+            yield return Frames();
+            Assert.That(v.Control("onramp"), Is.Not.Null);
+            var url = v.Controller.Core.OnrampUrl();
+            Assert.That(url, Does.StartWith("https://thirdweb.com/bridge/buy-widget?chain=42161&").And.EndWith("&paymentMethods=card"));
+            Assert.That(v.Press("onramp"), Is.True);
+            Assert.That(_rig.Platform.Opened.Last(), Is.EqualTo(url), "opens the buy page through the platform");
+        }
+
         [UnityTest]
         public IEnumerator KeyboardAndGamepadOnlyManualPayment()
         {

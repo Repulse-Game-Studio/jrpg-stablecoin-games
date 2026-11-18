@@ -51,6 +51,7 @@ be called again until payments have started, on the frame after a successful cal
 | `Chains` | The networks offered, in order, by key (`"ethereum"`, `"arbitrum"`, `"polygon"`, `"base"`, `"arc"`, `"solana"`, or your own). Default: every network the wallets can receive on |
 | `Tokens` | `"USDC"`, `"USDT"`. Default both |
 | `Methods` | A `ScfgMethods`: which payment methods the sheet offers. Default: all of them |
+| `Onramp` | A `ScfgOnramp`: the "Buy some with a card" link, see [The buy link](#the-buy-link-onramp). Default: on, on mainnet |
 | `RpcUrls` | Your own RPC endpoints per chain key (`IDictionary<string, IList<string>>`, https URLs), tried before the built-in public ones |
 | `Confirmations` | Confirmations required per chain key (`IDictionary<string, int>`) |
 | `PreviousWallets` | Wallets you were paid to before (EVM and Solana addresses can be mixed). Their receipts stay valid |
@@ -67,6 +68,37 @@ be called again until payments have started, on the frame after a successful cal
 | `QrChains` | The chains the QR code is offered on. Default: all |
 | `Manual` | The address and exact amount to send by hand, from an exchange or any wallet. Default `true` |
 | `ManualAllowTxPaste` | Whether the player may paste the transaction hash on the manual page. Default `true` |
+
+### The buy link (`Onramp`)
+
+Players who have no USDC or USDT yet see **No USDC yet? Buy some with a card** (with the payment's token) on the
+method step, or on the only payment page when there is one method. It opens a buy page for the network they picked
+in their browser (a new tab with `noopener,noreferrer` in a WebGL build), where they buy the token with a card into
+their own wallet and then pay as usual: the payment itself still goes straight to your wallet. The default page is
+thirdweb's hosted Buy widget, card payment only, locked to the network and token, suggesting the payment rounded up to
+cents (plus a cent for the fee on Arc). The link carries only the network, the token's contract and that amount. On
+a network it isn't offered on, like Solana, the sheet says **No USDC yet? Pick another network to buy some with a
+card** instead, which goes back to the network step, when another network the player can pick has the link.
+
+It is **on by default on mainnet**, also for a game that upgrades from 0.2.0. Turn it off, or change it, with
+`ScfgOptions.Onramp` (or the SCFG Settings asset's `onrampEnabled`, `onrampUrl` and `onrampChains`):
+
+```csharp
+SCFG.Configure(new ScfgOptions { Wallet = "0x...", Onramp = new ScfgOnramp { Enabled = false } });          // hide it
+SCFG.Configure(new ScfgOptions { Wallet = "0x...", Onramp = new ScfgOnramp { Chains = new[] { "base", "arc" } } });
+SCFG.Configure(new ScfgOptions { Wallet = "0x...", Onramp = new ScfgOnramp { Url = "https://buy.example/?net={chain_id}&a={amount}" } });
+```
+
+| `ScfgOnramp` field | Meaning (a `null` field keeps the default) |
+|---|---|
+| `Enabled` | `true` (default) or `false` |
+| `Chains` | The networks it is offered on (enabled EVM networks only). Default: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens) |
+| `Url` | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused |
+
+A mistake is reported with a code such as `onramp.unknown_option`, `onramp.bad_url`, `onramp.unknown_placeholder`,
+`onramp.disabled_chain` or `onramp.not_evm`. A replacement sheet shows the link while the controller's
+`Core.ShowsOnramp` is true and opens it with `OpenOnramp()`; while `Core.ShowsOnrampHint` is true it shows the "Pick
+another network" button there instead, which calls `Core.Back()`.
 
 ### SCFG.AddItem
 
@@ -107,8 +139,8 @@ asset's configuration in place, as a failing `Configure` does.
 
 The **SCFG Settings** asset (**Assets > Create > SCFG Settings**) configures the package without code. Its fields are
 `ScfgOptions`' `Wallet`, `SolanaWallet`, `Testnet` (on by default), `Chains`, `Tokens`, `Accent`, a `Logo` sprite and
-`WebStorageId`, plus a list of items (`id`, `code`, `price`, `token`, `title`, `minPrice`). Blank fields keep the
-defaults. The [install page](install.md#without-code-the-scfg-settings-asset) walks through them.
+`WebStorageId`, the buy link's `onrampEnabled`, `onrampUrl` and `onrampChains` (`ScfgOptions.Onramp`), plus a list of
+items (`id`, `code`, `price`, `token`, `title`, `minPrice`). Blank fields keep the defaults. The [install page](install.md#without-code-the-scfg-settings-asset) walks through them.
 
 - It is applied before the first scene loads, with `SCFG.Configure` and then `SCFG.AddItem` for each item. A build
   adds the asset to the player's preloaded assets for that build only (and takes it out again after a build that
@@ -346,8 +378,9 @@ The screen contract (`Runtime/Unity/ScfgScreens.cs`):
   `"browser"`, `"qr"`, `"manual"`, `"waiting"`, `"done"`), `State`, `Message()`, `ChainOptions()`, `Methods()`,
   `PayAmountText`, `Recipient`, `PaymentUri()` (the QR code's text), `ExplorerUrl()`, `Confirmations` and
   `Required`, and call `ChooseNetwork`, `ChooseMethod`, `NextStep`, `SetTipAmount`, `MarkSent`, `SubmitHash` and
-  `Back` from your buttons. The wrapper's `OpenBrowser()`, `OpenWalletApp()`, `OpenExplorer(url)`, `Copy(text)` and
-  `Paste()` are the buttons that leave the game. Never call the core's `Poll()`, `Cancel()`, `KeepPlaying()`,
+  `Back` from your buttons; show the buy link while `ShowsOnramp` (or its hint while `ShowsOnrampHint`, a button that
+  calls `Back`). The wrapper's `OpenBrowser()`, `OpenWalletApp()`, `OpenOnramp()`, `OpenExplorer(url)`, `Copy(text)`
+  and `Paste()` are the buttons that leave the game. Never call the core's `Poll()`, `Cancel()`, `KeepPlaying()`,
   `Finish()` or `Close()`: the package does.
 - `ScfgRestoreController.Core` is the restore's state (`State`: `"input"`, `"checking"`, `"choose"`, `"saving"`,
   `"done"`; `TxInput`, `Error`, `Message()`, `Candidates`, `PendingChoices()`) with `Check`, `Choose` and `Confirm`;
