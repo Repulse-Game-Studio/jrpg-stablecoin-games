@@ -89,13 +89,9 @@ namespace Scfg.Core
         public const int SessionWindowS = 30 * 60;
         public const int ScanHorizonS = 24 * 3600;
         public const int HintTimeoutS = 30 * 60;
-        /// <summary>Twin of SOLANA_HINT_TIMEOUT_S in scfg_core/backends/solana.py.</summary>
-        public const int SolanaHintTimeoutS = 180;
         public static readonly IReadOnlyList<string> UiStatuses = Array.AsReadOnly(new[] { "open", "pending", "cancelled", "expired" });
 
         public static string NewSessionId(IEntropy entropy) => "ps_" + entropy.TokenHex(8);
-
-        private static bool IsHex(char c) => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 
         /// <summary>A 0x-prefixed 32-byte hash (surrounding whitespace allowed), lowercased; else a ValueError.</summary>
         public static string NormalizeTxHash(object? txHash)
@@ -106,7 +102,7 @@ namespace Scfg.Core
                 if (t.Length == 66 && t[0] == '0' && t[1] == 'x')
                 {
                     bool ok = true;
-                    for (int i = 2; i < 66 && ok; i++) ok = IsHex(t[i]);
+                    for (int i = 2; i < 66 && ok; i++) ok = Py.IsAsciiHex(t[i]);
                     if (ok) return t.ToLowerInvariant();
                 }
             }

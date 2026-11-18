@@ -43,7 +43,7 @@ namespace Scfg.Core
         public Token(string address, int decimals = 6, string logAddress = "", int logDecimals = 0)
         {
             if (address == null) throw new TypeError("token address must be a string");
-            Address = address.StartsWith("0x", System.StringComparison.Ordinal)
+            Address = address.StartsWith("0x", StringComparison.Ordinal)
                 ? Evm.ToChecksumAddress(address)
                 : Base58.NormalizePubkey(address);
             Decimals = decimals;

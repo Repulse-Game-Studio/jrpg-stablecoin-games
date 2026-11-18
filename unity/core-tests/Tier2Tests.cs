@@ -208,7 +208,7 @@ namespace Scfg.Core.Tests
             Assert.That(e.Status, Is.EqualTo(503));
         }
 
-        // ---- restore candidates (R4) ------------------------------------------------------------------------------
+        // ---- restore candidates -----------------------------------------------------------------------------------
 
         [Test]
         public void RecordedRestoreCandidatesRoundTrip()

@@ -203,13 +203,11 @@ namespace Scfg.Core
             return true;
         }
 
-        private static char AsciiLower(char c) => c >= 'A' && c <= 'Z' ? (char)(c + 32) : c;
-
         private static bool AsciiStartsWithIgnoreCase(string s, string lowerPrefix)
         {
             if (s.Length < lowerPrefix.Length) return false;
             for (int k = 0; k < lowerPrefix.Length; k++)
-                if (AsciiLower(s[k]) != lowerPrefix[k]) return false;
+                if (Py.AsciiLower(s[k]) != lowerPrefix[k]) return false;
             return true;
         }
 

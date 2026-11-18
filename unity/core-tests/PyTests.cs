@@ -35,7 +35,7 @@ namespace Scfg.Core.Tests
         {
             Assert.That(Py.IsDecimalDigit(0x0663), Is.True);
             Assert.That(Py.IsDecimalDigit(0x1E950), Is.True);
-            // Ruling R2: U+1FBF0 (Unicode 13) is a digit in CPython 3.9; U+16AC0 (Tangsa, Unicode 14) is not.
+            // U+1FBF0 (Unicode 13) is a digit in CPython 3.9; U+16AC0 (Tangsa, Unicode 14) is not.
             Assert.That(Py.IsDecimalDigit(0x1FBF0), Is.True);
             Assert.That(Py.IsDecimalDigit(0x16AC0), Is.False);
             foreach (var zero in new[] { 0x10d40, 0x116d0, 0x16d70, 0x16ac0, 0x11f50, 0x1e4f0, 0x1ccf0 })
@@ -61,7 +61,7 @@ namespace Scfg.Core.Tests
         {
             Assert.That(Py.Int("\u0663"), Is.EqualTo(new BigInteger(3)));
             Assert.That(Py.Int(" 7 "), Is.EqualTo(new BigInteger(7)));
-            Assert.That(Py.Int("1_000"), Is.EqualTo(new BigInteger(1000))); // Ruling R3
+            Assert.That(Py.Int("1_000"), Is.EqualTo(new BigInteger(1000))); // single underscores between digits, as int() allows
             Assert.Throws<ValueError>(() => Py.Int("1__0"));
             Assert.That(Py.Int("-5"), Is.EqualTo(new BigInteger(-5)));
             Assert.That(Py.Int("+5"), Is.EqualTo(new BigInteger(5)));
@@ -210,6 +210,16 @@ namespace Scfg.Core.Tests
             Assert.That(new IndexError().Message, Is.EqualTo("list index out of range"));
             Assert.That(new KeyError("k").Key, Is.EqualTo("k"));
             Assert.That(new TypeError("t"), Is.Not.InstanceOf<ValueError>());
+        }
+
+        [Test]
+        public void AKeyErrorsMessageIsTheKeysReprOnce()
+        {
+            // str(KeyError('bogus')) is 'bogus' and str(KeyError(5)) is 5: the key is quoted once, a number not at all.
+            var step = Assert.Throws<KeyError>(() => Checkout.Order("bogus"))!;
+            Assert.That((step.Message, step.Key), Is.EqualTo(("'bogus'", "bogus")));
+            var number = KeyError.OfRepr(Py.Repr(5L));
+            Assert.That((number.Message, number.Key), Is.EqualTo(("5", "5")));
         }
     }
 }

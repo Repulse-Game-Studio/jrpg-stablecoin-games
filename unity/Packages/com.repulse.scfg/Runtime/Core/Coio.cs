@@ -100,6 +100,7 @@ namespace Scfg.Core
                 }
                 catch (ValueError)
                 {
+                    // unreadable JSON: ResponseFor decides by the status
                 }
             }
             return ResponseFor(status, readable, parsed);
@@ -129,6 +130,7 @@ namespace Scfg.Core
             }
             catch (ValueError)
             {
+                // unreadable JSON: ResponseFor decides by the status
             }
             return ResponseFor(status, readable, parsed);
         }

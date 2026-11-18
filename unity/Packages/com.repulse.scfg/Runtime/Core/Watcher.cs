@@ -124,9 +124,9 @@ namespace Scfg.Core
         internal static Token TokenOf(Chain chain, JsonObject rec)
         {
             var key = Py.Get(rec, "token");
-            if (key is JsonObject || key is List<object?>) throw new TypeError("unhashable type: '" + Py.TypeName(key) + "'");
+            Py.CheckHashable(key);
             if (key is string s && chain.Tokens.TryGetValue(s, out var token)) return token;
-            throw new KeyError(key as string ?? Py.Repr(key));
+            throw key is string k ? new KeyError(k) : KeyError.OfRepr(Py.Repr(key));
         }
 
         /// <summary>Python <c>log.get(...)</c> on a log: a dict, else AttributeError (a TypeError here).</summary>
@@ -140,7 +140,7 @@ namespace Scfg.Core
             if (Py.Get(rec, "kind") is string kind && kind == "unlock")
             {
                 var key = Py.Get(rec, "item");
-                if (key is JsonObject || key is List<object?>) throw new TypeError("unhashable type: '" + Py.TypeName(key) + "'");
+                Py.CheckHashable(key);
                 if (key is string s && items.TryGetValue(s, out var item)) return item.MinPrice;
                 return Sessions.SessionPrice(rec);
             }

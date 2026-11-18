@@ -8,7 +8,7 @@
 // (the Worker). A job that failed or was cancelled sends the screen back to input with the RestoreError's code as
 // Error ("failed" for any other exception, a cancel included: Python's exception() would raise CancelledError). A job
 // that succeeded with the wrong kind of value (not a list of candidates, not a list of added receipts) is "failed"
-// too, where Python would have raised (the GDScript twin's ruling).
+// too, where Python would have raised (as the GDScript twin, godot/addons/scfg/core/restore_flow.gd, does).
 #nullable enable
 using System;
 using System.Collections.Generic;

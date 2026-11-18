@@ -42,8 +42,6 @@ namespace Scfg.Core
 
     public sealed class Engine
     {
-        private static readonly string[] SessionKeys = { "item", "amount", "token", "title" }; // static-ok: private keyword table, only read
-
         public ConfigData Config { get; }
         /// <summary>Where a contained crash goes (one session's step, one stored receipt, one restore candidate).</summary>
         public Action<Exception>? OnError { get; set; }
@@ -182,8 +180,8 @@ namespace Scfg.Core
         private string ChainKeyOf(object? rec)
         {
             var key = Py.Get(rec, "chain");
-            if (key is JsonObject || key is List<object?>) throw new TypeError("unhashable type: '" + Py.TypeName(key) + "'");
-            return key as string ?? throw new KeyError(Py.Repr(key));
+            Py.CheckHashable(key);
+            return key as string ?? throw KeyError.OfRepr(Py.Repr(key));
         }
 
         // --- payments ---------------------------------------------------------------
@@ -195,7 +193,7 @@ namespace Scfg.Core
         public async Task<JsonObject> StartSession(string kind, string chain, JsonObject opts)
         {
             foreach (var k in opts.Keys)
-                if (!SessionKeys.Contains(k))
+                if (!Payments.PaymentKeys.Contains(k))
                     throw new TypeError("start_session() got an unexpected keyword argument " + Py.Repr(k));
             var spec = Payments.PreparePayment(Config, kind, opts);
             if (!spec.Chains.Contains(chain))
@@ -279,7 +277,7 @@ namespace Scfg.Core
             try
             {
                 var key = Py.Get(rec, "chain");
-                if (key is JsonObject || key is List<object?>) throw new TypeError("unhashable type: '" + Py.TypeName(key) + "'");
+                Py.CheckHashable(key);
                 if (!(key is string k) || !Config.Registry.ContainsKey(k) || Config.WalletFor(Chain(k)) == null)
                 {
                     if (!Sessions.IsPastHorizon((JsonObject)rec!, now)) return null;
@@ -400,11 +398,7 @@ namespace Scfg.Core
         {
             var ownership = Scfg.Core.Receipts.ComputeOwnership(Receipts, Config.Items);
             var unready = _unready.ToList();
-            unready.Sort((x, y) =>
-            {
-                int c = Py.CompareCodePoints(x.Chain, y.Chain);
-                return c != 0 ? c : Py.CompareCodePoints(x.Token, y.Token);
-            });
+            unready.Sort(Py.CompareRoutes);
             return new Snapshot((JsonObject)DeepCopy.Of(Pending)!, (JsonObject)DeepCopy.Of(Receipts)!, ownership.Owned,
                                 ownership.TipTotal, unready);
         }

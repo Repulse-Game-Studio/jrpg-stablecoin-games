@@ -1,6 +1,5 @@
 // Twin of scfg_core/solana/base58.py (and of rpgmaker/src/core/solana/base58.ts).
-// Base58 (Bitcoin alphabet), as used for Solana addresses and signatures. Landed with the config port, which
-// needs normalize_pubkey; the rest of the Solana primitives follow in their own task.
+// Base58 (Bitcoin alphabet), as used for Solana addresses and signatures.
 #nullable enable
 using System;
 using System.Globalization;

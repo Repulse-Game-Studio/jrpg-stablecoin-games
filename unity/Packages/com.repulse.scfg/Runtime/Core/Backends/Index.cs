@@ -43,6 +43,7 @@ namespace Scfg.Core
                 }
                 catch (ValueError)
                 {
+                    // not this family's format: try the next
                 }
             }
             throw new ValueError("not a transaction hash or signature: " + Py.Repr(text));

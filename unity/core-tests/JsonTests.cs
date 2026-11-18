@@ -138,7 +138,7 @@ namespace Scfg.Core.Tests
             Assert.Throws<ValueError>(() => Json.Loads(text));
         }
 
-        // Ruling R8: json.loads reads NaN, Infinity and -Infinity (its default parse_constant), as CPython does.
+        // json.loads reads NaN, Infinity and -Infinity (its default parse_constant), as CPython does.
         [Test]
         public void ReadsTheConstantsCPythonReads()
         {

@@ -25,6 +25,7 @@
 // The main loop must keep turning between commands (the server is pumped, and delayed builds complete, by this loop),
 // so stdin is read on a thread, which only queues the lines; the server and its jobs live on the main thread alone.
 // The server keeps its real clock (a Stopwatch): the suite's deadlines and build timeouts are wall-clock seconds.
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

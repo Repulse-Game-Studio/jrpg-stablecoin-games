@@ -3,9 +3,14 @@
 // IndexError, ArithmeticError, OverflowError) and the decimal module's signals the core can raise
 // (DecimalException, InvalidOperation, Overflow). The classes follow Python's tree: ConfigError is a
 // ValueError, OverflowError and the decimal signals are ArithmeticErrors and not ValueErrors.
-// RpcError and TransportError are added with rpc.py's and coio.py's twins. Also errors.py's print_error.
-// RuntimeError (Python's built-in) and concurrent.futures' CancelledError and InvalidStateError are added with
-// worker.py's twin (Worker.cs): a Job is Python's Future.
+// Also errors.py's print_error. RpcError, RpcUnavailable and TransportError live in Rpc.cs and Coio.cs. RuntimeError
+// and concurrent.futures' CancelledError and InvalidStateError are here for Worker.cs's Job (Python's Future).
+//
+// Naming: the core keeps Python's names on purpose, so each file can be read side by side with its twin. Exceptions
+// carry Python's class names without an Exception suffix (Scfg.Core.ArithmeticError shares its simple name with
+// System.ArithmeticError: qualify it in a file that opens both namespaces), Task-returning methods have no Async
+// suffix (Engine.Tick, RpcClient.Call, ITransport.PostJson), and a Job's Done(), Cancelled() and Running() are
+// methods, as on Python's Future.
 #nullable enable
 using System;
 
@@ -44,6 +49,17 @@ namespace Scfg.Core
         {
             Key = key;
         }
+
+        private KeyError(string message, bool verbatim) : base(message)
+        {
+            Key = message;
+        }
+
+        /// <summary>
+        /// The KeyError for a key that is not a str (None, a number): <paramref name="repr"/> is the key's Python
+        /// repr, used as it is for the message and <see cref="Key"/> (str(KeyError(5)) is 5, not '5').
+        /// </summary>
+        internal static KeyError OfRepr(string repr) => new KeyError(repr, verbatim: true);
     }
 
     /// <summary>Python <c>IndexError</c>: <c>seq[i]</c> out of range.</summary>

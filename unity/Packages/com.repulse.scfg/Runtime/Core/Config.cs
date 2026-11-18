@@ -150,9 +150,6 @@ namespace Scfg.Core
         /// <summary>The longest onramp url template (config.py's ONRAMP_URL_LIMIT).</summary>
         public const int OnrampUrlLimit = 2048;
 
-        // rpc.py's MIN_LOG_RANGE, the smallest max_log_range a custom chain may declare.
-        private const long MinLogRange = 10;
-
         /// <summary>A fresh copy of config.py's DEFAULT_METHODS.</summary>
         public static JsonObject NewDefaultMethods() => new JsonObject
         {
@@ -216,23 +213,6 @@ namespace Scfg.Core
             }
         }
 
-        /// <summary>Python's TypeError for a list or dict used as a dict key or set member.</summary>
-        private static void Hashable(object? v)
-        {
-            if (v is JsonObject) throw new TypeError("unhashable type: 'dict'");
-            if (v is IList) throw new TypeError("unhashable type: 'list'");
-        }
-
-        private static string Lower(string ascii)
-        {
-            // Python's str.lower(); only ASCII letters can reach it (hex digits, a logo extension) and none of the
-            // non-ASCII characters that fold to ASCII (K, U+212A) is part of what it is compared with.
-            var c = ascii.ToCharArray();
-            for (int i = 0; i < c.Length; i++)
-                if (c[i] >= 'A' && c[i] <= 'Z') c[i] = (char)(c[i] + 32);
-            return new string(c);
-        }
-
         private static void CheckKwargs(JsonObject kw, string fn, string[] allowed, string[] required)
         {
             foreach (var k in kw.Keys)
@@ -258,8 +238,6 @@ namespace Scfg.Core
             }
             return true;
         }
-
-        private static bool IsHex(char c) => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 
         // ---- addresses --------------------------------------------------------------------------------------
 
@@ -434,7 +412,7 @@ namespace Scfg.Core
                 throw new ConfigError(what + ": native_symbol must be letters/digits, like 'AVAX'", "chain.bad_native_symbol");
             if (!(feeHint is string hint) || !FeeHints.Contains(hint))
                 throw new ConfigError(what + ": fee_hint must be one of " + string.Join(", ", FeeHints), "chain.bad_fee_hint");
-            var maxLogRange = PositiveInt(maxLogRangeValue, what + ": max_log_range", MinLogRange);
+            var maxLogRange = PositiveInt(maxLogRangeValue, what + ": max_log_range", Rpc.MinLogRange);
             return new Chain(keyText, Ints.ToLong(chainId, "chain_id"), Py.Strip(nameText), rpc,
                              Ints.ToLong(confirmations, "confirmations"), Ints.ToLong(maxLogRange, "max_log_range"), explorer,
                              (string)nativeSymbol!, hint, parsed, Py.Truthy(testnet));
@@ -502,7 +480,9 @@ namespace Scfg.Core
         public static string LogoContentType(string path)
         {
             int dot = path.LastIndexOf(".", StringComparison.Ordinal);
-            string ext = dot >= 0 ? Lower(path.Substring(dot)) : "";
+            // Python's str.lower(), ASCII only: none of the non-ASCII characters that fold to ASCII (K, U+212A) is
+            // part of an extension it is compared with.
+            string ext = dot >= 0 ? Py.AsciiLower(path.Substring(dot)) : "";
             if (!LogoTypes.TryGetValue(ext, out var type))
                 throw new ConfigError("logo must be a .png, .jpg or .webp image: " + Py.Repr(path), "logo.bad_type");
             return type;
@@ -513,12 +493,12 @@ namespace Scfg.Core
             if (value == null) return DefaultAccent;
             // Python: re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})", value).
             bool ok = value is string t && t.Length > 0 && t[0] == '#'
-                      && (t.Length == 4 || t.Length == 7 || t.Length == 9) && t.Skip(1).All(IsHex);
+                      && (t.Length == 4 || t.Length == 7 || t.Length == 9) && t.Skip(1).All(Py.IsAsciiHex);
             if (!ok)
                 throw new ConfigError("accent must be a color like '#0e7c74': " + Py.Repr(value), "accent.invalid");
             var digits = ((string)value!).Substring(1);
             if (digits.Length == 3) digits = string.Concat(digits.Select(c => new string(c, 2)));
-            return "#" + Lower(digits.Substring(0, 6)); // alpha, if any, is dropped
+            return "#" + Py.AsciiLower(digits.Substring(0, 6)); // alpha, if any, is dropped
         }
 
         private static double Channel(string color, int i)
@@ -596,7 +576,6 @@ namespace Scfg.Core
         /// </summary>
         private static string OnrampUrlArg(object? value)
         {
-            // a host must follow https://: its first character is not a brace, '/', '?' or '#'
             bool ok = value is string s && s.StartsWith("https://", StringComparison.Ordinal) && s.Length <= OnrampUrlLimit
                       && s.Length > 8 && "{}/?#".IndexOf(s[8], StringComparison.Ordinal) < 0;
             if (ok)
@@ -817,7 +796,7 @@ namespace Scfg.Core
         private static void CheckChain(object? c, bool testnet, HashSet<string> otherNetwork,
                                        Dictionary<string, Chain> registry, string? wallet, string? sol)
         {
-            Hashable(c);
+            Py.CheckHashable(c);
             if (c is string cs && otherNetwork.Contains(cs))
             {
                 string net = testnet ? "mainnet" : "testnet";

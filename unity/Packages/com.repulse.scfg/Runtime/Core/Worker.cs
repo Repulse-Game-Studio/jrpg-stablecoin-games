@@ -56,7 +56,7 @@ namespace Scfg.Core
     /// yielding to a command), at its next RPC request or at once for the one in flight. Not a
     /// <see cref="TransportError"/>, so no endpoint cools down (worker.py's Abandoned).
     /// </summary>
-    public sealed class Abandoned : System.Exception
+    public sealed class Abandoned : Exception
     {
         public Abandoned(string message) : base(message) { }
     }

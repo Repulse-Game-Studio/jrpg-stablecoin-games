@@ -1,4 +1,4 @@
-// Twin of tests/unit/test_worker_priority.py (testbed U15, review V1): a session start the player waits on comes before the
+// Twin of tests/unit/test_worker_priority.py: a session start the player waits on comes before the
 // background watching of pending payments. With pending sessions whose checks hang (a DNS that never answers), the
 // start submitted while a tick runs makes the tick yield at once, its request in flight included, and starts without
 // waiting for that request at all; the yielded tick keeps its outcomes and the next tick steps the sessions again. A
@@ -56,7 +56,7 @@ namespace Scfg.Core.Tests
             var engine = new Engine(cfg, node, null, null, () => 1700000000);
             var reported = new List<Exception>();
             engine.OnError = reported.Add;
-            for (int i = 0; i < 3; i++) // three pending tips, as in the testbed
+            for (int i = 0; i < 3; i++) // three pending tips
                 await engine.StartSession("tip", "base", new JsonObject { { "amount", "1.00" }, { "token", "USDC" } });
             Assert.That(engine.Pending, Has.Count.EqualTo(3));
             var errors = new List<Exception>();
@@ -83,7 +83,7 @@ namespace Scfg.Core.Tests
         }
 
         /// <summary>
-        /// Review V1 (test_a_hint_verdict_reached_before_the_tick_yields_is_reported): the tick judged the hint
+        /// test_a_hint_verdict_reached_before_the_tick_yields_is_reported: the tick judged the hint
         /// (reverted) and cleared it, then waits on its next request; a command makes it yield. The verdict is still
         /// reported, not lost with the step.
         /// </summary>

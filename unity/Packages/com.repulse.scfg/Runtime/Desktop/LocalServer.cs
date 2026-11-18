@@ -58,16 +58,12 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
 using System.Text;
 using Scfg.Core;
-
-[assembly: InternalsVisibleTo("Scfg.Core.Tests")]
 
 namespace Scfg.Desktop
 {
@@ -103,6 +99,9 @@ namespace Scfg.Desktop
     public sealed class CheckoutServer : ICheckoutServer
     {
         public const int MaxBody = 4096;
+
+        // A connection's first read buffer; it grows for a longer request (equal to MaxBody by chance, not by rule).
+        private const int InitialBuffer = 4096;
 
         public static readonly IReadOnlyList<string> Assets = Array.AsReadOnly(new[] { "index.html", "app.js", "evm.js", "solana.js" });
 
@@ -151,7 +150,7 @@ namespace Scfg.Desktop
             public readonly Socket Sock;
             public ConnState State = ConnState.Head;
             public double Deadline;
-            public byte[] Buf = new byte[4096];
+            public byte[] Buf = new byte[InitialBuffer];
             public int Len;
             public int LineStart; // where the line being read starts in Buf
             public int Scanned; // where the search for that line's end goes on
@@ -204,7 +203,7 @@ namespace Scfg.Desktop
             _loadLogo = options.LoadLogo;
             _buildTx = options.BuildTx;
             Host = options.Host ?? "127.0.0.1";
-            _clock = options.Clock ?? Monotonic;
+            _clock = options.Clock ?? Py.MonotonicSeconds;
             var bytes = new byte[16];
             SystemEntropy.Fill(bytes);
             Secret = Base64Url(bytes);
@@ -301,8 +300,6 @@ namespace Scfg.Desktop
         internal bool NonBlocking() => (_listener == null || !_listener.Blocking) && _conns.All(c => c.State == ConnState.Closed || !c.Sock.Blocking);
 
         // ---- connections ------------------------------------------------------------------------------------
-
-        private static double Monotonic() => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
 
         private double Now() => _clock();
 
@@ -438,7 +435,7 @@ namespace Scfg.Desktop
                     // MaxHeaders header lines are in: this line, a header or the blank end, is one more
                     Send(c, 431, "too many headers");
                 }
-                else if (nl == start || (nl == start + 1 && c.Buf[start] == 13))
+                else if (nl == start || (nl == start + 1 && c.Buf[start] == (byte)'\r'))
                 {
                     int rest = c.Len - c.LineStart;
                     Buffer.BlockCopy(c.Buf, c.LineStart, c.Buf, 0, rest);
@@ -930,7 +927,7 @@ namespace Scfg.Desktop
             if (parts.Count == 0) return;
             var first = parts[0];
             int colon = first.IndexOf(":", StringComparison.Ordinal);
-            var name = AsciiLower(first.Substring(0, colon));
+            var name = Py.AsciiLower(first.Substring(0, colon));
             if (output.ContainsKey(name)) return;
             int at = colon + 1;
             while (at < first.Length && (first[at] == ' ' || first[at] == '\t')) at++;
@@ -966,16 +963,6 @@ namespace Scfg.Desktop
                 if (line[i] < 0x21 || line[i] > 0x7e) return false;
             }
             return true;
-        }
-
-        private static string AsciiLower(string s)
-        {
-            var chars = s.ToCharArray();
-            for (int i = 0; i < chars.Length; i++)
-            {
-                if (chars[i] >= 'A' && chars[i] <= 'Z') chars[i] = (char)(chars[i] + 32);
-            }
-            return new string(chars);
         }
 
         /// <summary>Python's str.split() with no argument.</summary>
@@ -1028,7 +1015,7 @@ namespace Scfg.Desktop
         {
             for (int i = from; i < to; i++)
             {
-                if (b[i] == 10) return i;
+                if (b[i] == (byte)'\n') return i;
             }
             return -1;
         }

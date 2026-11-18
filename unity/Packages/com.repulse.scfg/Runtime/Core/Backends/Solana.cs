@@ -198,7 +198,7 @@ namespace Scfg.Core
                 }
                 else if (delta < 0)
                 {
-                    if (who is JsonObject || who is List<object?>) throw new TypeError("unhashable type: '" + Py.TypeName(who) + "'");
+                    Py.CheckHashable(who);
                     int at = drops.FindIndex(d => SameKey(who, d.Who));
                     if (at < 0) drops.Add((who, delta));
                     else drops[at] = (drops[at].Who, drops[at].Sum + delta);

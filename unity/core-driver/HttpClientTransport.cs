@@ -1,4 +1,5 @@
 // No Python twin: the driver's real transport (Python's rpc.UrllibTransport reads an HTTP answer the same way).
+#nullable enable
 using System;
 using System.Globalization;
 using System.Net.Http;

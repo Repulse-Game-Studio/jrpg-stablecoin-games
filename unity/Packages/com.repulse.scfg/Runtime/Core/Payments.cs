@@ -3,9 +3,7 @@
 // errors raise immediately in the developer's script) and again by Engine.StartSession.
 #nullable enable
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 
 namespace Scfg.Core
@@ -43,7 +41,8 @@ namespace Scfg.Core
         public static readonly IReadOnlyList<Dec> TipPresets =
             Array.AsReadOnly(new[] { Dec.Parse("1.00")!, Dec.Parse("3.00")!, Dec.Parse("5.00")!, Dec.Parse("10.00")! });
 
-        private static readonly string[] PaymentKeys = { "item", "amount", "token", "title" }; // static-ok: private keyword table, only read
+        /// <summary>The keyword arguments prepare_payment and Engine.StartSession take.</summary>
+        internal static readonly string[] PaymentKeys = { "item", "amount", "token", "title" }; // static-ok: keyword table, only read
 
         /// <summary>
         /// prepare_payment(config, kind, *, item=None, amount=None, token=None, title=None): <paramref name="kwargs"/>
@@ -64,8 +63,7 @@ namespace Scfg.Core
             string? itemId = null;
             if (kind is string k1 && k1 == "unlock")
             {
-                if (item is JsonObject) throw new TypeError("unhashable type: 'dict'");
-                if (item is IList) throw new TypeError("unhashable type: 'list'");
+                Py.CheckHashable(item);
                 if (!(item is string id) || !config.Items.TryGetValue(id, out var it))
                     throw new ConfigError("unknown item " + Py.Repr(item) + "; declare it with scfg.add_item()", "item.unknown");
                 itemId = id;

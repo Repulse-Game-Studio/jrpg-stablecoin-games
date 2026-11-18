@@ -214,7 +214,7 @@ namespace Scfg.Core.Tests
             return chosen;
         };
 
-        // Testbed U15: the player's command does not wait behind a background tick. The tick's request in flight is
+        // The player's command does not wait behind a background tick. The tick's request in flight is
         // cancelled (on the next scheduler callback, never inside Submit; its answer is never kept), the command runs
         // next, and the next tick comes after it. No error is reported for the yield.
         [Test]
@@ -1231,7 +1231,7 @@ namespace Scfg.Core.Tests
             Assert.That(job.IsAbandoned, Is.False, "cancelled, not abandoned while running");
         }
 
-        // test_worker.py's test_an_abandoned_job_stops_waiting_for_its_request_in_flight (testbed U15): a superseded
+        // test_worker.py's test_an_abandoned_job_stops_waiting_for_its_request_in_flight: a superseded
         // start whose request is in flight (a host that never answers) ends at once when abandoned, not at the
         // request's timeout: on the worker's next scheduler callback, never inside Abandon().
         [Test]

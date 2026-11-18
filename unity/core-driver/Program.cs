@@ -6,6 +6,7 @@
 // diagnostics go to stderr. Ops: init, transport_stats, start_session, report_hint, tick, reverify, restore_lookup,
 // restore_apply, build_solana_payment, snapshot, set_receipt, clear_receipts. Results are encoded exactly like the
 // Tier 2 `returns` / `snapshot`.
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.IO;

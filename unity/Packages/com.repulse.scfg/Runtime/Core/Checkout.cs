@@ -108,7 +108,8 @@ namespace Scfg.Core
 
         /// <summary><c>STEP_ORDER[step]</c>: a KeyError for a step that is not one.</summary>
         internal static int Order(string step) =>
-            step != null && StepOrder.TryGetValue(step, out var n) ? n : throw new KeyError(Py.Repr((object?)step));
+            step == null ? throw KeyError.OfRepr(Py.Repr((object?)null))
+            : StepOrder.TryGetValue(step, out var n) ? n : throw new KeyError(step);
     }
 
     public sealed class CheckoutController
@@ -255,7 +256,7 @@ namespace Scfg.Core
             {
                 var chain = Chain;
                 if (chain == null) return null;
-                return chain.Tokens.TryGetValue(Spec.Token, out var token) ? token.Address : throw new KeyError(Py.Repr(Spec.Token));
+                return chain.Tokens.TryGetValue(Spec.Token, out var token) ? token.Address : throw new KeyError(Spec.Token);
             }
         }
 
@@ -320,11 +321,7 @@ namespace Scfg.Core
         {
             var registry = Config.Registry;
             var routes = Unready().ToList();
-            routes.Sort((a, b) =>
-            {
-                int c = Py.CompareCodePoints(a.Chain, b.Chain);
-                return c != 0 ? c : Py.CompareCodePoints(a.Token, b.Token);
-            });
+            routes.Sort(Py.CompareRoutes);
             var output = new List<string>();
             foreach (var (key, token) in routes)
             {

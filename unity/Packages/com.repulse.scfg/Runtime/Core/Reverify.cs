@@ -89,12 +89,6 @@ namespace Scfg.Core
             return removed;
         }
 
-        /// <summary>Python's <c>hash(v)</c> for a JSON value: a list or a dict is unhashable.</summary>
-        private static void Hashable(object? v)
-        {
-            if (v is JsonObject || v is List<object?>) throw new TypeError("unhashable type: '" + Py.TypeName(v) + "'");
-        }
-
         /// <summary>
         /// Python <c>_invalid_fields</c>: why the stored entry is not a receipt the checks can read (a KeyError, TypeError,
         /// ValueError or ArithmeticError; Python's AttributeError is a TypeError here), or null. The backends then read
@@ -105,9 +99,9 @@ namespace Scfg.Core
             try
             {
                 var chainKey = Py.Get(r, "chain");
-                Hashable(chainKey);
-                Hashable(Py.Get(r, "token"));
-                Hashable(((JsonObject)r!).Get("item")); // r["chain"] worked: r is a dict
+                Py.CheckHashable(chainKey);
+                Py.CheckHashable(Py.Get(r, "token"));
+                Py.CheckHashable(((JsonObject)r!).Get("item")); // r["chain"] worked: r is a dict
                 var txValue = Py.Get(r, "tx_hash");
                 if (!(txValue is string tx)) throw new TypeError("'" + Py.TypeName(txValue) + "' object has no attribute 'lower'");
                 if (Ints.IntFrom(Py.Get(r, "log_index")) < 0 || Ints.IntFrom(Py.Get(r, "block")) < 0)

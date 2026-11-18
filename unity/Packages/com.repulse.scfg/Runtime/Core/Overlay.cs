@@ -17,7 +17,6 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 
 namespace Scfg.Core
@@ -82,7 +81,7 @@ namespace Scfg.Core
             GetStatus = getStatus ?? throw new TypeError("an OverlayCheckout needs get_status");
             LogoUrl = logoUrl;
             BuildTx = buildTx;
-            Clock = clock ?? MonotonicSeconds;
+            Clock = clock ?? Py.MonotonicSeconds;
         }
 
         /// <summary>The overlay for a CheckoutController's server factory: its <see cref="ServerArgs"/>.</summary>
@@ -91,8 +90,6 @@ namespace Scfg.Core
                    args.GetStatus, logoUrl, args.BuildTx, clock)
         {
         }
-
-        private static double MonotonicSeconds() => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
 
         /// <summary>The builds waiting for their Job (for the tests).</summary>
         internal int PendingBuilds => _builds.Count;

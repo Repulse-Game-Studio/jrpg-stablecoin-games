@@ -1,5 +1,5 @@
-// Twin of tests/unit/test_watcher_awaiting.py::test_hint_verdict_survives_a_network_failure_later_in_the_step
-// (review V1), for Watcher.Advance (EVM) and SolanaBackend.Advance: a verdict on the hint reached earlier in a step is
+// Twin of tests/unit/test_watcher_awaiting.py::test_hint_verdict_survives_a_network_failure_later_in_the_step,
+// for Watcher.Advance (EVM) and SolanaBackend.Advance: a verdict on the hint reached earlier in a step is
 // reported when the rest of the step then fails, with a network failure or with Abandoned (the tick yielding to a
 // command, WorkerPriorityTests). The hint is already cleared, so a later step would never report it. The rest of the
 // watcher is pinned by the Tier 2 vectors.
