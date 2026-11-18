@@ -24,6 +24,8 @@ namespace Scfg.Tests
         [TearDown]
         public void Clean()
         {
+            ScfgSettings.SearchFoldersOverride = null;
+            if (AssetDatabase.IsValidFolder(Scope)) AssetDatabase.DeleteAsset(Scope); // a test that failed midway
             foreach (var o in _made)
                 if (o != null) Object.DestroyImmediate(o);
             _made.Clear();
@@ -352,12 +354,29 @@ namespace Scfg.Tests
             else Assert.That(covered, Is.GreaterThanOrEqualTo(opaque * 8 / 10), "the tight mesh covers the opaque part");
         }
 
+        // The asset tests look only in a folder of their own (ScfgSettings.SearchFoldersOverride), so they pass in a game
+        // project that has its own SCFG Settings asset too (testbed U14). Its folder, made and removed by each test.
+        private const string Scope = "Assets/ScfgSettingsTestScope";
+
+        private static void EnterScope()
+        {
+            if (!AssetDatabase.IsValidFolder(Scope)) AssetDatabase.CreateFolder("Assets", "ScfgSettingsTestScope");
+            ScfgSettings.SearchFoldersOverride = new[] { Scope };
+        }
+
+        private static void LeaveScope()
+        {
+            ScfgSettings.SearchFoldersOverride = null;
+            AssetDatabase.DeleteAsset(Scope);
+        }
+
         [Test]
         public void TheProjectsAssetIsFoundAndPreloadedForABuildOnly()
         {
-            const string path = "Assets/ScfgSettingsTest.asset";
+            EnterScope();
+            const string path = Scope + "/ScfgSettingsTest.asset";
             var before = PlayerSettings.GetPreloadedAssets();
-            Assert.That(ScfgSettings.Find(), Is.Null, "the dev project has none");
+            Assert.That(ScfgSettings.Find(), Is.Null, "none in the test's folder");
             var asset = ScriptableObject.CreateInstance<ScfgSettings>();
             AssetDatabase.CreateAsset(asset, path);
             try
@@ -378,6 +397,7 @@ namespace Scfg.Tests
                 PlayerSettings.SetPreloadedAssets(before);
             }
             Assert.That(ScfgSettings.Find(), Is.Null);
+            LeaveScope();
         }
 
         [Test]
@@ -385,7 +405,8 @@ namespace Scfg.Tests
         {
             // A failed build has no postprocess, and a script reload forgets everything: the clean-up (run after the
             // build and at every editor load) takes out every SCFG Settings entry and keeps the others.
-            const string path = "Assets/ScfgSettingsTest.asset";
+            EnterScope();
+            const string path = Scope + "/ScfgSettingsTest.asset";
             var before = PlayerSettings.GetPreloadedAssets();
             var asset = ScriptableObject.CreateInstance<ScfgSettings>();
             AssetDatabase.CreateAsset(asset, path);
@@ -412,13 +433,15 @@ namespace Scfg.Tests
                 ScfgSettingsBuild.CleanUp();
                 AssetDatabase.DeleteAsset(path);
                 PlayerSettings.SetPreloadedAssets(before);
+                LeaveScope();
             }
         }
 
         [Test]
         public void SeveralAssetsAreRefusedInPlayModeAndInABuild()
         {
-            const string a = "Assets/ScfgSettingsTestA.asset", b = "Assets/ScfgSettingsTestB.asset";
+            EnterScope();
+            const string a = Scope + "/ScfgSettingsTestA.asset", b = Scope + "/ScfgSettingsTestB.asset";
             var before = PlayerSettings.GetPreloadedAssets();
             AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<ScfgSettings>(), b);
             AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<ScfgSettings>(), a);
@@ -436,6 +459,7 @@ namespace Scfg.Tests
                 AssetDatabase.DeleteAsset(a);
                 AssetDatabase.DeleteAsset(b);
                 PlayerSettings.SetPreloadedAssets(before);
+                LeaveScope();
             }
         }
 

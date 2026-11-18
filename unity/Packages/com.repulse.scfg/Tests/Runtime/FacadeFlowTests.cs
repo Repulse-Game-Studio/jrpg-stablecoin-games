@@ -45,6 +45,21 @@ namespace Scfg.Tests
             _awaited = await SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
         }
 
+        // Unreal testbed F11, the same in Unity: an asset without a wallet says so only if nothing configured SCFG by
+        // the end of the first frame (a game that applies it with a runtime wallet gets no line).
+        [UnityTest]
+        public IEnumerator TheNoWalletLineComesOnlyIfNothingConfiguredInTheFirstFrame()
+        {
+            ScfgSettingsNotice.Arm("Unconfigured");
+            LogAssert.Expect(LogType.Log, new System.Text.RegularExpressions.Regex(
+                "the SCFG Settings asset \"Unconfigured\" has no wallet, so it was not applied"));
+            yield return Frames(2);
+            ScfgSettingsNotice.Arm("Configured");
+            _rig.Configure(new ScfgMethods { Browser = false, Qr = false });
+            yield return Frames(2);
+            LogAssert.NoUnexpectedReceived();
+        }
+
         [UnityTest]
         public IEnumerator TheRunnerPumpsAndAwaitResolvesOnTheMainThread()
         {

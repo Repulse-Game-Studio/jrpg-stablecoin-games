@@ -421,7 +421,11 @@ namespace Scfg
         {
             var found = new List<ScfgSettings>();
 #if UNITY_EDITOR
-            foreach (var guid in UnityEditor.AssetDatabase.FindAssets("t:" + nameof(ScfgSettings)))
+            var filter = "t:" + nameof(ScfgSettings);
+            var guids = SearchFoldersOverride != null
+                ? UnityEditor.AssetDatabase.FindAssets(filter, SearchFoldersOverride)
+                : UnityEditor.AssetDatabase.FindAssets(filter);
+            foreach (var guid in guids)
             {
                 var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<ScfgSettings>(UnityEditor.AssetDatabase.GUIDToAssetPath(guid));
                 if (asset != null && !found.Contains(asset)) found.Add(asset);
@@ -446,6 +450,12 @@ namespace Scfg
         /// <summary>Test hook: when set, the startup application uses this instead of looking (null: none).</summary>
         internal static Func<ScfgSettings?>? FindOverride;
 
+        /// <summary>
+        /// Test hook (editor): when set, FindAll looks only in these folders, so the package's tests run the same in a
+        /// game project that has its own SCFG Settings asset (testbed U14).
+        /// </summary>
+        internal static string[]? SearchFoldersOverride;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
         {
@@ -464,10 +474,9 @@ namespace Scfg
                 if (settings == null) return;
                 if (!settings.HasWallet)
                 {
-                    // opt-out: the game configures from code, maybe with this asset and a runtime wallet
-                    if ((settings.items?.Count ?? 0) > 0)
-                        Debug.Log("scfg: the SCFG Settings asset \"" + settings.name + "\" has no wallet, so it is not "
-                                  + "applied at startup: set one there, or call settings.Apply(wallet) from code.");
+                    // opt-out: the game configures from code, maybe with this asset and a runtime wallet; a line
+                    // only if nothing configured SCFG by the end of the first frame (ScfgSettingsNotice)
+                    if ((settings.items?.Count ?? 0) > 0) ScfgSettingsNotice.Arm(settings.name);
                     return;
                 }
                 settings.Apply();
