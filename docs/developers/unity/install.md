@@ -2,7 +2,7 @@
 
 Accept **USDC** and **USDT** tips and unlock purchases in your Unity game, paid **directly to your own wallet**.
 There is no server, no account and no middleman: the package watches the blockchain itself. It is a UPM package,
-`com.repulse.scfg` (a placeholder id), needs Unity **6.3 LTS or newer** (tested on 6000.6.9f1), and works in
+`com.repulse.scfg`, needs Unity **6.3 LTS or newer** (tested on 6000.6.9f1), and works in
 desktop builds (Windows, macOS, Linux) and in WebGL builds. Mobile is best effort and unverified (see
 [Mobile](api.md#mobile-unverified)).
 

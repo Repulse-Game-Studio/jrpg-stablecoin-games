@@ -3,6 +3,9 @@
   "version": "0.2.0",
   "displayName": "Stablecoin for Games (SCFG)",
   "unity": "6000.3",
+  "author": {
+    "name": "Repulse"
+  },
   "description": "USDC/USDT tips and unlock purchases paid straight to the developer's wallet. No server, no accounts.",
   "dependencies": {
     "com.unity.modules.imageconversion": "1.0.0",
