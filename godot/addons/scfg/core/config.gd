@@ -13,8 +13,8 @@
 ## in Python's order: wallet (String or null), testnet, chains (Array of String), tokens (Array of
 ## String), methods ({name: {option: value}}), rpc_urls ({chain: Array of String}), confirmations
 ## ({chain: int}), previous_wallets, solana_wallet, previous_solana_wallets, logo, accent,
-## custom_chains ({key: Chain}) and items ({item_id: Item}). `add_item` mutates `items` in place,
-## as Python's does.
+## custom_chains ({key: Chain}), onramp ({enabled, url, chains: Array of String}) and items
+## ({item_id: Item}). `add_item` mutates `items` in place, as Python's does.
 ##
 ## Python's semantics on loosely typed input are kept where a caller can reach them:
 ## - `bool` and `int` are different types (GDScript has both), and so are `int` and `float`: an
@@ -35,6 +35,10 @@ const DEFAULT_METHODS := {
 	"qr": {"enabled": true, "wallet_button": true, "chains": null},
 	"manual": {"enabled": true, "allow_tx_paste": true},
 }
+## The "No USDC yet? Buy some with a card" link. chains=null: the built-in EVM chains of a mainnet
+## game (card purchases don't exist on test networks); a list chooses the chains.
+const DEFAULT_ONRAMP := {"enabled": true, "url": ScfgPaylinks.ONRAMP_URL, "chains": null}
+const ONRAMP_URL_LIMIT := 2048
 const FEE_HINTS: Array[String] = ["lowest", "low", "high"]
 ## rpc.MIN_LOG_RANGE (config.py imports it): the smallest max_log_range a custom chain may declare.
 const MIN_LOG_RANGE := ScfgRpcClient.MIN_LOG_RANGE
@@ -45,12 +49,12 @@ const INK := "#17202e"
 const LOGO_TYPES := {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
 
 const CONFIG_FIELDS: Array[String] = ["wallet", "testnet", "chains", "tokens", "methods", "rpc_urls", "confirmations",
-	"previous_wallets", "solana_wallet", "previous_solana_wallets", "logo", "accent", "custom_chains", "items"]
+	"previous_wallets", "solana_wallet", "previous_solana_wallets", "logo", "accent", "custom_chains", "onramp", "items"]
 
 const _BUILD_CHAIN_REQUIRED: Array[String] = ["name", "chain_id", "rpc", "tokens", "confirmations", "explorer_tx"]
 const _BUILD_CHAIN_OPTIONAL: Array[String] = ["native_symbol", "fee_hint", "max_log_range", "testnet"]
 const _BUILD_CONFIG_KEYS: Array[String] = ["wallet", "testnet", "chains", "tokens", "methods", "rpc_urls",
-	"confirmations", "previous_wallets", "logo", "accent", "custom_chains", "solana_wallet"]
+	"confirmations", "previous_wallets", "logo", "accent", "custom_chains", "solana_wallet", "onramp"]
 const _ADD_ITEM_REQUIRED: Array[String] = ["code", "price", "token", "title"]
 
 
@@ -522,13 +526,81 @@ static func _merge_methods(methods: Variant, chains: Array) -> Variant:
 	return merged
 
 
+# --- onramp ----------------------------------------------------------------------------------
+
+
+## An https:// URL of printable ASCII (no spaces) whose only braces are placeholders from
+## ONRAMP_FIELDS, like "{chain_id}".
+## @fallible
+static func _onramp_url(value: Variant) -> Variant:
+	var printable := _is_str(value)
+	if printable:
+		var s := str(value)
+		for i in s.length():
+			if s.unicode_at(i) < 0x21 or s.unicode_at(i) > 0x7e:
+				printable = false
+				break
+	if not printable or not str(value).begins_with("https://") or str(value).length() > ONRAMP_URL_LIMIT:
+		return config_error("onramp.bad_url", "onramp url must be an https:// URL without spaces, at most %d characters: %s" % [
+			ONRAMP_URL_LIMIT, ScfgPy.py_repr(value)])
+	var parts := ScfgPaylinks.onramp_split(str(value))
+	for n in range(1, parts.size(), 2):
+		if not parts[n] in ScfgPaylinks.ONRAMP_FIELDS:
+			var names := PackedStringArray()
+			for f in ScfgPaylinks.ONRAMP_FIELDS:
+				names.append("{%s}" % f)
+			return config_error("onramp.unknown_placeholder", "onramp url: unknown placeholder {%s} (use %s)" % [
+				parts[n], ", ".join(names)])
+	for n in range(0, parts.size(), 2):
+		if parts[n].contains("{") or parts[n].contains("}"):
+			return config_error("onramp.unmatched_brace", "onramp url: unmatched brace in %s" % ScfgPy.py_repr(value))
+	return str(value)
+
+
+## @fallible
+static func _merge_onramp(onramp: Variant, chains: Array, reg: Dictionary, testnet: bool) -> Variant:
+	if onramp != null and not onramp is Dictionary:
+		return config_error("onramp.not_a_dict", "onramp must be a dict like {'enabled': False}")
+	var merged: Dictionary = DEFAULT_ONRAMP.duplicate()
+	if onramp != null:
+		for key: Variant in onramp:
+			if not (_is_str(key) and merged.has(str(key))):
+				return config_error("onramp.unknown_option", "unknown option %s for onramp" % ScfgPy.py_repr(key))
+			merged[str(key)] = onramp[key]
+	if typeof(merged["enabled"]) != TYPE_BOOL:
+		return config_error("onramp.enabled_not_bool", "onramp.enabled must be True or False")
+	var url: Variant = _onramp_url(merged["url"])
+	if url is ScfgErr:
+		return url
+	var keys: Variant = merged["chains"]
+	var out := []
+	if keys == null:
+		var builtin: Dictionary = ScfgChains.get_chains(testnet)
+		for k: String in chains:
+			if not testnet and builtin.has(k) and reg[k]["family"] == "evm":
+				out.append(k)
+	else:
+		if not keys is Array:
+			return config_error("onramp.chains_not_a_list", "onramp.chains must be a list of chain keys")
+		for c: Variant in keys:
+			if not in_strs(chains, c):
+				return config_error("onramp.disabled_chain", "onramp.chains contains disabled chain %s" % ScfgPy.py_repr(c))
+			if reg[str(c)]["family"] != "evm":
+				return config_error("onramp.not_evm", "onramp.chains: %s is not an EVM chain; the buy link is offered on EVM chains only" % ScfgPy.py_repr(c))
+		for c: Variant in keys:
+			if out.has(str(c)):
+				return config_error("onramp.duplicate_chain", "duplicate chain in onramp.chains")
+			out.append(str(c))
+	return {"enabled": merged["enabled"], "url": url, "chains": out}
+
+
 # --- build_config ----------------------------------------------------------------------------
 
 
 ## The developer's configuration, validated. `opts` holds the keyword arguments (all optional):
 ## wallet, testnet, chains, tokens, methods, rpc_urls, confirmations, previous_wallets, logo,
-## accent, custom_chains (Chains from build_chain; those of the other network are ignored) and
-## solana_wallet. Returns a Config Dictionary.
+## accent, custom_chains (Chains from build_chain; those of the other network are ignored),
+## solana_wallet and onramp ({enabled, url, chains}, the buy link). Returns a Config Dictionary.
 ## @fallible
 static func build_config(opts: Variant = {}) -> Variant:
 	var bad_opts: Variant = _check_opts(opts, [], _BUILD_CONFIG_KEYS, "build_config")
@@ -627,6 +699,9 @@ static func build_config(opts: Variant = {}) -> Variant:
 	var merged: Variant = _merge_methods(o.get("methods"), chains)
 	if merged is ScfgErr:
 		return merged
+	var buy: Variant = _merge_onramp(o.get("onramp"), chains, reg, testnet)
+	if buy is ScfgErr:
+		return buy
 
 	var urls := {}
 	if ScfgPy.py_truthy(o.get("rpc_urls")):
@@ -665,7 +740,8 @@ static func build_config(opts: Variant = {}) -> Variant:
 	var config := {
 		"wallet": wallet, "testnet": testnet, "chains": chains, "tokens": tokens, "methods": merged,
 		"rpc_urls": urls, "confirmations": confs, "previous_wallets": prev, "solana_wallet": sol,
-		"previous_solana_wallets": prev_sol, "logo": logo, "accent": accent, "custom_chains": custom, "items": {},
+		"previous_solana_wallets": prev_sol, "logo": logo, "accent": accent, "custom_chains": custom, "onramp": buy,
+		"items": {},
 	}
 	if enabled_chains(config).is_empty():
 		return config_error("config.no_usable_token", "no enabled chain supports any enabled token")

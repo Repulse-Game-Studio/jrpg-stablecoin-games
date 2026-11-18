@@ -33,6 +33,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -78,6 +89,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -118,6 +140,11 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -166,6 +193,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -211,6 +249,11 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -260,6 +303,11 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -306,6 +354,14 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "base",
+      "arbitrum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -356,6 +412,16 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "polygon",
+      "base",
+      "ethereum",
+      "arc"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -402,6 +468,13 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "base"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -450,6 +523,11 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -497,6 +575,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -543,6 +632,17 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -591,6 +691,17 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -654,6 +765,14 @@
       "wallet_button": false
      }
     },
+    "onramp": {
+     "chains": [
+      "base",
+      "arbitrum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -707,6 +826,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -759,6 +889,17 @@
       "enabled": false,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -811,6 +952,17 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -868,6 +1020,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {
@@ -924,6 +1087,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -975,6 +1149,17 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1035,6 +1220,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [
      "AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe"
     ],
@@ -1085,6 +1281,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -1130,6 +1337,17 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1177,6 +1395,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -1223,6 +1452,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -1268,6 +1508,17 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1315,6 +1566,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -1360,6 +1622,17 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1409,6 +1682,13 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arc"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -1416,6 +1696,592 @@
     "testnet": false,
     "tokens": [
      "USDC"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "onramp": {},
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "enabled": false
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": false,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "base",
+     "arc"
+    ],
+    "onramp": {
+     "chains": [
+      "arc"
+     ]
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "base",
+     "arc"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "arc"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "base",
+     "arc"
+    ],
+    "onramp": {
+     "chains": []
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "base",
+     "arc"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "polygon",
+     "base"
+    ],
+    "onramp": {
+     "chains": [
+      "base",
+      "polygon"
+     ]
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "polygon",
+     "base"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "base",
+      "polygon"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "chains": [
+      "base",
+      "arc"
+     ]
+    },
+    "testnet": true,
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "base",
+      "arc"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": true,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "chains": null,
+     "enabled": true,
+     "url": "https://x.example/{chain}/{chain}?id={chain_id}&t={token}&a={amount}&c={token_address}"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://x.example/{chain}/{chain}?id={chain_id}&t={token}&a={amount}&c={token_address}"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/buy"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://x.example/buy"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://x.example/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/!\"#$%&'()*+,-./:;<=>?@[\\]^_`|~"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://x.example/!\"#$%&'()*+,-./:;<=>?@[\\]^_`|~"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
     ],
     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
    }
@@ -1994,6 +2860,451 @@
    "fn": "build_config",
    "in": {
     "accent": "#abc\n",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.not_a_dict",
+   "fn": "build_config",
+   "in": {
+    "onramp": false,
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.not_a_dict",
+   "fn": "build_config",
+   "in": {
+    "onramp": [
+     "enabled"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.unknown_option",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "enable": false
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.enabled_not_bool",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "enabled": "no"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.enabled_not_bool",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "enabled": 0
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.enabled_not_bool",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "enabled": null
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "http://x.example/buy"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "HTTPS://x.example/buy"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/buy?a={amount} "
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/buy\n"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/buy\t"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/café"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/ "
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://x.example/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": null
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": 5
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": ""
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.unknown_placeholder",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/?w={wallet}"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.unknown_placeholder",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/?w={}"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.unknown_placeholder",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/?w={Amount}"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/?w={ amount}"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.unmatched_brace",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/?a={amount"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.unmatched_brace",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/?a=amount}"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.unmatched_brace",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/?a={{amount}}"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.unmatched_brace",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/?a=}{amount}{"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.unknown_placeholder",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example/?a={x}}"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.chains_not_a_list",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "chains": "base"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.chains_not_a_list",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "chains": {
+      "base": true
+     }
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.chains_not_a_list",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "chains": 5
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.disabled_chain",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "chains": [
+      "tron"
+     ]
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.disabled_chain",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "chains": [
+      5
+     ]
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.disabled_chain",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "chains": [
+      null
+     ]
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.disabled_chain",
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "base"
+    ],
+    "onramp": {
+     "chains": [
+      "arc"
+     ]
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.duplicate_chain",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "chains": [
+      "base",
+      "base"
+     ]
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.not_evm",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "chains": [
+      "base",
+      "solana"
+     ]
+    },
+    "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "chains": [
+      "tron"
+     ],
+     "url": "ftp://x"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "methods.enabled_not_bool",
+   "fn": "build_config",
+   "in": {
+    "methods": {
+     "qr": {
+      "enabled": "yes"
+     }
+    },
+    "onramp": {
+     "enabled": "no"
+    },
     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
    }
   }

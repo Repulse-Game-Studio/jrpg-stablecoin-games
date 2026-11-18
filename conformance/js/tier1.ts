@@ -20,7 +20,7 @@ import {
 import { keccak256 } from "../../rpgmaker/src/core/keccak.ts";
 import type { Item } from "../../rpgmaker/src/core/models.ts";
 import { parseBuildMessage, parseTxMessage } from "../../rpgmaker/src/core/page_messages.ts";
-import { eip681TransferUri, qrMatrix, qrRects } from "../../rpgmaker/src/core/paylinks.ts";
+import { eip681TransferUri, onrampAmount, onrampUrl, qrMatrix, qrRects } from "../../rpgmaker/src/core/paylinks.ts";
 import { pyInt } from "../../rpgmaker/src/core/pystr.ts";
 import { RpcError, suggestedRange } from "../../rpgmaker/src/core/rpc.ts";
 import { SolanaRpc } from "../../rpgmaker/src/core/solana/rpc.ts";
@@ -149,6 +149,11 @@ FUNCS["stored_amount"] = (i) => {
 FUNCS["eip681_transfer_uri"] = (i) => eip681TransferUri({
   token_address: field(i, "token_address", "string"), chain_id: field(i, "chain_id", "number"),
   recipient: field(i, "recipient", "string"), units: unitsIn(i.units),
+});
+FUNCS["onramp_amount"] = (i) => onrampAmount(unitsIn(i.units), field(i, "gas_is_token", "boolean"));
+FUNCS["onramp_url"] = (i) => onrampUrl(field(i, "template", "string"), {
+  chain: field(i, "chain", "string"), chainId: field(i, "chain_id", "number"), token: field(i, "token", "string"),
+  tokenAddress: field(i, "token_address", "string"), amount: field(i, "amount", "string"),
 });
 FUNCS["solana_pay_uri"] = (i) => solanaPayUri({
   recipient: field(i, "recipient", "string"), units: unitsIn(i.units), mint: field(i, "mint", "string"),

@@ -145,6 +145,32 @@ var can_go_back: bool:
 			return false
 		return _previous_step() != null
 
+## Whether this step offers the buy link.
+var shows_onramp: bool:
+	get:
+		if not _onramp_step():
+			return false
+		var url: Variant = onramp_url()
+		if url is ScfgErr:
+			return false
+		return url != null
+
+## Whether this step points to the buy link instead ("Pick another network"), because the chosen
+## network has none (Solana) but another one the player can pick has it. Its button goes back to
+## the network step (`back()`).
+var shows_onramp_hint: bool:
+	get:
+		var opts: Variant = config.get("onramp")
+		if not opts is Dictionary or not opts["enabled"] or not _onramp_step() or not can_go_back:
+			return false
+		var url: Variant = onramp_url()
+		if url is ScfgErr or url != null:
+			return false
+		for o: Array in chain_options():
+			if (opts["chains"] as Array).has(o[0]):
+				return true
+		return false
+
 
 func _init(opts: Dictionary) -> void:
 	config = opts.get("config")
@@ -230,6 +256,24 @@ func payment_uri() -> Variant:
 		"recipient": recipient, "units": session["units"]})
 
 
+## The page where a player without the token buys some with a card, for the chosen network, with
+## the payment (plus a cent for the fee on Arc) suggested as the amount. Null when configure's
+## `onramp` doesn't offer it on this network.
+## @fallible
+func onramp_url() -> Variant:
+	var opts: Variant = config.get("onramp")
+	var c: Variant = chain
+	if not opts is Dictionary or not opts["enabled"] or c == null or not (opts["chains"] as Array).has(c["key"]):
+		return null
+	var units: Variant = session["units"] if ScfgPy.py_truthy(session) else null
+	if units == null:
+		units = ScfgAmounts.decimal_to_units(amount)
+		if units is ScfgErr:
+			return units
+	return ScfgPaylinks.onramp_url(opts["url"], c["key"], c["chain_id"], spec["token"], token_address,
+		ScfgPaylinks.onramp_amount(units, c["native_token"] == spec["token"]))
+
+
 ## @fallible
 func explorer_url() -> Variant:
 	var tx: Variant = hint_tx
@@ -278,6 +322,12 @@ func step_path() -> Array:
 	path.append(method if ScfgPy.py_truthy(method) else "browser")
 	path.append("waiting")
 	return path
+
+
+## The step where the buy link (or its hint) goes: the method step, or the payment page the sheet
+## opens on when the method step is skipped (a single method).
+func _onramp_step() -> bool:
+	return step == "method" or (step in ["browser", "qr", "manual"] and not step_path().has("method"))
 
 
 ## [index of the current step, number of steps] for the progress dots.

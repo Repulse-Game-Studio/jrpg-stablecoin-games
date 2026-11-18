@@ -268,6 +268,9 @@
   "tests/unit/test_config.py::test_bad_methods": [
    "tier1/config"
   ],
+  "tests/unit/test_config.py::test_bad_onramp": [
+   "tier1/config"
+  ],
   "tests/unit/test_config.py::test_bad_rpc_urls": [
    "tier1/config"
   ],
@@ -312,6 +315,24 @@
    "tier1/config"
   ],
   "tests/unit/test_config.py::test_no_chain_supports_token": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_onramp_chains_must_be_evm": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_onramp_default_follows_the_enabled_chains_and_skips_custom_ones": [
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_config.py::test_onramp_defaults_to_the_builtin_evm_chains_on_mainnet": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_onramp_is_not_offered_on_testnet_unless_chains_are_listed": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_onramp_options_merge": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_onramp_url_limit_is_inclusive": [
    "tier1/config"
   ],
   "tests/unit/test_config.py::test_qr_chains_subset_ok": [
@@ -565,7 +586,16 @@
   "tests/unit/test_paylinks.py::test_a_version_32_payment_link_matrix": [
    "tier1/qr"
   ],
+  "tests/unit/test_paylinks.py::test_default_onramp_url_is_thirdwebs_buy_page_locked_to_the_token": [
+   "tier1/paylinks"
+  ],
   "tests/unit/test_paylinks.py::test_eip681_uri": [
+   "tier1/paylinks"
+  ],
+  "tests/unit/test_paylinks.py::test_onramp_amount": [
+   "tier1/paylinks"
+  ],
+  "tests/unit/test_paylinks.py::test_onramp_url_fills_every_placeholder_each_time_it_appears": [
    "tier1/paylinks"
   ],
   "tests/unit/test_paylinks.py::test_qr_alignment_patterns_sit_where_the_standard_puts_them": [

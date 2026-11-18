@@ -6,7 +6,7 @@ import { FakeServer, PageWithPump, immediateSubmitter } from "../../test/checkou
 import { FakeClock } from "../../test/rpc_fakes.ts";
 import { MAINNET, type Chain } from "./chains.ts";
 import { CheckoutController } from "./checkout.ts";
-import { addItem, buildConfig } from "./config.ts";
+import { addItem, buildConfig, type BuildConfigOptions } from "./config.ts";
 import { Engine } from "./engine.ts";
 import { preparePayment } from "./payments.ts";
 import { makeStepOutcome } from "./watcher.ts";
@@ -22,10 +22,11 @@ interface SetupOpts {
   chains?: string[];
   methods?: Record<string, Record<string, unknown>>;
   browser_wallet?: (chain: Chain) => boolean;
+  onramp?: BuildConfigOptions["onramp"];
 }
 
-function setup({ kind = "unlock", chains, methods, browser_wallet }: SetupOpts = {}) {
-  const cfg = buildConfig({ wallet: DEV, chains, methods });
+function setup({ kind = "unlock", chains, methods, browser_wallet, onramp }: SetupOpts = {}) {
+  const cfg = buildConfig({ wallet: DEV, chains, methods, onramp });
   addItem(cfg, "chapter2", { code: 37, price: "4.99", token: "USDC", title: "Chapter 2" });
   const fakes: Record<string, FakeChain> = {};
   const clock = new FakeClock();
@@ -383,4 +384,46 @@ test("test_the_controller_pumps_and_reopens_an_overlay_page", async () => {
   assert.equal((ctl._server as PageWithPump).pumps, 1);
   ctl.openBrowser();
   assert.equal((ctl._server as PageWithPump).reopens, 1);
+});
+
+// --- the buy link (configure({onramp})) ----------------------------------------------------
+
+test("test_the_method_step_offers_the_buy_page_for_the_chosen_network", async () => {
+  const { ctl, submit } = setup();
+  assert.ok(ctl.onrampUrl() === null && ctl.showsOnramp === false); // no network yet
+  ctl.chooseNetwork("arbitrum");
+  await submit.idle();
+  ctl.poll();
+  assert.deepEqual([ctl.step, ctl.showsOnramp], ["method", true]);
+  const units = BigInt(ctl.session!["units"]);
+  assert.ok(units >= 4_990_000n && units < 5_000_000n);
+  assert.equal(ctl.onrampUrl(), "https://thirdweb.com/bridge/buy-widget?chain=42161"
+    + `&tokenAddress=${USDC_ARB}&amount=5.00&tokenEditable=false`);
+});
+
+test("test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee", async () => {
+  const { ctl, submit } = setup({ chains: ["base", "arc"] });
+  ctl.chooseNetwork("arc");
+  await submit.idle();
+  ctl.poll();
+  assert.ok(ctl.onrampUrl()!.endsWith("&amount=5.01&tokenEditable=false"));
+});
+
+test("test_the_buy_link_moves_to_the_only_payment_page", async () => {
+  let { ctl } = await onMethodStep({ methods: ONLY_MANUAL });
+  assert.ok(ctl.step === "manual" && ctl.showsOnramp === true);
+  ({ ctl } = await onMethodStep());
+  ctl.chooseMethod("qr");
+  assert.ok(ctl.step === "qr" && ctl.showsOnramp === false); // the method step showed it
+  ctl.markSent();
+  assert.equal(ctl.showsOnramp, false);
+});
+
+test("test_the_buy_link_follows_the_onramp_option", async () => {
+  let { ctl } = await onMethodStep({ onramp: { enabled: false } });
+  assert.ok(ctl.onrampUrl() === null && ctl.showsOnramp === false);
+  ({ ctl } = await onMethodStep({ onramp: { chains: ["base"] } }));
+  assert.ok(ctl.chain_key === "arbitrum" && ctl.onrampUrl() === null);
+  ({ ctl } = await onMethodStep({ onramp: { url: "https://buy.example/{chain}/{token}?a={amount}" } }));
+  assert.equal(ctl.onrampUrl(), "https://buy.example/arbitrum/USDC?a=5.00");
 });

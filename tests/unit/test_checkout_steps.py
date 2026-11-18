@@ -29,8 +29,8 @@ class FakeServer:
         pass
 
 
-def setup(kind="unlock", chains=None, methods=None, browser_wallet=None):
-    cfg = build_config(DEV, chains=chains, methods=methods)
+def setup(kind="unlock", chains=None, methods=None, browser_wallet=None, onramp=None):
+    cfg = build_config(DEV, chains=chains, methods=methods, onramp=onramp)
     add_item(cfg, "chapter2", code=37, price="4.99", token="USDC", title="Chapter 2")
     fakes = {}
     clock = FakeClock(100.0)
@@ -388,3 +388,42 @@ def test_the_controller_pumps_and_reopens_an_overlay_page():
     assert ctl._server.pumps == 1
     ctl.open_browser()
     assert ctl._server.reopens == 1
+
+
+# --- the buy link (configure(onramp=...)) ------------------------------------------------
+
+def test_the_method_step_offers_the_buy_page_for_the_chosen_network():
+    ctl, *_ = setup()
+    assert ctl.onramp_url() is None and ctl.shows_onramp is False   # no network yet
+    ctl.choose_network("arbitrum")
+    ctl.poll()
+    assert ctl.step == "method" and ctl.shows_onramp is True
+    assert 4_990_000 <= ctl.session["units"] < 5_000_000
+    assert ctl.onramp_url() == ("https://thirdweb.com/bridge/buy-widget?chain=42161"
+                                f"&tokenAddress={USDC_ARB}&amount=5.00&tokenEditable=false")
+
+
+def test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee():
+    ctl, *_ = setup(chains=["base", "arc"])
+    ctl.choose_network("arc")
+    ctl.poll()
+    assert ctl.onramp_url().endswith("&amount=5.01&tokenEditable=false")
+
+
+def test_the_buy_link_moves_to_the_only_payment_page():
+    ctl, *_ = on_method_step(methods={"browser": {"enabled": False}, "qr": {"enabled": False}})
+    assert ctl.step == "manual" and ctl.shows_onramp is True
+    ctl, *_ = on_method_step()
+    ctl.choose_method("qr")
+    assert ctl.step == "qr" and ctl.shows_onramp is False   # the method step showed it
+    ctl.mark_sent()
+    assert ctl.shows_onramp is False
+
+
+def test_the_buy_link_follows_the_onramp_option():
+    ctl, *_ = on_method_step(onramp={"enabled": False})
+    assert ctl.onramp_url() is None and ctl.shows_onramp is False
+    ctl, *_ = on_method_step(onramp={"chains": ["base"]})
+    assert ctl.chain_key == "arbitrum" and ctl.onramp_url() is None
+    ctl, *_ = on_method_step(onramp={"url": "https://buy.example/{chain}/{token}?a={amount}"})
+    assert ctl.onramp_url() == "https://buy.example/arbitrum/USDC?a=5.00"

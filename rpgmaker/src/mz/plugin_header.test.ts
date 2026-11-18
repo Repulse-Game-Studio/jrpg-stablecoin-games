@@ -35,7 +35,7 @@ test("headerDeclaresEveryCommandAndParam", async () => {
   assert.deepEqual(text, {
     wallet: "Wallet", solanaWallet: "Solana Wallet", testnet: "Testnet", logo: "Logo", accent: "Accent", items: "Items",
     notify: "Notify", tipJarMenu: "Tip Jar Menu", tipJarLabel: "Tip Jar Label", texts: "Texts", chains: "Chains",
-    tokens: "Tokens", methods: "Methods", rpcUrls: "RPC URLs", confirmations: "Confirmations", previousWallets: "Previous Wallets",
+    tokens: "Tokens", methods: "Methods", onramp: "Buy Link", rpcUrls: "RPC URLs", confirmations: "Confirmations", previousWallets: "Previous Wallets",
     customChains: "Custom Chains",
   });
   const p = Object.fromEntries(h.params.map((x) => [x.name, x]));
@@ -46,8 +46,8 @@ test("headerDeclaresEveryCommandAndParam", async () => {
   assert.deepEqual([p["logo"]!.type, p["logo"]!.dir, p["logo"]!.require], ["file", "img/scfg/", "1"]);
   assert.deepEqual([p["items"]!.type, p["items"]!.default], ["struct<Item>[]", "[]"]);
   assert.deepEqual([p["texts"]!.type, p["texts"]!.default], ["struct<Text>[]", "[]"]);
-  for (const json of [PARAM.chains, PARAM.tokens, PARAM.methods, PARAM.rpcUrls, PARAM.confirmations, PARAM.previousWallets,
-    PARAM.customChains]) {
+  for (const json of [PARAM.chains, PARAM.tokens, PARAM.methods, PARAM.onramp, PARAM.rpcUrls, PARAM.confirmations,
+    PARAM.previousWallets, PARAM.customChains]) {
     assert.equal(p[json]!.type, "multiline_string", `${json}: JSON text, as written`);
     assert.equal(p[json]!.default, "", `${json}: empty = the defaults`);
   }
@@ -81,7 +81,7 @@ test("headerDeclaresEveryCommandAndParam", async () => {
   assert.deepEqual([statusArg.type, statusArg.default], ["variable", "0"]);
   // the help documents the status codes and that the plugin owns the switches
   for (const needle of ["0 = ", "1 = paid", "2 = already owned", "3 = pending", "7 = failed", "nothing found", "owns those switches",
-    "Confirmations {", "Previous Wallets [", "Custom Chains:", "\"chain_id\"", "SCFG.configure({...}) again", "SCFG.addItem(id"]) {
+    "Confirmations {", "Previous Wallets [", "Buy Link:", "{token_address}", "Custom Chains:", "\"chain_id\"", "SCFG.configure({...}) again", "SCFG.addItem(id"]) {
     assert.ok(h.help.includes(needle), `the help mentions ${JSON.stringify(needle)}`);
   }
 });
@@ -101,7 +101,7 @@ test("headerParamsRoundTripThroughMzEncoding", () => {
   const typed: Record<string, unknown> = {
     wallet: DEV, solanaWallet: "", testnet: "true", logo: "logo", accent: "#0e7c74", notify: "false", tipJarMenu: "true",
     tipJarLabel: "Tips", chains: "[\n  \"base\",\n  \"arbitrum\"\n]", tokens: "[\"USDC\"]",
-    methods: "{\"manual\": {\"allow_tx_paste\": false}}", rpcUrls: "{\"base\": [\"https://rpc.example\"]}",
+    methods: "{\"manual\": {\"allow_tx_paste\": false}}", onramp: "{\"chains\": [\"base\"]}", rpcUrls: "{\"base\": [\"https://rpc.example\"]}",
     confirmations: "{\"base\": 12}", previousWallets: `["${OLD}"]`, customChains: `{"myl2": ${JSON.stringify(MYL2)}}`,
     items: [{ id: "chapter2", code: "37", price: "4.99", token: "USDC", title: "Chapter \"2\"", minPrice: "", ownedSwitch: "1" }],
     texts: [{ id: "payment_confirmed", text: "Danke!" }],
@@ -111,7 +111,7 @@ test("headerParamsRoundTripThroughMzEncoding", () => {
   assert.equal(raw["items"], JSON.stringify([JSON.stringify(typed["items"] && (typed["items"] as any[])[0])]), "MZ's double encoding");
   const expected = {
     testnet: true, wallet: DEV, logo: "logo", accent: "#0e7c74", chains: ["base", "arbitrum"], tokens: ["USDC"],
-    methods: { manual: { allow_tx_paste: false } }, rpc_urls: { base: ["https://rpc.example"] }, confirmations: { base: 12 },
+    methods: { manual: { allow_tx_paste: false } }, onramp: { chains: ["base"] }, rpc_urls: { base: ["https://rpc.example"] }, confirmations: { base: 12 },
     previous_wallets: [OLD],
   };
   const parsed = parseParams(raw);
@@ -121,8 +121,8 @@ test("headerParamsRoundTripThroughMzEncoding", () => {
   assert.deepEqual([parsed.notify, parsed.tipJarMenu, parsed.tipJarLabel, parsed.texts], [false, true, "Tips", { payment_confirmed: "Danke!" }]);
   // an older editor or a hand-edited plugins.js may store multi-line text JSON-quoted (MZ's note type)
   const asNote = { ...raw };
-  for (const k of [PARAM.chains, PARAM.tokens, PARAM.methods, PARAM.rpcUrls, PARAM.confirmations, PARAM.previousWallets,
-    PARAM.customChains]) asNote[k] = mzEncode(h, "note", typed[k]);
+  for (const k of [PARAM.chains, PARAM.tokens, PARAM.methods, PARAM.onramp, PARAM.rpcUrls, PARAM.confirmations,
+    PARAM.previousWallets, PARAM.customChains]) asNote[k] = mzEncode(h, "note", typed[k]);
   assert.deepEqual(parseParams(asNote).configure, expected, "JSON-quoted JSON text is read too");
   assert.deepEqual(parseParams(asNote).customChains, [["myl2", MYL2]]);
   // every type the header declares can be encoded (a type the reader doesn't know would be a typo)
