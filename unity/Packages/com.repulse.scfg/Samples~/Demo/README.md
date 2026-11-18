@@ -17,5 +17,17 @@ it carries on with the configuration it made the first time.
    **Demo**.
 2. Open `Demo.unity` there and press **Play**.
 
-Before you publish anything, replace the placeholder wallet in `ScfgDemo.cs` (the public EIP-55 example address) with
-your own, and set `Testnet = false` when you go live.
+The payments go to your wallet: set it on the **SCFG Demo** component in the scene (**Wallet**, an EVM `0x` address,
+and **Solana Wallet** to take Solana too), or in your project's SCFG Settings asset, which the demo uses when both
+component fields are blank. With neither, the demo configures nothing and says so on screen: it never pays a
+placeholder address. It always runs on testnets (`Testnet = true` in `ScfgDemo.cs`); your own game turns that off for
+the release.
+
+Test payments need test money in a second wallet (the player's): testnet USDC from
+[Circle's faucet](https://faucet.circle.com/) (Sepolia, Arbitrum Sepolia, Base Sepolia, Polygon Amoy, Arc Testnet and
+Solana Devnet), and a little of the network's coin for the fee: Sepolia ETH (for example
+[Google's faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia), which also sends to Arbitrum
+Sepolia and Base Sepolia), POL on Amoy from [Polygon's faucet](https://faucet.polygon.technology/), and Devnet SOL
+from [Solana's faucet](https://faucet.solana.com/). Arc Testnet pays its fee in USDC. On Solana, the receiving wallet
+must have received each token once (it needs a token account), on Devnet as on mainnet: send it a little Devnet
+USDC first, or the sheet does not offer USDC on Solana.

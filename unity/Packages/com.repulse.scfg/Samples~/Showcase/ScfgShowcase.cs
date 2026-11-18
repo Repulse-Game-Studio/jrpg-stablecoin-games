@@ -23,9 +23,12 @@ namespace Scfg.Samples.Showcase
     {
         // --- 1. Configuration ------------------------------------------------------------------------------
 
-        // The wallet that receives the payments. This placeholder is the public example address from the EIP-55 spec:
-        // it is not yours, so a real payment to it would be lost. Replace it with your own.
-        private const string Wallet = "0x52908400098527886E0F7030069857D2E4169EE7";
+        // The wallet that receives the payments: yours. Set it on this component (Wallet, and Solana Wallet to take
+        // Solana too), or in the project's SCFG Settings asset (Assets > Create > SCFG Settings), which this scene uses
+        // when both fields here are blank. With neither, the scene does not configure SCFG and says so: it never pays a
+        // placeholder address.
+        [SerializeField] private string wallet = "";
+        [SerializeField] private string solanaWallet = "";
 
         // The accent color of the payment sheet, as "#rrggbb".
         private const string Accent = "#7c5cff";
@@ -62,7 +65,13 @@ namespace Scfg.Samples.Showcase
         private void Start()
         {
             BuildScreen();
-            var err = Configure();
+            var (evm, solana) = ScfgSampleWallets.Find(wallet, solanaWallet);
+            if (evm == null && solana == null)
+            {
+                Log(ScfgSampleWallets.Missing);
+                return;
+            }
+            var err = Configure(evm, solana);
             if (err == "configure.after_start" && Items.All(i => SCFG.ItemTitle(i.Id) == i.Item.Title))
             {
                 Log("SCFG was configured by an earlier load of this scene; carrying on with that configuration.");
@@ -88,14 +97,15 @@ namespace Scfg.Samples.Showcase
         // Configures SCFG and declares the items. Configure and AddItem return null on success, or the error code they
         // already logged (with Debug.LogError); so does this. With an SCFG Settings asset in the project, the asset is
         // applied first and this call replaces it, as long as payments have not started (this scene is played first).
-        private static string Configure()
+        private static string Configure(string evm, string solana)
         {
             var err = SCFG.Configure(new ScfgOptions
             {
-                Wallet = Wallet,
-                Testnet = true, // Sepolia, Arbitrum Sepolia, Amoy, Base Sepolia, Arc Testnet
+                Wallet = evm,
+                SolanaWallet = solana,
+                Testnet = true, // Sepolia, Arbitrum Sepolia, Amoy, Base Sepolia, Arc Testnet, Solana Devnet
                 Accent = Accent,
-                // Optional, among others: SolanaWallet, Chains, Tokens, Methods, Logo, RpcUrls.
+                // Optional, among others: Chains, Tokens, Methods, Logo, RpcUrls.
             });
             if (err != null) return err;
             foreach (var (id, item) in Items)
@@ -119,9 +129,9 @@ namespace Scfg.Samples.Showcase
         private void AddItemRow(string id, ScfgItem item)
         {
             var row = Row();
-            var title = new Label(item.Title) { style = { flexGrow = 1 } };
+            var title = new Label(item.Title) { style = { flexGrow = 1, color = TextColor } };
             row.Add(title);
-            var state = new Label();
+            var state = new Label { style = { color = TextColor } };
             row.Add(state);
             _itemStates[id] = state;
             var buttons = new List<Button> { MakeButton("Unlock: " + item.Price + " " + item.Token, () => Unlock(id, null)) };
@@ -283,7 +293,10 @@ namespace Scfg.Samples.Showcase
 
         private void Log(string text)
         {
-            var line = new Label(System.DateTime.Now.ToString("HH:mm:ss") + "  " + text) { style = { whiteSpace = WhiteSpace.Normal } };
+            var line = new Label(System.DateTime.Now.ToString("HH:mm:ss") + "  " + text)
+            {
+                style = { whiteSpace = WhiteSpace.Normal, color = TextColor },
+            };
             _log.Add(line);
             _log.schedule.Execute(() => _log.ScrollTo(line));
         }
@@ -321,6 +334,9 @@ namespace Scfg.Samples.Showcase
             var root = _document.rootVisualElement;
             root.style.flexDirection = FlexDirection.Row;
             root.style.backgroundColor = new Color(0.09f, 0.11f, 0.15f);
+            // Light text on the dark background, whatever the theme's default (dark in both editor skins and players):
+            // labels inherit it.
+            root.style.color = TextColor;
             root.style.paddingLeft = root.style.paddingRight = root.style.paddingTop = root.style.paddingBottom = 24;
 
             var left = Column(1);
@@ -363,8 +379,31 @@ namespace Scfg.Samples.Showcase
             style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 18, marginTop = 16, marginBottom = 8, color = Color.white },
         };
 
-        private static Label Text() => new Label { style = { whiteSpace = WhiteSpace.Normal, color = new Color(0.85f, 0.87f, 0.9f) } };
+        private static Label Text() => new Label { style = { whiteSpace = WhiteSpace.Normal, color = TextColor } };
+
+        // The text color of the whole screen (the panel's default would be dark on the dark background).
+        private static readonly Color TextColor = new Color(0.85f, 0.87f, 0.9f);
 
         private static Button MakeButton(string text, System.Action onClick) => new Button(onClick) { text = text };
+    }
+
+    // Where the scene finds the payout wallets (the Demo does the same in its Wallets()): the component's fields when one is set,
+    // else the project's SCFG Settings asset, else none.
+    internal static class ScfgSampleWallets
+    {
+        public const string Missing = "No wallet is set, so SCFG is not configured and nothing can be paid. Put your wallet"
+            + " address in this component's Wallet field, or in an SCFG Settings asset (Assets > Create > SCFG Settings),"
+            + " then play the scene again.";
+
+        public static (string Evm, string Solana) Find(string wallet, string solanaWallet)
+        {
+            if (!Blank(wallet) || !Blank(solanaWallet)) return (Trim(wallet), Trim(solanaWallet));
+            var settings = ScfgSettings.Find();
+            if (settings != null && settings.HasWallet) return (Trim(settings.wallet), Trim(settings.solanaWallet));
+            return (null, null);
+        }
+
+        private static bool Blank(string s) => string.IsNullOrWhiteSpace(s);
+        private static string Trim(string s) => Blank(s) ? null : s.Trim();
     }
 }

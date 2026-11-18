@@ -16,6 +16,13 @@ namespace Scfg.Samples.Demo
     [AddComponentMenu("SCFG/SCFG Demo")]
     public sealed class ScfgDemo : MonoBehaviour
     {
+        // The wallet that receives the payments: yours. Set it on this component (Wallet, and Solana Wallet to take
+        // Solana too), or in the project's SCFG Settings asset (Assets > Create > SCFG Settings), which this scene uses
+        // when both fields here are blank. With neither, the scene does not configure SCFG and says so: it never pays a
+        // placeholder address.
+        [SerializeField] private string wallet = "";
+        [SerializeField] private string solanaWallet = "";
+
         private const string Item = "chapter2";
         private const string ItemTitle = "Chapter 2: The Fall";
 
@@ -30,7 +37,15 @@ namespace Scfg.Samples.Demo
         private void Start()
         {
             BuildScreen();
-            var err = Configure();
+            var (evm, solana) = Wallets();
+            if (evm == null && solana == null)
+            {
+                _status.text = "No wallet is set, so SCFG is not configured and nothing can be paid. Put your wallet"
+                               + " address in this component's Wallet field, or in an SCFG Settings asset (Assets >"
+                               + " Create > SCFG Settings), then play the scene again.";
+                return;
+            }
+            var err = Configure(evm, solana);
             if (err == "configure.after_start" && SCFG.ItemTitle(Item) == ItemTitle)
             {
                 // this scene was loaded before in this run: payments started with the configuration it made then
@@ -60,19 +75,30 @@ namespace Scfg.Samples.Demo
         }
 
         // Configures SCFG. Null, or the error code Configure or AddItem refused it with (and logged).
-        private static string Configure()
+        private static string Configure(string evm, string solana)
         {
             var err = SCFG.Configure(new ScfgOptions
             {
-                // TODO: replace with YOUR wallet address. This placeholder is the public EIP-55 example address from the
-                // EIP-55 spec: it is not yours, so a real payment to it is lost.
-                Wallet = "0x52908400098527886E0F7030069857D2E4169EE7",
-                Testnet = true, // Sepolia / Arbitrum Sepolia / Amoy / Base Sepolia: no real money
+                Wallet = evm,
+                SolanaWallet = solana,
+                Testnet = true, // Sepolia / Arbitrum Sepolia / Amoy / Base Sepolia / Solana Devnet: no real money
             });
             if (err == null)
                 err = SCFG.AddItem(Item, new ScfgItem { Code = 1, Price = "1.00", Token = "USDC", Title = ItemTitle });
             return err;
         }
+
+        // The payout wallets: this component's fields when one is set, else the project's SCFG Settings asset, else none.
+        private (string Evm, string Solana) Wallets()
+        {
+            if (!string.IsNullOrWhiteSpace(wallet) || !string.IsNullOrWhiteSpace(solanaWallet))
+                return (Trim(wallet), Trim(solanaWallet));
+            var settings = ScfgSettings.Find();
+            if (settings != null && settings.HasWallet) return (Trim(settings.wallet), Trim(settings.solanaWallet));
+            return (null, null);
+        }
+
+        private static string Trim(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
         private void Refresh()
         {
@@ -154,6 +180,7 @@ namespace Scfg.Samples.Demo
             document.panelSettings = _panel;
             var root = document.rootVisualElement;
             root.style.backgroundColor = new Color(0.12f, 0.1f, 0.18f);
+            root.style.color = Color.white; // light text on the dark background, whatever the theme's default
             root.style.alignItems = Align.Center;
             root.style.justifyContent = Justify.Center;
             var title = new Label("Ruby Dreams") { style = { fontSize = 40, color = Color.white, marginBottom = 24 } };
