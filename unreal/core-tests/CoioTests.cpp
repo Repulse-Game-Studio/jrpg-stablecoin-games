@@ -2,6 +2,7 @@
 // No Python twin: the transport rules of Coio.h (parse_rpc_body: rpc.UrllibTransport's body rules, as the GDScript
 // ScfgCoio.parse_rpc_body and Coio.cs's ParseRpcBody read them; response_from_envelope: tests/unit/test_coio.py's
 // envelope cases). Ported from unity/core-tests/CoioTests.cs.
+#include "support/Helpers.h"
 #include "support/JsonEq.h"
 #include "support/Test.h"
 
@@ -21,10 +22,11 @@ using scfg::Err;
 using scfg::Json;
 using scfg::Result;
 namespace coio = scfg::coio;
+using scfg_test::same;
 
 namespace scfg_test::coio_tests {
 
-const std::string kLong(4301, '9');
+const std::string NINES(4301, '9');  // a 4301-digit int, one past the limit
 
 // The TransportError parse_rpc_body gives, or a description of what it gave instead.
 Err fails(int status, std::string_view body) {
@@ -37,11 +39,6 @@ Json parsed(int status, std::string_view body) {
     Result<Json> r = coio::parse_rpc_body(status, body);
     if (!r.ok()) return Json("error: " + r.err().str());
     return r.value();
-}
-
-bool same(scfg_test::Ctx& t, const Json& got, const Json& want, const std::string& what) {
-    std::optional<std::string> diff = scfg_test::first_diff(got, want);
-    return t.check(!diff, what + ": " + diff.value_or("") + " (got " + scfg::json::dumps(got).value() + ")");
 }
 
 }  // namespace scfg_test::coio_tests
@@ -80,17 +77,17 @@ SCFG_TEST(CoioTests, BytesThatAreNotStrictUtf8AreInvalidJson) {
 }
 
 SCFG_TEST(CoioTests, AnIntegerOfMoreThan4300DigitsIsInvalidJson) {
-    SCFG_CHECK_EQ(t, fails(200, "{\"result\": " + kLong + "}").message, "invalid JSON response");
-    SCFG_CHECK_EQ(t, fails(200, "[1, -" + kLong + "]").message, "invalid JSON response");
-    Err http = fails(400, "{\"error\": {\"code\": " + kLong + "}}");
+    SCFG_CHECK_EQ(t, fails(200, "{\"result\": " + NINES + "}").message, "invalid JSON response");
+    SCFG_CHECK_EQ(t, fails(200, "[1, -" + NINES + "]").message, "invalid JSON response");
+    Err http = fails(400, "{\"error\": {\"code\": " + NINES + "}}");
     SCFG_CHECK_EQ(t, http.message, "HTTP 400");
     SCFG_CHECK(t, http.status == 400);
     // 4300 digits are read; strings, fractions and exponents do not count.
     Json r = parsed(200, "{\"r\": " + std::string(4300, '9') + "}");
     same(t, r, Json::dict({{"r", BigInt(10).pow(4300) - 1}}), "4300 digits");
-    Json ok = parsed(200, "{\"s\": \"" + kLong + "\", \"f\": 1." + kLong + ", \"e\": 1e-" + kLong + "}");
+    Json ok = parsed(200, "{\"s\": \"" + NINES + "\", \"f\": 1." + NINES + ", \"e\": 1e-" + NINES + "}");
     // Python: float("1." + "9" * 4301) == 2.0
-    same(t, ok, Json::dict({{"s", kLong}, {"f", 2.0}, {"e", 0.0}}), "not integers");
+    same(t, ok, Json::dict({{"s", NINES}, {"f", 2.0}, {"e", 0.0}}), "not integers");
 }
 
 SCFG_TEST(CoioTests, ANon2xxAnswerIsHttpStatus) {
@@ -186,7 +183,7 @@ SCFG_TEST(CoioTests, EnvelopeFailuresAreTransportErrors) {
         {env(429, "{\"jsonrpc\": \"2.0\"}"), "HTTP 429", 429},
         {env(200, "<html>"), "invalid JSON response", std::nullopt},
         {env(200, "\xEF\xBB\xBF" "1"), "invalid JSON response", std::nullopt},
-        {env(200, "{\"result\": " + kLong + "}"), "invalid JSON response", std::nullopt},
+        {env(200, "{\"result\": " + NINES + "}"), "invalid JSON response", std::nullopt},
         {env(0, ""), "HTTP 0", 0},
         {env(Json(), Json()), "HTTP 0", 0},
         {env(502, ""), "HTTP 502", 502},

@@ -87,7 +87,7 @@ int Registry::run(const std::vector<std::string>& args, const Sink& out) {
     for (const Test& t : selected) {
         Ctx ctx;
         t.body(ctx);
-        // An unknown error kind (Err::make or Err::is_a, ruling R5) is a programming error: it fails the test that
+        // An unknown error kind (Err::make or Err::is_a) is a programming error: it fails the test that
         // made it. A test that expects entries reads them and calls clear_misuse() itself.
         std::vector<std::string>& misuse = scfg::errors::misuse();
         for (const std::string& m : misuse) ctx.fail("unknown error kind (scfg::errors::misuse): " + m);

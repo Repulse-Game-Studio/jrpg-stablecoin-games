@@ -349,7 +349,7 @@ std::optional<std::string> drop_engine_first(scfg::Co<T> work, ReplayTransport& 
     }
     if (job->done()) return "the action finished after " + std::to_string(answered) + " answer(s)";
     if (transport.queued() == 0) return "the action is waiting with nothing queued";
-    eng.reset();  // the Engine goes first (N1)
+    eng.reset();  // the Engine goes first
     job.reset();  // then its suspended command: only destructors run
     if (reported) return std::string("a destroyed action reported a result");
     return std::nullopt;

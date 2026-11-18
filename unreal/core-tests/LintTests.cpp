@@ -7,7 +7,7 @@
 // THE LINE RULES LIVE HERE: (label, regex, why, prefilter), matched against each line with comments removed and
 // the text of string and char literals blanked (so "try again" in a message is fine). The file-level checks
 // (#pragma once, Co<> parameters, includes, the twin comment, basenames) are in support/Lint.cpp. A failure prints
-// "Private/Foo.cpp:12: rule (why)". A file is exempt from a line rule only through kWaivers (ruling R3).
+// "Private/Foo.cpp:12: rule (why)". A file is exempt from a line rule only through WAIVERS.
 // RulesBite and FileChecksBite feed every rule an offending and a clean input.
 #include "support/Lint.h"
 #include "support/Test.h"
@@ -31,7 +31,7 @@ static Rule R(std::string label, std::string pattern, std::string why, std::vect
     r.why = std::move(why);
     return r;
 }
-// `#include <a>` or `#include <b>`, labelled "<a>, <b>".
+// `#include <a>` or `#include <b>`, labeled "<a>, <b>".
 static Rule header(std::initializer_list<std::string_view> names, std::string why) {
     std::string label, alt;
     for (std::string_view n : names) {
@@ -47,43 +47,43 @@ static Rule header(std::initializer_list<std::string_view> names, std::string wh
 // std::x (spaces around :: allowed) are the C library's.
 #define CALLER "(?:^|[^\\w.>:]|(?:^|\\W)::)(?:std\\s*::\\s*)?"
 
-static const std::string kNoExc = "Unreal builds the core without exceptions; errors are scfg::Err values";
-static const std::string kNoRtti = "Unreal builds the core without RTTI; use std::variant or a tag";
+static const std::string NO_EXC = "Unreal builds the core without exceptions; errors are scfg::Err values";
+static const std::string NO_RTTI = "Unreal builds the core without RTTI; use std::variant or a tag";
 
 static const std::vector<Rule>& exception_rules() {
     static const std::vector<Rule> rules = {
-        R("throw", "\\bthrow\\b", kNoExc, {"throw"}),
-        R("try", "\\btry\\b", kNoExc, {"try"}),
-        R("catch", "\\bcatch\\b", kNoExc, {"catch"}),
-        R("std::exception", "\\bstd\\s*::\\s*exception\\b", kNoExc, {"exception"}),
-        R("dynamic_cast", "\\bdynamic_cast\\b", kNoRtti, {"dynamic_cast"}),
-        R("typeid", "\\btypeid\\b", kNoRtti, {"typeid"}),
+        R("throw", "\\bthrow\\b", NO_EXC, {"throw"}),
+        R("try", "\\btry\\b", NO_EXC, {"try"}),
+        R("catch", "\\bcatch\\b", NO_EXC, {"catch"}),
+        R("std::exception", "\\bstd\\s*::\\s*exception\\b", NO_EXC, {"exception"}),
+        R("dynamic_cast", "\\bdynamic_cast\\b", NO_RTTI, {"dynamic_cast"}),
+        R("typeid", "\\btypeid\\b", NO_RTTI, {"typeid"}),
     };
     return rules;
 }
 
-static const std::string kNoThreads = "the core is single-threaded; the host drives it from one thread";
-static const std::string kNoClock = "the clock is injected, so tests and replays are deterministic";
+static const std::string NO_THREADS = "the core is single-threaded; the host drives it from one thread";
+static const std::string NO_CLOCK = "the clock is injected, so tests and replays are deterministic";
 
 static const std::vector<Rule>& thread_rules() {
     static const std::vector<Rule> rules = {
-        header({"thread"}, kNoThreads),
-        header({"mutex"}, kNoThreads),
-        header({"shared_mutex"}, kNoThreads),
-        header({"future"}, kNoThreads),
-        header({"condition_variable"}, kNoThreads),
-        header({"semaphore"}, kNoThreads),
-        header({"latch"}, kNoThreads),
-        header({"barrier"}, kNoThreads),
-        header({"stop_token"}, kNoThreads),
-        R("std::thread", "\\bstd\\s*::\\s*j?thread\\b", kNoThreads, {"thread"}),
-        R("std::async", "\\bstd\\s*::\\s*async\\b", kNoThreads, {"async"}),
+        header({"thread"}, NO_THREADS),
+        header({"mutex"}, NO_THREADS),
+        header({"shared_mutex"}, NO_THREADS),
+        header({"future"}, NO_THREADS),
+        header({"condition_variable"}, NO_THREADS),
+        header({"semaphore"}, NO_THREADS),
+        header({"latch"}, NO_THREADS),
+        header({"barrier"}, NO_THREADS),
+        header({"stop_token"}, NO_THREADS),
+        R("std::thread", "\\bstd\\s*::\\s*j?thread\\b", NO_THREADS, {"thread"}),
+        R("std::async", "\\bstd\\s*::\\s*async\\b", NO_THREADS, {"async"}),
         R("sleep", "\\b(?:sleep|usleep|nanosleep|sleep_for|sleep_until|Sleep)\\s*\\(", "the core never blocks", {"sleep", "Sleep"}),
-        header({"chrono"}, kNoClock + " (Rpc.cpp's monotonic default excepted)"),
-        header({"ctime", "time.h"}, kNoClock),
-        R("steady_clock", "\\bsteady_clock\\b", kNoClock + " (only rpc's default monotonic clock may use it)", {"steady_clock"}),
-        R("system_clock", "\\b(?:system_clock|high_resolution_clock|utc_clock|file_clock)\\b", kNoClock, {"_clock"}),
-        R("time()", CALLER "time\\s*\\(", kNoClock, {"time"}),
+        header({"chrono"}, NO_CLOCK + " (Rpc.cpp's monotonic default excepted)"),
+        header({"ctime", "time.h"}, NO_CLOCK),
+        R("steady_clock", "\\bsteady_clock\\b", NO_CLOCK + " (only rpc's default monotonic clock may use it)", {"steady_clock"}),
+        R("system_clock", "\\b(?:system_clock|high_resolution_clock|utc_clock|file_clock)\\b", NO_CLOCK, {"_clock"}),
+        R("time()", CALLER "time\\s*\\(", NO_CLOCK, {"time"}),
         R("rand()", CALLER "s?rand\\s*\\(", "entropy is injected, so tests are deterministic", {"rand"}),
         header({"random"}, "entropy is injected (Entropy.cpp's default source excepted)"),
         R("random_device", "\\brandom_device\\b", "entropy is injected (Entropy.cpp's default source excepted)", {"random_device"}),
@@ -91,31 +91,31 @@ static const std::vector<Rule>& thread_rules() {
     return rules;
 }
 
-static const std::string kLocale = "locale-dependent; Python's rules come from scfg::py";
+static const std::string LOCALE = "locale-dependent; Python's rules come from scfg::py";
 
 static const std::vector<Rule>& locale_rules() {
     static const std::vector<Rule> rules = {
-        header({"locale", "clocale", "locale.h"}, kLocale),
-        header({"iostream", "istream", "ostream", "iomanip"}, kLocale),
-        header({"sstream", "fstream"}, kLocale),
-        header({"regex"}, kLocale + " (and std::regex classes are locale-aware)"),
-        header({"cctype", "ctype.h", "cwctype", "wctype.h"}, kLocale),
+        header({"locale", "clocale", "locale.h"}, LOCALE),
+        header({"iostream", "istream", "ostream", "iomanip"}, LOCALE),
+        header({"sstream", "fstream"}, LOCALE),
+        header({"regex"}, LOCALE + " (and std::regex classes are locale-aware)"),
+        header({"cctype", "ctype.h", "cwctype", "wctype.h"}, LOCALE),
         header({"cstdio", "stdio.h"}, "the core does not print or parse with stdio (PyFloat.cpp and Err.cpp excepted)"),
         R("to_string", "\\bto_w?string\\b", "locale-dependent for floats; use scfg::py", {"to_"}),
-        R("sto*", "\\bsto(?:i|l|ll|ul|ull|f|d|ld)\\b", kLocale, {"sto"}),
-        R("strto*", "\\b(?:strto|wcsto)\\w*", kLocale, {"strto", "wcsto"}),
-        R("ato*", "\\bato(?:i|l|ll|f)\\b", kLocale, {"ato"}),
-        R("printf", "\\b\\w*printf\\b", kLocale, {"printf"}),
-        R("scanf", "\\b\\w*scanf\\b", kLocale, {"scanf"}),
+        R("sto*", "\\bsto(?:i|l|ll|ul|ull|f|d|ld)\\b", LOCALE, {"sto"}),
+        R("strto*", "\\b(?:strto|wcsto)\\w*", LOCALE, {"strto", "wcsto"}),
+        R("ato*", "\\bato(?:i|l|ll|f)\\b", LOCALE, {"ato"}),
+        R("printf", "\\b\\w*printf\\b", LOCALE, {"printf"}),
+        R("scanf", "\\b\\w*scanf\\b", LOCALE, {"scanf"}),
         R("puts", "\\bf?puts\\b", "the core does not print (Err.cpp's print_error excepted)", {"puts"}),
-        R("localeconv", "\\b(?:localeconv|setlocale|nl_langinfo)\\b", kLocale, {"localeconv", "setlocale", "nl_langinfo"}),
+        R("localeconv", "\\b(?:localeconv|setlocale|nl_langinfo)\\b", LOCALE, {"localeconv", "setlocale", "nl_langinfo"}),
         // Called or passed by name (std::transform(b, e, b, ::tolower)). Unlike CALLER, a name right after another
         // identifier is a declaration (scfg::py's own `bool isdigit(std::string_view s)`), not a use.
         R("ctype",
           "(?:^|[^\\w\\s.>:]|\\b(?:return|co_return|co_await|case)|(?:^|\\W)::)\\s*(?:std\\s*::\\s*)?"
           "(?:isw?(?:alnum|alpha|blank|cntrl|digit|graph|lower|print|punct|space|upper|xdigit)|tow?(?:lower|upper))"
           "\\s*[(,);]",
-          kLocale, {"is", "to"}),
+          LOCALE, {"is", "to"}),
     };
     return rules;
 }
@@ -129,13 +129,13 @@ static const std::vector<Rule>& portable_rules() {
     return rules;
 }
 
-static const std::string kUnity = "Unreal's unity build puts every .cpp in one TU; use a named detail namespace";
+static const std::string UNITY = "Unreal's unity build puts every .cpp in one TU; use a named detail namespace";
 
 static const std::vector<Rule>& anonymous_rules() {
     static const std::vector<Rule> rules = {
-        R("namespace {", "\\bnamespace\\s*\\{", kUnity, {"namespace"}),
+        R("namespace {", "\\bnamespace\\s*\\{", UNITY, {"namespace"}),
         [] {
-            Rule r = R("static at namespace scope", "^static\\b", kUnity, {"static"});
+            Rule r = R("static at namespace scope", "^static\\b", UNITY, {"static"});
             r.ext = ".cpp";
             return r;
         }(),
@@ -143,8 +143,8 @@ static const std::vector<Rule>& anonymous_rules() {
     return rules;
 }
 
-// Ruling R3: the only files exempt from a rule, and the one thing each needs.
-static const std::vector<lint::Waiver> kWaivers = {
+// The only files exempt from a rule, and the one thing each needs.
+static const std::vector<lint::Waiver> WAIVERS = {
     {"PyFloat.cpp", "printf"},      {"PyFloat.cpp", "strto*"},      {"PyFloat.cpp", "<cstdio>, <stdio.h>"},
     {"Err.cpp", "puts"},            {"Err.cpp", "<cstdio>, <stdio.h>"},
     {"Entropy.cpp", "<random>"},    {"Entropy.cpp", "random_device"},
@@ -170,7 +170,7 @@ static void run_check(scfg_test::Ctx& t, F check) {
 }
 
 static void run_rules(scfg_test::Ctx& t, const std::vector<Rule>& rules) {
-    run_check(t, [&rules](const File& f) { return lint::scan(f, rules, kWaivers); });
+    run_check(t, [&rules](const File& f) { return lint::scan(f, rules, WAIVERS); });
 }
 
 // ---- the lints ----
@@ -184,7 +184,7 @@ SCFG_TEST(LintTests, PortableTypes) {
 }
 SCFG_TEST(LintTests, NoAnonymousHelpers) { run_rules(t, anonymous_rules()); }
 SCFG_TEST(LintTests, CoroutineParamsByValue) { run_check(t, lint::coroutine_params); }
-// Ruling R8, over the tests too: they run on the Clang CI leg as well.
+// No coroutine lambdas, over the tests too: they run on the Clang CI leg as well.
 SCFG_TEST(LintTests, NoCoroutineLambdas) {
     run_check(t, lint::coroutine_lambdas);
     std::string error;
@@ -199,30 +199,30 @@ SCFG_TEST(LintTests, NoCoroutineLambdas) {
 }
 // The one file of the module that is Unreal code: the module's IMPLEMENT_MODULE, which needs Unreal's
 // Modules/ModuleManager.h. The CMake build leaves it out; it holds exactly these two lines, so nothing else creeps in.
-static const std::string kModuleFile = "Private/ScfgCoreModule.cpp";
-static const std::vector<std::string> kModuleFileCode = {
+static const std::string MODULE_FILE = "Private/ScfgCoreModule.cpp";
+static const std::vector<std::string> MODULE_FILE_CODE = {
     "#include \"Modules/ModuleManager.h\"",
     "IMPLEMENT_MODULE(FDefaultModuleImpl, ScfgCore)",
 };
 
 SCFG_TEST(LintTests, OnlyStdIncludes) {
     run_check(t, [](const File& f) {
-        return f.rel == kModuleFile ? std::vector<std::string>() : lint::only_std_includes(f);
+        return f.rel == MODULE_FILE ? std::vector<std::string>() : lint::only_std_includes(f);
     });
 }
 SCFG_TEST(LintTests, ModuleFileIsMinimal) {
     const File* module = nullptr;
     for (const File& f : files()) {
-        if (f.rel == kModuleFile) module = &f;
+        if (f.rel == MODULE_FILE) module = &f;
     }
-    if (!t.check(module != nullptr, kModuleFile + " is missing")) return;
+    if (!t.check(module != nullptr, MODULE_FILE + " is missing")) return;
     std::vector<std::string> code;
     for (const std::string& line : lint::views(module->text).kept) {
         size_t b = line.find_first_not_of(" \t");
         if (b != std::string::npos) code.push_back(line.substr(b, line.find_last_not_of(" \t") - b + 1));
     }
-    t.check(code == kModuleFileCode,
-            kModuleFile + " holds more than its include and IMPLEMENT_MODULE:\n" + lint::join(code));
+    t.check(code == MODULE_FILE_CODE,
+            MODULE_FILE + " holds more than its include and IMPLEMENT_MODULE:\n" + lint::join(code));
 }
 SCFG_TEST(LintTests, ExportsMarked) { run_check(t, lint::exports); }
 SCFG_TEST(LintTests, EveryFileNamesItsTwin) { run_check(t, lint::names_its_twin); }
@@ -351,7 +351,7 @@ SCFG_TEST(LintTests, RulesBite) {
                 if (r.label == b.label) rule = &r;
             }
         }
-        if (!t.check(rule != nullptr, "no rule labelled " + b.label)) continue;
+        if (!t.check(rule != nullptr, "no rule labeled " + b.label)) continue;
         bitten.insert(b.label);
         File bad{"Private/Bite.cpp", b.bad + "\n"}, good{"Private/Bite.cpp", b.good + "\n"};
         t.check(lint::scan(bad, {*rule}, {}).size() == 1, b.label + " does not fire on: " + b.bad);
@@ -361,19 +361,19 @@ SCFG_TEST(LintTests, RulesBite) {
     for (const auto* table : tables) {
         for (const Rule& r : *table) {
             t.check(bitten.count(r.label) == 1, "no bite case for " + r.label);
-            t.check(labels.insert(r.label).second, "two rules are labelled " + r.label);
+            t.check(labels.insert(r.label).second, "two rules are labeled " + r.label);
         }
     }
-    for (const lint::Waiver& w : kWaivers) t.check(labels.count(w.label) == 1, "waiver names no rule: " + w.label);
+    for (const lint::Waiver& w : WAIVERS) t.check(labels.count(w.label) == 1, "waiver names no rule: " + w.label);
     // A waiver exempts its file from its rule only.
     File rpc{"Private/Rpc.cpp", "auto n = std::chrono::steady_clock::now();\n"};
     File other{"Private/Engine.cpp", rpc.text};
-    SCFG_CHECK(t, lint::scan(rpc, thread_rules(), kWaivers).empty());
-    SCFG_CHECK_EQ(t, lint::scan(other, thread_rules(), kWaivers).size(), 1);
+    SCFG_CHECK(t, lint::scan(rpc, thread_rules(), WAIVERS).empty());
+    SCFG_CHECK_EQ(t, lint::scan(other, thread_rules(), WAIVERS).size(), 1);
     // The message names the file, the line, the rule and why.
     File two{"Private/Two.cpp", "// x\nthrow 1;\n"};
     std::vector<std::string> msg = lint::scan(two, exception_rules(), {});
-    if (SCFG_CHECK_EQ(t, msg.size(), 1)) SCFG_CHECK_EQ(t, msg[0], "Private/Two.cpp:2: throw (" + kNoExc + ")");
+    if (SCFG_CHECK_EQ(t, msg.size(), 1)) SCFG_CHECK_EQ(t, msg[0], "Private/Two.cpp:2: throw (" + NO_EXC + ")");
     // The static rule is for .cpp files; a header's column-0 static is a class member's problem.
     SCFG_CHECK(t, lint::scan({"Public/Scfg/A.h", "static int f();\n"}, anonymous_rules(), {}).empty());
 }
@@ -411,7 +411,7 @@ SCFG_TEST(LintTests, FileChecksBite) {
     SCFG_CHECK_EQ(t, lint::coroutine_params({"Private/A.cpp", "Co<Json> f(std::span<const uint8_t> b);\n"}).size(), 1);
     SCFG_CHECK(t, lint::coroutine_params({"Private/A.cpp", "Co<Json> f(std::vector<uint8_t> b, Json timespan);\n"}).empty());
 
-    // Ruling R8: a lambda whose body holds co_await, co_return or co_yield.
+    // A lambda whose body holds co_await, co_return or co_yield.
     for (const char* bad : {
              "auto f = [](Json x) -> Co<Json> { co_return x; };\n",
              "run([&] { co_await step(); });\n",
@@ -490,7 +490,7 @@ SCFG_TEST(LintTests, FileChecksBite) {
     SCFG_CHECK(t, lint::duplicate_basenames({{"Private/Rpc.cpp", ""}, {"Private/SolanaRpc.cpp", ""}}).empty());
 }
 
-// F3: every declaration a .cpp defines carries SCFGCORE_API, and a header that uses it includes Scfg/Export.h.
+// Every declaration a .cpp defines carries SCFGCORE_API, and a header that uses it includes Scfg/Export.h.
 SCFG_TEST(LintTests, ExportsBite) {
     const std::string inc = "#include \"Scfg/Export.h\"\n";
     auto hits = [](const std::string& text) { return lint::exports({"Public/Scfg/A.h", text}); };
@@ -507,8 +507,8 @@ SCFG_TEST(LintTests, ExportsBite) {
              inc + "class SCFGCORE_API O {\n    struct In {\n        void f();\n    };\n};\n",
              inc + "class SCFGCORE_API C {\n    explicit operator bool() const;\n};\nint f(int);\n",
              "SCFGCORE_API void f();\n",
-             // R3: a static data member, a ref-qualified member, an elaborated return type; R4's extern "C"
-             inc + "class C {\n    static const int kTable[4];\n    int f() const { return 1; }\n};\n",
+             // a static data member, a ref-qualified member, an elaborated return type, an extern "C"
+             inc + "class C {\n    static const int TABLE[4];\n    int f() const { return 1; }\n};\n",
              inc + "class C {\n    const Json& get() const&;\n};\n",
              inc + "class C {\n    Json take() && noexcept;\n};\n",
              inc + "namespace n {\nstruct Foo make_foo(int x);\n}\n",
@@ -536,7 +536,7 @@ SCFG_TEST(LintTests, ExportsBite) {
              "inline constexpr std::array<std::pair<int, int>, 1> X = {{\n    {1, 2},\n}};\n"
              "using F = std::function<int(int)>;\n",
              "enum class Cmp { Lt, Le };\nstruct Fwd;\n#define M(x) \\\n    auto t = (x);   \\\n    f(t)\n",
-             // R4: an explicit instantiation declaration is not an extern variable
+             // an explicit instantiation declaration is not an extern variable
              "extern template class B<int>;\nextern template struct C<Json>;\n",
              "class C {\n    static constexpr int N = 1;\n    static inline int x = 0;\n    struct Fwd;\n"
              "    enum class E : int;\n    Json& at() & { return j; }\n};\nenum class E2 : int;\nstruct X x_value;\n",

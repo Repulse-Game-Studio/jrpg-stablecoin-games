@@ -2,8 +2,8 @@
 // No Python twin: tests of scfg::sessions (sessions.py has no vector topic of its own; normalize_tx_hash's vectors
 // are tier1/tx_ids.json, which the Tier1 group runs): create_session's record and draw order, list_sessions' order
 // and its TypeErrors (the C# port gave a KeyError for a record that is not a dict), set_hint, set_ui_status, the
-// is_past_* arithmetic and session_price. Every expectation is scfg_core's own output (python3 with plugin/game/python-packages, its
-// `secrets` replaced by a script that records the draws).
+// is_past_* arithmetic and session_price. Every expectation is scfg_core's own output (python3 with
+// plugin/game/python-packages, its `secrets` replaced by a script that records the draws).
 #include "support/Test.h"
 
 #include "Scfg/BigInt.h"
@@ -24,8 +24,8 @@ using scfg::Json;
 using scfg::Result;
 namespace sessions = scfg::sessions;
 
-static const char* const kHash = "0xabababababababababababababababababababababababababababababababab";
-static const char* const kHashMixed = "0xAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAb";
+static const char* const HASH = "0xabababababababababababababababababababababababababababababababab";
+static const char* const HASH_MIXED = "0xAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAb";
 
 template <class T>
 static std::string outcome(const Result<T>& r) {
@@ -83,9 +83,9 @@ SCFG_TEST(SessionsTests, NormalizeTxHash) {
         Result<std::string> r = sessions::normalize_tx_hash(v);
         return r.ok() ? r.value() : outcome(r);
     };
-    SCFG_CHECK_EQ(t, norm(std::string(" ") + kHashMixed + " \n"), kHash);
-    SCFG_CHECK_EQ(t, norm(std::string("\xE3\x80\x80") + kHashMixed), kHash);  // U+3000 is str.strip() whitespace
-    SCFG_CHECK_EQ(t, norm(std::string(kHashMixed) + "\n"), kHash);
+    SCFG_CHECK_EQ(t, norm(std::string(" ") + HASH_MIXED + " \n"), HASH);
+    SCFG_CHECK_EQ(t, norm(std::string("\xE3\x80\x80") + HASH_MIXED), HASH);  // U+3000 is str.strip() whitespace
+    SCFG_CHECK_EQ(t, norm(std::string(HASH_MIXED) + "\n"), HASH);
     SCFG_CHECK_EQ(t, norm("0Xabababababababababababababababababababababababababababababababab"),
                   "ValueError: not a transaction hash: '0Xabababababababababababababababababababababababababababababababab'");
     SCFG_CHECK_EQ(t, norm("0x" + std::string(63, 'a')), "ValueError: not a transaction hash: '0x" + std::string(63, 'a') + "'");
@@ -259,12 +259,12 @@ SCFG_TEST(SessionsTests, SetHint) {
     Json::Dict store;
     Json r = Json::dict({{"hint_tx", Json()}, {"hint_at", Json()}});
     store.set("s", r);
-    SCFG_CHECK_EQ(t, outcome(sessions::set_hint(store, "s", std::string(" ") + kHashMixed, 7)), "ok");
-    SCFG_CHECK_EQ(t, scfg::json::dumps(r).value(), std::string("{\"hint_tx\": \"") + kHash + "\", \"hint_at\": 7}");
-    SCFG_CHECK_EQ(t, outcome(sessions::set_hint(store, "x", kHash, 7)), "KeyError: 'x'");
+    SCFG_CHECK_EQ(t, outcome(sessions::set_hint(store, "s", std::string(" ") + HASH_MIXED, 7)), "ok");
+    SCFG_CHECK_EQ(t, scfg::json::dumps(r).value(), std::string("{\"hint_tx\": \"") + HASH + "\", \"hint_at\": 7}");
+    SCFG_CHECK_EQ(t, outcome(sessions::set_hint(store, "x", HASH, 7)), "KeyError: 'x'");
     SCFG_CHECK_EQ(t, outcome(sessions::set_hint(store, "s", "bad", 8)), "ValueError: not a transaction hash: 'bad'");
     SCFG_CHECK_EQ(t, r.as_dict().get("hint_at").as_int64(), 7);  // untouched by the failed hint
-    // A backend's own normalisation (Solana's normalize_signature).
+    // A backend's own normalization (Solana's normalize_signature).
     sessions::Normalize upper = [](const Json& v) -> Result<std::string> { return "N:" + v.as_str(); };
     SCFG_CHECK_EQ(t, outcome(sessions::set_hint(store, "s", "sig", 9.5, upper)), "ok");
     SCFG_CHECK_EQ(t, scfg::json::dumps(r).value(), "{\"hint_tx\": \"N:sig\", \"hint_at\": 9.5}");
@@ -276,10 +276,10 @@ SCFG_TEST(SessionsTests, SetHint) {
     bad.set("s", "str");
     bad.set("n", Json());
     SCFG_CHECK_EQ(t, outcome(sessions::set_hint(bad, "l", "bad", 7)), "ValueError: not a transaction hash: 'bad'");
-    SCFG_CHECK_EQ(t, outcome(sessions::set_hint(bad, "l", kHash, 7)),
+    SCFG_CHECK_EQ(t, outcome(sessions::set_hint(bad, "l", HASH, 7)),
                   "TypeError: list indices must be integers or slices, not str");
-    SCFG_CHECK_EQ(t, outcome(sessions::set_hint(bad, "s", kHash, 7)), "TypeError: 'str' object does not support item assignment");
-    SCFG_CHECK_EQ(t, outcome(sessions::set_hint(bad, "n", kHash, 7)),
+    SCFG_CHECK_EQ(t, outcome(sessions::set_hint(bad, "s", HASH, 7)), "TypeError: 'str' object does not support item assignment");
+    SCFG_CHECK_EQ(t, outcome(sessions::set_hint(bad, "n", HASH, 7)),
                   "TypeError: 'NoneType' object does not support item assignment");
 }
 

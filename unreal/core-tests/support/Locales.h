@@ -1,7 +1,7 @@
 // Copyright 2026 Repulse
 // No Python twin: reruns a test body under the non-English C locales that change the core's text if it ever leans
 // on the C library: de_DE's decimal comma (printf("%g"), strtod) and tr_TR's dotted and dotless i (toupper('i')).
-// Does not depend on the test runner (ruling R6): rerun() reports, and the calling test asserts on the report.
+// Does not depend on the test runner: rerun() reports, and the calling test asserts on the report.
 #pragma once
 
 #include <functional>

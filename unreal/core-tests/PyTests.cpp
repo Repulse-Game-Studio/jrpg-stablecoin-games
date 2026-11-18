@@ -1,6 +1,7 @@
 // Copyright 2026 Repulse
 // No Python twin: tests of scfg::py (the CPython 3.9 built-ins the core relies on) and scfg::pyfloat (float repr()
 // and parsing). Expected values are CPython's (python3 -c ...); 3.9's wording where it differs from 3.12's.
+#include "support/Helpers.h"
 #include "support/Test.h"
 
 #include "Scfg/Json.h"
@@ -23,17 +24,13 @@ namespace py = scfg::py;
 namespace pyfloat = scfg::pyfloat;
 
 static std::string U(uint32_t cp) { return py::utf8_encode(cp); }
-static std::string repeat(std::string_view s, size_t n) {
-    std::string out;
-    for (size_t i = 0; i < n; ++i) out += s;
-    return out;
-}
+using scfg_test::repeat;
 // The decimal text of a py_int result, or "<Kind: message>".
 static std::string I(const scfg::Result<BigInt>& r) { return r.ok() ? r.value().to_decimal() : "<" + r.err().str() + ">"; }
 static std::string kind(const scfg::Result<BigInt>& r) { return r.ok() ? "<ok>" : r.err().kind; }
 
 // Python's str.isspace() set (what str.strip() removes).
-static const uint32_t kPySpace[] = {0x09,   0x0a,   0x0b,   0x0c,   0x0d,   0x1c,   0x1d,   0x1e,   0x1f,   0x20,
+static const uint32_t PY_SPACE[] = {0x09,   0x0a,   0x0b,   0x0c,   0x0d,   0x1c,   0x1d,   0x1e,   0x1f,   0x20,
                                     0x85,   0xa0,   0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006,
                                     0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000};
 
@@ -45,7 +42,7 @@ SCFG_TEST(PyTests, StripMatchesStrStrip) {
     SCFG_CHECK_EQ(t, py::strip("  "), "");
     SCFG_CHECK_EQ(t, py::strip(""), "");
     SCFG_CHECK_EQ(t, py::strip("a b"), "a b");
-    for (uint32_t cp : kPySpace) {
+    for (uint32_t cp : PY_SPACE) {
         SCFG_CHECK(t, py::is_space(cp));
         t.check(py::strip(U(cp) + "5" + U(cp)) == "5", "strip of U+" + std::to_string(cp));
     }
@@ -150,7 +147,7 @@ SCFG_TEST(PyTests, IntMatchesPythonInt) {
 
 SCFG_TEST(PyTests, IntWhitespaceIsNotStripsWhitespace) {
     // int() skips non-ASCII whitespace but not the ASCII separators \x1c-\x1f that strip() removes
-    for (uint32_t cp : kPySpace) {
+    for (uint32_t cp : PY_SPACE) {
         bool rejects = cp >= 0x1c && cp <= 0x1f;
         for (const std::string& s : {U(cp) + "5", "5" + U(cp)}) {
             scfg::Result<BigInt> r = py::py_int(s);

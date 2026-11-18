@@ -3,6 +3,7 @@
 // the 448-bit and the 896-bit message and one million 'a', plus the padding boundaries around one and two blocks
 // (55/56 and 119/120 bytes, where the length no longer fits the last block). Every digest is what python3's
 // hashlib.sha256(m).hexdigest() prints.
+#include "support/Helpers.h"
 #include "support/Test.h"
 
 #include "Scfg/Bytes.h"
@@ -14,14 +15,8 @@
 
 namespace sha256 = scfg::sha256;
 
-static std::string hex(const std::array<uint8_t, 32>& d) { return scfg::bytes::to_hex(d); }
-
-// bytes((i * 7 + 3) % 256 for i in range(n))
-static std::vector<uint8_t> pattern(size_t n) {
-    std::vector<uint8_t> out(n);
-    for (size_t i = 0; i < n; ++i) out[i] = static_cast<uint8_t>((i * 7 + 3) % 256);
-    return out;
-}
+using scfg_test::hex;
+using scfg_test::pattern;
 
 SCFG_TEST(Sha256Tests, Fips180Vectors) {
     SCFG_CHECK_EQ(t, hex(sha256::digest(std::string_view(""))),

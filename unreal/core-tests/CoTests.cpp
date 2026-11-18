@@ -2,7 +2,7 @@
 // No Python twin: Co<T>, Future/Promise and Job (Co.h), the cooperative driver that replaces coio.run_sync. These
 // pin what no vector reaches: eager start keeps loops of synchronous awaits flat, a deferred answer resumes the
 // awaiting chain on the completer's stack, destroying a suspended Co is a clean cancellation, and errors cross
-// levels as values. No coroutine here is a lambda (ruling R8; LintTests.NoCoroutineLambdas checks this file too).
+// levels as values. No coroutine here is a lambda (LintTests.NoCoroutineLambdas checks this file too).
 #include "support/Test.h"
 
 #include "Scfg/Co.h"

@@ -4,6 +4,7 @@
 // same setup and node answers, printed by the script quoted in full above each test: a stored log_index (or block)
 // of any size is valid and judged against what the node sent, as Python's int is unbounded, and an invalid entry's
 // report names its reason as Python's repr of the exception.
+#include "support/Helpers.h"
 #include "support/JsonEq.h"
 #include "support/Test.h"
 #include "support/Tier2.h"
@@ -31,16 +32,9 @@ using scfg::Json;
 using scfg::Result;
 namespace tier2 = scfg_test::tier2;
 using scfg_test::json_eq;
+using scfg_test::load_vector;
 
 namespace scfg_test::reverify_tests {
-
-std::optional<Json> load(const std::string& id) {
-    std::optional<std::string> text = vectors::read_text("tier2/" + id + ".json");
-    if (!text) return std::nullopt;
-    Result<Json> v = tier2::parse(*text);
-    if (!v.ok()) return std::nullopt;
-    return v.take();
-}
 
 // What Engine.reverify() did with a vector's setup, its receipts replaced, over its first step's calls as `mutate`
 // changed them: the removed keys, the kinds and messages reported, and how many recorded calls were never made.
@@ -101,15 +95,15 @@ std::function<void(Json&)> evm_log_index(std::string text) {
     };
 }
 
-const char* const kSig5 = "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn";
+const char* const SIG5 = "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn";
 
-// The developer's row (accountIndex 2) of kSig5's getTransaction answer gets this accountIndex.
+// The developer's row (accountIndex 2) of SIG5's getTransaction answer gets this accountIndex.
 std::function<void(Json&)> solana_index(Json value) {
     return [value](Json& calls) {
         for (Json& c : calls.as_list()) {
             Json::Dict& call = c.as_dict();
             if (call.get("method").as_str() != "getTransaction" ||
-                !json_eq(call.get("params").as_list()[0], Json(kSig5))) {
+                !json_eq(call.get("params").as_list()[0], Json(SIG5))) {
                 continue;
             }
             Json body = scfg::json::loads(call.get("response_text").as_str()).take();
@@ -185,7 +179,7 @@ using namespace scfg_test::reverify_tests;
 //       return f
 //
 //
-//   evm = load("reverify/genuine_receipt_is_kept")
+//   evm = load_vector("reverify/genuine_receipt_is_kept")
 //   key, rec = next(iter(evm["setup"]["receipts"].items()))
 //   for name, stored, node in [
 //       ("2**63 vs 0x8000000000000000", 2**63, "0x8000000000000000"),
@@ -204,7 +198,7 @@ using namespace scfg_test::reverify_tests;
 //   r = dict(rec, block=2**63, log_index=2**63)
 //   print("evm block and index 2**63", run(evm, {key: r}, lambda c: None))
 //
-//   sol = load("solana/reverify_receipts")
+//   sol = load_vector("solana/reverify_receipts")
 //   k5 = "solana:5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn:2"
 //   rec5 = sol["setup"]["receipts"][k5]
 //   sig5 = k5.split(":")[1]
@@ -233,8 +227,8 @@ using namespace scfg_test::reverify_tests;
 //       print("solana", name, run(sol, {k5: r}, sol_index(node)))
 // ---- end of big_index.py ----
 SCFG_TEST(ReverifyTests, AStoredLogIndexOfAnySizeIsJudgedAsPythonDoes) {
-    std::optional<Json> evm = load("reverify/genuine_receipt_is_kept");
-    std::optional<Json> sol = load("solana/reverify_receipts");
+    std::optional<Json> evm = load_vector("reverify/genuine_receipt_is_kept");
+    std::optional<Json> sol = load_vector("solana/reverify_receipts");
     if (!t.check(evm.has_value() && sol.has_value(), "vectors")) return;
     const Json evm_receipts = evm->as_dict().get("setup").as_dict().get("receipts");
     const Json::Dict& evm_store = evm_receipts.as_dict();
@@ -283,7 +277,7 @@ SCFG_TEST(ReverifyTests, AStoredLogIndexOfAnySizeIsJudgedAsPythonDoes) {
                 "evm " + c.name + ": " + shown(o));
     }
 
-    const std::string k5 = std::string("solana:") + kSig5 + ":2";
+    const std::string k5 = std::string("solana:") + SIG5 + ":2";
     const Json rec5 = sol->as_dict().get("setup").as_dict().get("receipts").as_dict().get(k5);
     if (!t.check(rec5.is_dict(), k5)) return;
     struct SolCase {
@@ -339,7 +333,7 @@ SCFG_TEST(ReverifyTests, AStoredLogIndexOfAnySizeIsJudgedAsPythonDoes) {
 //   print(t.problems)
 // ---- end of messages.py ----
 SCFG_TEST(ReverifyTests, AnInvalidEntryIsRemovedWithPythonsReason) {
-    std::optional<Json> evm = load("reverify/genuine_receipt_is_kept");
+    std::optional<Json> evm = load_vector("reverify/genuine_receipt_is_kept");
     if (!t.check(evm.has_value(), "vector")) return;
     Json rec;
     const Json stored = evm->as_dict().get("setup").as_dict().get("receipts");

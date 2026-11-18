@@ -3,6 +3,7 @@
 // per vector file), and Tier2Tests checks the runner itself (as unity/core-tests/Tier2Tests.cs): a vector that does
 // not match fails, malformed data is a difference rather than an abort, and an Err that stands for no Python
 // exception satisfies nothing.
+#include "support/Helpers.h"
 #include "support/JsonEq.h"
 #include "support/Test.h"
 #include "support/Tier2.h"
@@ -24,16 +25,9 @@ using scfg::Err;
 using scfg::Json;
 using scfg::Result;
 namespace tier2 = scfg_test::tier2;
+using scfg_test::load_vector;
 
 namespace scfg_test::tier2_tests {
-
-std::optional<Json> load(const std::string& id) {
-    std::optional<std::string> text = vectors::read_text("tier2/" + id + ".json");
-    if (!text) return std::nullopt;
-    Result<Json> v = tier2::parse(*text);
-    if (!v.ok()) return std::nullopt;
-    return v.take();
-}
 
 bool contains(const std::optional<std::string>& s, std::string_view part) {
     return s.has_value() && s->find(part) != std::string::npos;
@@ -56,7 +50,7 @@ Json::List& calls(Json& v, size_t i) { return field(step(v, i), "calls").as_list
 
 // The smoke vector, untouched (it must pass), then with `change` applied.
 std::optional<std::string> tampered(Ctx& t, const std::function<void(Json&)>& change) {
-    std::optional<Json> v = load("smoke/evm_unlock_paid");
+    std::optional<Json> v = load_vector("smoke/evm_unlock_paid");
     if (!t.check(v.has_value(), "smoke/evm_unlock_paid cannot be read")) return "unreadable";
     std::optional<std::string> clean = tier2::replay(*v);
     t.check(!clean.has_value(), "the untouched vector fails: " + shown(clean));
@@ -71,7 +65,7 @@ Json one_step(Json setup, Json recorded_step) {
 }
 
 Json smoke_setup() {
-    std::optional<Json> v = load("smoke/evm_unlock_paid");
+    std::optional<Json> v = load_vector("smoke/evm_unlock_paid");
     return v ? scfg::deep_copy(v->as_dict().get("setup")) : Json::dict();
 }
 
@@ -107,7 +101,7 @@ SCFG_TEST_SOURCE(Tier2Vectors) {
     }
     for (const std::string& id : ids) {
         scfg_test::add("Tier2", id, [id](scfg_test::Ctx& t) {
-            std::optional<Json> v = load(id);
+            std::optional<Json> v = load_vector(id);
             if (!t.check(v.has_value(), "tier2/" + id + " cannot be read or parsed")) return;
             std::optional<std::string> diff = tier2::replay(*v);
             t.check(!diff.has_value(), "tier2/" + id + ": " + shown(diff));
@@ -191,7 +185,7 @@ namespace scfg_test::tier2_tests {
 
 // A vector's first step alone, its calls cut to the first `keep`, then changed.
 Json first_step_only(const std::string& id, size_t keep, const std::function<void(Json& step)>& change) {
-    std::optional<Json> v = load(id);
+    std::optional<Json> v = load_vector(id);
     if (!v) return Json();
     Json copy = scfg::deep_copy(*v);
     Json::List& steps = field(copy, "steps").as_list();
@@ -238,7 +232,7 @@ SCFG_TEST(Tier2Tests, AContainedNonPythonErrFailsTheStep) {
     t.check(contains(diff, "step 0 (reverify): on_error got an Err that no contained Python exception stands for: HostGone"),
             shown(diff));
     // smoke/evm_unlock_paid's first tick: its session's step crashes on the first request (contained by tick)
-    std::optional<Json> smoke = load("smoke/evm_unlock_paid");
+    std::optional<Json> smoke = load_vector("smoke/evm_unlock_paid");
     if (!t.check(smoke.has_value(), "smoke/evm_unlock_paid")) return;
     Json ticked = scfg::deep_copy(*smoke);
     Json::List& steps = field(ticked, "steps").as_list();
@@ -394,7 +388,7 @@ SCFG_TEST(Tier2Tests, ScriptedEntropyKeepsTheContract) {
 
 // Deferred mode: every request waits in the queue until the runner pumps it, one per turn.
 SCFG_TEST(Tier2Tests, DeferredModeAnswersOnlyFromThePump) {
-    std::optional<Json> v = load("smoke/evm_unlock_paid");
+    std::optional<Json> v = load_vector("smoke/evm_unlock_paid");
     if (!t.check(v.has_value(), "unreadable")) return;
     tier2::ReplayTransport transport(tier2::ReplayMode::Deferred);
     size_t waiting_at_post = 0;
@@ -415,7 +409,7 @@ SCFG_TEST(Tier2Tests, DeferredModeAnswersOnlyFromThePump) {
 SCFG_TEST(Tier2Tests, RecordedRestoreCandidatesRoundTrip) {
     size_t seen = 0;
     for (const std::string& id : scfg_test::vectors::tier2_ids()) {
-        std::optional<Json> v = load(id);
+        std::optional<Json> v = load_vector(id);
         if (!t.check(v.has_value(), id + " unreadable")) continue;
         for (const Json& s : v->as_dict().get("steps").as_list()) {
             if (s.as_dict().get("action").as_str() != "restore_lookup" || !s.as_dict().get("returns").is_list()) continue;

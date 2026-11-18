@@ -1,7 +1,7 @@
 // Copyright 2026 Repulse
 // No Python twin: the tier1/paylinks.json adapters (conformance/python/scfg_conformance/tier1.py's
-// eip681_transfer_uri, onramp_amount, onramp_url and solana_pay_uri; unity/core-tests/Tier1.cs). Units arrive as decimal strings, read with
-// int(); chain_id is the JSON int itself.
+// eip681_transfer_uri, onramp_amount, onramp_url and solana_pay_uri; unity/core-tests/Tier1.cs). Units arrive as
+// decimal strings, read with int(); chain_id is the JSON int itself.
 #include "support/Tier1.h"
 
 #include "Scfg/BigInt.h"

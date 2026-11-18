@@ -1,7 +1,7 @@
 // Copyright 2026 Repulse
 // No Python twin: watcher::advance (the EVM step) over a real RpcClient and a fake transport, for what the Tier 2
 // vectors pin only through the Engine: test_watcher_awaiting.py's
-// test_hint_verdict_survives_a_network_failure_later_in_the_step (review V1; its vector is
+// test_hint_verdict_survives_a_network_failure_later_in_the_step (its vector is
 // tier2/evm/hint_verdict_survives_a_network_failure), and the same verdict kept when the step ends with Abandoned (the
 // tick yielding to a command, worker.py), which test_worker_priority.py reaches only through the worker.
 #include "support/Test.h"
@@ -30,9 +30,9 @@ namespace watcher = scfg::watcher;
 
 namespace scfg_test::watcher_tests {
 
-constexpr const char* kDev = "0x52908400098527886E0F7030069857D2E4169EE7";
-const std::string kTx = "0x" + std::string(64, 'a');
-constexpr const char* kUrl = "https://arb1.arbitrum.io/rpc";
+constexpr const char* DEV = "0x52908400098527886E0F7030069857D2E4169EE7";
+const std::string TX = "0x" + std::string(64, 'a');
+constexpr const char* URL = "https://arb1.arbitrum.io/rpc";
 
 // How eth_blockNumber fails after the hint's receipt was read.
 enum class Failure { Unavailable, RpcError, Abandoned };
@@ -48,7 +48,7 @@ struct RevertedThenFailing final : scfg::coio::Transport {
         const Json id = payload.as_dict().get("id");
         if (method == "eth_getTransactionReceipt") {
             Json receipt = Json::dict({{"status", "0x0"}, {"blockNumber", "0x3e6"}, {"logs", Json::list()},
-                                       {"transactionHash", kTx}});
+                                       {"transactionHash", TX}});
             return Future<Json>::completed(Json::dict({{"jsonrpc", "2.0"}, {"id", id}, {"result", receipt}}));
         }
         switch (failure) {
@@ -76,7 +76,7 @@ Json awaiting(Json hint_tx) {
 
 scfg::OrderedMap<scfg::models::Item> items() {
     scfg::config::Config c =
-        scfg::config::build_config(Json::dict({{"wallet", kDev}, {"chains", Json::list({"arbitrum"})}})).take();
+        scfg::config::build_config(Json::dict({{"wallet", DEV}, {"chains", Json::list({"arbitrum"})}})).take();
     (void)scfg::config::add_item(
               c, "chapter2", Json::dict({{"code", 37}, {"price", "4.99"}, {"token", "USDC"}, {"title", "Chapter 2"}}))
         .take();
@@ -85,10 +85,10 @@ scfg::OrderedMap<scfg::models::Item> items() {
 
 // step(): advance() at now=10.0, run to its end (the fake answers at once).
 std::optional<Result<watcher::StepOutcome>> step(Json pending, RevertedThenFailing& transport) {
-    auto rpc = std::make_shared<scfg::rpc::RpcClient>(scfg::rpc::RpcClient::make({kUrl}, transport).take());
+    auto rpc = std::make_shared<scfg::rpc::RpcClient>(scfg::rpc::RpcClient::make({URL}, transport).take());
     const scfg::chains::Chain* chain = scfg::chains::MAINNET().find("arbitrum");
     if (!chain) return std::nullopt;
-    scfg::Co<watcher::StepOutcome> co = watcher::advance(pending, Json::dict(), "ps_a", rpc, *chain, kDev, items(), Json(10.0));
+    scfg::Co<watcher::StepOutcome> co = watcher::advance(pending, Json::dict(), "ps_a", rpc, *chain, DEV, items(), Json(10.0));
     if (!co.done()) return std::nullopt;
     return co.take();
 }
@@ -97,7 +97,7 @@ std::optional<Result<watcher::StepOutcome>> step(Json pending, RevertedThenFaili
 
 using namespace scfg_test::watcher_tests;
 
-// test_hint_verdict_survives_a_network_failure_later_in_the_step (review V1): the hint was judged (reverted) and
+// test_hint_verdict_survives_a_network_failure_later_in_the_step: the hint was judged (reverted) and
 // cleared, then the scan's eth_blockNumber fails. The verdict is reported, not replaced by network_unavailable: the
 // next step has no hint, so it would never be. The same when the step ends with Abandoned (the tick yields to a
 // command): the verdict is the step's outcome, and the Engine keeps it.
@@ -108,14 +108,14 @@ SCFG_TEST(WatcherTests, AHintVerdictSurvivesANetworkFailureOrAbandonedLaterInThe
                                                                  : "Abandoned: ";
         RevertedThenFailing transport;
         transport.failure = failure;
-        Json pending = Json::dict({{"ps_a", awaiting(Json(kTx))}});
+        Json pending = Json::dict({{"ps_a", awaiting(Json(TX))}});
         std::optional<Result<watcher::StepOutcome>> got = step(pending, transport);
         if (!t.check(got && got->ok(), mode + (got && !got->ok() ? got->err().str() : "the step did not finish"))) {
             continue;
         }
         const watcher::StepOutcome& out = got->value();
         t.check(out.error == std::optional<std::string>("tx_reverted"), mode + "error " + out.error.value_or("None"));
-        t.check(out.hint_tx.is_str() && out.hint_tx.as_str() == kTx, mode + "names the hint judged");
+        t.check(out.hint_tx.is_str() && out.hint_tx.as_str() == TX, mode + "names the hint judged");
         SCFG_CHECK_EQ(t, out.status, "waiting");
         t.check(pending.as_dict().get("ps_a").as_dict().get("hint_tx").is_null(), mode + "the hint is cleared");
         t.check(transport.methods == std::vector<std::string>({"eth_getTransactionReceipt", "eth_blockNumber"}),

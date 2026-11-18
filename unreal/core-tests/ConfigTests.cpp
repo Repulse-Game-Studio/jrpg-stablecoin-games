@@ -3,7 +3,7 @@
 // what the C# port recorded as divergences and this port does as Python does (2**70 confirmations, the
 // AttributeError of a non-dict methods/rpc_urls/confirmations, a tip's non-str title and item, {!a} as ascii(), a
 // Chain that owns its rpc list), Python's iteration and hashing of loosely typed arguments, the keyword-argument
-// TypeErrors, the mutable registries, Token's normalisation, parse_transfer's Arc floor, text_on and the accepted
+// TypeErrors, the mutable registries, Token's normalization, parse_transfer's Arc floor, text_on and the accepted
 // explorer_tx divergence. Every expectation is scfg_core's own output (python3 with plugin/game/python-packages).
 #include "support/Test.h"
 
@@ -32,8 +32,8 @@ namespace config = scfg::config;
 namespace payments = scfg::payments;
 namespace py = scfg::py;
 
-static const char* const kEvm = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
-static const char* const kSol = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
+static const char* const EVM = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
+static const char* const SOL = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
 
 // "ok", or "<Kind>[(<code>)]: <message>".
 template <class T>
@@ -43,9 +43,9 @@ static std::string outcome(const Result<T>& r) {
     return e.kind + (e.code.empty() ? "" : "(" + e.code + ")") + ": " + e.message;
 }
 
-// {"wallet": kEvm, key: value}.
+// {"wallet": EVM, key: value}.
 static Json evm_kw(std::string key, Json value) {
-    Json kw = Json::dict({{"wallet", kEvm}});
+    Json kw = Json::dict({{"wallet", EVM}});
     kw.as_dict().set(std::move(key), std::move(value));
     return kw;
 }
@@ -76,7 +76,7 @@ static Json transfer_log(std::string address, const BigInt& value) {
     std::string hex = value.to_hex();
     return Json::dict({{"address", std::move(address)},
                        {"topics", Json::list({std::string(scfg::evm::TRANSFER_TOPIC),
-                                              scfg::evm::address_topic(kEvm).value(),
+                                              scfg::evm::address_topic(EVM).value(),
                                               scfg::evm::address_topic("0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359").value()})},
                        {"data", "0x" + std::string(64 - hex.size(), '0') + hex},
                        {"transactionHash", "0x" + std::string(64, 'a')},
@@ -106,7 +106,7 @@ SCFG_TEST(ChainsTests, TheRegistriesAreMutableForTheDriver) {
     // monkeypatch.setitem(MAINNET, "arbitrum", replace(MAINNET["arbitrum"], rpc=(url,), confirmations=3)).
     chains::Chain saved = *chains::MAINNET().find("arbitrum");
     chains::MAINNET().set("arbitrum", saved.with(std::vector<std::string>{"http://127.0.0.1:8545"}, BigInt(3)));
-    Result<config::Config> c = config::build_config(Json::dict({{"wallet", kEvm}, {"chains", Json::list({"arbitrum"})}}));
+    Result<config::Config> c = config::build_config(Json::dict({{"wallet", EVM}, {"chains", Json::list({"arbitrum"})}}));
     SCFG_CHECK_EQ(t, outcome(c), "ok");
     if (c.ok()) {
         Result<scfg::OrderedMap<chains::Chain>> enabled = config::enabled_chains(c.value());
@@ -205,7 +205,7 @@ SCFG_TEST(ConfigTests, KeywordArgumentsBindAsPython) {
     SCFG_CHECK_EQ(t, cfg("colour", 1), "TypeError: build_config() got an unexpected keyword argument 'colour'");
     SCFG_CHECK_EQ(t, outcome(config::build_config(Json::list())),
                   "TypeError: build_config() argument after ** must be a mapping, not list");
-    config::Config c = config::build_config(Json::dict({{"wallet", kEvm}})).value();
+    config::Config c = config::build_config(Json::dict({{"wallet", EVM}})).value();
     SCFG_CHECK_EQ(t, outcome(config::add_item(c, "b", Json::dict({{"code", 7}}))),
                   "TypeError: add_item() missing 3 required keyword-only arguments: 'price', 'token', and 'title'");
     std::vector<config::CustomChain> none;
@@ -305,24 +305,24 @@ SCFG_TEST(ConfigTests, NumbersAndUrls) {
                   "ConfigError(rpc.not_https): rpc url must start with https://: 'http://localhost:'");
     SCFG_CHECK_EQ(t, url("http://localhostx"),
                   "ConfigError(rpc.not_https): rpc url must start with https://: 'http://localhostx'");
-    SCFG_CHECK_EQ(t, cfg("wallet", std::string(" ") + kEvm),
-                  std::string("ConfigError(address.invalid): wallet: not a 20-byte hex address: ' ") + kEvm + "'");
+    SCFG_CHECK_EQ(t, cfg("wallet", std::string(" ") + EVM),
+                  std::string("ConfigError(address.invalid): wallet: not a 20-byte hex address: ' ") + EVM + "'");
     SCFG_CHECK(t, config::build_config(evm_kw("testnet", "yes")).value().testnet);
 }
 
 SCFG_TEST(ConfigTests, WalletsAndLookups) {
-    Json kw = Json::dict({{"wallet", kEvm},
-                          {"solana_wallet", kSol},
-                          {"previous_wallets", Json::list({std::string(" ") + py::lower_ascii(kEvm) + " ",
-                                                           "0x" + std::string(40, '1'), kSol})}});
+    Json kw = Json::dict({{"wallet", EVM},
+                          {"solana_wallet", SOL},
+                          {"previous_wallets", Json::list({std::string(" ") + py::lower_ascii(EVM) + " ",
+                                                           "0x" + std::string(40, '1'), SOL})}});
     config::Config c = config::build_config(kw).value();
     SCFG_CHECK_EQ(t, strings(c.previous_wallets), "0x" + std::string(40, '1'));
     SCFG_CHECK(t, c.previous_solana_wallets.empty());
-    SCFG_CHECK_EQ(t, strings(c.accepted_wallets()), std::string(kEvm) + " 0x" + std::string(40, '1'));
-    SCFG_CHECK_EQ(t, strings(c.accepted_wallets_for("solana")), kSol);
+    SCFG_CHECK_EQ(t, strings(c.accepted_wallets()), std::string(EVM) + " 0x" + std::string(40, '1'));
+    SCFG_CHECK_EQ(t, strings(c.accepted_wallets_for("solana")), SOL);
     SCFG_CHECK_EQ(t, strings(c.accepted_wallets_for("evm")), strings(c.accepted_wallets()));
-    SCFG_CHECK(t, c.wallet_for(*chains::MAINNET().find("solana")) == std::optional<std::string>(kSol));
-    SCFG_CHECK(t, c.wallet_for(*chains::MAINNET().find("base")) == std::optional<std::string>(kEvm));
+    SCFG_CHECK(t, c.wallet_for(*chains::MAINNET().find("solana")) == std::optional<std::string>(SOL));
+    SCFG_CHECK(t, c.wallet_for(*chains::MAINNET().find("base")) == std::optional<std::string>(EVM));
     SCFG_CHECK_EQ(t, strings(c.chains), "arbitrum base arc polygon ethereum solana");
     SCFG_CHECK_EQ(t, strings(c.registry().keys()), "ethereum arbitrum polygon base arc solana");
     SCFG_CHECK(t, c.item_by_code(7) == nullptr);
@@ -334,7 +334,7 @@ SCFG_TEST(ConfigTests, WalletsAndLookups) {
 }
 
 SCFG_TEST(ConfigTests, EnabledChainsRaisesKeyErrorForAChainTheRegistryLost) {
-    config::Config c = config::build_config(Json::dict({{"wallet", kEvm}})).value();
+    config::Config c = config::build_config(Json::dict({{"wallet", EVM}})).value();
     chains::Chain saved = *chains::MAINNET().find("base");
     chains::MAINNET().erase("base");
     SCFG_CHECK_EQ(t, outcome(config::enabled_chains(c)), "KeyError: 'base'");
@@ -376,7 +376,7 @@ SCFG_TEST(ConfigTests, LogoAccentAndTextOn) {
 // ---- add_item ----
 
 SCFG_TEST(ConfigTests, AddItemChecksInPythonsOrder) {
-    config::Config c = config::build_config(Json::dict({{"wallet", kEvm}})).value();
+    config::Config c = config::build_config(Json::dict({{"wallet", EVM}})).value();
     auto add = [&c](const char* id, Json code, Json price, Json token, Json title, Json min_price = Json()) {
         Json kw = Json::dict({{"code", code}, {"price", price}, {"token", token}, {"title", title}});
         if (!min_price.is_null()) kw.as_dict().set("min_price", min_price);
@@ -409,7 +409,7 @@ SCFG_TEST(PaymentsTests, ConstantsAreCents) {
 
 SCFG_TEST(PaymentsTests, ATipCarriesWhateverTitleAndItemItWasGiven) {
     config::Config c =
-        config::build_config(Json::dict({{"wallet", kEvm}, {"solana_wallet", kSol}})).value();
+        config::build_config(Json::dict({{"wallet", EVM}, {"solana_wallet", SOL}})).value();
     SCFG_CHECK_EQ(t, outcome(config::add_item(c, "a", Json::dict({{"code", 7}, {"price", "1"}, {"token", "USDC"},
                                                                    {"title", "A"}}))),
                   "ok");

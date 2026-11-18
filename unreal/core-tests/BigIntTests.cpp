@@ -166,12 +166,12 @@ SCFG_TEST(BigIntTests, FloorDivisionAndModuloAsPython) {
 }
 
 // Knuth D edge cases (Hacker's Delight's divmnu64 tests, 32-bit limbs): qhat overestimates, the add-back step,
-// a divisor with a top bit set (no normalisation shift) and a multi-limb remainder. Hex, from Python's // and %.
+// a divisor with a top bit set (no normalization shift) and a multi-limb remainder. Hex, from Python's // and %.
 SCFG_TEST(BigIntTests, KnuthDivisionEdgeCases) {
     struct Case {
         const char *u, *v, *q, *r;
     };
-    static const Case kCases[] = {
+    static const Case CASES[] = {
         {"7fffffff800000000000000000000000", "800000000000000000000001", "fffffffe", "7fffffffffffffff00000002"},
         {"800000000000000000000003", "200000000000000000000001", "3", "200000000000000000000000"},
         {"800000000000000000000000", "800000000000000000000001", "0", "800000000000000000000000"},
@@ -179,7 +179,7 @@ SCFG_TEST(BigIntTests, KnuthDivisionEdgeCases) {
         {"ffffffffffffffff0123456789abcdef", "ffffffff00000001", "100000000ffffffff", "123456589abcdf0"},
         {"ffffffffffffffffffffffffffffffff", "ffffffffffffffffffffffff", "100000000", "ffffffff"},
     };
-    for (const Case& c : kCases) {
+    for (const Case& c : CASES) {
         BigInt u = hex(t, c.u), v = hex(t, c.v);
         scfg::Result<BigInt::DivMod> dm = u.divmod(v);
         if (!t.check(dm.ok(), std::string("divmod failed: ") + c.u)) continue;
@@ -256,7 +256,7 @@ SCFG_TEST(BigIntTests, DifferentialAgainstPython) {
     struct Row {
         const char *a, *b, *product, *quot, *rem;
     };
-    static const Row kRows[] = {
+    static const Row ROWS[] = {
     {"131252182197086359380636059891867", "-6056482011737496124467685152924534422303967951576474", "-794926480477945967900581089512024413917198557467168048394133373485510885544621136958", "-1", "-6056482011737496124336432970727448062923331891684607"},
     {"12", "85743513278517888552262913240853815114486596331258603566", "1028922159342214662627154958890245781373839155975103242792", "0", "12"},
     {"-50120913999456857986076410851812225277785868096274735686579112118734877487326574856460", "4299222546794616531", "-215480963532418862420857603989925867764685902593311160141417112927738211618911408345538985123712068140260", "-11658134337992260733852464106106980297732445762347198220326120110399", "1427619342015549409"},
@@ -308,7 +308,7 @@ SCFG_TEST(BigIntTests, DifferentialAgainstPython) {
     {"-314998341116593739402468876009000654340", "740949760420033708016816", "-233397945383048184466110597881360139339510661235823847723381440", "-425127799404411", "739953755016951771921036"},
     {"58788832044907898661946673289525708564938894890890304619012342", "-4762963434885479640085011", "-280009057409520081064772739477262132434502159643522819886274492747805289435683738205762", "-12342910637171711403346963524416916645", "-1025815316008509681895753"},
     };
-    for (const Row& row : kRows) {
+    for (const Row& row : ROWS) {
         BigInt a = dec(t, row.a), b = dec(t, row.b);
         SCFG_CHECK_EQ(t, a.to_decimal(), row.a);
         SCFG_CHECK_EQ(t, (a * b).to_decimal(), row.product);

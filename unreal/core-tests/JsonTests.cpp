@@ -68,7 +68,7 @@ SCFG_TEST(JsonTests, IntegersStayIntegers) {
     SCFG_CHECK(t, min.is_int64() && min.as_int64() == INT64_MIN);
     SCFG_CHECK(t, !L(t, "9223372036854775808").is_int64());
     SCFG_CHECK(t, L(t, "-9223372036854775809").is_int() && !L(t, "-9223372036854775809").is_int64());
-    // 19 and more digits that still fit are normalised to int64
+    // 19 and more digits that still fit are normalized to int64
     SCFG_CHECK(t, L(t, "9223372036854775807").is_int64());
     SCFG_CHECK(t, L(t, "1e2").is_float() && L(t, "1e2").as_float() == 100.0);
     SCFG_CHECK(t, L(t, "-0").is_int64() && L(t, "-0").as_int64() == 0);
@@ -360,7 +360,7 @@ SCFG_TEST(JsonTests, ConstructionAndTypes) {
     SCFG_CHECK_EQ(t, Json::dict().type_name(), "dict");
     SCFG_CHECK(t, Json(std::string_view("sv")).as_str() == "sv" && Json(std::string("s")).as_str() == "s");
     SCFG_CHECK(t, Json(true).is_bool() && !Json(true).is_int());  // a bool is not an int here (Python's bool is)
-    // ints are normalised: a BigInt that fits is stored as int64, a uint64 beyond int64 as a BigInt
+    // ints are normalized: a BigInt that fits is stored as int64, a uint64 beyond int64 as a BigInt
     SCFG_CHECK(t, Json(BigInt(42)).is_int64() && Json(BigInt(42)).as_int64() == 42);
     SCFG_CHECK(t, Json(BigInt(2).pow(63) - 1).is_int64());
     SCFG_CHECK(t, !Json(BigInt(2).pow(63)).is_int64());

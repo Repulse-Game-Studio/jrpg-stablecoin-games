@@ -90,7 +90,7 @@ scfg::Json transfer_log(const std::string& token, const std::string& sender, con
 class EngineSubmitter : public scfg::worker::Submitter {
 public:
     explicit EngineSubmitter(scfg::engine::Engine& engine) : engine_(&engine) {}
-    // Honours the abandon flag as worker.py does: a start abandoned before it runs is cancelled (CancelledError),
+    // Honors the abandon flag as worker.py does: a start abandoned before it runs is cancelled (CancelledError),
     // and one abandoned while it runs is refused its next request (Engine::refuse_requests).
     void start_session(scfg::Json kind, scfg::Json chain, scfg::Json opts, scfg::worker::OnDone<scfg::Json> done,
                        scfg::worker::AbandonFlag abandoned) override;
@@ -157,7 +157,7 @@ public:
 
 // The tests' FakeServer (test_checkout.py's, test_checkout_steps.py's and its PageWithPump in one): what the
 // controller handed the factory, and what the controller did to the page. Kept by the test, so it outlives the page.
-inline constexpr const char* kServerUrl = "http://127.0.0.1:1234/c/secret/";
+inline constexpr const char* SERVER_URL = "http://127.0.0.1:1234/c/secret/";
 struct ServerLog {
     scfg::checkout::ServerArgs args;
     bool started = false;
@@ -172,7 +172,7 @@ public:
     explicit FakeServer(std::shared_ptr<ServerLog> log) : log_(std::move(log)) {}
     scfg::Status start() override;
     void stop() override { log_->stopped = true; }
-    std::string url() const override { return kServerUrl; }
+    std::string url() const override { return SERVER_URL; }
     void reopen() override { ++log_->reopens; }
     void pump() override { ++log_->pumps; }
 

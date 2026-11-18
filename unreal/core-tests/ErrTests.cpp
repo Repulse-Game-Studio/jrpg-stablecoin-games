@@ -87,7 +87,7 @@ SCFG_TEST(ErrTests, StrNamesKindCodeAndStatus) {
     SCFG_CHECK_EQ(t, Err::transport_error("down", 503).str(), "TransportError(status=503): down");
 }
 
-// Ruling R5: an unknown kind is a programming error. It is recorded (never silently an "Exception"), and an Err of
+// An unknown kind is a programming error. It is recorded (never silently an "Exception"), and an Err of
 // an unknown kind, or an is_a() question about one, is false.
 SCFG_TEST(ErrTests, AnUnknownKindIsRecordedNeverAnException) {
     scfg::errors::clear_misuse();

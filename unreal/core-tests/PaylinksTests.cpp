@@ -34,8 +34,8 @@ static std::string outcome(const Result<T>& r) {
 static const std::string W = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
 static const std::string M = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 static const std::string R = "82ZJ7nbGpixjeDCmEhUcmwXYfvurzAgGdtSMuHnUgyny";
-static const std::string kHead = "solana:" + W + "?amount=4.993742&spl-token=" + M + "&reference=" + R;
-static const std::string kLimit =
+static const std::string HEAD = "solana:" + W + "?amount=4.993742&spl-token=" + M + "&reference=" + R;
+static const std::string LIMIT =
     "ValueError: Exceeds the limit (4300) for integer string conversion; use sys.set_int_max_str_digits() to "
     "increase the limit";
 
@@ -51,11 +51,11 @@ SCFG_TEST(PaylinksTests, AstralCharactersInASolanaPayLabelAndMessage) {
     SCFG_CHECK_EQ(t, text_or_error(pay("\xF0\x9D\x84\x9E\xF0\x9F\x8E\xAE",
                                        "\xF4\x8F\xBF\xBF end \xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D"
                                        "\xF0\x9F\x91\xA7")),
-                  kHead + "&label=%F0%9D%84%9E%F0%9F%8E%AE&message=%F4%8F%BF%BF%20end%20%F0%9F%91%A8%E2%80%8D%F0%9F%91"
+                  HEAD + "&label=%F0%9D%84%9E%F0%9F%8E%AE&message=%F4%8F%BF%BF%20end%20%F0%9F%91%A8%E2%80%8D%F0%9F%91"
                           "%A9%E2%80%8D%F0%9F%91%A7");
     // A regional-indicator flag and a CJK Extension B character (U+20000) after a BMP one.
     SCFG_CHECK_EQ(t, text_or_error(pay("\xF0\x9F\x87\xBA\xF0\x9F\x87\xB8 flag", "\xC3\xA9\xF0\xA0\x80\x80")),
-                  kHead + "&label=%F0%9F%87%BA%F0%9F%87%B8%20flag&message=%C3%A9%F0%A0%80%80");
+                  HEAD + "&label=%F0%9F%87%BA%F0%9F%87%B8%20flag&message=%C3%A9%F0%A0%80%80");
 }
 
 SCFG_TEST(PaylinksTests, LoneSurrogatesAreUnicodeEncodeErrors) {
@@ -72,7 +72,7 @@ SCFG_TEST(PaylinksTests, LoneSurrogatesAreUnicodeEncodeErrors) {
 SCFG_TEST(PaylinksTests, SolanaPayQuotingAndEmptyValues) {
     // safe='': "/" is encoded too; only A-Za-z0-9_.-~ stay.
     SCFG_CHECK_EQ(t, text_or_error(pay("/?&=#+%:@ ~._-", "")),
-                  kHead + "&label=%2F%3F%26%3D%23%2B%25%3A%40%20~._-");
+                  HEAD + "&label=%2F%3F%26%3D%23%2B%25%3A%40%20~._-");
     // An empty value is left out with its key, whichever it is.
     SCFG_CHECK_EQ(t, text_or_error(scfg::solana::paylinks::solana_pay_uri(W, BigInt(4993742), "", "", "", "")),
                   "solana:" + W + "?amount=4.993742");
@@ -90,8 +90,8 @@ SCFG_TEST(PaylinksTests, Eip681FormatsIntsExactly) {
     const BigInt big = BigInt(10).pow(4300);
     Result<std::string> most = paylinks::eip681_transfer_uri("T", BigInt(1), "R", -(big - BigInt(1)));
     SCFG_CHECK(t, most.ok() && most.value().size() == 4341);
-    SCFG_CHECK_EQ(t, outcome(paylinks::eip681_transfer_uri("T", big, "R", BigInt(1))), kLimit);
-    SCFG_CHECK_EQ(t, outcome(paylinks::eip681_transfer_uri("T", BigInt(1), "R", BigInt(2).pow(14285))), kLimit);
+    SCFG_CHECK_EQ(t, outcome(paylinks::eip681_transfer_uri("T", big, "R", BigInt(1))), LIMIT);
+    SCFG_CHECK_EQ(t, outcome(paylinks::eip681_transfer_uri("T", BigInt(1), "R", BigInt(2).pow(14285))), LIMIT);
     Result<std::string> bits14284 = paylinks::eip681_transfer_uri("T", BigInt(1), "R", BigInt(2).pow(14284));
     SCFG_CHECK(t, bits14284.ok() && bits14284.value().size() == 4340);
 }
@@ -102,12 +102,12 @@ SCFG_TEST(PaylinksTests, IntStr) {
     SCFG_CHECK_EQ(t, text_or_error(py::int_str(BigInt(-12))), "-12");
     Result<std::string> nines = py::int_str(big - BigInt(1));
     SCFG_CHECK(t, nines.ok() && nines.value().size() == 4300);
-    SCFG_CHECK_EQ(t, outcome(py::int_str(big)), kLimit);
-    SCFG_CHECK_EQ(t, outcome(py::int_str(-big)), kLimit);
+    SCFG_CHECK_EQ(t, outcome(py::int_str(big)), LIMIT);
+    SCFG_CHECK_EQ(t, outcome(py::int_str(-big)), LIMIT);
     Result<std::string> neg = py::int_str(-(big - BigInt(1)));
     SCFG_CHECK(t, neg.ok() && neg.value().size() == 4301);
     // Refused from the bit length alone, however large.
-    SCFG_CHECK_EQ(t, outcome(py::int_str(BigInt(1) << 1000000)), kLimit);
+    SCFG_CHECK_EQ(t, outcome(py::int_str(BigInt(1) << 1000000)), LIMIT);
 }
 
 SCFG_TEST(PaylinksTests, QrRectsCoverExactlyTheDarkModules) {

@@ -163,7 +163,8 @@ std::vector<File> source_files(std::string* error) {
     return out;
 }
 
-std::string basename(std::string_view rel) {
+// "Private/Version.cpp" -> "Version.cpp".
+static std::string basename(std::string_view rel) {
     size_t slash = rel.rfind('/');
     return std::string(slash == std::string_view::npos ? rel : rel.substr(slash + 1));
 }
@@ -366,7 +367,7 @@ std::vector<std::string> coroutine_lambdas(const File& f) {
         if (!coroutine) continue;
         size_t line = 1 + static_cast<size_t>(std::count(code.begin(), code.begin() + static_cast<std::ptrdiff_t>(i), '\n'));
         hits.push_back(at(f, line, "coroutine lambda",
-                          "ruling R8: Clang miscompiles lambda coroutines (llvm#91983); write a named function"));
+                          "Clang miscompiles lambda coroutines (llvm#91983); write a named function"));
     }
     return hits;
 }
@@ -423,7 +424,7 @@ std::vector<std::string> names_its_twin(const File& f) {
     Views v = lint::views(f.text);
     if (!v.raw.empty() && v.raw[0].rfind("\xEF\xBB\xBF", 0) == 0) v.raw[0].erase(0, 3);
     // The copyright line comes first (copyright() checks it); the twin comment is the first comment after it.
-    size_t first = !v.raw.empty() && v.raw[0] == kCopyright ? 1 : 0;
+    size_t first = !v.raw.empty() && v.raw[0] == COPYRIGHT ? 1 : 0;
     for (size_t n = first; n < v.raw.size(); ++n) {
         const std::string& line = v.raw[n];
         if (line.find_first_not_of(" \t\r") == std::string::npos) continue;
@@ -445,17 +446,17 @@ std::vector<std::string> names_its_twin(const File& f) {
 
 std::vector<std::string> copyright(const File& f) {
     const std::string why = "Fab 4.3.6.1.b: every source file starts with the publisher's notice, " +
-                            std::string(kCopyright);
+                            std::string(COPYRIGHT);
     std::vector<std::string> lines = split_lines(f.text);
     std::vector<std::string> hits;
-    if (lines[0] != kCopyright) hits.push_back(at(f, 1, "line 1 is not the copyright line", why));
+    if (lines[0] != COPYRIGHT) hits.push_back(at(f, 1, "line 1 is not the copyright line", why));
     for (size_t n = 1; n < lines.size(); ++n) {
-        if (lines[n] == kCopyright) hits.push_back(at(f, n + 1, "the copyright line again", why));
+        if (lines[n] == COPYRIGHT) hits.push_back(at(f, n + 1, "the copyright line again", why));
     }
     return hits;
 }
 
-// ---- exports (F3) ----
+// ---- exports ----
 
 // s with every balanced (...) emptied to "()" and every <...> removed, innermost first, after the operator names are
 // replaced (so operator<< and operator() are not brackets): the shape of a declaration at its top level.

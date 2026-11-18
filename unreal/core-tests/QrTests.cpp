@@ -1,6 +1,6 @@
 // Copyright 2026 Repulse
 // No Python twin: tests of scfg::qrcodegen beyond the tier1/qr.json vectors: every version boundary of every mode and
-// level, the level boost and the mask choice, forced masks, every version's function patterns (the alignment centres
+// level, the level boost and the mask choice, forced masks, every version's function patterns (the alignment centers
 // of ISO/IEC 18004 Table E.1, version 32's step 26 included), the segment builders and every error.
 //
 // Every expectation is a differential against scfg_core._qrcodegen, computed with the project's interpreter
@@ -16,18 +16,19 @@
 //           for xx in range(qr.get_size()):
 //               x = (x * 131 + (1 if qr.get_module(xx, y) else 0) + 7) % 1000000007
 //       return x
-//   # kBoost: for each text, level and boostecl b
+//   # BOOST: for each text, level and boostecl b
 //   qr = QrCode.encode_segments(QrSegment.make_segments(text), E[e], boostecl=b)
 //   print(qr.get_version(), qr.get_error_correction_level().ordinal, qr.get_mask(), h(qr))
-//   # kForcedMasks: [h(QrCode.encode_segments(QrSegment.make_segments(EIP681), E[0], mask=k, boostecl=False))
+//   # FORCED_MASKS: [h(QrCode.encode_segments(QrSegment.make_segments(EIP681), E[0], mask=k, boostecl=False))
 //   #               for k in range(8)]
-//   # kEveryVersion: [h(QrCode(v, E[v % 4], bytes((i * 7 + v) & 255 for i in
+//   # EVERY_VERSION: [h(QrCode(v, E[v % 4], bytes((i * 7 + v) & 255 for i in
 //   #                  range(QrCode._get_num_data_codewords(v, E[v % 4]))), v % 8)) for v in range(1, 41)]
-//   # kCapacity: for each mode m ("x", "7", "Z": byte, numeric, alphanumeric), level e and version v, the largest n
+//   # CAPACITY: for each mode m ("x", "7", "Z": byte, numeric, alphanumeric), level e and version v, the largest n
 //   #            with QrSegment.get_total_bits(QrSegment.make_segments(m * n), v)
 //   #                 <= QrCode._get_num_data_codewords(v, E[e]) * 8
 //
-// kCapacity is also ISO/IEC 18004 Table 7 (40-L holds 2953 bytes, 7089 digits, 4296 alphanumerics; 1-M 14, 34, 20).
+// CAPACITY is also ISO/IEC 18004 Table 7 (40-L holds 2953 bytes, 7089 digits, 4296 alphanumerics; 1-M 14, 34, 20).
+#include "support/Helpers.h"
 #include "support/Test.h"
 
 #include "Scfg/Err.h"
@@ -48,7 +49,7 @@ using scfg::qrcodegen::QrSegment;
 using Ecc = QrCode::Ecc;
 namespace qrcodegen = scfg::qrcodegen;
 
-static constexpr std::array<Ecc, 4> kLevels = {Ecc::LOW, Ecc::MEDIUM, Ecc::QUARTILE, Ecc::HIGH};
+static constexpr std::array<Ecc, 4> LEVELS = {Ecc::LOW, Ecc::MEDIUM, Ecc::QUARTILE, Ecc::HIGH};
 
 static int64_t hash(const QrCode& qr) {
     int64_t x = 0;
@@ -66,11 +67,7 @@ static int64_t hash(const std::vector<std::vector<bool>>& m) {
     return x;
 }
 
-static std::string repeat(std::string_view s, size_t n) {
-    std::string out;
-    for (size_t i = 0; i < n; ++i) out += s;
-    return out;
-}
+using scfg_test::repeat;
 
 template <class T>
 static std::string outcome(const Result<T>& r) {
@@ -90,7 +87,7 @@ static Result<QrCode> encode(std::string_view text, Ecc ecl, int mask = -1, bool
     return QrCode::encode_segments(segs, ecl, 1, 40, mask, boostecl);
 }
 
-static const std::string kEip681 =
+static const std::string EIP681_URI =
     "ethereum:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48@1/transfer?address=0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
     "&uint256=4993742";
 
@@ -126,8 +123,8 @@ SCFG_TEST(QrTests, MatricesOfEveryMode) {
 
 // ---- version boundaries ----
 
-// kCapacity[mode][level][version - 1]: the most characters that fit (byte, numeric, alphanumeric).
-static constexpr std::array<std::array<std::array<int, 40>, 4>, 3> kCapacity = {{
+// CAPACITY[mode][level][version - 1]: the most characters that fit (byte, numeric, alphanumeric).
+static constexpr std::array<std::array<std::array<int, 40>, 4>, 3> CAPACITY = {{
     {{
         {17, 32, 53, 78, 106, 134, 154, 192, 230, 271, 321, 367, 425, 458, 520, 586, 644, 718, 792, 858,
          929, 1003, 1091, 1171, 1273, 1367, 1465, 1528, 1628, 1732, 1840, 1952, 2068, 2188, 2303, 2431, 2563, 2699,
@@ -179,20 +176,20 @@ SCFG_TEST(QrTests, EveryVersionBoundary) {
     const std::array<QrSegment::Mode, 3> modes = {QrSegment::Mode::BYTE, QrSegment::Mode::NUMERIC,
                                                   QrSegment::Mode::ALPHANUMERIC};
     for (size_t m = 0; m < unit.size(); ++m) {
-        for (size_t e = 0; e < kLevels.size(); ++e) {
+        for (size_t e = 0; e < LEVELS.size(); ++e) {
             for (int v = 1; v <= 40; ++v) {
-                const auto n = static_cast<size_t>(kCapacity[m][e][static_cast<size_t>(v - 1)]);
+                const auto n = static_cast<size_t>(CAPACITY[m][e][static_cast<size_t>(v - 1)]);
                 const std::string where = std::string(unit[m]) + " level " + std::to_string(e) + " version " +
                                           std::to_string(v);
                 Result<std::vector<QrSegment>> segs = QrSegment::make_segments(repeat(unit[m], n));
                 if (!t.check(segs.ok() && segs.value().size() == 1 && segs.value()[0].get_mode() == modes[m], where)) {
                     continue;
                 }
-                Result<QrCode> fits = encode(repeat(unit[m], n), kLevels[e], 0, false);
+                Result<QrCode> fits = encode(repeat(unit[m], n), LEVELS[e], 0, false);
                 t.check(fits.ok() && fits.value().get_version() == v && fits.value().get_size() == v * 4 + 17 &&
-                            fits.value().get_error_correction_level() == kLevels[e] && fits.value().get_mask() == 0,
+                            fits.value().get_error_correction_level() == LEVELS[e] && fits.value().get_mask() == 0,
                         "fits " + where);
-                Result<QrCode> over = encode(repeat(unit[m], n + 1), kLevels[e], 0, false);
+                Result<QrCode> over = encode(repeat(unit[m], n + 1), LEVELS[e], 0, false);
                 if (v < 40) {
                     t.check(over.ok() && over.value().get_version() == v + 1, "one more than " + where);
                 } else {
@@ -207,7 +204,7 @@ SCFG_TEST(QrTests, EveryVersionBoundary) {
 // ---- level boost and mask choice ----
 
 SCFG_TEST(QrTests, LevelBoostAndMaskMatchPython) {
-    const std::vector<std::string> texts = {"a", "HELLO WORLD", "12345678901234567890", kEip681,
+    const std::vector<std::string> texts = {"a", "HELLO WORLD", "12345678901234567890", EIP681_URI,
                                             "Caf\xC3\xA9 \xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E \xF0\x9F\x8E\xAE",
                                             repeat("x", 300)};
     struct Case {
@@ -216,7 +213,7 @@ SCFG_TEST(QrTests, LevelBoostAndMaskMatchPython) {
         int version, result_ecl, mask;
         int64_t hash;
     };
-    // kBoost
+    // BOOST
     const std::vector<Case> cases = {
         {0, 0, true, 1, 3, 6, 114945259},   {0, 0, false, 1, 0, 0, 219521229},  {0, 1, true, 1, 3, 6, 114945259},
         {0, 1, false, 1, 1, 5, 20529507},   {0, 2, true, 1, 3, 6, 114945259},   {0, 2, false, 1, 2, 0, 159085410},
@@ -239,7 +236,7 @@ SCFG_TEST(QrTests, LevelBoostAndMaskMatchPython) {
         const std::string where = "text " + std::to_string(c.text) + " level " + std::to_string(c.ecl) +
                                   (c.boost ? " boosted" : " as asked");
         const std::string& text = texts[static_cast<size_t>(c.text)];
-        Result<QrCode> qr = encode(text, kLevels[static_cast<size_t>(c.ecl)], -1, c.boost);
+        Result<QrCode> qr = encode(text, LEVELS[static_cast<size_t>(c.ecl)], -1, c.boost);
         if (!t.check(qr.ok(), where + ": " + outcome(qr))) continue;
         t.check(qr.value().get_version() == c.version, where + ": version");
         t.check(QrCode::ordinal(qr.value().get_error_correction_level()) == c.result_ecl, where + ": level");
@@ -252,11 +249,11 @@ SCFG_TEST(QrTests, LevelBoostAndMaskMatchPython) {
 }
 
 SCFG_TEST(QrTests, ForcedMasks) {
-    // kForcedMasks: the EIP-681 link at LOW (version 6), each mask forced.
+    // FORCED_MASKS: the EIP-681 link at LOW (version 6), each mask forced.
     const std::array<int64_t, 8> expected = {597515813, 608559086, 993430334, 649108117,
                                              836343469, 485018365, 809542535, 987775813};
     for (int k = 0; k < 8; ++k) {
-        Result<QrCode> qr = encode(kEip681, Ecc::LOW, k, false);
+        Result<QrCode> qr = encode(EIP681_URI, Ecc::LOW, k, false);
         if (!SCFG_CHECK_EQ(t, outcome(qr), "ok")) continue;
         SCFG_CHECK_EQ(t, qr.value().get_mask(), k);
         SCFG_CHECK_EQ(t, qr.value().get_version(), 6);
@@ -276,7 +273,7 @@ SCFG_TEST(QrTests, AutoMaskOf400Texts) {
     for (int k = 0; k < 400; ++k) {
         std::string text;
         for (int i = 0; i < k % 9 + 1; ++i) text += "scfg-" + std::to_string(k) + ":";
-        Result<QrCode> qr = QrCode::encode_text(text, kLevels[static_cast<size_t>(k % 4)]);
+        Result<QrCode> qr = QrCode::encode_text(text, LEVELS[static_cast<size_t>(k % 4)]);
         got += qr.ok() ? static_cast<char>('0' + qr.value().get_mask()) : '?';
     }
     SCFG_CHECK_EQ(t, got, expected);
@@ -285,7 +282,7 @@ SCFG_TEST(QrTests, AutoMaskOf400Texts) {
 // ---- the low-level constructor at every version ----
 
 SCFG_TEST(QrTests, EveryVersionMatchesPython) {
-    // kEveryVersion: QrCode(v, E[v % 4], (i * 7 + v) & 255 for each data codeword i, v % 8).
+    // EVERY_VERSION: QrCode(v, E[v % 4], (i * 7 + v) & 255 for each data codeword i, v % 8).
     const std::array<int64_t, 40> expected = {
         664137975, 825951676, 910680273, 529034974, 753199438, 449069922, 358885154, 889847964, 682293702, 427324834,
         342158116, 124708757, 495862500, 950013104, 404302400, 907086272, 583705032, 739407849, 978026181, 743455202,
@@ -293,7 +290,7 @@ SCFG_TEST(QrTests, EveryVersionMatchesPython) {
         355283076, 340130730, 107811777, 840156132, 304841036, 207853914, 406064284, 202045004, 716185832, 303387824,
     };
     for (int v = 1; v <= 40; ++v) {
-        const Ecc ecl = kLevels[static_cast<size_t>(v % 4)];
+        const Ecc ecl = LEVELS[static_cast<size_t>(v % 4)];
         // The data capacity: the one length make accepts.
         size_t n = 0;
         while (!QrCode::make(v, ecl, std::vector<uint8_t>(n), 0).ok() && n < 4000) ++n;
@@ -307,11 +304,11 @@ SCFG_TEST(QrTests, EveryVersionMatchesPython) {
     }
 }
 
-// ISO/IEC 18004:2015 Annex E, Table E.1 (as tests/unit/test_paylinks.py): every alignment pattern is a dark centre,
-// a light ring and a dark ring at the standard's centres, except under the three finder patterns. Version 32's
-// centres are 26 apart (a naive step formula gives 28).
+// ISO/IEC 18004:2015 Annex E, Table E.1 (as tests/unit/test_paylinks.py): every alignment pattern is a dark center,
+// a light ring and a dark ring at the standard's centers, except under the three finder patterns. Version 32's
+// centers are 26 apart (a naive step formula gives 28).
 SCFG_TEST(QrTests, AlignmentPatternsSitWhereTheStandardPutsThem) {
-    const std::vector<std::vector<int>> centres = {
+    const std::vector<std::vector<int>> centers = {
         {}, {6, 18}, {6, 22}, {6, 26}, {6, 30}, {6, 34}, {6, 22, 38}, {6, 24, 42}, {6, 26, 46}, {6, 28, 50},
         {6, 30, 54}, {6, 32, 58}, {6, 34, 62}, {6, 26, 46, 66}, {6, 26, 48, 70}, {6, 26, 50, 74}, {6, 30, 54, 78},
         {6, 30, 56, 82}, {6, 30, 58, 86}, {6, 34, 62, 90}, {6, 28, 50, 72, 94}, {6, 26, 50, 74, 98},
@@ -321,13 +318,13 @@ SCFG_TEST(QrTests, AlignmentPatternsSitWhereTheStandardPutsThem) {
         {6, 30, 54, 78, 102, 126, 150}, {6, 24, 50, 76, 102, 128, 154}, {6, 28, 54, 80, 106, 132, 158},
         {6, 32, 58, 84, 110, 136, 162}, {6, 26, 54, 82, 110, 138, 166}, {6, 30, 58, 86, 114, 142, 170},
     };
-    SCFG_CHECK_EQ(t, centres.size(), 40);
+    SCFG_CHECK_EQ(t, centers.size(), 40);
     for (int v = 1; v <= 40; ++v) {
         size_t n = 0;
         while (!QrCode::make(v, Ecc::MEDIUM, std::vector<uint8_t>(n), 0).ok() && n < 4000) ++n;
         Result<QrCode> qr = QrCode::make(v, Ecc::MEDIUM, std::vector<uint8_t>(n), 0);
         if (!SCFG_CHECK_EQ(t, outcome(qr), "ok")) continue;
-        const std::vector<int>& c = centres[static_cast<size_t>(v - 1)];
+        const std::vector<int>& c = centers[static_cast<size_t>(v - 1)];
         const size_t last = c.empty() ? 0 : c.size() - 1;
         bool good = true;
         for (size_t i = 0; i < c.size(); ++i) {

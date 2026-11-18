@@ -1,7 +1,7 @@
 // Copyright 2026 Repulse
 // No Python twin: local_server::CheckoutServer and its Handler (LocalServer.h) over the in-memory sockets of
 // support/FakeSockets.h, with a fake clock: what only a server without Python's http.server has to prove, the twins of
-// godot/tests/test_local_server.gd. Its HTTP behaviour against local_server.py lives in the shared suite
+// godot/tests/test_local_server.gd. Its HTTP behavior against local_server.py lives in the shared suite
 // (tests/server_security/test_server_security.py, through core-driver/ServerMain.cpp on real sockets).
 //
 // "Never waits" is checked by structure, as the Godot tests do: every socket call the server makes is counted, and a
@@ -335,7 +335,7 @@ SCFG_TEST(LocalServerTests, test_build_waits_for_the_job_without_blocking) {
     const std::string body = dumps(Json::dict({{"account", ACCOUNT}}));
     c->send(r.head("POST", "build", body.size()) + body);
     SCFG_CHECK(t, r.pump(30) <= MAX_CALLS_PER_PUMP);  // returns at once while the job runs
-    SCFG_CHECK(t, *r.asked == std::vector<std::string>{ACCOUNT});  // the normalised account, once
+    SCFG_CHECK(t, *r.asked == std::vector<std::string>{ACCOUNT});  // the normalized account, once
     SCFG_CHECK(t, c->to_client.empty());  // no answer before the job finishes
     // held past the 10 s request deadline: the build has its own
     r.clock->now += ls::DEADLINE_S + 1.0;

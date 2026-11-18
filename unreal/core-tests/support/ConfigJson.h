@@ -1,7 +1,7 @@
 // Copyright 2026 Repulse
 // No Python twin: the configuration adapters of conformance/python/scfg_conformance/tier1_config.py (unity/
 // core-tests/Tier1.cs's RegisterConfig), shared by tier1/{Chains,Config,CustomChains,Items,Payments}.cpp and, later,
-// the Tier 2 runner and the driver. Does not depend on the test runner (ruling R6).
+// the Tier 2 runner and the driver. Does not depend on the test runner.
 //
 // Inputs: a Config is always the kwargs of build_config; a custom chain inside it is the kwargs of build_chain (a
 // non-dict entry is passed through untouched, which is how chain.not_from_add_chain is reached); items are lists of
@@ -21,7 +21,6 @@
 
 namespace scfg_test::config_json {
 
-scfg::Json token_json(const scfg::chains::Token& t);
 scfg::Json chain_json(const scfg::chains::Chain& c);
 scfg::Json chains_json(const scfg::OrderedMap<scfg::chains::Chain>& chains);
 scfg::Json item_json(const scfg::models::Item& it);

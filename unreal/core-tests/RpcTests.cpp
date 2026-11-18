@@ -5,6 +5,7 @@
 // resetting a cooling endpoint, range-error narrowing, try_at/call_at, and block numbers beyond int64 (Python ints
 // are unbounded). The scenarios marked "Python:" were run against scfg_core's RpcClient with a scripted transport
 // (uv run python, CPython 3.9.25), and the logs and outcomes below are the ones Python produced.
+#include "support/Helpers.h"
 #include "support/JsonEq.h"
 #include "support/Test.h"
 
@@ -42,6 +43,7 @@ namespace py = scfg::py;
 namespace rpc = scfg::rpc;
 namespace srpc = scfg::solana::rpc;
 using rpc::RpcClient;
+using scfg_test::same;
 
 namespace scfg_test::rpc_tests {
 
@@ -167,11 +169,6 @@ Result<T> run(Co<T> c) {
 }
 
 std::string kind_of(const Result<Json>& r) { return r.ok() ? "ok" : r.err().kind; }
-
-bool same(scfg_test::Ctx& t, const Json& got, const Json& want, const std::string& what) {
-    std::optional<std::string> diff = scfg_test::first_diff(got, want);
-    return t.check(!diff, what + ": " + diff.value_or("") + " (got " + scfg::json::dumps(got).value() + ")");
-}
 
 Json strs(const std::vector<std::string>& v) {
     Json out = Json::list();
@@ -395,7 +392,7 @@ SCFG_TEST(RpcTests, EachAttemptWaitsAtMostWhatIsLeftOfTheBudget) {
 }
 
 SCFG_TEST(RpcTests, AnEndpointIsNotAskedWithLessThanTheFloorLeft) {
-    // Review T5: A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not asked with a sliver
+    // A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not asked with a sliver
     // of time, nor cooled down for failing it.
     const std::string C = "https://c.rpc";
     TimedTransport tr;
@@ -410,7 +407,7 @@ SCFG_TEST(RpcTests, AnEndpointIsNotAskedWithLessThanTheFloorLeft) {
 }
 
 SCFG_TEST(RpcTests, TheFloorIsAskedAtExactlyMinAttemptLeft) {
-    // test_the_floor_is_asked_at_exactly_min_attempt_left (review V5), the floor's boundary: A hangs (10 s); B fails
+    // test_the_floor_is_asked_at_exactly_min_attempt_left, the floor's boundary: A hangs (10 s); B fails
     // after 3 s, leaving exactly MIN_ATTEMPT, so C is asked with that timeout; after 3.1 s (1.9 s left) it is not,
     // and stays live. (Its vector is tier2/rpc/an_endpoint_is_asked_with_exactly_the_floor_left.)
     const std::string C = "https://c.rpc";
@@ -978,7 +975,7 @@ SCFG_TEST(RpcTests, ACallWaitsForEachAnswerWithoutBlocking) {
 }
 
 SCFG_TEST(RpcTests, ATransportThatDropsARequestCancelsTheCall) {
-    // Phase 2's transport on shutdown: its promises are destroyed incomplete. CancelledError is no endpoint
+    // The Unreal transport on shutdown: its promises are destroyed incomplete. CancelledError is no endpoint
     // failure: it reaches the caller and cools nothing down.
     DeferredTransport tr;
     Result<RpcClient> made = RpcClient::make({A, B}, tr, {.clock = [] { return 0.0; }});
@@ -1042,7 +1039,7 @@ int64_t max_version(const Json& p) {
     return v.is_int64() ? v.as_int64() : -1;
 }
 
-const std::string kV2 =
+const std::string VERSION_2_ERROR =
     "Transaction version (2) is not supported by the requesting client. Please try the request again with the "
     "following configuration parameter: \"maxSupportedTransactionVersion\": 2";
 
@@ -1056,7 +1053,9 @@ Handler versioned(int64_t needs) {
     return [needs](const std::string& m, const Json& p) -> Result<Json> {
         if (m == "getFirstAvailableBlock") return ok(0);
         std::string n = std::to_string(needs);
-        if (max_version(p) < needs) return err(-32015, replace_all(replace_all(kV2, "(2)", "(" + n + ")"), ": 2", ": " + n));
+        if (max_version(p) < needs) {
+            return err(-32015, replace_all(replace_all(VERSION_2_ERROR, "(2)", "(" + n + ")"), ": 2", ": " + n));
+        }
         return ok(Json::dict({{"slot", 5}}));
     };
 }
@@ -1268,7 +1267,9 @@ SCFG_TEST(SolanaRpcTests, GetTransactionRetriesOnceWithTheVersionTheNodeNames) {
 }
 
 SCFG_TEST(SolanaRpcTests, UnsupportedVersionErrorNamingAnOlderVersionIsRaised) {
-    Handler h = [](const std::string&, const Json&) -> Result<Json> { return err(-32015, replace_all(kV2, "(2)", "(0)")); };
+    Handler h = [](const std::string&, const Json&) -> Result<Json> {
+        return err(-32015, replace_all(VERSION_2_ERROR, "(2)", "(0)"));
+    };
     Sol s({{SA, h}});
     SCFG_CHECK_EQ(t, kind_of(run(s->get_transaction("SIG"))), "RpcError");
     SCFG_CHECK_EQ(t, s.t.calls.size(), 1);
@@ -1314,7 +1315,7 @@ SCFG_TEST(SolanaRpcTests, NamedVersionIgnoresNumbersBeyond18Digits) {
 }
 
 SCFG_TEST(SolanaRpcTests, AnOverlongNamedVersionRaisesTheNodeError) {
-    std::string message = replace_all(kV2, "(2)", "(" + std::string(4301, '9') + ")");
+    std::string message = replace_all(VERSION_2_ERROR, "(2)", "(" + std::string(4301, '9') + ")");
     Handler h = [message](const std::string&, const Json&) -> Result<Json> { return err(-32015, message); };
     Sol s({{SA, h}});
     SCFG_CHECK_EQ(t, kind_of(run(s->get_transaction("SIG"))), "RpcError");

@@ -2,6 +2,7 @@
 // No Python twin: tests of scfg::keccak beyond tier1/keccak.json: the empty-string digest every Ethereum library
 // prints, the Transfer event signature, the rate boundaries (one and two 136-byte blocks, where the padding needs
 // a block of its own) and one million 'a'. Every digest is what scfg_core.keccak.keccak256(m).hex() prints.
+#include "support/Helpers.h"
 #include "support/Test.h"
 
 #include "Scfg/Bytes.h"
@@ -13,14 +14,8 @@
 
 namespace keccak = scfg::keccak;
 
-static std::string hex(const std::array<uint8_t, 32>& d) { return scfg::bytes::to_hex(d); }
-
-// bytes((i * 7 + 3) % 256 for i in range(n))
-static std::vector<uint8_t> pattern(size_t n) {
-    std::vector<uint8_t> out(n);
-    for (size_t i = 0; i < n; ++i) out[i] = static_cast<uint8_t>((i * 7 + 3) % 256);
-    return out;
-}
+using scfg_test::hex;
+using scfg_test::pattern;
 
 SCFG_TEST(KeccakTests, EmptyStringAndTransferSignature) {
     SCFG_CHECK_EQ(t, hex(keccak::keccak256(std::vector<uint8_t>())),

@@ -25,10 +25,10 @@ using scfg::Json;
 using scfg::Result;
 namespace receipts = scfg::receipts;
 
-static const char* const kHashUpper = "0xABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB";
-static const char* const kHashLower = "0xabababababababababababababababababababababababababababababababab";
-static const char* const kSig = "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS";
-static const char* const kSigLower = "1gmkh3brnxinns1tifzhu4yzsrrzjwxi5wb9bhftminfcxnnr1adh8vo8nthek4evneedh4qmvjeqcbbnaefgs";
+static const char* const HASH_UPPER = "0xABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB";
+static const char* const HASH_LOWER = "0xabababababababababababababababababababababababababababababababab";
+static const char* const SIG = "1GMkH3brNXiNNs1tiFZHu4yZSRrzJwxi5wB9bHFtMinfCXNnR1adh8Vo8NTheK4evneedH4qmvjeqcBBNAefgS";
+static const char* const SIG_LOWER = "1gmkh3brnxinns1tifzhu4yzsrrzjwxi5wb9bhftminfcxnnr1adh8vo8nthek4evneedh4qmvjeqcbbnaefgs";
 
 template <class T>
 static std::string outcome(const Result<T>& r) {
@@ -59,17 +59,17 @@ static Json receipt(const char* chain, const char* tx, Json log_index, const cha
 }
 
 SCFG_TEST(ReceiptsTests, ReceiptKeyLowersOnlyEvmHashes) {
-    SCFG_CHECK_EQ(t, receipts::receipt_key("ethereum", kHashUpper, 7), std::string("ethereum:") + kHashLower + ":7");
+    SCFG_CHECK_EQ(t, receipts::receipt_key("ethereum", HASH_UPPER, 7), std::string("ethereum:") + HASH_LOWER + ":7");
     SCFG_CHECK_EQ(t, receipts::receipt_key("ethereum", "0XAB", 0), "ethereum:0XAB:0");
     // Solana signatures are base58: case is meaning, so two spellings are two receipts.
-    SCFG_CHECK_EQ(t, receipts::receipt_key("solana", kSig, 3), std::string("solana:") + kSig + ":3");
-    SCFG_CHECK_EQ(t, receipts::receipt_key("solana", kSigLower, 3), std::string("solana:") + kSigLower + ":3");
-    SCFG_CHECK(t, receipts::receipt_key("solana", kSig, 3) != receipts::receipt_key("solana", kSigLower, 3));
+    SCFG_CHECK_EQ(t, receipts::receipt_key("solana", SIG, 3), std::string("solana:") + SIG + ":3");
+    SCFG_CHECK_EQ(t, receipts::receipt_key("solana", SIG_LOWER, 3), std::string("solana:") + SIG_LOWER + ":3");
+    SCFG_CHECK(t, receipts::receipt_key("solana", SIG, 3) != receipts::receipt_key("solana", SIG_LOWER, 3));
     SCFG_CHECK_EQ(t, receipts::receipt_key("base", "", 0), "base::0");
     SCFG_CHECK_EQ(t, receipts::receipt_key("c", "0x1", INT64_MIN), "c:0x1:-9223372036854775808");
     // The Json form agrees with the typed one.
-    SCFG_CHECK_EQ(t, key("solana", kSig, 3), receipts::receipt_key("solana", kSig, 3));
-    SCFG_CHECK_EQ(t, key("ethereum", kHashUpper, 7), receipts::receipt_key("ethereum", kHashUpper, 7));
+    SCFG_CHECK_EQ(t, key("solana", SIG, 3), receipts::receipt_key("solana", SIG, 3));
+    SCFG_CHECK_EQ(t, key("ethereum", HASH_UPPER, 7), receipts::receipt_key("ethereum", HASH_UPPER, 7));
 }
 
 SCFG_TEST(ReceiptsTests, StoredFieldsAreFormattedWithStr) {
@@ -94,7 +94,7 @@ SCFG_TEST(ReceiptsTests, MakeReceiptFields) {
                   "\"item\": \"chapter2\", \"amount\": \"4.990000\", \"token\": \"USDC\", \"payer\": null, "
                   "\"recipient\": \"7xK\", \"source\": \"payment\"}");
     // A TransferLog gives the same receipt as its Transfer.
-    scfg::evm::TransferLog log{"T", "S", "R", BigInt(1230017), kHashLower, BigInt(7), BigInt(1234567), kHashLower};
+    scfg::evm::TransferLog log{"T", "S", "R", BigInt(1230017), HASH_LOWER, BigInt(7), BigInt(1234567), HASH_LOWER};
     Result<Json> a = receipts::make_receipt("ethereum", log, "tip", Json(), "USDC", "restore");
     Result<Json> b = receipts::make_receipt("ethereum", log.to_transfer(), "tip", Json(), "USDC", "restore");
     SCFG_CHECK(t, a.ok() && b.ok() && scfg::json::dumps(a.value()).value() == scfg::json::dumps(b.value()).value());
@@ -111,27 +111,27 @@ SCFG_TEST(ReceiptsTests, MakeReceiptFields) {
 
 SCFG_TEST(ReceiptsTests, AddReceiptKeepsTheFirstOfAKey) {
     Json::Dict store;
-    Json first = receipt("ethereum", kHashLower, 7, "4.990000");
+    Json first = receipt("ethereum", HASH_LOWER, 7, "4.990000");
     SCFG_CHECK_EQ(t, outcome(receipts::add_receipt(store, first)), "ok");
-    std::string k = std::string("ethereum:") + kHashLower + ":7";
+    std::string k = std::string("ethereum:") + HASH_LOWER + ":7";
     SCFG_CHECK(t, store.size() == 1 && store.contains(k));
     // The same transfer again, its hash in capitals and another amount: not added, the first stays.
-    Result<bool> again = receipts::add_receipt(store, receipt("ethereum", kHashUpper, 7, "9.000000"));
+    Result<bool> again = receipts::add_receipt(store, receipt("ethereum", HASH_UPPER, 7, "9.000000"));
     SCFG_CHECK(t, again.ok() && !again.value());
     SCFG_CHECK_EQ(t, store.size(), 1);
     SCFG_CHECK(t, store.find(k) != nullptr && store.find(k)->same_object(first));
     // Another log index of the same transaction is another receipt.
-    Result<bool> other = receipts::add_receipt(store, receipt("ethereum", kHashLower, 8, "4.990000"));
+    Result<bool> other = receipts::add_receipt(store, receipt("ethereum", HASH_LOWER, 8, "4.990000"));
     SCFG_CHECK(t, other.ok() && other.value());
     // Solana signatures differing only in case are two receipts.
-    SCFG_CHECK(t, receipts::add_receipt(store, receipt("solana", kSig, 3, "1")).value());
-    SCFG_CHECK(t, receipts::add_receipt(store, receipt("solana", kSigLower, 3, "1")).value());
-    SCFG_CHECK(t, !receipts::add_receipt(store, receipt("solana", kSig, 3, "2")).value());
+    SCFG_CHECK(t, receipts::add_receipt(store, receipt("solana", SIG, 3, "1")).value());
+    SCFG_CHECK(t, receipts::add_receipt(store, receipt("solana", SIG_LOWER, 3, "1")).value());
+    SCFG_CHECK(t, !receipts::add_receipt(store, receipt("solana", SIG, 3, "2")).value());
     SCFG_CHECK_EQ(t, store.size(), 4);
     // A stored log_index beyond int64 keys exactly, as Python's.
-    Json huge = receipt("ethereum", kHashLower, Json(BigInt(1) << 64), "1");
+    Json huge = receipt("ethereum", HASH_LOWER, Json(BigInt(1) << 64), "1");
     SCFG_CHECK(t, receipts::add_receipt(store, huge).value());
-    SCFG_CHECK(t, store.contains(std::string("ethereum:") + kHashLower + ":18446744073709551616"));
+    SCFG_CHECK(t, store.contains(std::string("ethereum:") + HASH_LOWER + ":18446744073709551616"));
     // ...up to str()'s limit: more than 4300 digits is CPython 3.9's ValueError, decided before any conversion
     const std::string limit = "ValueError: Exceeds the limit (4300) for integer string conversion; use "
                               "sys.set_int_max_str_digits() to increase the limit";
@@ -142,7 +142,7 @@ SCFG_TEST(ReceiptsTests, AddReceiptKeepsTheFirstOfAKey) {
     SCFG_CHECK_EQ(t, outcome(beyond), limit);
     SCFG_CHECK_EQ(t, outcome(receipts::receipt_key("c", "0x1", BigInt(1) << 16000)), limit);
     SCFG_CHECK_EQ(t, outcome(receipts::receipt_key(Json("c"), Json("0x1"), Json(BigInt(1) << 16000))), limit);
-    SCFG_CHECK_EQ(t, outcome(receipts::add_receipt(store, receipt("ethereum", kHashLower, Json(digits4300 + BigInt(1)), "1"))),
+    SCFG_CHECK_EQ(t, outcome(receipts::add_receipt(store, receipt("ethereum", HASH_LOWER, Json(digits4300 + BigInt(1)), "1"))),
                   limit);
 }
 
@@ -166,10 +166,10 @@ SCFG_TEST(ReceiptsTests, AddReceiptOfAMalformedReceipt) {
 
 SCFG_TEST(ReceiptsTests, RemoveReceipt) {
     Json::Dict store;
-    SCFG_CHECK(t, receipts::add_receipt(store, receipt("ethereum", kHashLower, 7, "1")).value());
+    SCFG_CHECK(t, receipts::add_receipt(store, receipt("ethereum", HASH_LOWER, 7, "1")).value());
     receipts::remove_receipt(store, "ethereum:nothing:1");
     SCFG_CHECK_EQ(t, store.size(), 1);
-    receipts::remove_receipt(store, std::string("ethereum:") + kHashLower + ":7");
+    receipts::remove_receipt(store, std::string("ethereum:") + HASH_LOWER + ":7");
     SCFG_CHECK(t, store.empty());
     receipts::remove_receipt(store, "");
     SCFG_CHECK(t, store.empty());

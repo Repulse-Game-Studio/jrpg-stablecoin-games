@@ -3,6 +3,7 @@
 // tier1/ed25519.json: Python's exact messages, decode_fixed's length bound counted in code points and its float
 // arithmetic up to the OverflowError boundary, what normalize_pubkey strips and decode_fixed does not, and the curve
 // constants. Every expectation is scfg_core's own output (python3 with plugin/game/python-packages on the path).
+#include "support/Helpers.h"
 #include "support/Test.h"
 
 #include "Scfg/BigInt.h"
@@ -21,7 +22,7 @@ using scfg::Result;
 namespace base58 = scfg::solana::base58;
 namespace ed25519 = scfg::solana::ed25519;
 
-static const char* const kMint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+static const char* const MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 // The hex of the bytes, or "<Kind>: <message>".
 static std::string decoded(const Result<std::vector<uint8_t>>& r) {
@@ -30,11 +31,7 @@ static std::string decoded(const Result<std::vector<uint8_t>>& r) {
 
 static std::string shown(const Result<std::string>& r) { return r.ok() ? r.value() : r.err().kind + ": " + r.err().message; }
 
-static std::string repeat(std::string_view s, size_t n) {
-    std::string out;
-    for (size_t i = 0; i < n; ++i) out += s;
-    return out;
-}
+using scfg_test::repeat;
 
 static BigInt big(std::string_view decimal) { return BigInt::from_decimal(decimal).value(); }
 
@@ -44,9 +41,9 @@ SCFG_TEST(Base58Tests, EncodeAndDecodeKeepLeadingZeros) {
     SCFG_CHECK_EQ(t, base58::b58encode(std::vector<uint8_t>{}), "");
     SCFG_CHECK_EQ(t, decoded(base58::b58decode("11112")), "0000000001");
     SCFG_CHECK_EQ(t, decoded(base58::b58decode("1")), "00");
-    std::vector<uint8_t> raw = base58::b58decode(kMint).value();
+    std::vector<uint8_t> raw = base58::b58decode(MINT).value();
     SCFG_CHECK_EQ(t, raw.size(), 32u);
-    SCFG_CHECK_EQ(t, base58::b58encode(raw), kMint);
+    SCFG_CHECK_EQ(t, base58::b58encode(raw), MINT);
 }
 
 SCFG_TEST(Base58Tests, DecodeErrorsAreValueErrorsWithPythonsRepr) {
@@ -104,7 +101,7 @@ SCFG_TEST(Base58Tests, DecodeFixedLengthIsAnIntAsPythonComputesIt) {
 }
 
 SCFG_TEST(Base58Tests, NormalizeStripsAndChecksTheType) {
-    SCFG_CHECK_EQ(t, shown(base58::normalize_pubkey(std::string(" \xE3\x80\x80") + kMint + "\n")), kMint);
+    SCFG_CHECK_EQ(t, shown(base58::normalize_pubkey(std::string(" \xE3\x80\x80") + MINT + "\n")), MINT);
     SCFG_CHECK_EQ(t, shown(base58::normalize_pubkey(5)), "ValueError: not an address: 5");
     SCFG_CHECK_EQ(t, shown(base58::normalize_pubkey(std::string(43, '1'))),
                   "ValueError: expected 32 bytes, got 43: '" + std::string(43, '1') + "'");

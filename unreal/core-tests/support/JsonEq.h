@@ -1,6 +1,6 @@
 // Copyright 2026 Repulse
 // No Python twin: JSON value equality as conformance/README.md defines it for params and outputs (does not depend
-// on the test runner; the *Tests.cpp files assert on what it returns, ruling R6).
+// on the test runner; the *Tests.cpp files assert on what it returns).
 //
 // Objects ignore key order, arrays are ordered, strings compare byte for byte, numbers compare by exact value (1
 // equals 1.0, 2**70 equals 2.0**70, but 2**53 + 1 is not 2.0**53: no lossy conversion), a boolean never equals a

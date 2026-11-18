@@ -1,6 +1,7 @@
 // Copyright 2026 Repulse
 // No Python twin: tests of scfg::ints (twin of scfg_core/ints.py). Expected values are ints.py's own outputs
 // (python3 -c "from scfg_core import ints; print(ints.digit_run_value(...))").
+#include "support/Helpers.h"
 #include "support/Test.h"
 
 #include "Scfg/Ints.h"
@@ -15,11 +16,7 @@ using scfg::Json;
 using scfg_test::Ctx;
 namespace ints = scfg::ints;
 
-static std::string repeat(std::string_view s, size_t n) {
-    std::string out;
-    for (size_t i = 0; i < n; ++i) out += s;
-    return out;
-}
+using scfg_test::repeat;
 // digit_run_value(run) as text: the number, "None", or "<Kind: message>".
 static std::string run_value(std::string_view run) {
     scfg::Result<std::optional<int64_t>> r = ints::digit_run_value(run);

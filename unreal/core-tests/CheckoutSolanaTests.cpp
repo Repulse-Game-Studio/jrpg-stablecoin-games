@@ -210,7 +210,6 @@ SCFG_TEST(CheckoutSolanaTests, test_evm_chain_still_uses_eip681) {
     SCFG_CHECK(t, uri.ok() && uri.value() && uri.value()->rfind("ethereum:", 0) == 0);
 }
 
-// Review focus 1.
 SCFG_TEST(CheckoutSolanaTests, test_pasting_the_wrong_family_is_an_invalid_hash) {
     std::optional<Setup> s = started(t, "solana");
     if (!s) return;

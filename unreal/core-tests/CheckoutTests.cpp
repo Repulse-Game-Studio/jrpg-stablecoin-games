@@ -31,7 +31,7 @@
 // test_a_cancelled_start_is_a_failed_start, test_a_start_that_is_not_a_session_is_a_failed_start,
 // test_a_start_delivered_later_is_picked_up_by_poll; and test_a_confirming_outcome_clears_the_message (no Python test
 // reaches that branch).
-// C++ only, review R1/R3 (guards no Python test pins): test_destroying_the_controller_stops_its_server,
+// C++ only (guards no Python test pins): test_destroying_the_controller_stops_its_server,
 // test_finish_stops_the_server, test_cancel_after_paid_keeps_the_paid_result, test_expired_after_paid_keeps_paid,
 // test_a_reverted_verdict_drops_no_transaction, test_a_network_switch_forgets_the_old_payment,
 // test_the_same_network_while_starting_does_not_skip_ahead, test_the_same_network_after_a_seen_payment_restarts,
@@ -364,7 +364,7 @@ SCFG_TEST(CheckoutTests, test_browser_server_lifecycle_and_hints) {
     if (!s) return;
     CheckoutController& ctl = *s->ctl;
     std::optional<std::string> url = ctl.start_browser();
-    SCFG_CHECK_EQ(t, show(url), fakes::kServerUrl);
+    SCFG_CHECK_EQ(t, show(url), fakes::SERVER_URL);
     SCFG_CHECK(t, ctl.start_browser() == url && s->servers->size() == 1);  // reused
     if (s->servers->empty()) return;
     fakes::ServerLog& srv = *s->servers->front();
@@ -474,10 +474,10 @@ SCFG_TEST(CheckoutTests, test_messages_match_catalogue) {
     if (!t.check(text.has_value(), "conformance/vectors/messages.json")) return;
     Result<Json> doc = scfg::json::loads(*text);
     if (!t.check(doc.ok() && doc.value().is_dict(), "messages.json parses")) return;
-    Json catalogue = doc.value().as_dict().get("messages");
+    Json catalog = doc.value().as_dict().get("messages");
     Json ours = Json::dict();
     for (const auto& [id, message] : scfg::checkout::MESSAGES()) ours.as_dict().set(id, message);
-    std::optional<std::string> diff = scfg_test::first_diff(ours, catalogue);
+    std::optional<std::string> diff = scfg_test::first_diff(ours, catalog);
     SCFG_CHECK_EQ(t, diff.value_or("same"), "same");
     SCFG_CHECK(t, ours.as_dict().keys() == std::vector<std::string>({"network_unavailable", "tx_reverted",
                                                                      "tx_not_a_payment", "tx_not_landed", "invalid_hash",
@@ -551,7 +551,7 @@ SCFG_TEST(CheckoutTests, test_a_confirming_outcome_clears_the_message) {
     SCFG_CHECK(t, !ctl.error && !ctl.message());
 }
 
-// --- review R1 / R3: what the Python tests leave unpinned ------------------------------------------------------------
+// --- what the Python tests leave unpinned ----------------------------------------------------------------------------
 
 // A paid outcome for the controller's own session, with its PaymentResult.
 static StepOutcome final_outcome(const CheckoutController& ctl, std::string status, std::string tx) {
@@ -575,11 +575,11 @@ static std::unique_ptr<CheckoutController> held_started(scfg_test::Ctx& t, const
     return ctl;
 }
 
-// R1: a sheet torn down without cancel() or finish() still stops its page.
+// A sheet torn down without cancel() or finish() still stops its page.
 SCFG_TEST(CheckoutTests, test_destroying_the_controller_stops_its_server) {
     std::optional<Setup> s = started(t);
     if (!s) return;
-    SCFG_CHECK_EQ(t, show(s->ctl->start_browser()), fakes::kServerUrl);
+    SCFG_CHECK_EQ(t, show(s->ctl->start_browser()), fakes::SERVER_URL);
     if (!t.check(s->servers->size() == 1, "a server")) return;
     std::shared_ptr<fakes::ServerLog> srv = s->servers->front();
     SCFG_CHECK(t, srv->started && !srv->stopped);

@@ -1,8 +1,9 @@
 // Copyright 2026 Repulse
-// No Python twin: Engine behaviour the Tier 2 vectors do not reach (their runner always passes its own RPC factory
+// No Python twin: Engine behavior the Tier 2 vectors do not reach (their runner always passes its own RPC factory
 // and error handler), ported from unity/core-tests/EngineTests.cs, plus what the C++ port adds: cancellation and
 // teardown (a suspended tick destroyed, a transport that drops its requests), stored values carried as Python carries
 // them, the backends registry, and print_error's sink.
+#include "support/Helpers.h"
 #include "support/JsonEq.h"
 #include "support/Test.h"
 #include "support/Tier2.h"
@@ -42,15 +43,16 @@ using scfg::Promise;
 using scfg::Result;
 namespace engine = scfg::engine;
 namespace config = scfg::config;
+using scfg_test::run_now;
 
 namespace scfg_test::engine_tests {
 
-constexpr const char* kWallet = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
-constexpr const char* kBaseRpc = "https://base-sepolia-rpc.publicnode.com";
+constexpr const char* WALLET = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
+constexpr const char* BASE_RPC = "https://base-sepolia-rpc.publicnode.com";
 
 config::Config base_config() {
-    Result<config::Config> c = config::build_config(Json::dict({{"wallet", kWallet}, {"chains", Json::list({"base"})},
-                                                                {"testnet", true}}));
+    Result<config::Config> c = config::build_config(Json::dict({{"wallet", WALLET}, {"chains", Json::list({"base"})},
+                                                               {"testnet", true}}));
     config::Config out = c.take();
     Result<scfg::models::Item> item = config::add_item(
         out, "chapter2", Json::dict({{"code", 37}, {"price", "4.99"}, {"token", "USDC"}, {"title", "Chapter 2"}}));
@@ -139,12 +141,6 @@ struct VerdictThenHoldTransport final : scfg::coio::Transport {
     void cancel_orphaned() override { ++cancels; }
 };
 
-template <class T>
-std::optional<Result<T>> run_now(scfg::Co<T> co) {
-    if (!co.done()) return std::nullopt;
-    return co.take();
-}
-
 }  // namespace scfg_test::engine_tests
 
 using namespace scfg_test::engine_tests;
@@ -167,7 +163,7 @@ SCFG_TEST(EngineTests, TheDefaultRpcFactoryUsesTheEnginesTransportAndKeepsOneCli
     t.check(a.ok() && scfg::backends::base::evm_client(a.value()).ok(), "an EVM chain gets an RpcClient");
     t.check(entropy.problems.empty() && entropy.leftover().empty(), "every draw used");
     // the client lists the developer's urls first: none here, the registry's after
-    if (a.ok()) SCFG_CHECK_EQ(t, scfg::backends::base::client_of(a.value()).urls()[0], kBaseRpc);
+    if (a.ok()) SCFG_CHECK_EQ(t, scfg::backends::base::client_of(a.value()).urls()[0], BASE_RPC);
 }
 
 // worker.py's _Refusing: while refuse_requests says so, the default RPC objects' requests fail with Abandoned before
@@ -197,7 +193,7 @@ SCFG_TEST(EngineTests, RefusedRequestsAreAbandonedAndCoolNoEndpointDown) {
 
 // worker.py's _Refusing, its request in flight: once refusal is on, abandon_in_flight() ends the request the command
 // waits for at once with Abandoned (the worker calls it from its loop), the transport is asked to cancel it (nobody
-// awaits its Future any more), its late answer resumes nothing, and no endpoint cools down (testbed U15).
+// awaits its Future any more), its late answer resumes nothing, and no endpoint cools down.
 SCFG_TEST(EngineTests, ARefusedRequestInFlightEndsAtOnce) {
     HeldTransport transport;
     scfg_test::tier2::ScriptedEntropy entropy;
@@ -217,7 +213,7 @@ SCFG_TEST(EngineTests, ARefusedRequestInFlightEndsAtOnce) {
     eng.abandon_in_flight();
     if (!t.check(job.done() && got && !got->ok(), "the start ended inside abandon_in_flight()")) return;
     SCFG_CHECK_EQ(t, got->err().kind, "Abandoned");
-    SCFG_CHECK_EQ(t, got->err().message, "abandoned while its request to " + std::string(kBaseRpc) + " was in flight");
+    SCFG_CHECK_EQ(t, got->err().message, "abandoned while its request to " + std::string(BASE_RPC) + " was in flight");
     SCFG_CHECK_EQ(t, transport.posts, size_t{1});  // no other endpoint was asked
     SCFG_CHECK_EQ(t, transport.cancels, size_t{1});
     t.check(transport.held.front().orphaned(), "nobody awaits the request any more");
@@ -305,7 +301,7 @@ SCFG_TEST(EngineTests, TheTickStopsAtAbandonedKeepingItsOutcomes) {
     }
 }
 
-// Review V1, test_worker_priority.py's test_a_hint_verdict_reached_before_the_tick_yields_is_reported at the Engine:
+// test_worker_priority.py's test_a_hint_verdict_reached_before_the_tick_yields_is_reported at the Engine:
 // the step judges the hint (reverted) and clears it, then its next request is abandoned in flight or refused (a
 // command waits). The verdict is the session's outcome, which the tick keeps; it is not lost with the step. On base
 // (the receipt's status 0x0) and on Solana (the transaction's meta.err; its next request is the reference's
@@ -413,7 +409,7 @@ SCFG_TEST(EngineTests, AnUnknownKeywordIsATypeError) {
     t.check(r && !r->ok() && r->err().code == "chain.token_unavailable", "a list chain");
 }
 
-// Engine::make: the constructor's store checks as a TypeError, for stores read from a file (the store of task 4),
+// Engine::make: the constructor's store checks as a TypeError, for stores read from a file (the glue's store),
 // where the constructor would abort.
 SCFG_TEST(EngineTests, MakeRefusesAStoreThatIsNotADict) {
     HeadTransport transport;
@@ -562,7 +558,7 @@ SCFG_TEST(EngineTests, DestroyingASuspendedTickIsSafe) {
 }
 
 // Teardown in the other order: the Engine destroyed while a command's Job is suspended, then the Job. The frame's
-// busy guard shares its flag with the Engine (N1), so destroying the frame afterwards touches no freed memory (the
+// busy guard shares its flag with the Engine, so destroying the frame afterwards touches no freed memory (the
 // asan preset proves it); the transport, still alive, then answers into nothing.
 SCFG_TEST(EngineTests, DestroyingTheEngineBeforeASuspendedJobIsSafe) {
     using Lookup = std::vector<scfg::restore::RestoreCandidate>;
@@ -963,11 +959,11 @@ SCFG_TEST(EngineTests, AHugeBlockNumberIsStoredAndRefusedOnlyByDumps) {
     t.check(stored.as_dict().get("cursor").as_bigint() == head + scfg::BigInt(8), "cursor is HEAD + 8");
 }
 
-// N1 at every suspension, not only the first: for every Tier 2 vector, every step that makes requests and every
-// k below its request count, the Engine is destroyed while the step's action waits for request k + 1, then the
-// action's Job. That covers every network command (start_session, build_solana_payment, tick, reverify,
-// restore_lookup) at every depth the vectors reach; under the asan preset a destructor that touched the freed Engine
-// fails here.
+// The Engine destroyed before a suspended Job at every suspension, not only the first: for every Tier 2 vector, every
+// step that makes requests and every k below its request count, the Engine is destroyed while the step's action waits
+// for request k + 1, then the action's Job. That covers every network command (start_session, build_solana_payment,
+// tick, reverify, restore_lookup) at every depth the vectors reach; under the asan preset a destructor that touched the
+// freed Engine fails here.
 SCFG_TEST(EngineTests, DestroyingTheEngineAtEverySuspensionIsSafe) {
     std::vector<std::string> ids = scfg_test::vectors::tier2_ids();
     SCFG_CHECK(t, !ids.empty());

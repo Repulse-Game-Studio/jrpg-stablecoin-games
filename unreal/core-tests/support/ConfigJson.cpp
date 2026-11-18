@@ -30,8 +30,6 @@ Json strings(const std::vector<std::string>& xs) {
 
 Json optional_str(const std::optional<std::string>& s) { return s ? Json(*s) : Json(); }
 
-}  // namespace detail
-
 Json token_json(const chains::Token& t) {
     return Json::dict({{"address", t.address},
                        {"decimals", t.decimals},
@@ -39,9 +37,11 @@ Json token_json(const chains::Token& t) {
                        {"log_decimals", t.log_decimals}});
 }
 
+}  // namespace detail
+
 Json chain_json(const chains::Chain& c) {
     Json tokens = Json::dict();
-    for (const auto& [symbol, t] : c.tokens) tokens.as_dict().set(symbol, token_json(t));
+    for (const auto& [symbol, t] : c.tokens) tokens.as_dict().set(symbol, detail::token_json(t));
     return Json::dict({{"key", c.key},
                        {"chain_id", c.chain_id},
                        {"name", c.name},

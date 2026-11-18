@@ -193,7 +193,7 @@ SCFG_TEST(CheckoutStepsTests, test_opening_the_browser_moves_to_waiting) {
     if (!s) return;
     CheckoutController& ctl = *s->ctl;
     ctl.choose_method("browser");
-    SCFG_CHECK_EQ(t, show(ctl.open_browser()), fakes::kServerUrl);
+    SCFG_CHECK_EQ(t, show(ctl.open_browser()), fakes::SERVER_URL);
     SCFG_CHECK(t, ctl.step() == "waiting" && ctl.can_go_back());
 }
 

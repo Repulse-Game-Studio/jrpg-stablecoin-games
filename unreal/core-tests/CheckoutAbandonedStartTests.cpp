@@ -12,10 +12,11 @@
 //   test_a_failed_abandoned_start_needs_no_discard                      -> the same name
 //   test_a_superseded_start_that_has_not_run_is_cancelled_and_never_runs -> the same name
 //   test_a_running_superseded_start_is_marked_abandoned                 -> the same name
-// C++ only (as godot/tests/test_checkout_abandoned_start.gd): test_abandoning_an_already_finished_start_discards_at_once
-// (Python's add_done_callback runs at once on a done future), and test_an_abandoned_start_outlives_its_controller (the
-// discard still goes out when the start finishes after the controller is gone); review R1:
-// test_destroying_the_controller_while_starting_discards_the_session (no cancel(): the destructor closes).
+// C++ only (as godot/tests/test_checkout_abandoned_start.gd):
+// test_abandoning_an_already_finished_start_discards_at_once (Python's add_done_callback runs at once on a done
+// future), test_an_abandoned_start_outlives_its_controller (the discard still goes out when the start finishes
+// after the controller is gone), and test_destroying_the_controller_while_starting_discards_the_session (no cancel():
+// the destructor closes).
 // `fut.set_exception(RuntimeError("rpc down"))` is the queued command's fail() with that Err.
 #include "support/CheckoutFakes.h"
 #include "support/Test.h"

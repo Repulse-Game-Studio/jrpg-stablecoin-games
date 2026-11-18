@@ -23,8 +23,8 @@ using scfg::Result;
 namespace evm = scfg::evm;
 namespace py = scfg::py;
 
-static const char* const kA = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
-static const char* const kB = "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359";
+static const char* const ADDR_A = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
+static const char* const ADDR_B = "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359";
 
 static std::string shown(const Result<std::string>& r) { return r.ok() ? r.value() : r.err().kind + ": " + r.err().message; }
 
@@ -32,8 +32,8 @@ static std::string shown(const Result<std::string>& r) { return r.ok() ? r.value
 static Json tlog(std::initializer_list<std::pair<std::string, std::optional<Json>>> kw = {}) {
     Json log = Json::dict({
         {"address", "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"},
-        {"topics", Json::list({std::string(evm::TRANSFER_TOPIC), evm::address_topic(kA).value(),
-                               evm::address_topic(kB).value()})},
+        {"topics", Json::list({std::string(evm::TRANSFER_TOPIC), evm::address_topic(ADDR_A).value(),
+                               evm::address_topic(ADDR_B).value()})},
         {"data", "0x00000000000000000000000000000000000000000000000000000000004c2430"},
         {"transactionHash", "0x" + std::string(64, 'A')},
         {"logIndex", "0x7"},
@@ -79,7 +79,7 @@ SCFG_TEST(EvmTests, AddressErrorsAreValueErrors) {
     SCFG_CHECK_EQ(t, shown(evm::to_checksum_address(Json())), "ValueError: not a 20-byte hex address: None");
     SCFG_CHECK_EQ(t, shown(evm::to_checksum_address(Json::list({1}))), "ValueError: not a 20-byte hex address: [1]");
     SCFG_CHECK_EQ(t, shown(evm::address_topic("0x1234")), "ValueError: not a 20-byte hex address: '0x1234'");
-    SCFG_CHECK_EQ(t, shown(evm::normalize_address(std::string(kA) + "\n")),
+    SCFG_CHECK_EQ(t, shown(evm::normalize_address(std::string(ADDR_A) + "\n")),
                   "ValueError: not a 20-byte hex address: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed\\n'");
     std::string e42;
     for (int i = 0; i < 42; ++i) e42 += "\xC3\xA9";  // 42 code points, 84 bytes
@@ -90,8 +90,8 @@ SCFG_TEST(EvmTests, AddressErrorsAreValueErrors) {
     SCFG_CHECK(t, !evm::is_checksum_address(5));
     SCFG_CHECK(t, !evm::is_checksum_address(Json()));
     SCFG_CHECK(t, !evm::is_checksum_address(""));
-    SCFG_CHECK(t, evm::is_checksum_address(kA));
-    SCFG_CHECK_EQ(t, shown(evm::to_checksum_address("0X" + std::string(kA).substr(2))),
+    SCFG_CHECK(t, evm::is_checksum_address(ADDR_A));
+    SCFG_CHECK_EQ(t, shown(evm::to_checksum_address("0X" + std::string(ADDR_A).substr(2))),
                   "ValueError: not a 20-byte hex address: '0X5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed'");
 }
 
@@ -101,13 +101,13 @@ SCFG_TEST(EvmTests, ParsesAValidLog) {
     if (!SCFG_CHECK(t, r.ok() && r.value().has_value())) return;
     const evm::TransferLog& log = *r.value();
     SCFG_CHECK_EQ(t, log.token, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
-    SCFG_CHECK_EQ(t, log.sender, kA);
-    SCFG_CHECK_EQ(t, log.recipient, kB);
+    SCFG_CHECK_EQ(t, log.sender, ADDR_A);
+    SCFG_CHECK_EQ(t, log.recipient, ADDR_B);
     SCFG_CHECK(t, log.value == BigInt(4990000));
     scfg::transfers::Transfer tr = log.to_transfer();
     SCFG_CHECK(t, tr == (scfg::transfers::Transfer{log.token, Json(log.sender), log.recipient, BigInt(4990000),
                                                     Json(log.tx_hash), Json(7), BigInt(1234567)}));
-    SCFG_CHECK(t, tr.sender.is_str() && tr.sender.as_str() == kA);
+    SCFG_CHECK(t, tr.sender.is_str() && tr.sender.as_str() == ADDR_A);
     SCFG_CHECK(t, !(tr == scfg::transfers::Transfer{log.token, Json(), log.recipient, BigInt(4990000),
                                                       Json(log.tx_hash), Json(7), BigInt(1234567)}));
     // the dataclass's ==: Python's == on the carried values (7 == 7.0 == ..., "7" is not 7)

@@ -146,7 +146,7 @@ SCFG_TEST(RunnerTests, DuplicateNamesFail) {
     SCFG_CHECK(t, contains(out, "G.Same"));
 }
 
-// Ruling R5: an unknown error kind is recorded, not asserted; the runner turns a leftover entry into a failure of the
+// An unknown error kind is recorded, not asserted; the runner turns a leftover entry into a failure of the
 // test that made it, and clears it so the next test starts clean.
 SCFG_TEST(RunnerTests, AnUnknownErrorKindFailsTheTest) {
     Registry r;
