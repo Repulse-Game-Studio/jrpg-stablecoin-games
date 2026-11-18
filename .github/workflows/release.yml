@@ -65,6 +65,25 @@ jobs:
           dotnet-version: 8.0.x
       - name: C# core and localhost server tests against the conformance vectors (test.yml does not run on tags)
         run: dotnet test unity/Scfg.sln -c Release
+      # The localhost checkout server security suite on every server, as test.yml's jobs run it (the uv run pytest
+      # above covers only the Python half: it deselects cpp_server and node_server, and ran before dotnet was set up).
+      - name: Localhost checkout server security suite, C# server (Unity)
+        env:
+          SCFG_REQUIRE_CS: "1"   # fails, rather than skips, without dotnet
+        run: uv run pytest tests/server_security -m cs_server
+      - name: Localhost checkout server security suite, C++ server (Unreal)
+        env:
+          SCFG_REQUIRE_CPP: "1"   # fails, rather than skips, without cmake, a compiler or ninja
+        run: uv run pytest tests/server_security -m cpp_server
+      - name: Localhost checkout server security suite, Node server (RPG Maker's desktop page)
+        env:
+          SCFG_REQUIRE_JS: "1"   # fails, rather than skips, without Node or rpgmaker/node_modules
+        run: uv run pytest tests/server_security -m node_server
+      - name: Localhost checkout server security suite, GDScript server (Godot)
+        env:
+          SCFG_REQUIRE_GD: "1"   # the Godot half fails, rather than skips, without a binary
+          SCFG_GODOT: /tmp/godot/Godot_v4.3-stable_linux.x86_64
+        run: uv run pytest tests/server_security -m godot_server
 
       - name: Tag matches the plugin version
         run: |
