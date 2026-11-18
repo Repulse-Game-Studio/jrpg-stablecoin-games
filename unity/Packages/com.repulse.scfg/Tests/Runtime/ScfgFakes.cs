@@ -13,7 +13,11 @@ using Scfg.Core;
 
 namespace Scfg.Tests
 {
-    /// <summary>An in-memory EVM node (see unity/core-tests/CheckoutFakes.cs).</summary>
+    /// <summary>
+    /// An in-memory EVM node (see unity/core-tests/CheckoutFakes.cs). It also answers the few Solana calls a session start
+    /// and a watch make, as the Unreal kit's fake does: the slot is Head, every account exists and no address has a
+    /// signature (enough to reach the method step on Solana; nothing is ever paid there).
+    /// </summary>
     public sealed class FakeEvmNode : ITransport
     {
         public long Head;
@@ -92,6 +96,15 @@ namespace Scfg.Tests
                         return from <= b && b <= to && ((string)lg["address"]!).ToLowerInvariant() == address;
                     }).Cast<object?>().ToList();
                 }
+                case "getSlot":
+                    return Head;
+                case "getSignaturesForAddress":
+                case "getRecentPrioritizationFees":
+                    return new List<object?>();
+                case "getAccountInfo":
+                    return new JsonObject { { "context", new JsonObject { { "slot", Head } } }, { "value", new JsonObject { { "lamports", 1L } } } };
+                case "getBalance":
+                    return new JsonObject { { "context", new JsonObject { { "slot", Head } } }, { "value", 0L } };
                 default:
                     throw new InvalidOperationException("unexpected RPC method " + method);
             }

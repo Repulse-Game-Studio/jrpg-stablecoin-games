@@ -135,6 +135,38 @@ namespace Scfg.Tests
             Assert.That(_rig.Platform.Opened.Last(), Is.EqualTo(url), "opens the buy page through the platform");
         }
 
+        // test_sheet.gd's test_on_solana_the_buy_link_points_to_another_network.
+        [UnityTest]
+        public IEnumerator OnSolanaTheBuyLinkPointsToAnotherNetwork()
+        {
+            Assert.That(SCFG.Configure(new ScfgOptions
+            {
+                Wallet = ScfgRig.Dev, SolanaWallet = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+                Chains = new List<string> { "solana", "arbitrum" },
+            }), Is.Null);
+            Assert.That(SCFG.AddItem("chapter2", new ScfgItem { Code = 1, Price = "4.99", Token = "USDC", Title = "Chapter 2" }), Is.Null);
+            SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
+            yield return Frames();
+            var v = OpenSheet();
+            Assert.That(v.ShownStep, Is.EqualTo("network"));
+            Assert.That(v.Press("network_solana"), Is.True, "Solana is offered");
+            yield return Frames(6);
+            Assert.That(v.ShownStep, Is.EqualTo("method"), v.Controller.Core.Error);
+            Assert.That(v.Control("onramp"), Is.Null, "no buy link on Solana");
+            var hint = (Button?)v.Control("onramp_hint");
+            Assert.That(hint, Is.Not.Null, "the hint");
+            Assert.That(hint!.text, Is.EqualTo("No USDC yet? Pick another network to buy some with a card"));
+            var order = v.FocusOrder.ToList();
+            Assert.That(order.IndexOf(hint), Is.GreaterThan(order.IndexOf(v.Control("method_manual")!)), "after the methods");
+            Assert.That(v.Press("onramp_hint"), Is.True);
+            yield return Frames();
+            Assert.That(v.ShownStep, Is.EqualTo("network"), "the hint goes back to the network step");
+            Assert.That(v.Press("network_arbitrum"), Is.True);
+            yield return Frames(6);
+            Assert.That(v.Control("onramp"), Is.Not.Null, "the buy link on Arbitrum");
+            Assert.That(v.Control("onramp_hint"), Is.Null);
+        }
+
         [UnityTest]
         public IEnumerator KeyboardAndGamepadOnlyManualPayment()
         {

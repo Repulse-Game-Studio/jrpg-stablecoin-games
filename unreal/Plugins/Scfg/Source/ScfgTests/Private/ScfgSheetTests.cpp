@@ -402,6 +402,106 @@ bool FScfgSheetOnrampTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+namespace ScfgSheetTestsDetail
+{
+
+// A Solana and an Arbitrum payout on mainnet, the sheet on the rig's default host.
+FScfgFacade& StartedWithSolana(FAutomationTestBase& Test, FSheetRig& R)
+{
+	FScfgFacade& S = R.W.Make();
+	FScfgOptions Options;
+	Options.Wallet = UTF8_TO_TCHAR(kDev);
+	Options.SolanaWallet = TEXT("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM");
+	Options.Chains = {TEXT("solana"), TEXT("arbitrum")};
+	Test.TestFalse(TEXT("configure"), S.Configure(Options).IsSet());
+	FScfgItem Item;
+	Item.Code = 37;
+	Item.Price = TEXT("4.99");
+	Item.Token = TEXT("USDC");
+	Item.Title = TEXT("Chapter 2");
+	Test.TestFalse(TEXT("add_item"), S.AddItem(TEXT("chapter2"), Item).IsSet());
+	R.W.Start();
+	S.SheetHost = nullptr;
+	S.DefaultSheetHost = R.Host;
+	return S;
+}
+
+// The button Key, laid out by the painted window, stays inside the method options' width (the body's), and its text
+// wraps to it rather than running past: P3 of the onramp ports review.
+void FitsTheBody(FAutomationTestBase& Test, const SScfgPaymentSheet& Sheet, const FString& Key, const FString& Where)
+{
+	const TSharedPtr<SWidget> Button = Sheet.Control(Key);
+	const TSharedPtr<SWidget> Option = Sheet.Control(TEXT("method_manual"));
+	if (!Test.TestTrue(*(Key + TEXT(" and an option to measure against, ") + Where), Button.IsValid() && Option.IsValid()))
+	{
+		return;
+	}
+	const FSlateRect B = Button->GetTickSpaceGeometry().GetLayoutBoundingRect();
+	const FSlateRect O = Option->GetTickSpaceGeometry().GetLayoutBoundingRect();
+	Test.TestTrue(*FString::Printf(TEXT("%s within the body, %s (%s in %s)"), *Key, *Where, *B.ToString(), *O.ToString()),
+		B.GetSize().X > 0 && B.Left >= O.Left - 1.0 && B.Right <= O.Right + 1.0);
+	FChildren* Children = Button->GetChildren();
+	if (Test.TestTrue(TEXT("the button has its text block"), Children != nullptr && Children->Num() == 1))
+	{
+		const float TextWidth = Children->GetChildAt(0)->GetDesiredSize().X;
+		Test.TestTrue(*FString::Printf(TEXT("%s's text fits its button, %s (%.0f in %.0f)"), *Key, *Where, TextWidth,
+			B.GetSize().X), TextWidth <= B.GetSize().X + 1.0);
+	}
+}
+
+// Godot's test_on_solana_the_buy_link_points_to_another_network, in a window of Size.
+bool SolanaHint(FAutomationTestBase& Test, FVector2D Size, const FString& Where)
+{
+	FSheetRig R(Test, Size);
+	if (!R.bReady)
+	{
+		return false;
+	}
+	StartedWithSolana(Test, R);
+	R.W.Pay(EScfgPayKind::Unlock, Unlock());
+	R.Frame(2);
+	const TSharedPtr<SScfgPaymentSheet> Sheet = R.Sheet();
+	if (!Test.TestTrue(TEXT("the sheet"), Sheet.IsValid()) ||
+		!Test.TestTrue(TEXT("Solana is offered"), Sheet->Press(TEXT("network_solana"))))
+	{
+		return false;
+	}
+	R.Pass();
+	Test.TestEqual(TEXT("the method step once the session started"), Sheet->ShownStep(), FString(TEXT("method")));
+	Test.TestFalse(TEXT("no buy link on Solana"), Sheet->IsShown(TEXT("onramp")));
+	Test.TestTrue(TEXT("the hint"), Sheet->IsShown(TEXT("onramp_hint")));
+	Test.TestEqual(TEXT("its text names the token"), Sheet->TextOf(TEXT("onramp_hint")),
+		FString(TEXT("No USDC yet? Pick another network to buy some with a card")));
+	const TArray<FString> Order = Sheet->FocusOrder();
+	const int32 Hint = Order.IndexOfByKey(FString(TEXT("onramp_hint")));
+	const int32 Forward = Order.IndexOfByKey(FString(TEXT("forward")));
+	Test.TestTrue(TEXT("after the methods and before the forward button in the focus order"),
+		Hint > Order.IndexOfByKey(FString(TEXT("method_manual"))) && (Forward == INDEX_NONE || Hint < Forward));
+	R.Frame(3);  // AutoWrapText wraps at the width of the frame before: let the layout settle
+	FitsTheBody(Test, *Sheet, TEXT("onramp_hint"), Where);
+	Test.TestTrue(TEXT("press the hint"), Sheet->Press(TEXT("onramp_hint")));
+	R.Frame(2);
+	Test.TestEqual(TEXT("back on the network step"), Sheet->ShownStep(), FString(TEXT("network")));
+	Test.TestTrue(TEXT("pick Arbitrum"), Sheet->Press(TEXT("network_arbitrum")));
+	R.Pass();
+	Test.TestTrue(TEXT("the buy link on Arbitrum"), Sheet->IsShown(TEXT("onramp")) && !Sheet->IsShown(TEXT("onramp_hint")));
+	R.Frame(3);
+	FitsTheBody(Test, *Sheet, TEXT("onramp"), Where);
+	return true;
+}
+
+}  // namespace ScfgSheetTestsDetail
+
+SCFG_SHEET_TEST(FScfgSheetOnrampHintTest, "OnSolanaTheBuyLinkPointsToAnotherNetwork")
+
+bool FScfgSheetOnrampHintTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSheetTestsDetail;
+	const bool bWide = SolanaHint(*this, FVector2D(1280, 720), TEXT("at 1280x720"));
+	const bool bNarrow = SolanaHint(*this, FVector2D(400, 800), TEXT("at 400x800 (portrait)"));
+	return bWide && bNarrow;
+}
+
 // Escape on the first step closes as "cancel", and the gamepad's back button does the same as Escape.
 SCFG_SHEET_TEST(FScfgSheetEscapeTest, "EscapeAndGamepadBack")
 
