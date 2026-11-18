@@ -42,7 +42,7 @@ from .replay import (
     run_action,
     snapshot_json,
 )
-from .simnode import EvmNode, SolanaNode, World
+from .simnode import EvmNode, Hung, SolanaNode, World
 
 __all__ = ["EPOCH", "EXPECTABLE", "SOURCES", "RecordingEntropy", "RecordingTransport",
            "Scenario", "ScenarioError", "scenario"]
@@ -64,10 +64,13 @@ class ScenarioError(AssertionError):
 class RecordingTransport:
     """post_json over a World, recording each exchange into `calls` (reset per step).
     Parses the response text like rpc.UrllibTransport: unparseable text is
-    TransportError("invalid JSON response")."""
+    TransportError("invalid JSON response"). A hanging endpoint (simnode.Endpoint.hangs) takes
+    the request's whole timeout: `wait(seconds)` moves the scenario clock, and the call records
+    it as `elapsed` (whole seconds)."""
 
-    def __init__(self, world: World):
+    def __init__(self, world: World, wait: Callable[[int], None] = lambda seconds: None):
         self.world = world
+        self.wait = wait
         self.calls: list[dict] = []
 
     def post_json(self, url: str, payload: dict, timeout: float):
@@ -75,6 +78,14 @@ class RecordingTransport:
                  "params": json.loads(json.dumps(payload["params"]))}
         try:
             text = self.world.handle(url, payload)
+        except Hung:
+            if timeout != int(timeout):
+                raise ValueError(f"a hanging request's timeout must be whole seconds, not {timeout}")
+            entry["elapsed"] = int(timeout)
+            entry["transport_error"] = {"message": f"timed out after {timeout:g}s", "status": None}
+            self.calls.append(entry)
+            self.wait(int(timeout))
+            raise TransportError(entry["transport_error"]["message"]) from None
         except TransportError as e:
             entry["transport_error"] = {"message": str(e), "status": e.status}
             self.calls.append(entry)
@@ -135,7 +146,7 @@ class Scenario:
         self._pending: dict = {}
         self._receipts: dict = {}
         self._rng = random.Random(id)
-        self._transport = RecordingTransport(self.world)
+        self._transport = RecordingTransport(self.world, self._wait)
         self._engine: Engine | None = None
         self._errors = 0
         self._expect: frozenset = frozenset()
@@ -198,6 +209,9 @@ class Scenario:
         return self.world.add(SolanaNode(list(urls) if urls else list(self.chain(key).rpc)))
 
     # --- time -----------------------------------------------------------------------------
+
+    def _wait(self, seconds: int) -> None:
+        self.now += seconds  # inside a step: a hanging request (RecordingTransport)
 
     def advance(self, seconds: int) -> None:
         if isinstance(seconds, bool) or not isinstance(seconds, int) or seconds < 0:
@@ -292,12 +306,13 @@ class Scenario:
         self._errors = 0
         self._crashes = []
         raised: list[BaseException] = []
+        at = self.now  # a hanging request moves the clock during the step
         entropy = RecordingEntropy(self._rng)
         with patched_entropy(entropy):
             result, raises = run_action(self._engine, action, args, self.steps,
                                         on_raise=raised.append)
         step = {
-            "at": self.now, "action": action, "args": args, "entropy": entropy.draws,
+            "at": at, "action": action, "args": args, "entropy": entropy.draws,
             "calls": self._transport.calls,
             "returns": None if raises else encode_returns(action, result),
             "raises": raises, "internal_errors": self._errors,

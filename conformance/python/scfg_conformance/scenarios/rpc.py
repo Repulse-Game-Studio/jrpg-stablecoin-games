@@ -18,6 +18,7 @@ from ..scenario import scenario
 from .fixtures import AVALANCHE, AVAX_USDC, CHAPTER2, DEV_EVM, PAYER_EVM, covers, tx_hash
 
 A, B, C = "https://rpc-a.example", "https://rpc-b.example", "https://rpc-c.example"
+D = "https://rpc-d.example"
 _RANGE_ERROR = "block range too large"
 COOLDOWN_START, COOLDOWN_MAX = int(_START), int(_MAX)     # the scenario clock counts whole seconds
 
@@ -72,6 +73,30 @@ def _healthy(s):
     assert (call["url"], call["method"], call["params"]) == (A, "eth_blockNumber", [])
     assert '"0x1b4"' in call["response_text"]
     assert rec["start_block"] == 431
+
+
+@scenario("rpc/a_call_spends_at_most_its_budget", covers=covers(
+    "rpc_client", "a_call_spends_at_most_its_budget_across_endpoints",
+    "each_attempt_waits_at_most_what_is_left_of_the_budget"))
+def _call_budget(s):
+    """Four endpoints that never answer: a session start asks A for its full 10 s timeout, B for
+    the 5 s left of the 15 s budget, and gives up without asking C or D (not cooled down, so the
+    next call asks C first). The replaying port must make the same requests with the same
+    timeouts (each hanging call's `elapsed`), its clock moving by them."""
+    s.config(wallet=DEV_EVM, chains=["avalanche"])
+    s.custom_chain(**dict(AVALANCHE, rpc=[A, B, C, D]))
+    s.item(**CHAPTER2)
+    node = s.evm("avalanche")
+    for url in (A, B, C, D):
+        node.endpoint(url).hangs = True
+    started = s.now
+    s.expect("other").start_session("unlock", "avalanche", item="chapter2")
+    calls = s.steps[-1]["calls"]
+    assert [(c["url"], c["elapsed"]) for c in calls] == [(A, 10), (B, 5)]
+    assert s.now == started + 15
+    node.endpoint(C).hangs = False
+    rec = s.start_session("unlock", "avalanche", item="chapter2")
+    assert _urls(s) == [C] and rec["start_block"] == 995
 
 
 @scenario("rpc/receipt_and_block_hash_requests", covers=covers(

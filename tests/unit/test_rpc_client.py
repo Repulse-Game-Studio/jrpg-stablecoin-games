@@ -2,6 +2,7 @@ import pytest
 
 from scfg_core.coio import Sync
 from scfg_core.rpc import (
+    CALL_BUDGET,
     COOLDOWN_MAX,
     COOLDOWN_START,
     MIN_LOG_RANGE,
@@ -97,6 +98,44 @@ def test_all_endpoints_down_raises_unavailable():
     c, _, _ = client({A: down, B: down})
     with pytest.raises(RpcUnavailable):
         c.block_number()
+
+
+class TimedTransport:
+    """Each url takes `costs[url]` seconds of the clock (None: its whole timeout, a hang) and then
+    fails, or answers when it is in `answers`. Records (url, timeout)."""
+
+    def __init__(self, clock, costs, answers=()):
+        self.clock, self.costs, self.answers = clock, costs, set(answers)
+        self.calls = []
+
+    def post_json(self, url, payload, timeout):
+        self.calls.append((url, timeout))
+        cost = self.costs.get(url)
+        self.clock.advance(timeout if cost is None else min(cost, timeout))
+        if url in self.answers:
+            return ok("0x7")
+        raise TransportError(f"timed out after {timeout:g}s")
+
+
+def test_a_call_spends_at_most_its_budget_across_endpoints():
+    C, D = "https://c.rpc", "https://d.rpc"
+    clock = FakeClock()
+    t = TimedTransport(clock, {})  # every endpoint hangs
+    rpc = RpcClient([A, B, C, D], clock=clock)
+    assert CALL_BUDGET == 15.0
+    with pytest.raises(RpcUnavailable):
+        Sync(rpc, t).block_number()
+    assert t.calls == [(A, 10.0), (B, 5.0)]  # the rest of the 15 s, then nothing is left for C, D
+    assert clock.now == 1000.0 + CALL_BUDGET
+    assert rpc.live_urls() == [C, D]          # skipped, not cooled down: the next call asks C
+
+
+def test_each_attempt_waits_at_most_what_is_left_of_the_budget():
+    C = "https://c.rpc"
+    clock = FakeClock()
+    t = TimedTransport(clock, {A: 3, B: 10, C: 1}, answers=[C])
+    assert Sync(RpcClient([A, B, C], clock=clock), t).block_number() == 7
+    assert t.calls == [(A, 10.0), (B, 10.0), (C, 2.0)]
 
 
 @pytest.mark.parametrize("bad", ["not a dict", {"jsonrpc": "2.0", "id": 1}])

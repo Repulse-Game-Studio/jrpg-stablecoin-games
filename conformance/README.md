@@ -82,7 +82,7 @@ JSON-RPC nodes (`python/scfg_conformance/simnode.py`) and replayed without them
      "steps": [{"at": int, "action": str, "args": {...},
                 "entropy": [{"fn": "token_hex" | "randbelow" | "token_bytes", "n": int, "value": str | int}],
                 "calls": [{"url", "method", "params", "response_text"} |
-                          {"url", "method", "params", "transport_error": {"message", "status"}}],
+                          {"url", "method", "params", "transport_error": {"message", "status"}, "elapsed"?: int}],
                 "returns": ..., "raises": null | {"type": "ConfigError" | "RestoreError", "code"} | {"type": "other"},
                 "internal_errors": int,
                 "snapshot": {"pending", "receipts", "owned", "tip_total", "unready"}}]}
@@ -101,7 +101,10 @@ A runner, per vector:
   `json.dumps(params, sort_keys=True)`. That is the same rule for everything the Python core sends: it
   never sends floats, so the only case where it could differ (`1` vs `1.0`) cannot arise. `response_text` is parsed with the port's JSON reader; a
   `transport_error` is raised as the transport's failure (`invalid JSON response` is one: parsing belongs
-  to the transport). An unrecorded request, an unused recorded call, a draw that differs from `entropy`
+  to the transport). A call with `elapsed` is a request that hung (`simnode.Endpoint.hangs`): it must
+  have been made with exactly that timeout (seconds; RpcClient's CALL_BUDGET gives the second endpoint
+  only what is left of the call's 15 s), and the clock moves forward by it before its `transport_error`
+  is raised, so `at` is the clock when a step starts, not when it ends. An unrecorded request, an unused recorded call, a draw that differs from `entropy`
   (by `fn` and `n`, in order) or an unused draw fails the step.
 - Feeds `entropy` to the core's randomness (`token_bytes` values are hex).
 - Runs the action with `args`: `start_session(kind, chain, **rest)`, `build_solana_payment(sid, account)`,

@@ -32,6 +32,10 @@ __all__ = ["Endpoint", "EvmNode", "SolanaNode", "World", "solana_tx"]
 _NOT_JSON = "<html><body><h1>502 Bad Gateway</h1></body></html>"
 
 
+class Hung(TransportError):
+    """An Endpoint that hangs: the transport waits out the request's timeout (RecordingTransport)."""
+
+
 class _Reply(Exception):
     """A JSON-RPC error answer, raised from inside a method handler."""
 
@@ -44,6 +48,9 @@ class Endpoint:
     """Faults of one URL. All are off by default and persist until changed.
 
     - down: connection refused (TransportError, status None)
+    - hangs: never answers (a name lookup or a host that hangs): the request times out after its
+      whole timeout, which the scenario clock moves by (scenario.RecordingTransport records it
+      as the call's `elapsed`)
     - http_status: e.g. 429 -> TransportError("HTTP 429", status=429)
     - invalid_json: the body is not JSON (the transport raises "invalid JSON response")
     - rate_limited: JSON-RPC error -32005 "rate limit exceeded"
@@ -68,6 +75,7 @@ class Endpoint:
     def __init__(self, url: str):
         self.url = url
         self.down = False
+        self.hangs = False
         self.http_status: int | None = None
         self.invalid_json = False
         self.rate_limited = False
@@ -101,6 +109,8 @@ class _Node:
 
     def handle(self, url: str, payload: dict) -> str:
         ep = self._endpoints[url]
+        if ep.hangs:
+            raise Hung("hangs")
         if ep.down:
             raise TransportError("connection refused")
         if ep.http_status is not None:

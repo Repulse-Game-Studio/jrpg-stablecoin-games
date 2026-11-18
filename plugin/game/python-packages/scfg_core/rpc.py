@@ -2,7 +2,9 @@
 
 Public RPC endpoints are free but unreliable: they rate-limit, go down, and cap
 eth_getLogs block ranges. The client therefore:
-  * tries endpoints in order on every call, skipping ones in cooldown,
+  * tries endpoints in order on every call, skipping ones in cooldown, within a total budget
+    of CALL_BUDGET seconds per call (each attempt waits at most what is left of it, so a chain
+    with four dead endpoints says so after 15 s, not 40),
   * puts a failing endpoint in cooldown (30 s, doubling to 10 min),
   * remembers, per endpoint, the largest eth_getLogs range it accepts (public
     providers allow anything from 50 to 2000+ blocks), shrinking it when a
@@ -34,6 +36,12 @@ if TYPE_CHECKING:
 
 COOLDOWN_START = 30.0
 COOLDOWN_MAX = 600.0
+# The most seconds one call() spends across a chain's endpoints: the first attempt gets the full
+# per-request timeout (10 s), each later one min(timeout, what is left); once nothing is left the
+# endpoints not tried yet are skipped (not cooled down) and the call is RpcUnavailable. Measured
+# on the RpcClient's clock, so a session start on a chain whose endpoints all hang fails after
+# 15 s whatever the number of urls.
+CALL_BUDGET = 15.0
 MIN_LOG_RANGE = 10
 _RATE_HINTS = ("rate limit", "too many requests", "rate-limit")
 # Phrases providers use for "your eth_getLogs block range is too wide". Some say "archive"
@@ -179,13 +187,15 @@ class _EndpointState:
 
 class RpcClient:
     def __init__(self, urls: Sequence[str], *, log_range: int = 1000,
-                 clock: Callable[[], float] = time.monotonic, timeout: float = 10.0):
+                 clock: Callable[[], float] = time.monotonic, timeout: float = 10.0,
+                 budget: float = CALL_BUDGET):
         if not urls:
             raise ValueError("at least one RPC url required")
         self.urls = tuple(urls)
         self._ranges: dict[str, int] = {u: log_range for u in self.urls}
         self.clock = clock
         self.timeout = timeout
+        self.budget = budget
         self._ids = itertools.count(1)
         self._state: dict[str, _EndpointState] = {u: _EndpointState() for u in self.urls}
 
@@ -219,11 +229,12 @@ class RpcClient:
     def call(self, method: str, params: list):
         return (yield from self._call(method, params))[0]
 
-    def _attempt(self, url: str, method: str, params: list, now: float):
+    def _attempt(self, url: str, method: str, params: list, now: float,
+                 timeout: float | None = None):
         """("ok", result) | ("error", RpcError) | None when the endpoint failed (cooled down)."""
         payload = {"jsonrpc": "2.0", "id": next(self._ids), "method": method, "params": params}
         try:
-            resp = yield Request(url, payload, self.timeout)
+            resp = yield Request(url, payload, self.timeout if timeout is None else timeout)
         except TransportError:
             self._fail(url, now)
             return None
@@ -244,10 +255,14 @@ class RpcClient:
     def _call(self, method: str, params: list):
         """Like call(), but also returns which endpoint answered."""
         now = self.clock()
+        deadline = now + self.budget
         for url in self.urls:
             if self._state[url].until > now:
                 continue
-            res = yield from self._attempt(url, method, params, now)
+            left = deadline - self.clock()
+            if left <= 0:
+                break  # CALL_BUDGET spent: the rest are not tried (nor cooled down)
+            res = yield from self._attempt(url, method, params, now, min(self.timeout, left))
             if res is None:
                 continue
             kind, value = res

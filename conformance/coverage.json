@@ -763,6 +763,9 @@
    "tier2/reverify/token_or_chain_unknown",
    "tier2/custom_chains/removed_chain_receipt_kept"
   ],
+  "tests/unit/test_rpc_client.py::test_a_call_spends_at_most_its_budget_across_endpoints": [
+   "tier2/rpc/a_call_spends_at_most_its_budget"
+  ],
   "tests/unit/test_rpc_client.py::test_all_endpoints_down_raises_unavailable": [
    "tier2/rpc/all_endpoints_fail"
   ],
@@ -783,6 +786,9 @@
   ],
   "tests/unit/test_rpc_client.py::test_cooldown_doubles_and_caps": [
    "tier2/rpc/cooldown_doubles_to_the_cap_and_recovers"
+  ],
+  "tests/unit/test_rpc_client.py::test_each_attempt_waits_at_most_what_is_left_of_the_budget": [
+   "tier2/rpc/a_call_spends_at_most_its_budget"
   ],
   "tests/unit/test_rpc_client.py::test_failed_endpoint_cools_down_then_is_retried": [
    "tier2/rpc/endpoint_cools_down_then_is_retried"
