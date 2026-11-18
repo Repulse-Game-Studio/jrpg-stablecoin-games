@@ -3,8 +3,8 @@
 Accept **USDC** and **USDT** tips and unlock purchases in your Unreal game, paid **directly to your own wallet**.
 There is no server, no account and no middleman in the payment: the plugin watches the blockchain itself. It is a code plugin,
 `Scfg`, for **UE 5.6 or newer**, in C++ and Blueprint projects. Each release has a zip for each of UE 5.6, 5.7 and
-5.8. It has been tested on UE 5.8.4 only, in Linux desktop builds; 5.6 and 5.7 are untested, and so are Windows, macOS
-and mobile builds (see [Platforms](api.md#platforms)).
+5.8. It has been tested on UE 5.8.4 only, in Linux desktop builds; 5.6 and 5.7 are untested, Windows and macOS are
+expected to work but not yet built or tested, and mobile is best effort (see [Platforms](api.md#platforms)).
 
 Chains: Ethereum, Arbitrum, Polygon (USDC and USDT), Base (USDC), Arc (USDC), Solana (USDC and USDT), plus any EVM
 chain you add yourself.
@@ -39,13 +39,10 @@ PrivateDependencyModuleNames.Add("Scfg");
 needs the compiler for step 3. If the editor will not build the plugin for it, add any C++ class (**Tools > New C++
 Class**), which turns the project into a C++ project, and open it again.
 
-The plugin from the 5.8 zip builds on its own (`RunUAT BuildPlugin` on Linux: the editor, and a Development and a
-Shipping game). Copied into the `Plugins` folder of a fresh C++ project made from the Blank template, it packaged as a
-Linux Development game (BuildCookRun), the game started with the plugin loaded and its SCFG project settings applied,
-and the checkout page's files were staged with it. That project changed nothing else but one packaging setting, the
-zen store turned off for the cooked output (Packaging > "Use Zen Server as cooked output store", for the test
-machine's network isolation); the default, with the zen store on, has not been tried. Nor have opening such a project
-in the editor, and Blueprint-only projects.
+Tested: the plugin from the 5.8 zip on UE 5.8.4 on Linux, in a fresh C++ project made from the Blank template, as an
+uncooked and as a packaged Development game. Not tested yet: UE 5.6 and 5.7, Windows, macOS, mobile, a Shipping game
+run, play in the editor, Blueprint-only projects, and packaging with **Use Zen Server as cooked output store** on
+(Packaging; the default).
 
 ## Try the showcase first
 
@@ -74,12 +71,12 @@ whatever map is loaded and picks its own game mode; it runs on the engine's empt
 
 4. Put your own testnet wallet in **Project Settings > Plugins > SCFG > Wallet**, with **Testnet** on (or start the
    game with `-scfg-showcase-wallet=0x...`).
-5. Run the project as a game (`UnrealEditor <YourProject>.uproject -game`), or press **Play** in the editor (Play in
-   the editor has not been run by the automated tests yet).
+5. Run the project as a game (`UnrealEditor <YourProject>.uproject -game`), or press **Play** in the editor (not
+   tested yet).
 
 The showcase's `README.md`, in the zip, has the details: where its configuration comes from, how to pay on a testnet
-and the faucets for test money, and packaging. Remove the plugin before you ship your game. From the 0.3.0 zips it
-has been built in a fresh C++ project and started there as a game, headless (UE 5.8.4, Linux).
+and the faucets for test money, and packaging. Remove the plugin before you ship your game. Tested on UE 5.8.4
+(Linux), from the zips in a fresh C++ project, as a game.
 
 The repository's development project, `unreal/Project/ScfgDev`, runs the same showcase: it loads the plugin from
 `unreal/Plugins/ScfgShowcase`, and its automated tests play it.
@@ -174,7 +171,7 @@ Restore has its own async node, **Restore (SCFG)**. The other nodes are listed i
 Open **Edit > Project Settings > Plugins > SCFG**. The settings are saved to your project's `Config/DefaultGame.ini`
 (section `[/Script/Scfg.ScfgSettings]`), so commit that file.
 
-The panel has three sections. **Configure** holds the options of `Configure`:
+Under the **Validate** button the panel has three sections. **Configure** holds the options of `Configure`:
 
 | Setting | Meaning |
 |---|---|
@@ -223,21 +220,21 @@ rules.
 6. If you take Solana payments, receive any amount of each token on your mainnet Solana wallet once first. Until
    then the Output Log warns (`scfg: your wallet can't receive USDT on solana yet ...`) and players are not offered
    that token. The same rule applies on Devnet while you test.
-   Check the buy link (**No USDC yet? Buy some with a card**) and, on Solana, its **Pick another network** hint. On
+7. Check the buy link (**No USDC yet? Buy some with a card**) and, on Solana, its **Pick another network** hint. On
    testnet the link is off by default (cards don't buy test tokens); to see both before mainnet, name your enabled
    testnet EVM networks in **Configure > Onramp > Chains** (`FScfgOnramp::Chains`, for example `base` and
    `arbitrum`), then empty it again. See [The buy link](api.md#the-buy-link-onramp).
-7. Package the game and pay once from the packaged build. A Shipping game has not been run in this preview yet. If
+8. Package the game and pay once from the packaged build. A Shipping game has not been run in this preview yet. If
    you set a logo, check that **Validate** gives no packaging warning (see
    [Logo](api.md#the-logo-in-a-packaged-game)).
-8. Check that the packaged game verifies TLS. The plugin refuses its RPC requests when the engine cannot verify
+9. Check that the packaged game verifies TLS. The plugin refuses its RPC requests when the engine cannot verify
    certificates (see [Network and privacy](api.md#network-and-privacy)). For a Linux game it stages the engine's
    certificate bundle itself (`Engine/Content/Certificates/ThirdParty/cacert.pem`, in the staged game's
    `Engine/Content/`): keep it there when you repackage or trim the staged files. Do not set
    `[/Script/Engine.NetworkSettings] n.VerifyPeer=False`. Setting `n.VerifyPeer=True` in your `DefaultEngine.ini`
    makes the rest of your game's HTTPS fail closed too, and makes UAT stage the engine's bundle in the pak on every
-   platform (the tested setup). Windows and macOS use the system's certificate store
-   (untested in this preview). If the packaged game's Output Log says
+   platform (the tested setup). Windows and macOS use the system's certificate store (expected to work, not yet
+   built or tested). If the packaged game's Output Log says
    `scfg: refusing https:// RPC requests: TLS certificate verification unavailable`, no payment can be checked
    until this is fixed.
 
@@ -266,5 +263,6 @@ global to the install and never inside your save games, so loading an older save
 
 ## Next
 
-Read the [API reference](api.md), in particular [Pausing and input](api.md#pausing-and-input) and
+Read the [API reference](api.md), in particular
+[Pausing the game while the sheet is open](api.md#pausing-the-game-while-the-sheet-is-open) and
 [Where results go](api.md#where-results-go).

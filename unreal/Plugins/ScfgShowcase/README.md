@@ -4,9 +4,9 @@
 
 | On screen | Calls |
 |---|---|
-| **Unlocks**: three items, the supporter pack also at a pay-what-you-want amount | `PayAsync(EScfgPayKind::Unlock, Request)` with `Request.Item = Id`, and `Request.Amount = "5.00"` |
-| **Tip jar**: three suggested amounts | `PayAsync(EScfgPayKind::Tip, Request)` with `Request.Amount = "1.00"`, `Request.Token = "USDC"` |
-| **Restore purchases** | `RestoreAsync()` |
+| **Unlocks**: three items, the supporter pack also at a pay-what-you-want amount | `PayAsync(EScfgPayKind::Unlock, Request, OnResolved)` with `Request.Item = Id`, and `Request.Amount = "5.00"` |
+| **Tip jar**: three suggested amounts | `PayAsync(EScfgPayKind::Tip, Request, OnResolved)` with `Request.Amount = "1.00"`, `Request.Token = "USDC"` |
+| **Restore purchases** | `RestoreAsync(OnResolved)` |
 | **Export receipts** | `ExportReceipts("")` (writes `Saved/scfg-receipts.json`) |
 | **Clear local data**, a testing helper | `ClearLocalData()` |
 | **Notify: on / off** | `SetNotify()`, `GetNotify()` |
@@ -42,7 +42,7 @@ Start it as a game, or press **Play** in the editor (any map works, since the ga
 "$UE_ROOT/Engine/Binaries/Linux/UnrealEditor" /path/to/YourProject.uproject -game -windowed -ResX=1280 -ResY=720
 ```
 
-On Windows the editor is `Engine\Binaries\Win64\UnrealEditor.exe`, with the same arguments (not verified on Windows yet).
+`$UE_ROOT` stands for your engine's root directory, the folder that holds `Engine/` (set it with `export UE_ROOT=/path/to/UnrealEngine`, or write the path out). On Windows the editor is `Engine\Binaries\Win64\UnrealEditor.exe`, with the same arguments (expected to work, not yet built or tested on Windows).
 
 Where the configuration comes from, as the HUD's **Configured from** line says:
 
@@ -74,4 +74,4 @@ Do not ship the showcase in your game: remove the `ScfgShowcase` folder (or disa
 - `OnPaymentResolved` can deliver the same result that a `PayAsync` callback gets, so its handler only refreshes from `Owns()` instead of counting results.
 - The callbacks hold the game instance weakly: if the game quits while a sheet is open, the plugin drops the callback.
 
-The repository's development project (`unreal/Project/ScfgDev`) plays this same plugin in its tests, through a test harness it hands the game instance (`UScfgShowcaseGameInstance::SetHarnessFactory`); a game never sets one. Tested on UE 5.8.4 (Linux). The showcase is MIT licensed (`LICENSE`), like the plugin.
+Tested on UE 5.8.4 (Linux). MIT licensed (`LICENSE`), like the plugin.

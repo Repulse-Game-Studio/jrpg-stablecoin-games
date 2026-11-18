@@ -76,13 +76,13 @@ Players can read how paying works, which wallets work and how to restore a purch
 | `plugin/game/scfg/` | Ren'Py glue: API (`scfg_api.rpy`), screens, UI images (`ui/`), browser checkout page and web-build bridge (`web/`) |
 | `plugin/game/python-packages/scfg_core/` | Engine-independent core (Python 3.9, stdlib only) |
 | `examples/demo_game/` | Demo game (run `tools/sync_demo.py` first) |
-| `docs/` | The docs: `players/` for players, `developers/` for the Ren'Py developer guide (joined into one `scfg-README.md` in the zip), `developers/godot/` for the Godot one (the Godot zip's `addons/scfg/README.md`), `developers/rpgmaker/` for the RPG Maker MZ one (the RPG Maker zip's `scfg-README.md`) |
+| `docs/` | The docs: `players/` for players, `developers/` for the Ren'Py developer guide (joined into one `scfg-README.md` in the zip), `developers/godot/` for the Godot one (the Godot zip's `addons/scfg/README.md`), `developers/rpgmaker/` for the RPG Maker MZ one (the RPG Maker zip's `scfg-README.md`), `developers/unity/` for the Unity one (the tarball's `Documentation~/scfg-unity-guide.md`), `developers/unreal/` for the Unreal one (the Unreal zip's `README.md`) |
 | `website/` | Docusaurus site built from `docs/`, sidebar in `sidebars.json`. `.github/workflows/docs.yml` checks that it builds |
 | `tests/unit/` | Fast unit tests |
 | `tests/integration/` | Local Anvil chain (also dressed as Arc), local Solana validator and headless Chrome tests (`-m integration`), also driving the JS, GDScript, C# and C++ cores (`test_js_core.py`, `test_gd_core.py`, `test_cs_core.py`, `test_cpp_core.py`) |
 | `tests/live/` | Read-only checks of pinned real Arc mainnet payments (`-m live`, needs internet) |
 | `tests/renpy_e2e/`, `tests/renpy_web_e2e/` | Real Ren'Py runs (desktop and web build) driving a payment through the screens |
-| `conformance/` | Language-neutral JSON vectors recorded from `scfg_core` (the reference for the JS and GDScript ports), the generator, a Python replay runner and the receipt schema. See [its README](conformance/README.md) |
+| `conformance/` | Language-neutral JSON vectors recorded from `scfg_core` (the reference for the JS, GDScript, C# and C++ ports), the generator, a Python replay runner and the receipt schema. See [its README](conformance/README.md) |
 | `rpgmaker/` | The RPG Maker MZ plugin: the TypeScript port of the payment core (`src/core/`, dependency-free, Node 22.18+), the MZ glue (`src/mz/`: plugin header, commands, `window.SCFG`, the HTML payment sheet, the NW.js checkout server), the esbuild build to `js/plugins/SCFG.js`, an MZ stand-in (`test/mz_shim/`) its tests run on, the demo kit (`demo/`) and the JSON-lines driver for the integration tests. See [its README](rpgmaker/README.md) |
 | `tests/rpgmaker_ui/`, `tests/server_security/` | The RPG Maker sheet in headless Chrome on the MZ stand-in; the localhost checkout server's security suite (Python, GDScript, Node, C# and C++ servers) |
 | `godot/` | Godot 4.3+ addon (`addons/scfg/`: the `Scfg` autoload, payment sheet, localhost/web checkout and the pure-GDScript payment core in `core/`), the runnable `showcase/` (a one-screen tour of the API) and `demo/` (the game the e2e tests play), its headless test runner and the JSON-lines driver for the integration tests. See [its README](godot/README.md) |
@@ -159,6 +159,8 @@ SCFG_GODOT=/tmp/godot/Godot_v4.3-stable_linux.x86_64 uv run pytest tests/godot_s
 # the Godot demo end to end (anvil / solana-test-validator on PATH; web needs export templates, see godot/README.md)
 uv run python tools/run_godot_e2e.py --godot /tmp/godot/Godot_v4.3-stable_linux.x86_64 --family evm   # or arc, solana
 uv run python tools/run_godot_web_e2e.py --godot /tmp/godot/Godot_v4.3-stable_linux.x86_64 --family evm   # or arc
+# the Unreal tools take the engine's root directory from --engine or $UE_ROOT and stop with an error when neither is
+# set: export UE_ROOT=/path/to/UnrealEngine (the folder that holds Engine/) once per shell
 # the Unreal showcase end to end under xvfb-run (UE 5.8, Mesa lavapipe, anvil / solana-test-validator; see unreal/README.md)
 uv run python tools/run_unreal_e2e.py --family evm   # or arc, solana; --packaged: BuildCookRun first
 uv run pytest -m unreal_showcase   # the Unreal showcase's boot test, no chain (tools/run_unreal_e2e.py --showcase; guide: unreal/Plugins/ScfgShowcase/README.md, dev project: unreal/Project/ScfgDev/README.md)
@@ -172,7 +174,7 @@ uv run python tools/check_rpcs.py         # are the built-in public RPCs alive?
 uv run python tools/package.py            # build dist/scfg-renpy-<version>.zip
 uv run python tools/package.py --engine godot   # build dist/scfg-godot-<version>.zip
 uv run python tools/package.py --engine rpgmaker   # build dist/scfg-rpgmaker-mz-<version>.zip (runs npm run build; needs npm ci)
-uv run python tools/package.py --engine unity   # build dist/scfg-unity-<version>.tgz (the UPM package, without its tests)
+uv run python tools/package.py --engine unity   # build dist/scfg-unity-<version>.tgz (the UPM package, tests included; they compile only in a project that lists it under `testables`)
 
 # docs site (Node 20+)
 cd website && npm ci && npm start         # live preview at http://localhost:3000/stablecoinforgames/docs/
@@ -228,6 +230,12 @@ tag matches `__version__`, builds every archive with `tools/package.py` (Ren'Py,
 the `stablecoin-games-renpy` package (`uv build`: the installer in `installer/` with the plugin files inside it) and
 uploads it to PyPI through trusted publishing, from the `pypi` environment. A version with letters in it, such as
 `0.3.0rc1`, is published as a prerelease and does not become "latest".
+
+**Fab.** The Unreal plugin is released on GitHub only. Its `unreal/Plugins/Scfg/Scfg.uplugin` lists Win64, Mac,
+Android and IOS next to Linux in each module's `PlatformAllowList`, and those platforms are expected to work but have
+not yet been built or tested. Fab compiles a code plugin for every platform it lists, Win64 first, so before a Fab
+submission either trim each `PlatformAllowList` to the platforms the plugin has been built for, or build the shipped
+modules (`ScfgCore`, `Scfg`, `ScfgEditor`) for Win64 first (and for Mac, Android and IOS if they stay listed).
 
 ## License
 

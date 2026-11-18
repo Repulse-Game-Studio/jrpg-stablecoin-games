@@ -84,7 +84,7 @@ configuration: declare the items again after it.
 | `FScfgMethods` field | Meaning |
 |---|---|
 | `Browser.bEnabled` | The checkout page in the player's browser, for a wallet extension (desktop only). Default `true` |
-| `Browser.TimeoutMin` | Minutes the checkout page keeps answering a payment the player kept playing through. Default 30 |
+| `Browser.TimeoutMinutes` | Minutes the checkout page keeps answering a payment the player kept playing through. Default 30 |
 | `Qr.bEnabled` | A QR code for a phone wallet. Default `true` |
 | `Qr.bWalletButton` | The **Open wallet app** button on phones. Default `true` |
 | `Qr.Chains` | The chains the QR code is offered on. Empty: all |
@@ -110,6 +110,12 @@ It is **on by default on mainnet**. Turn it off, or change it, with `FScfgOption
 | `bEnabled` | `true` (default) or `false` |
 | `Chains` | The networks it is offered on (enabled EVM networks only). Empty: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens). Name testnet networks here (for example `base`, `arbitrum`) to see the link and the Solana hint before mainnet |
 | `Url` | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused. Empty: thirdweb's page |
+
+```cpp
+Options.Onramp.bEnabled = false;                                               // hide it
+Options.Onramp.Chains = { TEXT("base"), TEXT("arc") };                         // offer it on these networks only
+Options.Onramp.Url = TEXT("https://buy.example/?net={chain_id}&a={amount}");   // your own buy page
+```
 
 A mistake is reported with its code: `onramp.bad_url` (also a url with no host after `https://`),
 `onramp.unknown_placeholder`, `onramp.unmatched_brace`, `onramp.disabled_chain`, `onramp.not_evm` or
@@ -233,7 +239,8 @@ Scfg->PayAsync(EScfgPayKind::Tip, Request, [](const FScfgPaymentResult& Result) 
 ### FScfgPaymentResult
 
 What `PayAsync`, a `Pay` callback, the **Pay (SCFG)** node and `OnPaymentResolved` give you. A field the payment
-does not have is an empty string.
+does not have is an empty string. This struct and the others the plugin hands back (`FScfgReceipt`,
+`FScfgPendingPayment`, `FScfgRestoreResult`) are read-only in Blueprint: break them, there is no Make or Set node.
 
 | Field | Meaning |
 |---|---|
@@ -298,8 +305,8 @@ Both show the restore screen, where the player pastes a transaction hash. `Resto
 | `Owns(ItemId)` | `true` if a stored, verified payment unlocks the item. Instant, works offline. An item `AddItem` did not declare is misuse (`false`) |
 | `HasTipped()` | `true` once the player has tipped any amount |
 | `TipTotal()` | The sum of tips as a decimal string (`"0"`, `"2.50"`) |
-| `Receipts()` | The stored receipts, `TMap<FString, FScfgReceipt>` by receipt key, a copy. An `FScfgReceipt` has `Chain`, `TxHash`, `LogIndex`, `Block`, `Kind` (`"unlock"` or `"tip"`), `Item`, `Amount`, `Token`, `Payer`, `Recipient`, `Source` (`"payment"` or `"restore"`) |
-| `Pending()` | The payments still being watched, `TMap<FString, FScfgPendingPayment>` by session id, a copy. An `FScfgPendingPayment` has `Id`, `Kind`, `Item`, `Title`, `Token`, `Chain`, `Price`, `State` (`"awaiting"` or `"confirming"`), `UiStatus` (`"open"`, `"pending"`, `"cancelled"` or `"expired"`), `HintTx`, `CreatedAt` (Unix seconds), `Cursor` (the last block scanned) |
+| `Receipts()` | The stored receipts, `TMap<FString, FScfgReceipt>` by receipt key, a copy. An `FScfgReceipt` has `Chain`, `TxHash`, `LogIndex`, `Block`, `Kind` (`EScfgPayKind`: `Unlock` or `Tip`), `Item`, `Amount`, `Token`, `Payer`, `Recipient`, `Source` (`"payment"` or `"restore"`) |
+| `Pending()` | The payments still being watched, `TMap<FString, FScfgPendingPayment>` by session id, a copy. An `FScfgPendingPayment` has `SessionId`, `Kind` (`EScfgPayKind`), `Item`, `Title`, `Token`, `Chain`, `Price`, `State` (`"awaiting"` or `"confirming"`), `UiStatus` (`"open"`, `"pending"`, `"cancelled"` or `"expired"`), `HintTx`, `CreatedAt` (Unix seconds), `Cursor` (the last block scanned) |
 | `ExportReceipts(Path)` | Writes the receipts as readable JSON (a list, keys sorted, indented). An empty `Path` writes `Saved/scfg-receipts.json`, a relative one is under `Saved/` too. Returns the file's absolute path, or `""` (logged). Ask players to send you this file for support |
 | `ClearLocalData()` | Testing helper: forgets receipts and pending payments on this device, to see your paywall again after a test purchase. The payments stay on the chain and Restore brings them back |
 | `Supported()` | Always `true`: every platform the plugin builds for (kept for parity with Ren'Py) |
@@ -353,8 +360,7 @@ Blueprint cannot replace the payment sheet: `IScfgSheetHost` is a C++ interface 
 - **Game thread only.** Call the subsystem from the game thread. A call from another thread logs `scfg:
   <Function>() must be called on the game thread` every time (and one `ensure` per process), touches nothing, and
   delivers its `Failed` result (`RuntimeError`) on the game thread on the next frame; `Configure`, `AddChain` and
-  `AddItem` return `RuntimeError`, and a query its neutral value. `UScfgSubsystem::NumOffThreadCalls()` counts
-  them. The plugin itself starts no thread or task: its work runs on the engine's core ticker, which keeps ticking
+  `AddItem` return `RuntimeError`, and a query its neutral value. The plugin itself starts no thread or task: its work runs on the engine's core ticker, which keeps ticking
   while the game is paused.
 - **A game instance that shuts down with a screen open** resolves the call without delivering anything: no callback
   (`PayAsync`'s and `RestoreAsync`'s included), no node pin, no event, no notice. A payment whose session had started
@@ -371,7 +377,7 @@ Blueprint cannot replace the payment sheet: `IScfgSheetHost` is a C++ interface 
 
 Unless you set a host of your own, the subsystem shows its own Slate screens through `FScfgDefaultSheetHost`
 (`ScfgDefaultSheetHost.h`): each screen is a widget on the game instance's game viewport (in the editor, the
-play-in-editor viewport) at Z-order 10000 (`FScfgDefaultSheetHost::ZORDER`), above your widgets, which it never
+play-in-editor viewport) at Z-order 10000 (`FScfgDefaultSheetHost::ZOrder`), above your widgets, which it never
 touches; notices one Z-order above. The game is dimmed and the sheet is docked on the right, 520 units wide, or across
 the whole width on a portrait or narrow screen. Without a game viewport (a commandlet, the editor outside
 play-in-editor) nothing is shown, and `Pay` and `Restore` resolve `Failed` with `sheet.unavailable` (logged).
@@ -381,7 +387,7 @@ transfer), then waiting and done. In every build but Shipping the sheet also sho
 start and end of the payout address. The restore screen takes a transaction hash and lists the purchases on this
 device.
 
-### Pausing and input
+### Pausing the game while the sheet is open
 
 The sheet takes the keyboard focus and every key, character, stick and mouse event that reaches it: the game behind
 gets none, and neither do the viewport's own keys (the console key, Alt+Enter, the screenshot and debug keys do
@@ -458,15 +464,13 @@ The cooker packages assets only, so a packaged game has the logo only when both 
    advanced part of the Packaging section; the paths there are relative to `Content/`, so add `Scfg`), or in
    **Additional Non-Asset Directories To Copy**. In `Config/DefaultGame.ini` that is
    `+DirectoriesToAlwaysStageAsUFS=(Path="Scfg")` under `[/Script/UnrealEd.ProjectPackagingSettings]`.
-   Only "Additional Non-Asset Directories to Package" has been tested in a packaged game; "To Copy" should work the
-   same way, but it has not been run.
+   "To Copy" is expected to work the same way, but only "to Package" is tested.
 
 Otherwise the editor and play in the editor still find the file, but the packaged game's `Configure` fails with
 `logo.file_missing`: project settings with that logo are not applied, and every `Pay` then fails with
 `configure.not_called`. The settings panel's **Validate** warns about a logo that will not be packaged; a logo you
 pass to `Configure` from code is not checked there, so follow the same two rules (or call
-`UScfgSettings::LogoPackagingWarning`). The repository's dev project, which plays the showcase, does exactly this
-(`Content/Showcase/logo.png`, its `Showcase` folder in that list), and its packaged game is tested with it.
+`UScfgSettings::LogoPackagingWarning`).
 
 ### Your own sheet host
 
@@ -558,7 +562,7 @@ What a game that uses the plugin opens:
 | What | Where | When |
 |---|---|---|
 | JSON-RPC requests | Out, over HTTPS, to the chains' public RPC endpoints built into the plugin, or yours first (`RpcUrls`). User-Agent `scfg/0.1` | While there is something to check: the stored receipts at startup, a payment being watched (every 3 seconds while a screen is open, every 15 otherwise), a restore lookup, and with a Solana wallet a check at startup that it can receive each token |
-| The checkout page | TCP on `127.0.0.1` only (IPv4), at a port the system picks, never `0.0.0.0` or a fixed port. Desktop only | From the moment the player picks the browser method until the sheet closes. After **Continue playing** it keeps answering, with no sheet on screen, until the payment is final or `Methods.Browser.TimeoutMin` passes (30 minutes by default) |
+| The checkout page | TCP on `127.0.0.1` only (IPv4), at a port the system picks, never `0.0.0.0` or a fixed port. Desktop only | From the moment the player picks the browser method until the sheet closes. After **Continue playing** it keeps answering, with no sheet on screen, until the payment is final or `Methods.Browser.TimeoutMinutes` passes (30 minutes by default) |
 | Links | The checkout page (`http://127.0.0.1:<port>/c/<secret>/`), an explorer link, a wallet link (phones), opened in the system's browser or wallet app | Only when the player presses the button |
 
 The checkout page answers only requests for its own secret path with a `127.0.0.1` host. The page talks to the
@@ -589,26 +593,18 @@ listener). A Shipping build has no trace by default (read from the engine's sour
 
 ### Desktop
 
-Tested on **Linux x64 with UE 5.8.4**: the editor and the Shipping game build without a warning, the automation tests
-pass, and the showcase is played end to end under Xvfb in a Development game, paying on local EVM, Arc and Solana
-test chains (by manual transfer, and by the browser method in Chromium with mock wallets). That run covers the
-uncooked game for all three chain families; the packaged game passed it too, at an earlier version of the showcase.
-The showcase's tour also runs on a packaged Development game, configured from the project settings in the staged ini
-with a logo staged as [described above](#the-logo-in-a-packaged-game).
-HTTPS to real RPC endpoints is tested opt-in (`SCFG_LIVE=1`, and `--live` in the packaged game): one read-only call
-to Arbitrum Sepolia and one to Solana Devnet, with the certificate verified. With the certificate bundles removed,
-the packaged game refuses both calls without sending them.
-Not tested yet: play in the editor, a Shipping game run, and a real desktop session with a window manager.
+Tested on **Linux x64 with UE 5.8.4**: the editor and the Shipping game build without a warning, and a Development
+game, uncooked and packaged, pays on local EVM, Arc and Solana test chains by manual transfer and by the browser
+method. Its HTTPS requests to real RPC endpoints verify the certificate; without root certificates they are
+refused before anything is sent.
 
-Known issue (the engine, not the plugin): a packaged Linux game that gets SIGTERM while it presents on a software
-Vulkan driver under Xvfb (lavapipe, a fraction of a frame per second) can crash while recreating its swapchain
-(`VK_ERROR_SURFACE_LOST_KHR`, then `VK_ERROR_OUT_OF_HOST_MEMORY` and a segfault in `VulkanLinuxPlatform.cpp`). A
-normal quit is clean, so a headless test should end the game from inside it (`Quit`, or `RequestExit`) rather than
-with a signal.
+Not tested yet: UE 5.6 and 5.7, Windows, macOS, mobile, a Shipping game run, play in the editor, Blueprint-only
+projects, and packaging with the zen store as the cooked output store (the default).
 
-**Windows and macOS** are in the plugin's platform list but have never been built: they are unverified. **UE 5.6 and
-5.7** are unverified too: 5.6 is the minimum, and the release has a zip for each of 5.6, 5.7 and 5.8 (the same source,
-each `Scfg.uplugin` declaring its engine version), but only 5.8.4 has been tested.
+**Windows and macOS** are in the plugin's platform list and are expected to work, but the plugin has not yet been
+built or tested on them. **UE 5.6 and 5.7** are untested too: 5.6 is the minimum, and the release has a zip for each
+of 5.6, 5.7 and 5.8 (the same source, each `Scfg.uplugin` declaring its engine version), but only 5.8.4 has been
+tested.
 
 ### Mobile (unverified)
 
