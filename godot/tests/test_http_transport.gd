@@ -301,6 +301,36 @@ func test_close_ends_requests_in_flight_with_host_gone() -> bool:
 	return T.done()
 
 
+## Godot's side of ScfgCoio's CANCELLING (the Engine's refuse_in_flight): a cancelled request is
+## stopped and freed at once, so its answer is never read, and a request cancelled before it
+## starts is never sent.
+func test_a_cancelled_request_is_stopped_and_freed() -> bool:
+	var env := await _setup()
+	var host: Node = env[0]
+	var responder: F.Responder = env[1]
+	var transport: ScfgHttpTransport = env[2]
+	var cancel := ScfgCoio.Cancel.new()
+	var box := {}
+	var run := func() -> void:
+		box["got"] = await transport.post_json_cancellable(responder.url("/slow"), _payload(), 10.0, cancel)
+		box["done"] = true
+	run.call()
+	await _wait_for(responder, box, "request")
+	T.eq(responder.requests.size(), 1, "the request is in flight")
+	cancel.cancel()
+	T.eq(box.get("done", false), true, "the caller resumed inside cancel()")
+	T.is_err(box.get("got"), "Abandoned", "a cancelled request's (unread) result")
+	await (Engine.get_main_loop() as SceneTree).process_frame
+	T.eq(host.get_child_count(), 0, "the cancelled HTTPRequest is freed")
+	var later: Variant = await transport.post_json_cancellable(responder.url("/ok"), _payload(), 5.0, cancel)
+	T.is_err(later, "Abandoned", "an already cancelled request is not sent")
+	await (Engine.get_main_loop() as SceneTree).process_frame
+	T.eq(responder.requests.size(), 1, "nothing more reached the network")
+	T.eq(host.get_child_count(), 0, "no HTTPRequest was added for it")
+	await _teardown(env)
+	return T.done()
+
+
 func _teardown_without_host(responder: F.Responder) -> void:
 	for c in responder.conns:
 		(c["peer"] as StreamPeerTCP).disconnect_from_host()

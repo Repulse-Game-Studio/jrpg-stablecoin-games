@@ -77,14 +77,21 @@ func cancel() -> bool:
 
 ## Whether abandon() found it running: its RPC requests are refused from then on.
 var abandoned := false
+## Set by the worker while the job runs: abandon() calls it to end the request in flight.
+var _on_abandon: Callable = Callable()
 
 
-## worker.py's abandon(): a job that has not started is cancelled (it never runs); a running one is
-## refused its next RPC request with an Abandoned ScfgErr (not a TransportError, so no endpoint
-## cools down), so the commands queued behind it wait at most for the request in flight.
+## worker.py's abandon(): a job that has not started is cancelled (it never runs); a running one
+## ends with an Abandoned ScfgErr (not a TransportError, so no endpoint cools down) at once, its
+## RPC request in flight included (ScfgEngine.refuse_in_flight: the transport is told to stop it,
+## and its answer is dropped), and is refused any further one, so the commands queued behind it
+## never wait for it.
 func abandon() -> void:
-	if not cancel():
-		abandoned = true
+	if cancel():
+		return
+	abandoned = true
+	if _on_abandon.is_valid():
+		_on_abandon.call()
 
 
 ## The worker is about to run it: false when it was cancelled first.

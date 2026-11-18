@@ -7,7 +7,9 @@ const T := preload("res://tests/t.gd")
 const F := preload("res://tests/fakes.gd")
 
 
-## An Engine stand-in: tick/reverify/snapshot as coroutines, with an optional tick hook.
+## An Engine stand-in: tick/reverify/snapshot as coroutines, with an optional tick hook. Like
+## ScfgEngine it has refuse_requests and refuse_in_flight(): a hook's request() is refused, or ended
+## in flight, as the Engine's RefusingTransport would (test_pump_worker.py's FakeBridge).
 class FakeEngine:
 	extends RefCounted
 	var ticks := 0
@@ -16,6 +18,38 @@ class FakeEngine:
 	var tick_impl: Callable = Callable()  # may be a coroutine; returns the outcomes (or an ScfgErr)
 	var reverify_impl: Callable = Callable()
 	var log: Array = []
+	var refuse_requests: Callable = Callable()
+	var flights: Array = []  # {label, gate, value} of the requests in flight, oldest first
+	var cancelled: Array = []  # the labels of the requests refuse_in_flight() ended
+
+	## A request: refused at once while refuse_requests says so, else in flight until answer()
+	## (its value) or refuse_in_flight() (an Abandoned, resumed at the end of the frame).
+	func request(label: String) -> Variant:
+		if refuse_requests.is_valid() and refuse_requests.call():
+			return ScfgErr.make("Abandoned", "abandoned before its request (%s)" % label)
+		var flight := {"label": label, "gate": Gate.new(), "value": null}
+		flights.append(flight)
+		await (flight["gate"] as Gate).wait()
+		return flight["value"]
+
+	func in_flight() -> Array:
+		return flights.map(func(f: Dictionary) -> String: return f["label"])
+
+	## Answers the oldest request in flight.
+	func answer(value: Variant) -> void:
+		var flight: Dictionary = flights.pop_front()
+		flight["value"] = value
+		(flight["gate"] as Gate).open()
+
+	func refuse_in_flight() -> void:
+		if not (refuse_requests.is_valid() and refuse_requests.call()):
+			return
+		var ending := flights
+		flights = []
+		for flight: Dictionary in ending:
+			cancelled.append(flight["label"])
+			flight["value"] = ScfgErr.make("Abandoned", "abandoned while its request (%s) was in flight" % flight["label"])
+			(flight["gate"] as Gate).open.call_deferred()
 
 	func tick() -> Variant:
 		ticks += 1
@@ -233,25 +267,78 @@ func test_async_commands_are_awaited() -> bool:
 # --- test_pump_worker.py: the semantics that are not frame pumping ------------------------------
 
 
-func test_pump_a_command_submitted_mid_tick_waits_for_the_tick() -> bool:
+## Testbed U15: the player's command does not wait behind a background tick. The tick's request in
+## flight is ended (its answer never kept), the command runs next, and the next tick comes after
+## it. No error is reported for the yield. (`tick` in the log is a tick starting, `tick:<v>` one
+## finishing with its answer.)
+func test_a_command_submitted_mid_tick_makes_the_tick_yield() -> bool:
 	var e := FakeEngine.new()
-	var gate := Gate.new()
-	e.tick_impl = func() -> Array:
-		await gate.wait()
+	var errors := []
+	e.tick_impl = func() -> Variant:
+		var r: Variant = await e.request("tick")
+		if r is ScfgErr:
+			return r
+		e.log.append("tick:%s" % r)
+		return []
+	var t := FakeTimer.new()
+	var w := _timed(e, t, 10.0, {"on_error": func(x: Variant) -> void: errors.append(x)})
+	w.start()
+	t.fire()
+	await _settle()
+	T.eq(e.in_flight(), ["tick"])
+	var job := w.submit(func(eng: Variant) -> Variant:
+		var r: Variant = await eng.request("choose")
+		e.log.append("choose:%s" % r)
+		return r)
+	T.eq(e.cancelled, ["tick"])
+	await _settle()
+	T.eq(e.in_flight(), ["choose"])
+	e.answer("chosen")
+	await _settle()
+	T.eq(job.result(), "chosen")
+	T.eq(e.in_flight(), ["tick"], "woken by the command")
+	e.answer(1)
+	await _settle()
+	T.eq(e.log, ["reverify", "tick", "choose:chosen", "tick", "tick:1"])
+	T.eq(errors, [])
+	T.eq(t.pending["seconds"], 10.0, "then the loop waits the interval")
+	w.stop()
+	e.tick_impl = Callable()  # the hook captures e: break the cycle
+	return T.done()
+
+
+## Only Engine.tick yields: the launch reverify (run once) finishes first, and the tick then yields
+## before its first request.
+func test_the_first_run_reverify_does_not_yield() -> bool:
+	var e := FakeEngine.new()
+	e.reverify_impl = func() -> Variant:
+		e.log.append("reverify:%s" % await e.request("reverify"))
+		return []
+	e.tick_impl = func() -> Variant:
+		var r: Variant = await e.request("tick")
+		if r is ScfgErr:
+			return r
+		e.log.append("tick:%s" % r)
 		return []
 	var w := _worker(e)
 	w.run_once()
 	await _settle()
-	var job := w.submit(func(_e: Variant) -> String:
-		e.log.append("choose")
-		return "chosen")
+	T.eq(e.in_flight(), ["reverify"])
+	var job := w.submit(func(eng: Variant) -> Variant: return await eng.request("choose"))
 	await _settle()
-	T.ok(not job.done())
-	gate.open()
-	e.tick_impl = Callable()
+	T.eq([e.cancelled, e.in_flight(), job.done()], [[], ["reverify"], false])
+	e.answer("ok")
+	await _settle()
+	T.eq([e.cancelled, e.in_flight()], [[], ["choose"]], "the tick yields before its request")
+	T.eq(e.log, ["reverify", "reverify:ok", "tick"])
+	e.answer("chosen")
+	await _settle()
+	e.answer(1)  # the follow-up run's tick
 	await _settle()
 	T.eq(job.result(), "chosen")
-	T.eq(e.log, ["reverify", "tick", "choose", "tick"])
+	T.eq(e.log, ["reverify", "reverify:ok", "tick", "tick", "tick:1"])
+	e.tick_impl = Callable()  # the hooks capture e: break the cycle
+	e.reverify_impl = Callable()
 	return T.done()
 
 
@@ -343,15 +430,18 @@ func test_pump_stop_cancels_queued_commands_and_runs_nothing_more() -> bool:
 # --- ordering, re-entrancy, stop and job failures -------------------------------------------------
 
 
+## A command never runs inside a tick: one submitted while the tick awaits the network makes the
+## tick yield (test_a_command_submitted_mid_tick_makes_the_tick_yield), and runs once it has ended.
 func test_commands_never_interleave_with_a_tick() -> bool:
 	var e := FakeEngine.new()
-	var gate := Gate.new()
 	var st := {"in_tick": false, "during": null}
-	e.tick_impl = func() -> Array:
+	e.tick_impl = func() -> Variant:
 		if e.ticks == 1:
 			st["in_tick"] = true
-			await gate.wait()
+			var r: Variant = await e.request("tick")
 			st["in_tick"] = false
+			if r is ScfgErr:
+				return r
 		return []
 	var w := _worker(e)
 	w.run_once()
@@ -361,13 +451,12 @@ func test_commands_never_interleave_with_a_tick() -> bool:
 		st["during"] = st["in_tick"]
 		e.log.append("cmd")
 		return 1)
-	await _settle()
-	T.ok(not job.done())  # not executed while the tick awaits the network
-	gate.open()
+	T.ok(not job.done(), "not executed inside submit(), while the tick still runs")
 	await _settle()
 	T.eq(job.result(), 1)
 	T.eq(st["during"], false)
-	# the command ran in the NEXT run: tick (1st run) ... cmd, then tick (2nd run)
+	T.eq(e.cancelled, ["tick"], "the tick yielded")
+	# the command ran in the NEXT run: tick (1st run, yielded) ... cmd, then tick (2nd run)
 	T.eq(e.log, ["reverify", "tick", "cmd", "tick"])
 	T.eq(e.reverified, 1)
 	e.tick_impl = Callable()  # the hook captures e: break the cycle
@@ -710,6 +799,34 @@ func test_an_abandoned_running_job_is_refused_its_next_request() -> bool:
 		func(c: Array) -> Variant: return c[0])
 	T.eq(asked, [urls[0]], "the second endpoint is not asked")
 	T.ok(not engine.refuse_requests.is_valid(), "cleared after the job")
+	return T.done()
+
+
+## test_worker.py's twin, with the real Engine. Testbed U15: a superseded start whose request is
+## in flight (a host that never answers) ends at once when abandoned, not at the request's 10 s
+## timeout; the transport is told to stop that request (ScfgCoio's CANCELLING).
+func test_an_abandoned_job_stops_waiting_for_its_request_in_flight() -> bool:
+	var tree := Engine.get_main_loop() as SceneTree
+	var cfg: Variant = ScfgConfig.build_config({"wallet": "0x52908400098527886E0F7030069857D2E4169EE7",
+		"chains": ["base"], "testnet": true})
+	ScfgConfig.add_item(cfg, "chapter2", {"code": 37, "price": "4.99", "token": "USDC", "title": "Chapter 2"})
+	var node := F.CancellableNode.new()
+	node.hang = true
+	var engine := ScfgEngine.new(cfg, {"transport": node, "clock": func() -> int: return 1700000000})
+	var w := ScfgWorker.new(engine, {})
+	var job := w.submit(func(e: Variant) -> Variant: return await e.start_session("unlock", "base", {"item": "chapter2"}))
+	tree.create_timer(0.2).timeout.connect(job.abandon)
+	tree.create_timer(5.0).timeout.connect(node.release)  # a job left waiting fails below, not by the runner's timeout
+	var started := Time.get_ticks_msec()
+	await w.run_once()
+	var took := (Time.get_ticks_msec() - started) / 1000.0
+	T.ok(took < 2.0, "the abandoned start waited %.1f s for its request" % took)
+	T.is_err(job.result(), "Abandoned")
+	T.ok("in flight" in str(job.result()), str(job.result()))
+	T.eq(node.cancelled, ["eth_blockNumber"], "the request in flight was stopped")
+	T.eq(node.methods, ["eth_blockNumber"], "no other endpoint was asked")
+	T.ok(not engine.refuse_requests.is_valid(), "cleared after the job")
+	node.release()
 	return T.done()
 
 

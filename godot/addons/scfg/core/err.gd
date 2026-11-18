@@ -51,8 +51,9 @@ const BASES := {
 	# Godot only (no Python twin): ScfgHttpTransport's host Node left the tree or was freed.
 	# Not a TransportError, so ScfgRpcClient lets it propagate and cools no endpoint down.
 	"HostGone": ["Exception", "BaseException"],
-	# worker.py's Abandoned: a superseded job's refused RPC request (ScfgJob.abandon). Not a
-	# TransportError either, so no endpoint cools down.
+	# worker.py's Abandoned: a refused RPC request, or one ended in flight, of a superseded job
+	# (ScfgJob.abandon) or of a tick yielding to a command (worker.gd). Not a TransportError
+	# either, so no endpoint cools down.
 	"Abandoned": ["Exception", "BaseException"],
 	"CancelledError": ["BaseException"],
 }
