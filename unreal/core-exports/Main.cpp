@@ -122,7 +122,7 @@ int main() {
     check(ctl.value()->state() == "waiting" && ctl.value()->step() == "method" &&
               ctl.value()->pay_amount_text().rfind("4.99", 0) == 0 && ctl.value()->methods().size() == 3,
           "CheckoutController::poll");
-    check(scfg::checkout::MESSAGES().size() == 11, "checkout::MESSAGES");
+    check(scfg::checkout::MESSAGES().size() == 12, "checkout::MESSAGES");
     scfg::restore_flow::RestoreController restore(submit);
     Result<bool> checked = restore.check_tx(std::string("0x") + std::string(64, 'a'));
     check(checked.ok() && checked.value() && restore.state() == "checking" && submit->others == 1,
