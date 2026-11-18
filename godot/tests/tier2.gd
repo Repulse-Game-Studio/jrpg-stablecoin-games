@@ -454,7 +454,9 @@ class StepEntropy:
 
 ## Answers each request from the current step's recorded calls, as a multiset: any order, each
 ## recorded call used once, identical requests take their copies in recorded order. The JSON-RPC
-## id is ignored; params match by JSON value.
+## id is ignored; params match by JSON value. A call with `elapsed` (a request that hung) must
+## have been made with that timeout, and moves the clock by it (`wait`, the replay's clock) before
+## its transport_error is returned.
 ##
 ## Every request first waits `frames` process frames (1 by default), as a real transport does: a
 ## coroutine that never suspends returns its value even when the caller forgot `await`, so only
@@ -466,6 +468,8 @@ class ReplayTransport:
 	var problems: Array[String] = []
 	var requests := 0
 	var frames := 1
+	## Python's `wait(seconds)`: advances the replay's clock; a no-op by default.
+	var wait: Callable = func(_seconds: Variant) -> void: pass
 
 	func load(calls: Array) -> void:
 		_calls = calls.duplicate(true)
@@ -475,7 +479,7 @@ class ReplayTransport:
 		problems = []
 
 	## @fallible
-	func post_json(url: String, payload: Dictionary, _timeout: float) -> Variant:
+	func post_json(url: String, payload: Dictionary, timeout: float) -> Variant:
 		requests += 1
 		for i in frames:
 			await (Engine.get_main_loop() as SceneTree).process_frame
@@ -486,6 +490,11 @@ class ReplayTransport:
 			if T.first_diff(c["params"], payload.get("params")) != "":
 				continue
 			_used[i] = true
+			if c.has("elapsed"):
+				if timeout != float(c["elapsed"]):  # JSON numbers may be floats: compare by value
+					problems.append("%s %s: timeout %s, recorded %s" % [url, payload.get("method"),
+						ScfgPy.py_str(timeout), ScfgPy.py_str(c["elapsed"])])
+				wait.call(c["elapsed"])
 			if c.has("transport_error"):
 				return ScfgCoio.transport_error(c["transport_error"]["message"], c["transport_error"]["status"])
 			return ScfgCoio.response_for(200, ScfgCoio.parse_body((c["response_text"] as String).to_utf8_buffer()))
@@ -514,6 +523,7 @@ static func replay(vector_json: Variant) -> String:
 	var clock := func() -> Variant: return cell["now"]
 	var on_error := func(_e: Variant) -> void: cell["errors"] += 1
 	var transport := ReplayTransport.new()
+	transport.wait = func(seconds: Variant) -> void: cell["now"] += seconds
 	var entropy := StepEntropy.new()
 	var built: Variant = build_engine(setup, transport, clock, on_error, entropy)
 	if built is ScfgErr:

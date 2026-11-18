@@ -180,6 +180,52 @@ func test_all_endpoints_down_raises_unavailable() -> bool:
 	return T.done()
 
 
+## Each url takes `costs[url]` seconds of the clock (absent: its whole timeout, a hang) and then
+## fails, or answers when it is in `answers`. Records [url, timeout] (Python's TimedTransport).
+class TimedTransport:
+	extends ScfgCoio.Transport
+	var clock: F.FakeClock
+	var costs: Dictionary
+	var answers: Array
+	var calls: Array = []
+
+	func _init(clock_: F.FakeClock, costs_: Dictionary, answers_: Array = []) -> void:
+		clock = clock_
+		costs = costs_
+		answers = answers_
+
+	func post_json(url: String, _payload: Dictionary, timeout: float) -> Variant:
+		calls.append([url, timeout])
+		clock.advance(minf(float(costs[url]), timeout) if costs.has(url) else timeout)
+		if url in answers:
+			return F.ok("0x7")
+		return ScfgErr.make("TransportError", "timed out after %ss" % ScfgPy.py_str(timeout))
+
+
+func test_a_call_spends_at_most_its_budget_across_endpoints() -> bool:
+	var c_ := "https://c.rpc"
+	var d_ := "https://d.rpc"
+	var clock := F.FakeClock.new()
+	var t := TimedTransport.new(clock, {})  # every endpoint hangs
+	var rpc := ScfgRpcClient.new([A, B, c_, d_], {"transport": t, "clock": clock.fn})
+	T.eq(ScfgRpcClient.CALL_BUDGET, 15.0, "CALL_BUDGET")
+	T.is_err(await rpc.block_number(), "RpcUnavailable", "every endpoint hangs")
+	T.eq(t.calls, [[A, 10.0], [B, 5.0]], "the rest of the 15 s, then nothing is left for C, D")
+	T.eq(clock.now, 1000.0 + ScfgRpcClient.CALL_BUDGET, "the call took the budget")
+	T.eq(rpc.live_urls(), [c_, d_], "skipped, not cooled down: the next call asks C")
+	return T.done()
+
+
+func test_each_attempt_waits_at_most_what_is_left_of_the_budget() -> bool:
+	var c_ := "https://c.rpc"
+	var clock := F.FakeClock.new()
+	var t := TimedTransport.new(clock, {A: 3, B: 10, c_: 1}, [c_])
+	var rpc := ScfgRpcClient.new([A, B, c_], {"transport": t, "clock": clock.fn})
+	T.eq(await rpc.block_number(), 7, "C answers")
+	T.eq(t.calls, [[A, 10.0], [B, 10.0], [c_, 2.0]], "C waits the 2 s left")
+	return T.done()
+
+
 func test_malformed_response_counts_as_endpoint_failure() -> bool:
 	for bad: Variant in ["not a dict", {"jsonrpc": "2.0", "id": 1}, null, [1], 5.0]:
 		var r := _client({A: F.always(bad), B: F.always(F.ok("0x2"))})

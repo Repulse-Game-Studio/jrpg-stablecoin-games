@@ -7,7 +7,7 @@ const Vectors := preload("res://tests/vectors.gd")
 const Tier2 := preload("res://tests/tier2.gd")
 
 ## Every Tier 2 vector: the count of conformance/vectors/tier2/**/*.json, pinned.
-const ENABLED_COUNT := 121
+const ENABLED_COUNT := 122
 
 
 func _vectors() -> Array:
@@ -148,6 +148,23 @@ func test_replay_transport_is_a_multiset_in_recorded_order() -> bool:
 	t.load([e])
 	tr = await t.post_json("u", {"method": "n", "params": []}, 1.0)
 	T.eq([tr.kind, tr.message, tr.status], ["TransportError", "HTTP 429", 429], "the recorded transport error")
+	return T.done()
+
+
+func test_replay_transport_checks_and_waits_out_an_elapsed_call() -> bool:
+	var t := Tier2.ReplayTransport.new()
+	var waited: Array = []
+	t.wait = func(seconds: Variant) -> void: waited.append(seconds)
+	var hang := {"url": "u", "method": "m", "params": [], "elapsed": 5.0,
+		"transport_error": {"message": "timed out", "status": null}}
+	t.load([hang])
+	var got: Variant = await t.post_json("u", {"method": "m", "params": []}, 5.0)
+	T.is_err(got, "TransportError", "the recorded transport error")
+	T.eq(t.problems, [], "the timeout matches (a JSON float compares by value)")
+	T.eq(waited, [5.0], "the clock moves by elapsed")
+	t.load([hang])
+	await t.post_json("u", {"method": "m", "params": []}, 10.0)
+	T.eq(t.problems.size(), 1, "another timeout is a problem")
 	return T.done()
 
 
