@@ -79,8 +79,8 @@ pythonpath = ["plugin/game/python-packages", "installer", "conformance/python"]
 # node_server) and tests/rpgmaker_ui (marker rpgmaker_ui), which need Node 22.18+ and
 # rpgmaker/node_modules: naming their directory on the command line, or SCFG_REQUIRE_JS=1, selects
 # them again (unless -m is given on the command line). It also deselects the C++ part (marker
-# cpp_server), which builds the Unreal core's server driver: only a -m that names cpp_server runs
-# it. CI: test.yml's unit job and release.yml's test gate run the default (the Python part, and the
+# cpp_server), which builds the Unreal core's server driver, and the Unreal e2e and showcase tests
+# (unreal_e2e, unreal_showcase), which build and start Unreal: only a -m that names one runs it. CI: test.yml's unit job and release.yml's test gate run the default (the Python part, and the
 # C# one with the runner image's preinstalled dotnet; the drivers roll forward to a newer runtime
 # than 8.0); godot-core runs `-m godot_server` per Godot version; rpgmaker-ui runs
 # tests/rpgmaker_ui and `-m node_server` once; cs-core runs `-m cs_server` with SCFG_REQUIRE_CS=1;
@@ -95,8 +95,10 @@ markers = [
     "godot_server: the Godot part of tests/server_security (needs SCFG_GODOT); run alone with -m godot_server",
     "cs_server: the C# part of tests/server_security (needs the .NET 8 SDK); run alone with -m cs_server",
     "cpp_server: the C++ (Unreal core) part of tests/server_security (needs cmake 3.25+, a C++20 compiler, ninja or make); run alone with -m cpp_server",
+    "unreal_e2e: the Unreal desktop e2e under xvfb-run (needs UE 5.8, Xvfb, lavapipe, a chain node); run with -m unreal_e2e",
+    "unreal_showcase: the Unreal showcase's boot test under xvfb-run (needs UE 5.8, Xvfb, lavapipe); run with -m unreal_showcase",
 ]
-addopts = "-m 'not integration and not live and not rpgmaker_ui and not node_server and not cpp_server'"
+addopts = "-m 'not integration and not live and not rpgmaker_ui and not node_server and not cpp_server and not unreal_e2e and not unreal_showcase'"
 
 [tool.ruff]
 target-version = "py39"
