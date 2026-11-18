@@ -49,11 +49,13 @@ tarball), the package folder unity/Packages/com.repulse.scfg/ under package/:
     package/Runtime/, Editor/, Samples~/, Documentation~/ ... (the package, every .meta included)
     package/Documentation~/scfg-unity-guide.md (Unity guide, joined from docs/developers/unity/)
     package/Third Party Notices.md     (notices of the third-party code the package ports)
+    package/CHANGELOG.md               (the repository's CHANGELOG.md: the Package Manager shows it)
 
-Tests/ ships too (testbed U6): Unity compiles a package's test assemblies only in a project that
-lists it under "testables" in Packages/manifest.json, so the package's own edit-mode and play-mode
-tests run there and nowhere else. The package's own LICENSE.md must be the repository's LICENSE,
-its .meta files complete and its checkout page copy current.
+Tests/ ships too: Unity compiles a package's test assemblies only in a project that lists it under
+"testables" in Packages/manifest.json, so the package's own edit-mode and play-mode tests run there
+and nowhere else. The package's own LICENSE.md must be the repository's LICENSE, its CHANGELOG.md
+a copy of the repository's (for git-URL installs; tools/check_unity_changelog.py --write makes
+it), its .meta files complete and its checkout page copy current.
 
 Usage: uv run python tools/package.py [--engine renpy|godot|rpgmaker|unity|unreal]
 """
@@ -106,8 +108,8 @@ Leave the Logo parameter empty if you have no logo; this folder can then stay as
 UNITY_PAGES = "developers/unity/"
 UNITY_GUIDE_TITLE = "# Stablecoin for Games: Unity Developer Guide"
 UNITY_PACKAGE = ROOT / "unity" / "Packages" / "com.repulse.scfg"
-UNITY_SKIP_TOP: set[str] = set()  # top-level entries of the package folder the tarball leaves out
 UNITY_GUIDE_NAME = "Documentation~/scfg-unity-guide.md"
+UNITY_CHANGELOG = "package/CHANGELOG.md"
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 
 
@@ -447,8 +449,9 @@ def unity_version_constant(package=UNITY_PACKAGE):
 
 def unity_problems(package=UNITY_PACKAGE):
     """What stops the Unity tarball: the version (package.json and the C# constant), the license
-    copy, .meta files, the page copy."""
+    and changelog copies, .meta files, the page copy."""
     sys.path.insert(0, str(ROOT / "tools"))
+    import check_unity_changelog
     import check_unity_meta
     import check_unity_samples
     import sync_web_page
@@ -471,6 +474,7 @@ def unity_problems(package=UNITY_PACKAGE):
         ROOT / "LICENSE"
     ).read_text(encoding="utf-8"):
         out.append(f"{license_copy.name} is not a copy of LICENSE")
+    out += check_unity_changelog.problems(package)
     notices = package / UNITY_NOTICES_NAME
     if not notices.is_file() or notices.read_text(encoding="utf-8") != unity_notices(package):
         out.append(
@@ -490,7 +494,7 @@ def unity_files_to_ship(package=UNITY_PACKAGE):
     skips; the Samples~ and Documentation~ folders do ship)."""
     for path in sorted(package.rglob("*")):
         rel = path.relative_to(package)
-        if path.is_dir() or rel.parts[0] in UNITY_SKIP_TOP or path.name.endswith("~"):
+        if path.is_dir() or path.name.endswith("~"):
             continue
         if any(part.startswith(".") for part in rel.parts):
             continue
@@ -520,7 +524,10 @@ def build_unity_tgz(dist, package=UNITY_PACKAGE):
         for path, name in unity_files_to_ship(package):
             if name == "package/" + UNITY_GUIDE_NAME:
                 raise ValueError(f"{path} would be overwritten by the generated guide")
-            _tar_add(tar, name, path.read_bytes())
+            # the repository's changelog itself (unity_problems checked that the copy is the same)
+            is_changelog = name == UNITY_CHANGELOG
+            data = (ROOT / "CHANGELOG.md").read_bytes() if is_changelog else path.read_bytes()
+            _tar_add(tar, name, data)
             print(f"  {name}")
         name = "package/" + UNITY_GUIDE_NAME
         _tar_add(tar, name, unity_guide().encode("utf-8"))
@@ -562,21 +569,31 @@ def main(argv=None) -> int:
         target.write_bytes(unity_notices().encode("utf-8"))
         print(f"wrote {target}")
         return 0
-    if args.engine == "unreal":
-        import package_unreal
-
-        return package_unreal.main(ROOT / "dist")
     dist = ROOT / "dist"
-    builders = {
-        "renpy": build_renpy_zip,
-        "godot": build_godot_zip,
-        "rpgmaker": build_rpgmaker_zip,
-        "unity": build_unity_tgz,
-    }
-    build = builders[args.engine]
-    print(f"wrote {build(dist)}")
+    try:
+        if args.engine == "unreal":
+            import package_unreal
+
+            targets = package_unreal.build_all(dist)
+        else:
+            builders = {
+                "renpy": build_renpy_zip,
+                "godot": build_godot_zip,
+                "rpgmaker": build_rpgmaker_zip,
+                "unity": build_unity_tgz,
+            }
+            targets = [builders[args.engine](dist)]
+    except ValueError as error:
+        # not ready to ship (a version mismatch, a stale copy, ...): the reason, not a traceback
+        print(f"package.py --engine {args.engine}: {error}", file=sys.stderr)
+        return 1
+    for target in targets:
+        print(f"wrote {target}")
     return 0
 
 
 if __name__ == "__main__":
+    # tools/package_unreal.py imports this file as the module "package": run as a script it is
+    # "__main__", so register it under that name too, or the import would run it a second time
+    sys.modules.setdefault("package", sys.modules[__name__])
     raise SystemExit(main())

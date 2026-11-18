@@ -1,5 +1,12 @@
+import gzip
 import importlib.util
+import io
+import json
 import re
+import shutil
+import sys
+import tarfile
+import types
 from pathlib import Path
 
 import pytest
@@ -295,12 +302,6 @@ def test_rpgmaker_api_page_lists_every_text_id_with_its_english():
 
 # --- Unity ------------------------------------------------------------------------------------
 
-import gzip  # noqa: E402
-import io  # noqa: E402
-import json  # noqa: E402
-import shutil  # noqa: E402
-import tarfile  # noqa: E402
-
 
 def test_semver_of_the_core_version():
     assert package.semver("0.3.0") == "0.3.0"
@@ -325,6 +326,7 @@ def test_unity_tgz_is_the_package_under_package_tests_included(tmp_path):
         names = tar.getnames()
         manifest = json.loads(tar.extractfile("package/package.json").read())
         guide = tar.extractfile("package/" + package.UNITY_GUIDE_NAME).read().decode()
+        changelog = tar.extractfile("package/CHANGELOG.md").read()
     assert all(n.startswith("package/") for n in names)
     assert names[:-1] == sorted(names[:-1], key=lambda n: n.split("/")), "sorted by path"
     assert names[-1] == "package/" + package.UNITY_GUIDE_NAME, "the generated guide last"
@@ -333,10 +335,14 @@ def test_unity_tgz_is_the_package_under_package_tests_included(tmp_path):
                  "package/Runtime/Unity/SCFG.cs", "package/Runtime/Unity/Web/ScfgWeb.jslib",
                  "package/Runtime/Unity/Resources/ScfgWeb/bridge.js.bytes",
                  "package/Editor/ScfgSettingsEditor.cs", "package/Samples~/Showcase/ScfgShowcase.cs",
-                 "package/Samples~/Demo/ScfgDemo.cs", "package/Documentation~/index.md"):
+                 "package/Samples~/Demo/ScfgDemo.cs", "package/Documentation~/index.md",
+                 "package/CHANGELOG.md", "package/CHANGELOG.md.meta"):
         assert must in names, must
-    # the package's own tests ship (testbed U6): they compile only where the project lists the
-    # package under "testables"
+    assert changelog == (package.ROOT / "CHANGELOG.md").read_bytes(), "the repository's changelog"
+    # maintainer tools live in the dev project, not in the package
+    assert not [n for n in names if "Maintenance" in n]
+    # the package's own tests ship: they compile only where the project lists the package under
+    # "testables"
     for must in ("package/Tests.meta", "package/Tests/Editor/Scfg.Tests.Editor.asmdef",
                  "package/Tests/Runtime/Scfg.Tests.Runtime.asmdef"):
         assert must in names, must
@@ -383,3 +389,25 @@ def test_unity_guide_is_joined_from_its_docs():
 def test_the_other_guides_do_not_include_the_unity_pages():
     for guide in (package.developer_guide(), package.godot_guide(), package.rpgmaker_guide()):
         assert "SCFG.Configure(new ScfgOptions" not in guide
+
+
+def test_main_says_why_a_package_is_not_ready_and_exits_1(monkeypatch, capsys):
+    def not_ready(dist):
+        raise ValueError("the Unity package is not ready:\n  LICENSE.md is not a copy of LICENSE")
+
+    monkeypatch.setattr(package, "build_unity_tgz", not_ready)
+    assert package.main(["--engine", "unity"]) == 1
+    captured = capsys.readouterr()
+    assert captured.err.startswith("package.py --engine unity: the Unity package is not ready:")
+    assert "Traceback" not in captured.err
+    assert "wrote" not in captured.out
+
+
+def test_main_says_why_the_unreal_plugin_is_not_ready_the_same_way(monkeypatch, capsys):
+    def not_ready(dist):
+        raise ValueError("the Unreal plugin is not ready:\n  Scfg.uplugin VersionName 9.9.9")
+
+    monkeypatch.setitem(sys.modules, "package_unreal", types.SimpleNamespace(build_all=not_ready))
+    assert package.main(["--engine", "unreal"]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("package.py --engine unreal: the Unreal plugin is not ready:")

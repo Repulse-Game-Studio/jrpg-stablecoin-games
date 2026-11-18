@@ -71,3 +71,16 @@ def test_the_notices_file_is_current_and_shipped(tmp_path):
     assert "package/" + package.UNITY_NOTICES_NAME + ".meta" in names
     (copy / package.UNITY_NOTICES_NAME).write_text(text.replace("Nayuki", "Someone"), encoding="utf-8")
     assert len(notices_problems(package.unity_problems(copy))) == 1
+
+
+def test_the_changelog_copy_must_be_the_repositorys(tmp_path):
+    copy = copy_package(tmp_path)
+    assert not [p for p in package.unity_problems(copy) if "CHANGELOG" in p]
+    (copy / "CHANGELOG.md").write_text("# Changelog\n\n## 0.0.1\n")
+    found = [p for p in package.unity_problems(copy) if "CHANGELOG" in p]
+    assert found == ["CHANGELOG.md is not a copy of the repository's CHANGELOG.md: "
+                     "uv run python tools/check_unity_changelog.py --write"]
+    (copy / "CHANGELOG.md").unlink()
+    (copy / "CHANGELOG.md.meta").unlink()
+    found = [p for p in package.unity_problems(copy) if "CHANGELOG" in p]
+    assert "CHANGELOG.md is missing: uv run python tools/check_unity_changelog.py --write" in found

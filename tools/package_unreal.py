@@ -63,12 +63,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from package import ROOT, UNREAL_PAGES, __version__, developer_guide  # noqa: E402
+from unreal_common import TEST_MODULES  # noqa: E402
 
 PLUGIN = ROOT / "unreal" / "Plugins" / "Scfg"
 ZIP_ROOT = "Scfg/"
 ENGINE_VERSIONS = ("5.6", "5.7", "5.8")
 SHIPPED_MODULES = ("ScfgCore", "Scfg", "ScfgEditor")
-TEST_MODULES = ("ScfgCoreTests", "ScfgTests")
 # Build output and editor state (Fab 4.3.7.3.a), wherever they appear under a shipped folder.
 SKIP_PARTS = {"Binaries", "Intermediate", "Saved", "DerivedDataCache", "Build"}
 MAX_PATH = 170  # Fab 4.3.7.3.c
@@ -339,15 +339,10 @@ def build_unreal_zips(dist, plugin=PLUGIN, version=__version__):
     return targets
 
 
-def main(dist, plugin=PLUGIN, showcase=SHOWCASE):
+def build_all(dist, plugin=PLUGIN, showcase=SHOWCASE):
     """`tools/package.py --engine unreal`: build the plugin's zips and the showcase's into `dist`;
-    1, with the reason on stderr, when the plugin or the showcase is not ready."""
-    try:
-        targets = build_unreal_zips(dist, plugin)
-        targets.append(build_showcase_zip(dist, showcase, plugin))
-    except ValueError as error:
-        print(f"package.py --engine unreal: {error}", file=sys.stderr)
-        return 1
-    for target in targets:
-        print(f"wrote {target}")
-    return 0
+    the paths written. A ValueError says why the plugin or the showcase is not ready (package.py's
+    main prints it, as for every engine, and exits 1)."""
+    targets = build_unreal_zips(dist, plugin)
+    targets.append(build_showcase_zip(dist, showcase, plugin))
+    return targets

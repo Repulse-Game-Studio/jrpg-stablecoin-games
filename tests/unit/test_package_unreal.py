@@ -88,7 +88,7 @@ def test_each_zip_holds_the_plugin_folder_scfg_in_fabs_source_layout(built):
 def test_the_zips_ship_the_page_the_server_serves_and_not_bridge_js(built):
     """Resources/Web/ in the zip is what FScfgLocalServer serves and Scfg.Build.cs stages: the
     page, app.js, evm.js and solana.js. bridge.js (the web exports' bridge, kept in the tree by
-    sync_web_page.py) is never served or staged, so it does not ship (final review F10)."""
+    sync_web_page.py) is never served or staged, so it does not ship."""
     plugin, targets = built
     assert (plugin / "Resources" / "Web" / "bridge.js").is_file()
     for target in targets:
@@ -98,7 +98,7 @@ def test_the_zips_ship_the_page_the_server_serves_and_not_bridge_js(built):
 
 
 def test_zips_hold_no_test_module_core_tests_or_build_output(built):
-    """The test modules and their .uplugin entries are stripped (phase 2 R2-6 R7, phase 4 P4R-1):
+    """The test modules and their .uplugin entries are stripped:
     ScfgTests' store hook must not reach a developer's project. No Binaries/ or Intermediate/
     (Fab 4.3.7.3.a), nothing of unreal/core-tests/, no hidden files."""
     _plugin, targets = built
@@ -138,7 +138,7 @@ def test_the_zips_differ_only_in_the_uplugin(built):
 
 def test_every_source_and_resource_file_ships_byte_for_byte(built):
     """The packager copies files as they are (it does not care about their headers; the copyright
-    lines of task 5.3 pass through unchanged), and leaves none of the shipped folders out."""
+    lines pass through unchanged), and leaves none of the shipped folders out."""
     plugin, targets = built
     expected = {}
     for folder in ("Source/ScfgCore", "Source/Scfg", "Source/ScfgEditor", "Resources"):
@@ -200,7 +200,7 @@ def test_a_uplugin_version_that_differs_from_the_core_is_refused(tmp_path):
 
 def test_a_core_version_constant_that_differs_from_the_uplugin_is_refused(tmp_path):
     """scfg::VERSION (Private/Version.cpp, exported by the core) ships in the zip too: it must say
-    what the .uplugin says (final review F4)."""
+    what the .uplugin says."""
     plugin = plugin_copy(tmp_path, core_version="9.9.8")
     with pytest.raises(ValueError,
                        match=f"scfg::VERSION 9.9.8 [(]Version.cpp[)] != Scfg.uplugin VersionName "
@@ -221,11 +221,10 @@ def test_the_real_plugins_version_constant_matches_its_uplugin():
     assert package_unreal.core_constant_version() == package_unreal.descriptor()["VersionName"]
 
 
-def test_main_names_the_version_mismatch_and_fails(tmp_path, capsys):
+def test_build_all_names_the_version_mismatch(tmp_path):
     plugin = plugin_copy(tmp_path, version="9.9.9")
-    assert package_unreal.main(tmp_path / "dist", plugin) == 1
-    err = capsys.readouterr().err
-    assert f"Scfg.uplugin VersionName 9.9.9 != scfg_core {VERSION}" in err
+    with pytest.raises(ValueError, match=re.escape(f"Scfg.uplugin VersionName 9.9.9 != scfg_core {VERSION}")):
+        package_unreal.build_all(tmp_path / "dist", plugin)
 
 
 def test_a_module_the_packager_does_not_know_is_refused(tmp_path):
@@ -302,6 +301,7 @@ def test_the_showcase_zip_holds_the_sample_folder_source_only(showcase_built):
         "ScfgShowcase/Source/ScfgShowcase/Private/ScfgShowcaseLog.h",
         "ScfgShowcase/Source/ScfgShowcase/Private/ScfgShowcaseModule.cpp",
         "ScfgShowcase/Source/ScfgShowcase/Public/ScfgShowcase.h",
+        "ScfgShowcase/Source/ScfgShowcase/Public/ScfgShowcaseHarness.h",
         "ScfgShowcase/Source/ScfgShowcase/ScfgShowcase.Build.cs",
     ], names
     assert all(len(n) <= 170 for n in names)
@@ -409,18 +409,18 @@ def test_the_showcase_zip_is_reproducible(tmp_path, showcase_built):
     assert {i.date_time for i in infos} == {(1980, 1, 1, 0, 0, 0)}
 
 
-def test_main_builds_the_plugin_zips_and_the_showcase_zip(tmp_path, capsys):
+def test_build_all_builds_the_plugin_zips_and_the_showcase_zip(tmp_path):
     plugin = plugin_copy(tmp_path)
     showcase = showcase_copy(tmp_path)
-    assert package_unreal.main(tmp_path / "dist", plugin, showcase) == 0
-    assert sorted(p.name for p in (tmp_path / "dist").iterdir()) == sorted(
-        [f"scfg-unreal-{VERSION}-ue{e}.zip" for e in ENGINES]
-        + [f"scfg-unreal-showcase-{VERSION}.zip"])
-    assert f"wrote {tmp_path / 'dist' / f'scfg-unreal-showcase-{VERSION}.zip'}" in capsys.readouterr().out
+    targets = package_unreal.build_all(tmp_path / "dist", plugin, showcase)
+    expected = sorted([f"scfg-unreal-{VERSION}-ue{e}.zip" for e in ENGINES]
+                      + [f"scfg-unreal-showcase-{VERSION}.zip"])
+    assert sorted(p.name for p in (tmp_path / "dist").iterdir()) == expected
+    assert sorted(t.name for t in targets) == expected
 
 
-def test_main_names_a_showcase_problem_and_fails(tmp_path, capsys):
+def test_build_all_names_a_showcase_problem(tmp_path):
     plugin = plugin_copy(tmp_path)
     showcase = showcase_copy(tmp_path, version="9.9.9")
-    assert package_unreal.main(tmp_path / "dist", plugin, showcase) == 1
-    assert "ScfgShowcase.uplugin VersionName 9.9.9" in capsys.readouterr().err
+    with pytest.raises(ValueError, match="ScfgShowcase.uplugin VersionName 9.9.9"):
+        package_unreal.build_all(tmp_path / "dist", plugin, showcase)
