@@ -3,6 +3,8 @@
 // player has the real one (ScfgBrowserJs.Create returns null elsewhere, including the editor).
 #nullable enable
 #if UNITY_WEBGL && !UNITY_EDITOR
+using System;
+using System.Reflection;
 using System.Runtime.InteropServices;
 #endif
 
@@ -67,10 +69,29 @@ namespace Scfg
         public bool FsPersistent() => ScfgWebFsPersistent() != 0;
         public bool OverlayShown() => ScfgWebOverlayShown() != 0;
 
+        // UnityEngine.WebGLInput through reflection, never by name: a WebGL player built by BuildPipeline.BuildPlayer from
+        // an editor whose active platform is another (a Linux-active CI project) compiles without the WebGL module's
+        // reference, and a direct use is CS1069 there. Runtime/link.xml keeps the type through Managed Stripping High.
+        private static readonly PropertyInfo? Capture = Type.GetType("UnityEngine.WebGLInput, UnityEngine.WebGLModule")
+            ?.GetProperty("captureAllKeyboardInput", BindingFlags.Public | BindingFlags.Static);
+        private static bool _warned;
+
         public bool CaptureAllKeyboardInput
         {
-            get => UnityEngine.WebGLInput.captureAllKeyboardInput;
-            set => UnityEngine.WebGLInput.captureAllKeyboardInput = value;
+            get => Capture?.GetValue(null) is bool on ? on : true;
+            set
+            {
+                if (Capture != null)
+                {
+                    Capture.SetValue(null, value);
+                }
+                else if (!_warned)
+                {
+                    _warned = true;
+                    UnityEngine.Debug.LogWarning("scfg: UnityEngine.WebGLInput.captureAllKeyboardInput was not found; "
+                                                 + "the page's text fields may not get the keys the game takes");
+                }
+            }
         }
 #else
         public bool Load(string code) => false;

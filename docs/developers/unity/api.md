@@ -412,6 +412,10 @@ and never inside your save slots, so loading an older save cannot lose a purchas
 
 ## WebGL builds
 
+The package compiles for WebGL from any active platform: a build script that calls `BuildPipeline.BuildPlayer` for
+WebGL from a project whose active platform is Linux, Windows or macOS needs no Switch Platform or `-buildTarget WebGL`
+first (the package's own WebGL test builds that way).
+
 A WebGL player has no localhost server: the checkout page is the same page the other engines use, shown as an
 overlay over the game in its own web page, and it talks to the wallet extension there. **Browser wallet** is
 offered only when the page has a wallet for the chosen network (an extension, or a wallet app's built-in browser).

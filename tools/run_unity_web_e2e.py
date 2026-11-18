@@ -162,8 +162,10 @@ def build_webgl(unity: str, out: Path, log: Path) -> Path:
         "-quit",
         "-projectPath",
         str(PROJECT),
+        # The editor opens on Linux, never WebGL, and BuildPlayer targets WebGL from there, as a CI script on a
+        # Linux-active project does (testbed U1: a direct WebGLInput use failed to compile that way).
         "-buildTarget",
-        "WebGL",
+        "Linux64",
         "-executeMethod",
         "Scfg.E2E.ScfgE2EBuild.BuildWebGL",
         "-scfgOut",
