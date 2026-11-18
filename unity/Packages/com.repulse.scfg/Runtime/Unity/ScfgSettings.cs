@@ -68,6 +68,12 @@ namespace Scfg
         public string accent = "";
         [Tooltip("The logo on the sheet and the checkout page.")]
         public Sprite? logo;
+        [Tooltip("The \"No USDC yet? Buy some with a card\" link on the sheet (on mainnet, on the built-in EVM networks). Off hides it.")]
+        public bool onrampEnabled = true;
+        [Tooltip("Optional: your own buy page, an https:// template with {chain}, {chain_id}, {token}, {token_address} and {amount} (empty: thirdweb's buy page).")]
+        public string onrampUrl = "";
+        [Tooltip("Optional: the EVM networks the buy link is offered on (empty: the built-in EVM networks of a mainnet game; none on testnet).")]
+        public List<string> onrampChains = new List<string>();
         [Tooltip("WebGL builds: tells two games with the same product name on one web origin apart (see ScfgOptions.WebStorageId). Set it once and never change it.")]
         public string webStorageId = "";
         [Tooltip("The paid unlocks.")]
@@ -87,9 +93,19 @@ namespace Scfg
             Chains = chains != null && chains.Count > 0 ? new List<string>(chains) : null,
             Tokens = tokens != null && tokens.Count > 0 ? new List<string>(tokens) : null,
             Accent = Blank(accent),
+            Onramp = OnrampOptions(),
             Logo = withLogo ? LogoTexture() : null,
             WebStorageId = Blank(webStorageId),
         };
+
+        /// <summary>The buy link's options, or null when every field keeps the default.</summary>
+        private ScfgOnramp? OnrampOptions()
+        {
+            var url = Blank(onrampUrl);
+            var keys = onrampChains != null && onrampChains.Count > 0 ? new List<string>(onrampChains) : null;
+            if (onrampEnabled && url == null && keys == null) return null;
+            return new ScfgOnramp { Enabled = onrampEnabled ? (bool?)null : false, Url = url, Chains = keys };
+        }
 
         private static string? Blank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s!.Trim();
 

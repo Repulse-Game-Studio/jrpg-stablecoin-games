@@ -285,6 +285,26 @@ namespace Scfg
             if (!string.IsNullOrEmpty(uri)) OpenUrl(uri!);
         }
 
+        /// <summary>
+        /// The sheet's "No USDC yet? Buy some with a card": open configure's onramp page for the chosen network (a new tab
+        /// with noopener on WebGL, as every link the sheet opens).
+        /// </summary>
+        internal static void OpenOnramp(ScfgCheckoutController ctl)
+        {
+            if (!IsOpen(ctl)) return;
+            string? url;
+            try
+            {
+                url = ctl.Core.OnrampUrl();
+            }
+            catch (Exception e)
+            {
+                ReportError("cannot build the buy link:", e);
+                return;
+            }
+            if (!string.IsNullOrEmpty(url)) OpenUrl(url!);
+        }
+
         internal static void OpenExplorer(string? url)
         {
             if (!string.IsNullOrEmpty(url)) OpenUrl(url!);

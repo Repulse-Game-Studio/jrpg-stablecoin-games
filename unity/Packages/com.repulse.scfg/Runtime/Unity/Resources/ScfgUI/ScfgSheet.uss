@@ -220,6 +220,11 @@
     padding: 2px 12px;
 }
 
+.scfg-onramp {
+    margin-top: 8px;
+    white-space: normal;
+}
+
 .scfg-button--back {
     width: 36px;
     height: 36px;

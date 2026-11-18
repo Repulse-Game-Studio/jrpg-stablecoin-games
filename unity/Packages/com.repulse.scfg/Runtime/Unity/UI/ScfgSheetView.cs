@@ -3,7 +3,9 @@
 //
 // One step at a time, as the controller's Step says: amount (tips) -> network -> method -> browser | qr | manual ->
 // waiting -> done. Every step has the header (the back arrow while the controller CanGoBack, the step dots, the logo,
-// the title and the price), a scrolling body, the pinned forward button when the step has one, and the footer (the
+// the title and the price), a scrolling body, the pinned buy link where the controller shows it (ShowsOnramp: "No USDC
+// yet? Buy some with a card"; or ShowsOnrampHint, which goes back to the network step), the pinned forward button when
+// the step has one, and the footer (the
 // status message, the status line and Cancel / Continue playing / Continue). Development builds also show the
 // developer lines (DEV MODE and the controller's DevWarnings()).
 //
@@ -56,7 +58,7 @@ namespace Scfg
             Add(c.Method); Add(c.ChainKey); Add(c.PriceText); Add(c.SessionId); Add(c.BrowserFailed);
             Add(string.Join(",", c.ChainOptions().Select(o => o.Key)));
             Add(string.Join(",", c.Methods()));
-            Add(c.Result?.TxHash); Add(c.Message());
+            Add(c.Result?.TxHash); Add(c.Message()); Add(c.ShowsOnramp); Add(c.ShowsOnrampHint);
             return sb.ToString();
         }
 
@@ -131,6 +133,7 @@ namespace Scfg
             Layout.Add(step);
             var body = ScrollingBody(step);
             var forward = BuildStep(body);
+            OnrampLink(step);
             if (forward == null)
             {
                 var none = new Button { text = "" };
@@ -143,6 +146,26 @@ namespace Scfg
                 step.Add(Button("forward", forward.Value.Text, "scfg-button--accent", forward.Value.Action));
             }
             BuildFooter();
+        }
+
+        /// <summary>
+        /// "No USDC yet? Buy some with a card" (Godot's _onramp_link): opens configure's onramp page for the chosen network
+        /// through the sheet's external-link path (Controller.OpenOnramp), pinned below the scrolling body and above the
+        /// forward button so it stays in view, and in that place in the focus order. On a network without a buy page
+        /// (Solana), when another one has it, "Pick another network to buy some with a card" goes back to the network step.
+        /// </summary>
+        private void OnrampLink(VisualElement step)
+        {
+            var c = Ctl;
+            Button? link = null;
+            if (c.ShowsOnrampHint)
+                link = Button("onramp_hint", ScfgUiTexts.Format("onramp_hint", c.Spec.Token), "scfg-button--small", () => c.Back());
+            else if (c.ShowsOnramp)
+                link = Button("onramp", ScfgUiTexts.Format("onramp_link", c.Spec.Token), "scfg-button--small",
+                              () => Controller.OpenOnramp());
+            if (link == null) return;
+            link.AddToClassList("scfg-onramp");
+            step.Add(link);
         }
 
         private void BuildHeader()

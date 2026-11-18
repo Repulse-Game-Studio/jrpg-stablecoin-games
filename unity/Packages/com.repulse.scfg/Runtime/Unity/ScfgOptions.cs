@@ -23,6 +23,11 @@ namespace Scfg
         public IList<string>? Tokens { get; set; }
         /// <summary>Which payment methods the sheet offers (default: all of them).</summary>
         public ScfgMethods? Methods { get; set; }
+        /// <summary>
+        /// The "No USDC yet? Buy some with a card" link on the sheet (default: on, thirdweb's buy page, on the built-in
+        /// EVM networks of a mainnet game).
+        /// </summary>
+        public ScfgOnramp? Onramp { get; set; }
         /// <summary>Extra RPC endpoints per chain key, tried before the built-in ones.</summary>
         public IDictionary<string, IList<string>>? RpcUrls { get; set; }
         /// <summary>Confirmations required per chain key.</summary>
@@ -49,6 +54,7 @@ namespace Scfg
             if (Chains != null) kw["chains"] = List(Chains);
             if (Tokens != null) kw["tokens"] = List(Tokens);
             if (Methods != null) kw["methods"] = Methods.ToJson();
+            if (Onramp != null) kw["onramp"] = Onramp.ToJson();
             if (RpcUrls != null)
             {
                 var urls = new JsonObject();
@@ -109,6 +115,35 @@ namespace Scfg
             if (ManualAllowTxPaste.HasValue) manual["allow_tx_paste"] = ManualAllowTxPaste.Value;
             if (manual.Count > 0) m["manual"] = manual;
             return m;
+        }
+    }
+
+    /// <summary>
+    /// The buy link (config.py's onramp): "No USDC yet? Buy some with a card" opens a page where a player without the
+    /// token buys some with a card, for the network they picked, then pays as usual. A null field keeps the default.
+    /// </summary>
+    public sealed class ScfgOnramp
+    {
+        /// <summary>Show the link (default true). false hides it everywhere.</summary>
+        public bool? Enabled { get; set; }
+        /// <summary>
+        /// The buy page, an https:// template whose placeholders are filled for the chosen network: {chain}, {chain_id},
+        /// {token}, {token_address}, {amount} (default: thirdweb's hosted Buy page, no account or key).
+        /// </summary>
+        public string? Url { get; set; }
+        /// <summary>
+        /// The EVM chain keys it is offered on (default: the built-in EVM chains of a mainnet game; none on testnet,
+        /// where card purchases do not exist). Every key must be one of Configure's chains.
+        /// </summary>
+        public IList<string>? Chains { get; set; }
+
+        internal JsonObject ToJson()
+        {
+            var o = new JsonObject();
+            if (Enabled.HasValue) o["enabled"] = Enabled.Value;
+            if (Url != null) o["url"] = Url;
+            if (Chains != null) o["chains"] = ScfgOptions.List(Chains);
+            return o;
         }
     }
 
