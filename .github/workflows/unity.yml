@@ -6,17 +6,24 @@ name: unity
 # player (windowed, under xvfb) and the WebGL player (in Chromium), each paying on Anvil (EVM and Arc)
 # and on solana-test-validator. The C# core's own tests run without Unity in test.yml (cs-core).
 #
-# It needs a Unity license in three repository secrets: UNITY_LICENSE (the contents of
-# Unity_lic.ulf), UNITY_EMAIL and UNITY_PASSWORD (notes/unity-port/unity-setup-guide.md, section 5).
-# GitHub gives no secrets to pull requests from forks, and a repository without them skips every
-# Unity job (the "license" job says so) instead of failing.
+# It needs a Unity Personal license in three repository secrets (Settings -> Secrets and variables ->
+# Actions -> New repository secret, or `gh secret set <NAME>`): UNITY_LICENSE, the whole contents of the
+# account's license file (an XML file; on Linux ~/.local/share/unity3d/Unity/Unity_lic.ulf, written when the
+# Hub adds the Personal license), and UNITY_EMAIL and UNITY_PASSWORD, the account's sign-in. GameCI activates
+# a seat with the email and password (it reads only the serial from the license file), so the account must
+# have no two-factor authentication. Use a Unity account made only for CI: anyone who can push a branch to
+# this repository can read the secrets through a changed workflow. (A Plus or Pro license uses UNITY_SERIAL
+# with the email and password instead.) GitHub gives no secrets to pull requests from forks, and a
+# repository without them skips every Unity job (the "license" job says so) instead of failing. A job
+# cancelled or timed out mid-build can leave its seat held: later runs then fail with "No seat available"
+# until it expires, or until it is released by signing in at id.unity.com with that account.
 
 on:
   # The same paths on both: what the Unity jobs build or import (the e2e runners reuse the Godot and Ren'Py
   # runners' families, helpers and mocks). The weekly run covers everything else.
   push:
     branches: [main]
-    paths:
+    paths: &paths
       - "unity/**"
       - "plugin/game/scfg/web/**"
       - "plugin/game/python-packages/scfg_core/**"
@@ -37,26 +44,7 @@ on:
       - "uv.lock"
       - ".github/workflows/unity.yml"
   pull_request:
-    paths:
-      - "unity/**"
-      - "plugin/game/scfg/web/**"
-      - "plugin/game/python-packages/scfg_core/**"
-      - "contracts/**"
-      - "tools/run_unity_e2e.py"
-      - "tools/run_unity_web_e2e.py"
-      - "tools/check_unity_samples.py"
-      - "tools/run_godot_e2e.py"
-      - "tools/run_godot_web_e2e.py"
-      - "tools/run_renpy_e2e.py"
-      - "tools/run_renpy_web_e2e.py"
-      - "tools/sync_demo.py"
-      - "tools/fetch_godot.py"
-      - "tests/integration/browser_mocks.py"
-      - "tests/integration/mock_token.py"
-      - "tests/integration/solana_local.py"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/unity.yml"
+    paths: *paths
   schedule:
     - cron: "0 7 * * 1"   # weekly, after test.yml: a new runner image or GameCI image shows up here
   workflow_dispatch:
@@ -114,7 +102,9 @@ jobs:
       fail-fast: false
       max-parallel: 1   # one seat at a time (see concurrency); samples holds the other
       matrix:
-        unity: ["6000.3.28f1", "6000.6.9f1"]   # 6.3 LTS, the package's minimum; the dev project's version
+        # 6.3 LTS, the package's minimum; the dev project's version, env.UNITY_VERSION (a matrix cannot read env:
+        # change both together, and release.yml's notes too)
+        unity: ["6000.3.28f1", "6000.6.9f1"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -141,7 +131,7 @@ jobs:
 
   samples:
     # The Showcase and Demo samples, imported into the dev project as the Package Manager does,
-    # compile and their scenes open (ScfgSamplesCheck.Check, run as the build method).
+    # compile and their scenes open (Scfg.Maintenance.ScfgSamplesCheck.Check, run as the build method).
     needs: license
     if: needs.license.outputs.ok == 'true'
     runs-on: ubuntu-latest
@@ -162,7 +152,7 @@ jobs:
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: StandaloneLinux64
           cliVersion: ${{ env.GAME_CI_CLI }}
-          buildMethod: ScfgSamplesCheck.Check
+          buildMethod: Scfg.Maintenance.ScfgSamplesCheck.Check
           allowDirtyBuild: true   # the samples' copy is untracked
 
   linux-e2e:

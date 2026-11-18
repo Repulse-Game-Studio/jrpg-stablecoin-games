@@ -3,25 +3,24 @@
 (rpgmaker/src/mz/local_server.ts, RPG Maker MZ's desktop page) and the C# one
 (unity/Packages/com.repulse.scfg/Runtime/Desktop/LocalServer.cs, Unity's desktop page).
 
-The `godot` half (marked `godot_server`) needs a Godot 4.3+ binary in SCFG_GODOT and an imported
+The `godot` part (marked `godot_server`) needs a Godot 4.3+ binary in SCFG_GODOT and an imported
 project (`$SCFG_GODOT --headless --path godot --import`). Without one it skips; with
-SCFG_REQUIRE_GD=1 it fails instead. CI's godot-core job runs only this half, once per Godot
+SCFG_REQUIRE_GD=1 it fails instead. CI's godot-core job runs only this part, once per Godot
 version: `pytest tests/server_security -m godot_server`.
 
 Every test also runs against the C++ server of the Unreal core
 (unreal/Plugins/Scfg/Source/ScfgCore, LocalServer.h, through unreal/core-driver's
-scfg_server_driver): the `cpp` half (marked `cpp_server`, registered here: pyproject.toml is not
-touched) needs cmake 3.25+, a C++20 compiler and ninja or make (tests/integration/cpp_driver.py
+scfg_server_driver): the `cpp` part (marked `cpp_server`) needs cmake 3.25+, a C++20 compiler and
+ninja or make (tests/integration/cpp_driver.py
 builds the driver once per session into unreal/build/integration). Without them it skips; with
-SCFG_REQUIRE_CPP=1 it fails instead. It is deselected unless the `-m` expression names
-`cpp_server`; CI's cpp-core job runs it: `SCFG_REQUIRE_CPP=1 pytest tests/server_security -m
+SCFG_REQUIRE_CPP=1 it fails instead. pyproject's addopts deselect it; CI's cpp-core job runs it: `SCFG_REQUIRE_CPP=1 pytest tests/server_security -m
 cpp_server`.
 
-The `node` half needs Node 22.18+ on PATH and rpgmaker/node_modules (`cd rpgmaker && npm ci`).
-Without them it skips; with SCFG_REQUIRE_JS=1 it fails instead. The node half is marked
+The `node` part needs Node 22.18+ on PATH and rpgmaker/node_modules (`cd rpgmaker && npm ci`).
+Without them it skips; with SCFG_REQUIRE_JS=1 it fails instead. The node part is marked
 `node_server` and deselected by default; CI's rpgmaker-ui job runs it: `pytest -m node_server`.
 
-The `cs` half (marked `cs_server`) needs the .NET 8 SDK (`dotnet` on PATH, in $DOTNET_ROOT or in
+The `cs` part (marked `cs_server`) needs the .NET 8 SDK (`dotnet` on PATH, in $DOTNET_ROOT or in
 ~/.dotnet); the first cs test builds unity/server-driver (`dotnet build -c Release`). Without
 dotnet it skips; with SCFG_REQUIRE_CS=1 it fails instead (a failed build always fails). It runs in
 the default run; CI's cs-core job runs it alone: `pytest tests/server_security -m cs_server`.
@@ -142,10 +141,6 @@ def pytest_configure(config):
     """The default `-m` (pyproject addopts) deselects `node_server` tests, which have their own CI
     job. Naming this directory (or a file in it) on the command line, or SCFG_REQUIRE_JS=1,
     runs them; an explicit `-m` from the command line is left alone."""
-    # the `cpp_server` marker (pyproject.toml registers the others)
-    config.addinivalue_line(
-        "markers", "cpp_server: the C++ (Unreal core) half of tests/server_security (needs cmake and a "
-        "C++20 compiler); deselected unless -m names it: run with -m cpp_server")
     term = " and not node_server"
     if term not in (config.option.markexpr or "") or _explicit_markexpr(config):
         return
@@ -161,24 +156,13 @@ def pytest_configure(config):
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(config, items):
-    """Marks the `cpp` items `cpp_server`, then deselects them unless the `-m` expression names
-    `cpp_server` (pyproject's addopts cannot name a marker this conftest registers), so a plain
-    `pytest` never builds the C++ driver.
-
-    The mark is added here, not as `pytest.param(..., marks=pytest.mark.cpp_server)`: in a plain
-    run this conftest is imported during collection, before its pytest_configure has registered the
-    marker, so a mark made at import time warns (PytestUnknownMarkWarning) and fails collection
-    under --strict-markers. tryfirst: before pytest's own `-m` deselection reads the marks."""
+    """Marks the `cpp` items `cpp_server`, so pyproject's addopts (`and not cpp_server`) deselect
+    them and a plain `pytest` never builds the C++ driver. tryfirst: before pytest's own `-m`
+    deselection reads the marks."""
     for item in items:
         callspec = getattr(item, "callspec", None)
         if callspec is not None and callspec.params.get("make_server") == "cpp":
             item.add_marker("cpp_server")
-    if "cpp_server" in (config.option.markexpr or ""):
-        return
-    dropped = [item for item in items if item.get_closest_marker("cpp_server") is not None]
-    if dropped:
-        config.hook.pytest_deselected(items=dropped)
-        items[:] = [item for item in items if item.get_closest_marker("cpp_server") is None]
 
 
 def _cpp_errors(text):

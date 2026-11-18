@@ -14,22 +14,28 @@ name: release
 # editor builds, automation tests and e2e need Unreal Engine and run in unreal.yml (on a self-hosted runner), not here.
 # Neither editor workflow runs on a tag: before tagging, check that unity.yml and unreal.yml ran green on the tagged
 # commit, or run their suites locally (README.md, "Releasing").
+# The tests and the archives run in the build job, which can only read the repository; the release job, the only
+# one that may write to it, runs no repository code: it takes build's dist/ and publishes it with gh.
 
 on:
   push:
     tags: ["v*.*.*"]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -66,8 +72,10 @@ jobs:
           dotnet-version: 8.0.x
       - name: C# core and localhost server tests against the conformance vectors (test.yml does not run on tags)
         run: dotnet test unity/Scfg.sln -c Release
-      # The localhost checkout server security suite on every server, as test.yml's jobs run it (the uv run pytest
-      # above covers only the Python half: it deselects cpp_server and node_server, and ran before dotnet was set up).
+      # The localhost checkout server security suite on every server, as test.yml's jobs run it. The uv run pytest
+      # above ran the default: the Python part, and the C# part with the runner image's preinstalled dotnet (it skips
+      # without one); it skipped the Godot part (no SCFG_GODOT then) and deselected the Node and C++ parts. Each part
+      # but the Python one runs here on its own, failing rather than skipping when its toolchain is missing.
       - name: Localhost checkout server security suite, C# server (Unity)
         env:
           SCFG_REQUIRE_CS: "1"   # fails, rather than skips, without dotnet
@@ -82,18 +90,19 @@ jobs:
         run: uv run pytest tests/server_security -m node_server
       - name: Localhost checkout server security suite, GDScript server (Godot)
         env:
-          SCFG_REQUIRE_GD: "1"   # the Godot half fails, rather than skips, without a binary
+          SCFG_REQUIRE_GD: "1"   # the Godot part fails, rather than skips, without a binary
           SCFG_GODOT: /tmp/godot/Godot_v4.3-stable_linux.x86_64
         run: uv run pytest tests/server_security -m godot_server
 
       - name: Tag matches the plugin version
+        id: version
         run: |
           version=$(uv run python -c "import sys; sys.path.insert(0, 'plugin/game/python-packages'); from scfg_core import __version__; print(__version__)")
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
             echo "::error::Tag $GITHUB_REF_NAME does not match scfg_core.__version__ ($version)"
             exit 1
           fi
-          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Build the Unreal zips (one per engine version, 5.6, 5.7 and 5.8, and the showcase sample's)
         run: uv run python tools/package.py --engine unreal
 
@@ -103,15 +112,36 @@ jobs:
           uv run python tools/package.py --engine godot
           uv run python tools/package.py --engine rpgmaker
           uv run python tools/package.py --engine unity
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
 
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # gh release create
+    steps:
+      # Only for CHANGELOG.md and gh's repository; no credential is left in .git/config (gh uses GH_TOKEN).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
           # Only versions like 0.3.0rc1 are prereleases; GitHub's "latest" (and the jrpg.com page) skips those.
           prerelease=""
           case "$VERSION" in *[a-z]*) prerelease="--prerelease" ;; esac
-          # gh puts these lines above the generated notes (what changed since the last tag).
+          # gh puts these lines above the generated notes (what changed since the last tag). The tested versions are
+          # unreal.yml's engine (UE 5.8.4) and unity.yml's UNITY_VERSION (6000.6.9f1): change them together.
           cat > /tmp/notes.md <<NOTES
           Pick the archive for your engine: unzip a zip into your project folder; add the Unity \`.tgz\` in the Package Manager as it is, without unpacking it.
 

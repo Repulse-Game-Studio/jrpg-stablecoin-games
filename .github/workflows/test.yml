@@ -31,7 +31,7 @@ jobs:
         working-directory: rpgmaker
       - run: uv sync
       - run: uv run ruff check .
-      - run: uv run pytest   # server_security's Python quarter, and its C# one when the runner has dotnet (cs-core requires it); its Godot quarter skips here (godot-core runs it), rpgmaker_ui and node_server are deselected (rpgmaker-ui runs them)
+      - run: uv run pytest   # server_security's Python part, and its C# part with the runner image's preinstalled dotnet (cs-core requires it); its Godot part skips here (godot-core runs it); rpgmaker_ui and node_server are deselected (rpgmaker-ui runs them), and so is cpp_server (cpp-core runs it)
       - run: uv run python tools/gen_vectors.py --check   # committed conformance vectors are current
       - run: uv run python tools/sync_web_page.py --check   # the Godot addon's, the Unity package's and the Unreal plugin's copies of the checkout page match plugin/game/scfg/web
       - run: uv run python tools/check_unity_meta.py   # every file of the Unity package has its .meta (git-URL installs need them)
@@ -63,7 +63,7 @@ jobs:
         # the wrapper also requires the runner's "<n> passed, 0 failed" summary with n > 0:
         # Godot can exit 0 when run.gd itself fails to compile
         run: uv run --no-project python tools/run_godot_tests.py --godot /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64
-      - name: Localhost checkout server security suite, GDScript server (Python runs in unit, Node in rpgmaker-ui, C# in cs-core)
+      - name: Localhost checkout server security suite, GDScript server (Python runs in unit, Node in rpgmaker-ui, C# in cs-core, C++ in cpp-core)
         env:
           SCFG_REQUIRE_GD: "1"   # the Godot half fails, rather than skips, without a binary
           SCFG_GODOT: /tmp/godot/Godot_v${{ matrix.godot }}_linux.x86_64
