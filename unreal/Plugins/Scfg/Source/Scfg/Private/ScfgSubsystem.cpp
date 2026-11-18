@@ -120,7 +120,8 @@ void UScfgSubsystem::StartFacade(const FScfgFacadeOptions& Options, const UScfgS
 		if (Settings->HasRows())
 		{
 			Facade->GetReporter().Warning(TEXT("scfg: the SCFG settings (Project Settings > Plugins > SCFG) have chains or "
-				"items but no wallet, so they are not applied: set a wallet there, or configure from code."));
+				"items but no wallet, so they are not applied at start: set a wallet there, configure from code, or call "
+				"ConfigureWithSettings(Wallet) with a wallet supplied at runtime."));
 		}
 		return;
 	}
@@ -190,6 +191,37 @@ FString UScfgSubsystem::AddItem(const FString& ItemId, const FScfgItem& Item)
 {
 	FScfgFacade* F = Live(TEXT("AddItem()"));
 	return F ? ScfgGuard::ErrCode(F->AddItem(ItemId, Item)) : FString(TEXT("RuntimeError"));
+}
+
+FString UScfgSubsystem::ConfigureWithSettings(const FString& Wallet, const FString& SolanaWallet)
+{
+	return ApplySettingsWith(*GetDefault<UScfgSettings>(), Wallet, SolanaWallet);
+}
+
+FString UScfgSubsystem::ApplySettingsWith(const UScfgSettings& Settings, const FString& Wallet, const FString& SolanaWallet)
+{
+	for (const FScfgSettingsChain& Row : Settings.Chains)
+	{
+		if (FString Err = AddChain(Row.Key, Row.Chain); !Err.IsEmpty())
+		{
+			return Err;
+		}
+	}
+	FScfgOptions Options = Settings.Options;
+	Options.Wallet = Wallet.TrimStartAndEnd();
+	Options.SolanaWallet = SolanaWallet.TrimStartAndEnd();
+	if (FString Err = Configure(Options); !Err.IsEmpty())
+	{
+		return Err;
+	}
+	for (const FScfgSettingsItem& Row : Settings.Items)
+	{
+		if (FString Err = AddItem(Row.Id, Row.ToItem()); !Err.IsEmpty())
+		{
+			return Err;
+		}
+	}
+	return FString();
 }
 
 void UScfgSubsystem::Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, const FOnScfgPaid& OnPaid)

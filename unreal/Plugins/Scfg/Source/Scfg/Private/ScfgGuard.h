@@ -33,6 +33,10 @@ SCFG_API void OnGameThread(TFunction<void()> Fn);
 SCFG_API FString ErrCode(const scfg::Err& Error);
 // The same, "" for none.
 SCFG_API FString ErrCode(const TOptional<scfg::Err>& Error);
+// A ConfigError of the core whose message names Python's keywords (wallet.missing: "configure() needs wallet= ...",
+// chain.needs_evm_wallet) with Unreal's names instead (FScfgOptions' Wallet / SolanaWallet, the project settings'
+// fields); any other Err as it is. What Configure() and the settings' Validate() report.
+SCFG_API scfg::Err EngineSpelling(const scfg::Err& Error);
 
 // Failed "RuntimeError": a Pay that could not run (another thread, no running subsystem).
 SCFG_API FScfgPaymentResult PaymentNotRunning(

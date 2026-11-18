@@ -227,7 +227,6 @@ bool FScfgSettingsFieldsTest::RunTest(const FString& Parameters)
 		const TCHAR* Code;
 	};
 	const TArray<FCase> Cases = {
-		{TEXT("no wallet"), [](UScfgSettings& S) { S.Options.Wallet.Reset(); }, TEXT("wallet.missing")},
 		{TEXT("Wallet"), [](UScfgSettings& S) { S.Options.Wallet = TEXT("0x123"); }, TEXT("address.invalid")},
 		{TEXT("SolanaWallet"), [](UScfgSettings& S) { S.Options.SolanaWallet = TEXT("not base58 0OIl"); }, TEXT("solana_address.invalid")},
 		{TEXT("PreviousWallets"), [](UScfgSettings& S) { S.Options.PreviousWallets = {TEXT("0xnothex")}; }, TEXT("address.invalid")},
@@ -355,12 +354,18 @@ bool FScfgSettingsEveryProblemTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the chain and the configuration only"), Problems.Num(), 2);
 	TestTrue(TEXT("the configuration's"), Problems.Num() == 2 && Problems[1].Code == TEXT("address.invalid") &&
 		!Problems[1].Message.StartsWith(TEXT("item")));
-	// Empty settings: the core says wallet.missing, the verdict that they are not applied.
+	// Empty settings (testbed F6): no wallet is the opt-out, not a problem; the verdict says they are valid, not
+	// applied at start, and on testnet. The rest is still checked (with stand-in wallets).
 	const TStrongObjectPtr<UScfgSettings> Empty = Blank();
 	Problems = Empty->Validate();
-	TestTrue(TEXT("empty: wallet.missing"), Problems.Num() == 1 && Problems[0].Code == TEXT("wallet.missing"));
+	TestEqual(TEXT("empty: no problem"), Problems.Num(), 0);
 	const TArray<FString> Verdict = Empty->Verdict(Problems);
-	TestTrue(TEXT("and not applied"), Verdict.Num() == 2 && Verdict[1].Contains(TEXT("not applied")));
+	TestTrue(TEXT("valid, not applied, testnet"), Verdict.Num() == 3 && Verdict[0].StartsWith(TEXT("Valid: ")) &&
+		Verdict[1].Contains(TEXT("not applied")) && Verdict[2].StartsWith(TEXT("Testnet is on")));
+	Empty->Options.Chains = {TEXT("nope")};
+	Problems = Empty->Validate();
+	TestTrue(TEXT("empty: the rest is still checked"), Problems.Num() == 1 && Problems[0].Code == TEXT("chains.unknown"));
+	Empty->Options.Chains.Reset();
 	return true;
 }
 
@@ -516,7 +521,8 @@ bool FScfgSettingsEmptyTest::RunTest(const FString& Parameters)
 		TestNull(TEXT("a blank wallet is no wallet"), G.F().GetConfig());
 		SameLines(*this, TEXT("rows without a wallet: one warning"), W.Reports().Warnings,
 			{TEXT("scfg: the SCFG settings (Project Settings > Plugins > SCFG) have chains or items but no wallet, so they "
-				  "are not applied: set a wallet there, or configure from code.")});
+				  "are not applied at start: set a wallet there, configure from code, or call ConfigureWithSettings(Wallet) "
+				  "with a wallet supplied at runtime.")});
 		TestEqual(TEXT("no error"), W.Reports().Errors.Num(), 0);
 		TestEqual(TEXT("the game's own chain is not refused"), G.Scfg->AddChain(TEXT("myl2"), MyL2()), FString());
 	}
@@ -525,6 +531,43 @@ bool FScfgSettingsEmptyTest::RunTest(const FString& Parameters)
 		FGame G(W, nullptr);
 		TestNull(TEXT("no settings object (the tests' default)"), G.F().GetConfig());
 	}
+	return true;
+}
+
+SCFG_SETTINGS_TEST(FScfgSettingsRuntimeWalletTest, "ARuntimeWalletAppliesTheSettingsChainsOptionsAndItems")
+
+// Testbed F7: settings without a wallet (not applied at start) and a wallet supplied at runtime: ApplySettingsWith
+// (ConfigureWithSettings for the project's settings) runs their chains, options and items with that wallet.
+bool FScfgSettingsRuntimeWalletTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSettingsTests;
+	FWorld W;
+	const TStrongObjectPtr<UScfgSettings> S = Make([](UScfgSettings& E) { E.Options.Wallet.Reset(); });
+	FGame G(W, S.Get());
+	TestNull(TEXT("not applied at start"), G.F().GetConfig());
+	TestEqual(TEXT("applied with the runtime wallet"),
+		G.Scfg->ApplySettingsWith(*S, UTF8_TO_TCHAR(kDev), FString()), FString());
+	if (TestNotNull(TEXT("configured"), G.F().GetConfig()))
+	{
+		TestEqual(TEXT("that wallet"), ScfgString::FromUtf8(G.F().GetConfig()->wallet.value_or("")),
+			FString(UTF8_TO_TCHAR(kDev)));
+	}
+	TestEqual(TEXT("the settings' item"), G.F().ItemTitle(S->Items[0].Id), S->Items[0].Title);
+	TestEqual(TEXT("no error"), W.Reports().Errors.Num(), 0);
+	return true;
+}
+
+SCFG_SETTINGS_TEST(FScfgSettingsWalletMessageTest, "TheMissingWalletNamesUnrealsFields")
+
+// Testbed U7 in Unreal: wallet.missing names Options.Wallet / SolanaWallet, not the core's Python keywords.
+bool FScfgSettingsWalletMessageTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSettingsTests;
+	FWorld W;
+	FGame G(W, nullptr);
+	TestEqual(TEXT("the code"), G.Scfg->Configure(FScfgOptions()), FString(TEXT("wallet.missing")));
+	TestTrue(TEXT("Unreal's names"), W.Reports().Errors.Num() == 1 &&
+		W.Reports().Errors[0].Contains(TEXT("Options.SolanaWallet")) && !W.Reports().Errors[0].Contains(TEXT("wallet=")));
 	return true;
 }
 
@@ -761,8 +804,9 @@ bool FScfgSettingsMessageLogTest::RunTest(const FString& Parameters)
 	const TStrongObjectPtr<UScfgSettings> Empty = Blank();
 	ScfgEditor::ValidateSettings(*Empty, /*bNotify=*/false);
 	const TArray<FString> EmptyGot = Messages();
-	TestTrue(TEXT("empty: the core's wallet.missing and the note"), EmptyGot.Num() == 2 &&
-		EmptyGot[0].StartsWith(TEXT("error wallet.missing: ")) && EmptyGot[1].StartsWith(TEXT("warning No wallet is set")));
+	TestTrue(TEXT("empty: valid, then the not-applied note and the testnet reminder (no wallet.missing)"),
+		EmptyGot.Num() == 3 && EmptyGot[0].StartsWith(TEXT("info Valid: ")) &&
+		EmptyGot[1].StartsWith(TEXT("warning No wallet is set")) && EmptyGot[2].StartsWith(TEXT("warning Testnet is on")));
 	// A logo outside Content/ (in the project, so it validates): a warning line after the valid one.
 	const FString Loose = FPaths::ProjectDir() / TEXT("Saved/ScfgTestsLooseLogo.png");
 	WriteFile(Loose, std::string("\x89PNG\r\n\x1a\n", 8));

@@ -53,6 +53,25 @@ FString ErrCode(const TOptional<scfg::Err>& Error)
 	return Error.IsSet() ? ErrCode(*Error) : FString();
 }
 
+scfg::Err EngineSpelling(const scfg::Err& Error)
+{
+	scfg::Err Out = Error;
+	if (Error.code == "wallet.missing")
+	{
+		Out.message = "Configure() needs Options.Wallet (an EVM 0x address) and/or Options.SolanaWallet (in the "
+					  "project settings: Plugins > SCFG > Wallet / Solana Wallet)";
+	}
+	else if (Error.code == "chain.needs_evm_wallet")
+	{
+		const std::string Python = "needs wallet= (an EVM 0x address)";
+		if (const size_t At = Out.message.find(Python); At != std::string::npos)
+		{
+			Out.message.replace(At, Python.size(), "needs Options.Wallet (an EVM 0x address)");
+		}
+	}
+	return Out;
+}
+
 FScfgPaymentResult PaymentNotRunning(EScfgPayKind Kind, const FString& Item, const FString& Token)
 {
 	FScfgPaymentResult R;

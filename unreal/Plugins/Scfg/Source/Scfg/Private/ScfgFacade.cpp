@@ -375,7 +375,7 @@ TOptional<scfg::Err> FScfgFacade::Configure(const FScfgOptions& InOptions)
 		bReplacesSettings ? std::vector<scfg::config::CustomChain>() : CustomChains);
 	if (!Built.ok())
 	{
-		return Misuse(Built.err());
+		return Misuse(ScfgGuard::EngineSpelling(Built.err()));
 	}
 	scfg::config::Config Made = Built.take();
 	scfg::Result<FString> Logo = LogoFile(Options.ProjectDir, Made.logo);

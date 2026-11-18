@@ -26,7 +26,7 @@ FScfgSettingsProblem Problem(const scfg::Err& Error, const FString& Row)
 {
 	FScfgSettingsProblem P;
 	P.Code = ScfgGuard::ErrCode(Error);
-	P.Message = Row + ScfgString::FromUtf8(Error.message);
+	P.Message = Row + ScfgString::FromUtf8(ScfgGuard::EngineSpelling(Error).message);
 	return P;
 }
 
@@ -83,7 +83,15 @@ TArray<FScfgSettingsProblem> UScfgSettings::Validate(const FString& ProjectDir) 
 		}
 		Built.emplace_back(Chain.take());
 	}
-	scfg::Result<scfg::config::Config> Config = scfg::config::build_config(ScfgConvert::ConfigKwargs(Options), std::move(Built));
+	// No wallet is the opt-out (not applied at start), not a problem: the rest is checked with stand-in wallets (the
+	// EIP-55 spec's example address, an on-curve example key), which are never applied.
+	FScfgOptions Checked = Options;
+	if (IsEmpty())
+	{
+		Checked.Wallet = TEXT("0x52908400098527886E0F7030069857D2E4169EE7");
+		Checked.SolanaWallet = TEXT("7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU");
+	}
+	scfg::Result<scfg::config::Config> Config = scfg::config::build_config(ScfgConvert::ConfigKwargs(Checked), std::move(Built));
 	if (!Config.ok())
 	{
 		Problems.Add(Problem(Config.err(), FString()));
@@ -187,9 +195,10 @@ TArray<FString> UScfgSettings::Verdict(const TArray<FScfgSettingsProblem>& Probl
 	Lines.Append(InWarnings);
 	if (IsEmpty())
 	{
-		Lines.Add(TEXT("No wallet is set, so these settings are not applied: the game configures SCFG from code."));
+		Lines.Add(TEXT("No wallet is set, so these settings are not applied at start: the game configures SCFG from "
+			"code, or calls ConfigureWithSettings(Wallet) to apply them with a wallet supplied at runtime."));
 	}
-	else if (Options.bTestnet)
+	if (Options.bTestnet)
 	{
 		Lines.Add(TEXT("Testnet is on: players pay with test tokens. Turn it off for the release."));
 	}

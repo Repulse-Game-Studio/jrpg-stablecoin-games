@@ -96,6 +96,15 @@ public:
 	// Declare a paid unlock (after Configure()).
 	UFUNCTION(BlueprintCallable, Category = "SCFG")
 	FString AddItem(const FString& ItemId, const FScfgItem& Item);
+	// The project settings (Project Settings > Plugins > SCFG: their chains, options and items) with the payout wallets
+	// given here instead of theirs: a wallet supplied at runtime (one per build, or read from a file). An empty wallet
+	// is not set; at least one is required (wallet.missing). Runs AddChain() for each chain row, Configure(), then
+	// AddItem() for each item row, as code calls (the first error code stops it), so call it when Configure() may be
+	// called: before payments start (the game instance's Init() after Super::Init(), or the first level's BeginPlay).
+	UFUNCTION(BlueprintCallable, Category = "SCFG")
+	FString ConfigureWithSettings(const FString& Wallet, const FString& SolanaWallet);
+	// ConfigureWithSettings() with these settings instead of the project's (C++ only).
+	FString ApplySettingsWith(const UScfgSettings& Settings, const FString& Wallet, const FString& SolanaWallet);
 
 	// --- payments ---
 
