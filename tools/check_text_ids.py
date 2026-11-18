@@ -400,7 +400,10 @@ def _main_with_unreal(engine: str) -> int:
         print(line, file=sys.stderr)
     if found:
         return 1
-    print(f"{'RM and Unreal' if engine == 'all' else 'Unreal'} text ids are consistent")
+    if engine == "all":
+        print("RPG Maker text ids are consistent with the shared messages, Godot, Unity and Unreal")
+    else:
+        print("Unreal text ids are consistent")
     return 0
 
 
@@ -422,7 +425,7 @@ def main(argv: list[str] | None = None) -> int:
         print(line, file=sys.stderr)
     if found:
         return 1
-    print("RM and Unity text ids are consistent")
+    print("RPG Maker text ids are consistent with the shared messages, Godot and Unity")
     return 0
 
 if __name__ == "__main__":
