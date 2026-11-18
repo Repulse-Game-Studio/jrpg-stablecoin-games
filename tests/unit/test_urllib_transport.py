@@ -90,3 +90,37 @@ def test_an_overlong_json_integer_is_invalid_json(base_url, interpreter):
     with pytest.raises(TransportError) as info:
         UrllibTransport().post_json(base_url + "/400-long-int", {"id": 1, "method": "x"}, 5)
     assert info.value.status == 400
+
+
+def test_a_name_lookup_that_never_answers_is_bounded_by_the_timeout(monkeypatch):
+    """With a DNS server that never answers, getaddrinfo waits for the resolver's own timeout
+    (about 20 s per endpoint measured in the Unity testbed): the request's timeout must cover it."""
+    import socket
+    import threading
+    import time
+
+    from scfg_core.rpc import TransportError, UrllibTransport
+
+    release = threading.Event()
+
+    def stuck(*args, **kwargs):
+        release.wait(30)
+        raise OSError("released")
+    monkeypatch.setattr(socket, "getaddrinfo", stuck)
+    t = time.monotonic()
+    try:
+        with pytest.raises(TransportError, match="timed out resolving rpc.example"):
+            UrllibTransport().post_json("https://rpc.example/", {"id": 1}, 0.3)
+        assert time.monotonic() - t < 2.0
+    finally:
+        release.set()
+
+
+def test_a_literal_address_needs_no_lookup(monkeypatch):
+    import socket
+
+    from scfg_core.rpc import resolve_within
+
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: pytest.fail("looked up"))
+    resolve_within("http://127.0.0.1:8545/", 0.1)
+    resolve_within("http://[::1]:8545/", 0.1)

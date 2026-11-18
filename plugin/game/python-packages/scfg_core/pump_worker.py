@@ -6,7 +6,9 @@ current job until it waits on a request that is still in flight, then returns at
 Requests go out through a bridge: in the game, web_page.WebPage, which uses the browser's
 fetch(). Jobs never interleave: a command or a tick runs to completion before the next
 starts, exactly like the desktop Worker's single thread. The interface matches
-worker.Worker, so the rest of the plugin can't tell them apart.
+worker.Worker, so the rest of the plugin can't tell them apart. A job the caller abandoned
+(worker.abandon) stops waiting for its request in flight at the next pump, and is refused any
+further one, with worker.Abandoned.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from concurrent.futures import Future
 from typing import Callable
 
 from .coio import TransportError, response_from_envelope
+from .worker import Abandoned, abandoned
 
 MAX_STEPS_PER_PUMP = 50  # bounds the work done in one frame
 
@@ -91,6 +94,11 @@ class PumpWorker:
                     return
                 self._step()
                 continue
+            if abandoned(self._job_future):
+                # stop waiting: the fetch's late answer is never polled again (another id)
+                self._in_flight = None
+                self._step(throw=Abandoned("abandoned while its request was in flight"))
+                continue
             try:
                 envelope = self.bridge.poll(self._in_flight)
                 if envelope is None:
@@ -145,6 +153,9 @@ class PumpWorker:
             return
         except BaseException as e:
             self._finish(error=e)
+            return
+        if abandoned(self._job_future):
+            self._step(throw=Abandoned(f"abandoned before its request to {request.url}"))
             return
         try:
             self._in_flight = self.bridge.start(request.url, json.dumps(request.payload),

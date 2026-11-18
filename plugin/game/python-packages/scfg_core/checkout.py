@@ -28,6 +28,7 @@ from .paylinks import ONRAMP_EXACT_UNITS, eip681_transfer_uri, onramp_amount, on
 from .payments import MIN_TIP, TIP_PRESETS, PaymentSpec
 from .rpc import RpcUnavailable
 from .solana.paylinks import solana_pay_uri
+from .worker import abandon
 
 FINAL_STATES = ("paid", "underpaid", "expired")
 # Errors that judge the reported transaction (the hint) and drop it.
@@ -550,6 +551,7 @@ class CheckoutController:
         fut, self._future = self._future, None
         if fut is None:
             return
+        abandon(fut)  # a queued start never runs; a running one makes no further request
         submit = self.submit
 
         def discard(f) -> None:

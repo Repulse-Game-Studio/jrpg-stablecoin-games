@@ -9,7 +9,7 @@ from scfg_core.config import add_item, build_config
 from scfg_core.engine import Engine, Snapshot
 from scfg_core.pump_worker import PumpWorker
 from scfg_core.watcher import StepOutcome
-from scfg_core.worker import Worker
+from scfg_core.worker import Abandoned, Worker, abandon
 
 from fakes import FakeClock, FakeTransport, transfer_log
 
@@ -333,3 +333,20 @@ def test_unreachable_endpoints_surface_network_unavailable():
     w.wake()
     w.pump()                          # returns: the game never waits on the network
     assert [o.error for o in w.drain_outcomes()] == ["network_unavailable"]
+
+
+def test_an_abandoned_job_stops_waiting_for_its_request_and_the_next_one_starts():
+    engine, bridge, w, _ = make()
+    first = w.submit(lambda e: e.command("start_a"))
+    w.pump()
+    assert bridge.last() == (1, "start_a")
+    second = w.submit(lambda e: e.command("start_b"))
+    abandon(first)                              # the player picked another network
+    w.pump()
+    with pytest.raises(Abandoned):
+        first.result(timeout=0)
+    assert bridge.last() == (2, "start_b")      # not behind the fetch still in flight
+    bridge.answer(1, result="late")             # the abandoned fetch's late answer is ignored
+    bridge.answer(2, result="b")
+    w.pump()
+    assert second.result(timeout=0) == "b"

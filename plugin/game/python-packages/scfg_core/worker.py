@@ -7,6 +7,12 @@ The Ren'Py main thread never touches the Engine directly. It:
 So no locks are needed, and slow RPC calls never freeze the game.
 A command may return a cooperative generator (Engine.*_co); the Worker drives it on its
 thread.
+
+Commands run one at a time, so a session start the player moved away from (another network,
+another amount, Cancel) would hold up the start that replaced it until its RPC requests ran out.
+``abandon(fut)`` prevents that: a job that has not started is cancelled, and a running one is
+refused its next request with ``Abandoned`` (not a TransportError: no endpoint cools down), so it
+ends after the request in flight at most.
 """
 
 from __future__ import annotations
@@ -16,6 +22,37 @@ import queue
 import threading
 from concurrent.futures import Future
 from typing import Callable
+
+_ABANDONED = "_scfg_abandoned"
+
+
+class Abandoned(Exception):
+    """Raised into a job the caller abandoned, at its next RPC request."""
+
+
+def abandon(fut: Future) -> None:
+    """Stop a job the caller no longer wants: cancelled if it has not started, else refused its
+    next RPC request (see the module docstring). Its done callbacks still run when it ends."""
+    if not fut.cancel():
+        setattr(fut, _ABANDONED, True)
+
+
+def abandoned(fut) -> bool:
+    """Whether abandon() was called on a job that was already running (False for None)."""
+    return fut is not None and getattr(fut, _ABANDONED, False)
+
+
+class _Refusing:
+    """The engine's transport for one job: refuses requests once the job was abandoned."""
+
+    def __init__(self, transport, fut: Future):
+        self._transport = transport
+        self._fut = fut
+
+    def post_json(self, url: str, payload: dict, timeout: float):
+        if abandoned(self._fut):
+            raise Abandoned(f"abandoned before its request to {url}")
+        return self._transport.post_json(url, payload, timeout)
 
 
 class Worker:
@@ -61,7 +98,8 @@ class Worker:
             try:
                 result = fn(self.engine)
                 if inspect.isgenerator(result):
-                    result = self.engine.run(result)
+                    result = self.engine.run(
+                        result, _Refusing(getattr(self.engine, "transport", None), fut))
                 fut.set_result(result)
             except BaseException as e:  # delivered to the caller through the Future
                 fut.set_exception(e)

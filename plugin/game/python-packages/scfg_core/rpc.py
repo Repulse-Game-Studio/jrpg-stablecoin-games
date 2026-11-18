@@ -13,11 +13,15 @@ network itself.
 
 from __future__ import annotations
 
+import ipaddress
 import itertools
 import json
 import re
+import socket
+import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Callable
@@ -103,12 +107,44 @@ def _ssl_context() -> ssl.SSLContext:
         return ssl.create_default_context()
 
 
+def resolve_within(url: str, timeout: float) -> None:
+    """Resolve the url's host, giving up after ``timeout`` seconds (TransportError). The socket
+    timeout urlopen gets covers the connection and each read, not the name lookup: with a DNS
+    server that never answers, getaddrinfo waits for the resolver's own timeout (about 20 s per
+    endpoint measured), far past ``timeout``. The lookup runs on a daemon thread; urlopen's own
+    lookup that follows is answered from the resolver's cache."""
+    host = urllib.parse.urlsplit(url).hostname
+    if not host:
+        return
+    try:
+        ipaddress.ip_address(host)
+        return  # a literal address: nothing to resolve
+    except ValueError:
+        pass
+    done: dict = {}
+
+    def lookup() -> None:
+        try:
+            socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+        except OSError as e:
+            done["error"] = e
+
+    thread = threading.Thread(target=lookup, name="scfg-dns", daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        raise TransportError(f"timed out resolving {host} after {timeout:g}s")
+    if "error" in done:
+        raise TransportError(str(done["error"]))
+
+
 class UrllibTransport:
     def __init__(self, user_agent: str = "scfg/0.1"):
         self._ctx = _ssl_context()
         self._ua = user_agent
 
     def post_json(self, url: str, payload: dict, timeout: float):
+        resolve_within(url, timeout)
         body = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=body, method="POST", headers={
             "Content-Type": "application/json", "User-Agent": self._ua})

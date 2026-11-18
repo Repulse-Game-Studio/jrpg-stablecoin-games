@@ -96,9 +96,10 @@ class Engine:
 
     # --- cooperative jobs -------------------------------------------------------
 
-    def run(self, gen):
-        """Drive a cooperative job to completion with this Engine's transport."""
-        return run_sync(gen, self.transport)
+    def run(self, gen, transport=None):
+        """Drive a cooperative job to completion with this Engine's transport (or `transport`,
+        which the Worker uses to refuse an abandoned job's requests)."""
+        return run_sync(gen, transport if transport is not None else self.transport)
 
     # --- payments ---------------------------------------------------------------
 

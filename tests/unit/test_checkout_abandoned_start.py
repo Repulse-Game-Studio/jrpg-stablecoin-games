@@ -30,6 +30,8 @@ class DeferredSubmitter:
     def run(self):
         while self.queue:
             fn, fut = self.queue.pop(0)
+            if not fut.set_running_or_notify_cancel():  # cancelled while queued, as Worker skips it
+                continue
             try:
                 result = fn(self.engine)
                 if inspect.isgenerator(result):
@@ -92,8 +94,32 @@ def test_cancel_while_starting_leaves_no_session_to_expire():
 def test_a_failed_abandoned_start_needs_no_discard():
     ctl, engine, submit, _ = setup()
     ctl.choose_network("arbitrum")
-    ctl.cancel()
     fn, fut = submit.queue.pop(0)
+    assert fut.set_running_or_notify_cancel()  # the start is running when the player cancels
+    ctl.cancel()
     fut.set_exception(RuntimeError("rpc down"))
     submit.run()
     assert engine.pending == {}
+
+
+def test_a_superseded_start_that_has_not_run_is_cancelled_and_never_runs():
+    ctl, engine, submit, _ = setup()
+    ctl.choose_network("arbitrum")
+    first = submit.queue[0][1]
+    ctl.choose_network("base")
+    assert first.cancelled()  # the new pick does not queue behind it
+    submit.run()
+    ctl.poll()
+    assert ctl.state == "waiting" and ctl.chain_key == "base"
+    assert submit.queue == []  # nothing ran for arbitrum, so nothing is left to discard
+    assert [r["chain"] for r in engine.pending.values()] == ["base"]
+
+
+def test_a_running_superseded_start_is_marked_abandoned():
+    from scfg_core.worker import abandoned
+    ctl, _engine, submit, _ = setup()
+    ctl.choose_network("arbitrum")
+    fn, fut = submit.queue.pop(0)
+    assert fut.set_running_or_notify_cancel()
+    ctl.choose_network("base")
+    assert not fut.cancelled() and abandoned(fut)  # its next RPC request is refused (test_worker.py)
