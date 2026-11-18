@@ -14,8 +14,9 @@
  *     resolve_within): Node's request timeout starts only once the socket is connecting, so a DNS
  *     server that never answers held a request far longer (measured: Node's own 5 s, the
  *     Unity testbed's resolver about 20 s). That timer runs from the request to its socket's
- *     connect, or stops at once on a kept-alive socket (connected already); its failure carries
- *     the code EAI_AGAIN, a DNS failure, which THE FALLBACK below retries;
+ *     connect, or stops at once on a kept-alive socket (connected already); with a `fallback` it
+ *     is half of `timeout` (the fallback gets the rest), else all of it. Its failure carries the
+ *     code EAI_AGAIN, a DNS failure, which THE FALLBACK below retries;
  *   - a 2xx answer is decoded as UTF-8 JSON, else TransportError("invalid JSON response") (JSON as
  *     the core's Python reads it, pystr.ts jsonLoads: an integer literal of more than 4300 digits
  *     is not JSON);
@@ -40,6 +41,12 @@
  * the request's. That failure's message ends with Node's code ("Failed to fetch (Node's https
  * failed first: CERT_HAS_EXPIRED)") and its `cause` is the fallback's own error. Our own read
  * timeout ("timed out") is not retried: it would double the wait on a server that is only slow.
+ * The retry shares the request's `timeout`, never adds to it (review V2; Ren'Py counts its lookup
+ * inside the request's timeout too): the fallback is given what is left of `timeout` since the
+ * request began, so a lookup that never answers (EAI_AGAIN after half of `timeout`) and a
+ * fallback that hangs too end together at `timeout`, and a session start on a chain whose
+ * endpoints all do so still fails within the RpcClient's 15 s (CALL_BUDGET). With less than
+ * FALLBACK_FLOOR left the fallback is not asked: the request fails with Node's own failure.
  *
  * Node APIs used are all in Node 8 or older (`request(options, callback)`, req.on("error"),
  * setTimeout, destroy, end(string), res.statusCode, res.on("data" | "end" | "error" | "aborted"));
@@ -63,7 +70,15 @@ export interface NodeTransportOptions {
   fallback?: Transport | null;
   /** The most bytes of an answer that are read. Default: MAX_RESPONSE_BYTES. */
   max_response_bytes?: number;
+  /** Seconds, monotonic: what is left of a request's timeout for the fallback. Default: performance.now(). */
+  clock?: () => number;
 }
+
+/** The least of a request's timeout the fallback is asked with (see THE FALLBACK in the header). */
+export const FALLBACK_FLOOR = 0.25;
+
+const monotonic = (): number => (typeof performance !== "undefined" && typeof performance.now === "function"
+  ? performance.now() : Date.now()) / 1000;
 
 /** Node's certificate / TLS-trust failures (the frozen CA bundle). */
 export const TRUST_CODES: ReadonlySet<string> = new Set([
@@ -117,6 +132,7 @@ export class NodeHttpsTransport implements Transport {
   private readonly _http: NodeHttpModule | null;
   private readonly _ua: string;
   private readonly _maxBytes: number;
+  private readonly _clock: () => number;
   /** The transport a trust or proxy failure is retried through, or null (see the header). */
   readonly fallback: Transport | null;
 
@@ -128,24 +144,31 @@ export class NodeHttpsTransport implements Transport {
     this._http = opts.http && typeof opts.http.request === "function" ? opts.http : null;
     this._ua = opts.user_agent ?? "scfg/0.1";
     this._maxBytes = opts.max_response_bytes ?? MAX_RESPONSE_BYTES;
+    this._clock = opts.clock ?? monotonic;
     this.fallback = opts.fallback && typeof opts.fallback.postJson === "function" ? opts.fallback : null;
   }
 
   postJson(url: string, payload: object, timeout: number, cancel?: Cancel): Promise<unknown> {
-    const direct = this._exchange(url, payload, timeout, cancel).then(([status, raw]) => decode(status, raw));
     const fallback = this.fallback;
+    const started = this._clock();
+    // with a fallback the lookup gets half of `timeout`, leaving the fallback the rest (header)
+    const lookup = fallback === null ? timeout : timeout / 2;
+    const direct = this._exchange(url, payload, timeout, lookup, cancel).then(([status, raw]) => decode(status, raw));
     if (fallback === null) return direct;
     return direct.catch((e: unknown) => {
       if (!trustOrProxyFailure(e) || cancel?.cancelled) throw e;
+      // the retry shares `timeout` (header): too little left of it, and Node's failure is the answer
+      const left = timeout - (this._clock() - started);
+      if (!(left >= FALLBACK_FLOOR)) throw e;
       // once; its answer or failure is the request's, a failure naming why Node's went first
-      return fallback.postJson(url, payload, timeout, cancel).catch((f: unknown) => {
+      return fallback.postJson(url, payload, left, cancel).catch((f: unknown) => {
         throw afterNode(f, e as TransportError);
       });
     });
   }
 
   /** [status, body bytes] of one POST, or a TransportError. */
-  private _exchange(url: string, payload: object, timeout: number, cancel?: Cancel): Promise<[number, Uint8Array]> {
+  private _exchange(url: string, payload: object, timeout: number, lookup: number, cancel?: Cancel): Promise<[number, Uint8Array]> {
     return new Promise((resolve, reject) => {
       if (cancel?.cancelled) {
         reject(new TransportError("cancelled"));
@@ -239,14 +262,15 @@ export class NodeHttpsTransport implements Transport {
           }
         });
         req.on("error", (e: unknown) => fail(messageOf(e), codeOf(e)));
-        // The name lookup has no socket timer yet: give it (and the connect) `timeout` of its own.
-        // It is a DNS failure (EAI_AGAIN), so with `fallback` the request goes once more through
-        // it, as a name Node cannot resolve does: behind a proxy only the fallback's fetch reaches
-        // the RPC, and a request must not fail on a lookup before that client has tried.
+        // The name lookup has no socket timer yet: give it (and the connect) `lookup` of its own
+        // (`timeout`, or half of it with a fallback). It is a DNS failure (EAI_AGAIN), so with
+        // `fallback` the request goes once more through it, with the rest of `timeout`, as a name
+        // Node cannot resolve does: behind a proxy only the fallback's fetch reaches the RPC, and
+        // a request must not fail on a lookup before that client has tried.
         lookupTimer = setTimeout(() => {
           fail(`timed out resolving ${target.hostname}`, "EAI_AGAIN");
           destroyQuietly();
-        }, Math.max(1, timeout * 1000));
+        }, Math.max(1, lookup * 1000));
         req.on("socket", (socket: any) => {
           // A kept-alive socket from the agent's pool is connected already and never emits
           // "connect" (review T4): stop the timer at once, else it would bound the whole exchange.

@@ -18,6 +18,7 @@
  */
 import { asUnits, unitsToDecimal, type Units } from "./amounts.ts";
 import { logSource, parseTransfer, type Chain } from "./chains.ts";
+import { Abandoned } from "./coio.ts";
 import type { Dec } from "./decimal.ts";
 import { ValueError } from "./errors.ts";
 import { TRANSFER_TOPIC, addressTopic, type TransferLog } from "./evm.ts";
@@ -263,8 +264,15 @@ export async function advance(
     return out;
   } catch (e) {
     if (e instanceof RpcUnavailable || e instanceof RpcError) {
-      out.error = "network_unavailable";
+      // A verdict on the hint from earlier in this step wins (backends/solana.ts): the hint is
+      // already cleared, and later steps are plain "waiting", so it would never be reported.
+      if (out.error === null) out.error = "network_unavailable";
       return out;
+    }
+    if (e instanceof Abandoned) {
+      // The tick yields to a command (worker.ts). A verdict on the hint reached earlier in this
+      // step is reported now, for the same reason; the rest of the step waits for the next tick.
+      if (out.error !== null) return out;
     }
     throw e;
   }

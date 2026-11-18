@@ -81,3 +81,41 @@ test("test_a_start_does_not_wait_behind_the_watching_of_pending_payments", async
     w.stop();
   }
 });
+
+/** The hinted transaction reverted (eth_getTransactionReceipt status 0x0); every other request
+ * hangs while `hang` is set. */
+class RevertingNode extends Node {
+  override async postJson(url: string, payload: any, timeout: number, cancel?: Cancel): Promise<unknown> {
+    if (payload.method === "eth_getTransactionReceipt") {
+      this.methods.push(payload.method);
+      const receipt = { status: "0x0", blockNumber: "0x3e8", logs: [] };
+      return { jsonrpc: "2.0", id: payload.id, result: receipt };
+    }
+    return super.postJson(url, payload, timeout, cancel);
+  }
+}
+
+test("test_a_hint_verdict_reached_before_the_tick_yields_is_reported", async () => {
+  // Review V1: the tick judged the hint (reverted) and cleared it, then waits on its next
+  // request; a command makes it yield. The verdict is still reported, not lost with the step.
+  const cfg = buildConfig({ wallet: DEV, chains: ["base"], testnet: true });
+  addItem(cfg, "chapter2", { code: 37, price: "4.99", token: "USDC", title: "Chapter 2" });
+  const node = new RevertingNode();
+  const engine = new Engine(cfg, { transport: node, clock: () => 1700000000 });
+  const sid = (await engine.startSession("unlock", "base", { item: "chapter2" }))["id"] as string;
+  const tx = "0x" + "ab".repeat(32);
+  engine.reportHint(sid, tx);
+  const w = new Worker(engine, { interval: () => 60 });
+  node.hang = true;
+  w.start();
+  try {
+    await within(node.hung, 5000, "the tick went on to its next request after the verdict");
+    assert.equal(engine.pending[sid]["hint_tx"], null, "the hint is cleared already");
+    await within(w.submit(() => "the player's command").promise, 5000, "the command never ran");
+    const outcomes = w.drainOutcomes();
+    assert.deepEqual(outcomes.map((o) => [o.session_id, o.error, o.hint_tx]), [[sid, "tx_reverted", tx]]);
+  } finally {
+    node.release();
+    w.stop();
+  }
+});

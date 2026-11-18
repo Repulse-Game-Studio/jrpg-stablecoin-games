@@ -8,7 +8,7 @@ import { FakeChain } from "../../../test/chain_fakes.ts";
 import { FakeSolanaChain, pubkey, sig } from "../../../test/solana_fakes.ts";
 import { asUnits } from "../amounts.ts";
 import { MAINNET, makeToken, type Chain } from "../chains.ts";
-import type { Transport } from "../coio.ts";
+import { Abandoned, type Transport } from "../coio.ts";
 import { addItem, buildConfig } from "../config.ts";
 import { Dec } from "../decimal.ts";
 import { InvalidOperation, ValueError } from "../errors.ts";
@@ -690,6 +690,19 @@ for (const failure of ["unavailable", "rpc_error"]) {
     assert.deepEqual([out.status, out.error], ["waiting", "network_unavailable"]);
   });
 }
+
+test("test_hint_expiry_is_reported_when_the_tick_yields_later_in_the_step", async () => {
+  // Review V1 (port-only check): the reference lookup is refused because a command came in
+  // (worker.ts). The verdict reached earlier in the step is reported; a step with no verdict
+  // yields (Abandoned) and is not mistaken for network trouble.
+  const s = setup();
+  hint(s, sig(1));
+  s.chain.getSignaturesForAddress = async () => { throw new Abandoned("the tick yields"); };
+  const out = await step(s, SOLANA_HINT_TIMEOUT_S);
+  assert.deepEqual([out.status, out.error, out.hint_tx], ["waiting", "tx_not_landed", sig(1)]);
+  assert.equal(s.pending[s.rec["id"]]["hint_tx"], null);
+  await assert.rejects(step(s, SOLANA_HINT_TIMEOUT_S + 1), Abandoned);
+});
 
 test("test_hint_verdicts_name_the_hint_they_are_about", async () => {
   const s = setup();

@@ -230,7 +230,8 @@ export class Engine {
    * Every session, one after another in pending order (never concurrently), then the expiries.
    * A tick whose requests are refused (Abandoned: a command the player waits on came in,
    * worker.ts) stops there: the sessions not stepped yet, and the one interrupted (as by a network
-   * failure), wait for the next tick; the outcomes so far are kept.
+   * failure), wait for the next tick; the outcomes so far are kept, and so is a hint verdict the
+   * interrupted step reached before it was refused (its backend returns it, review V1).
    */
   async tick(): Promise<StepOutcome[]> {
     const now = this.clock();

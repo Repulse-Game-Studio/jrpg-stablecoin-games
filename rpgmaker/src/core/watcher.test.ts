@@ -3,10 +3,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FakeChain, transferLog } from "../../test/chain_fakes.ts";
 import { MAINNET, type Chain } from "./chains.ts";
+import { Abandoned } from "./coio.ts";
 import { Dec } from "./decimal.ts";
 import { TRANSFER_TOPIC, addressTopic } from "./evm.ts";
 import type { Item } from "./models.ts";
 import { receiptKey } from "./receipts.ts";
+import { RpcUnavailable } from "./rpc.ts";
 import { KeyError, ValueError } from "./errors.ts";
 import { HINT_TIMEOUT_S, SCAN_HORIZON_S, createSession, setHint, type CreateSessionArgs } from "./sessions.ts";
 import { MAX_SCAN_CALLS, SCAN_STEP_BLOCKS, advance, minAmount, resultFromMatch } from "./watcher.ts";
@@ -176,6 +178,34 @@ test("test_hint_reverted", async () => {
   assert.equal(out.error, "tx_reverted");
   assert.equal(s.rec.hint_tx, null);
   assert.equal(out.hint_tx, TX); // names the hint judged, as on Solana
+});
+
+test("test_hint_verdict_survives_a_network_failure_later_in_the_step", async () => {
+  // Review V1 (the EVM twin of Solana's rule): the hint was judged and cleared, then the scan's
+  // eth_blockNumber fails. The verdict is reported, not replaced by network_unavailable: the next
+  // step has no hint, so it would never be.
+  const s = setup();
+  setHint(s.pending, s.rec.id, TX, 0.0);
+  s.chain.receipts[TX] = receiptWith([], "0x0");
+  s.chain.blockNumber = async () => { throw new RpcUnavailable("fake outage"); };
+  const out = await step(s);
+  assert.equal(out.error, "tx_reverted");
+  assert.equal(out.hint_tx, TX);
+  assert.equal(s.rec.hint_tx, null);
+});
+
+test("test_hint_verdict_is_reported_when_the_tick_yields_later_in_the_step", async () => {
+  // Review V1 (port-only check): the scan's eth_blockNumber is refused because a command came in
+  // (worker.ts). The verdict reached earlier in the step is reported; a step with no verdict
+  // yields (Abandoned) and is not mistaken for network trouble.
+  const s = setup();
+  setHint(s.pending, s.rec.id, TX, 0.0);
+  s.chain.receipts[TX] = receiptWith([], "0x0");
+  s.chain.blockNumber = async () => { throw new Abandoned("the tick yields"); };
+  const out = await step(s);
+  assert.deepEqual([out.status, out.error, out.hint_tx], ["waiting", "tx_reverted", TX]);
+  assert.equal(s.rec.hint_tx, null);
+  await assert.rejects(step(s), Abandoned);
 });
 
 test("test_hint_not_a_payment", async () => {

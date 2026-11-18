@@ -159,6 +159,21 @@ test("test_an_endpoint_is_not_asked_with_less_than_the_floor_left", async () => 
   assert.deepEqual(rpc.liveUrls(), [C]);
 });
 
+for (const [bTakes, asked] of [[3, true], [3.1, false]] as const) {
+  test(`test_the_floor_is_asked_at_exactly_min_attempt_left[${bTakes}-${asked}]`, async () => {
+    // Review V5, the floor's boundary: with exactly MIN_ATTEMPT left C is asked, with that
+    // timeout; with less (1.9 s) it is not, and stays live.
+    const C = "https://c.rpc";
+    const clock = new FakeClock();
+    const t = new TimedTransport(clock, { [B]: bTakes });
+    const rpc = new RpcClient([A, B, C], { transport: t, clock: clock.call });
+    await assert.rejects(rpc.blockNumber(), RpcUnavailable);
+    const expected: Array<[string, number]> = [[A, 10.0], [B, 5.0], ...(asked ? [[C, MIN_ATTEMPT] as [string, number]] : [])];
+    assert.deepEqual(t.calls, expected);
+    assert.equal(rpc.liveUrls().includes(C), !asked);
+  });
+}
+
 for (const [name, bad] of [["not_a_dict", "not a dict"], ["no_result_or_error", { jsonrpc: "2.0", id: 1 }]] as const) {
   test(`test_malformed_response_counts_as_endpoint_failure[${name}]`, async () => {
     const { c } = client({ [A]: () => bad, [B]: () => ok("0x2") });

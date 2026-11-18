@@ -19,7 +19,7 @@
 import { asUnits, unitsToDecimal } from "../amounts.ts";
 import { base64Encode } from "../bytes.ts";
 import type { Chain } from "../chains.ts";
-import type { Transport } from "../coio.ts";
+import { Abandoned, type Transport } from "../coio.ts";
 import { acceptedWalletsFor, type Config } from "../config.ts";
 import { IndexError, KeyError, ValueError } from "../errors.ts";
 import type { Item } from "../models.ts";
@@ -309,6 +309,11 @@ export class SolanaBackend implements Backend {
         // later steps are plain "waiting", so it would never be reported.
         if (out.error === null) out.error = "network_unavailable";
         return out;
+      }
+      if (e instanceof Abandoned) {
+        // The tick yields to a command (worker.ts): a verdict reached earlier in this step is
+        // reported now (as above); the rest of the step waits for the next tick.
+        if (out.error !== null) return out;
       }
       throw e;
     }

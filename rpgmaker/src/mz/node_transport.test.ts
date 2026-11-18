@@ -3,14 +3,15 @@
  * the twin of scfg_core.rpc.UrllibTransport's timeouts and error mapping. The Anvil run is
  * tests/integration/test_js_core.py::test_node_transport_against_anvil.
  */
-import { afterEach, test } from "node:test";
+import { afterEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import https from "node:https";
 import type { AddressInfo } from "node:net";
 import { TransportError } from "../core/index.ts";
 import { CancelSource } from "../core/coio.ts";
-import { NodeHttpsTransport } from "./node_transport.ts";
+import { RpcClient, RpcUnavailable, CALL_BUDGET } from "../core/rpc.ts";
+import { FALLBACK_FLOOR, NodeHttpsTransport } from "./node_transport.ts";
 
 interface Seen { method: string; url: string; headers: http.IncomingHttpHeaders; body: string }
 
@@ -318,7 +319,8 @@ test("aTlsTrustOrProxyFailureIsRetriedOnceThroughTheFallback", async () => {
   for (const code of codes) {
     const { module, requests } = failingModule({ code });
     const fallback = fallbackTransport({ result: "0x1" });
-    const t = new NodeHttpsTransport({ https: module, fallback });
+    // (a clock that stands still: the fallback is given all of the timeout, nothing being spent)
+    const t = new NodeHttpsTransport({ https: module, fallback, clock: () => 0 });
     const payload = { jsonrpc: "2.0", id: 1, method: "eth_blockNumber", params: [] };
     assert.deepEqual(await t.postJson("https://rpc.example/x", payload, 7), { result: "0x1" }, code);
     assert.deepEqual([requests(), fallback.calls], [1, [["https://rpc.example/x", payload, 7]]], `${code}: once through Node, once through fetch`);
@@ -443,31 +445,113 @@ test("aNameLookupThatNeverAnswersIsBoundedByTheTimeout", async () => {
   assert.ok(ms >= 150 && ms < 2000, `at the timeout (${ms} ms)`);
 });
 
-// Review T1 for Node: behind a proxy only the fallback (Chromium's fetch, which uses the OS proxy)
-// reaches the RPC. A lookup Node could not finish in time is a DNS failure, retried through it.
-test("aLookupThatTimesOutGoesOnceMoreThroughTheFallback", async () => {
-  const stuck = {
-    request() {
-      const req = {
-        on() { return req; },
-        setTimeout() { return req; },
-        destroy() { return req; },
-        end() { return req; },
-      };
-      return req;
+/** Node's https whose name lookup never answers (no socket, no "error"). */
+const stuckLookup = {
+  request() {
+    const req = {
+      on() { return req; },
+      setTimeout() { return req; }, // Node's socket timer: never armed while the lookup hangs
+      destroy() { return req; },
+      end() { return req; },
+    };
+    return req;
+  },
+};
+
+/** A fallback that never answers: fails "timed out" after its `timeout`, as FetchTransport's abort. Records [url, timeout]. */
+function hangingFallback() {
+  const calls: Array<[string, number]> = [];
+  return {
+    calls,
+    postJson(url: string, _payload: object, timeout: number): Promise<unknown> {
+      calls.push([url, timeout]);
+      return new Promise((_r, reject) => setTimeout(() => reject(new TransportError("timed out")), timeout * 1000));
     },
   };
-  const asked: string[] = [];
+}
+
+// Review T1 for Node: behind a proxy only the fallback (Chromium's fetch, which uses the OS proxy)
+// reaches the RPC. A lookup Node could not finish in time is a DNS failure, retried through it.
+// Review V2: the retry shares the request's timeout: the lookup has half of it, the fallback what
+// is left (not the whole timeout again).
+test("aLookupThatTimesOutGoesOnceMoreThroughTheFallback", async () => {
+  const asked: Array<[string, number]> = [];
   const fallback = {
-    postJson(url: string) {
-      asked.push(url);
+    postJson(url: string, _payload: object, timeout: number) {
+      asked.push([url, timeout]);
       return Promise.resolve({ jsonrpc: "2.0", id: 1, result: "0x1" });
     },
   };
-  const t = new NodeHttpsTransport({ https: stuck, http: stuck, fallback });
-  const answer = await within(t.postJson("https://behind-a-proxy.example/", {}, 0.2), 3000);
+  const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback });
+  const started = performance.now();
+  const answer = await within(t.postJson("https://behind-a-proxy.example/", {}, 1.0), 3000);
+  const ms = performance.now() - started;
   assert.deepEqual(answer, { jsonrpc: "2.0", id: 1, result: "0x1" });
-  assert.deepEqual(asked, ["https://behind-a-proxy.example/"]);
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0]![0], "https://behind-a-proxy.example/");
+  const left = asked[0]![1];
+  assert.ok(ms >= 450, `the lookup had half of the timeout (${ms} ms)`);
+  assert.ok(left <= 1.0 - 0.45 && left >= 1.0 - ms / 1000 - 0.05, `the fallback gets what is left of the timeout, not all of it (${left} s)`);
+});
+
+test("aLookupTimeoutAndItsFallbackStayWithinTheRequestsTimeout", async () => {
+  // Review V2: a DNS that never answers and a fallback that hangs too end together at `timeout`,
+  // not at twice it.
+  const fallback = hangingFallback();
+  const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback });
+  const started = performance.now();
+  await assert.rejects(within(t.postJson("https://nowhere.example/", {}, 0.8), 3000),
+    (e: unknown) => e instanceof TransportError && /timed out/.test(e.message));
+  const ms = performance.now() - started;
+  assert.equal(fallback.calls.length, 1, "the fallback was asked");
+  assert.ok(ms >= 750 && ms < 950, `the attempt took its timeout, not more (${ms} ms)`);
+});
+
+test("theFallbackIsNotAskedWithLessThanTheFloorLeft", async () => {
+  // half of 0.4 s is left after the lookup's 0.2 s: under FALLBACK_FLOOR, so the lookup's failure is the answer
+  assert.equal(FALLBACK_FLOOR, 0.25);
+  const fallback = hangingFallback();
+  const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback });
+  await assert.rejects(within(t.postJson("https://nowhere.example/", {}, 0.4), 3000),
+    (e: unknown) => e instanceof TransportError && /timed out resolving nowhere.example/.test(e.message)
+      && (e as TransportError & { code?: string }).code === "EAI_AGAIN");
+  assert.deepEqual(fallback.calls, []);
+  // a trust failure with too little left (the clock says 0.9 s of 1 s went by) is not retried either
+  let now = 0;
+  const late = fallbackTransport({ result: "never" });
+  const failing = failingModule({ code: "CERT_HAS_EXPIRED" }).module;
+  const lateT = new NodeHttpsTransport({ https: failing, fallback: late, clock: () => (now += 0.9) - 0.9 });
+  await assert.rejects(lateT.postJson("https://rpc.example/", {}, 1.0),
+    (e: unknown) => e instanceof TransportError && (e as TransportError & { code?: string }).code === "CERT_HAS_EXPIRED");
+  assert.equal(late.calls.length, 0);
+});
+
+test("aCallOverFourEndpointsWhoseLookupsAndFallbackHangEndsWithinTheCallBudget", async () => {
+  // Review V2 over the real RpcClient (CALL_BUDGET, MIN_ATTEMPT) and transport, on mocked timers:
+  // A's attempt is 10 s (5 s lookup, 5 s fallback), B's the 5 s left (2.5 + 2.5); C and D are not
+  // asked. Before, A's attempt alone took 20 s (a full timeout twice).
+  mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1_000_000 });
+  try {
+    const clock = () => Date.now() / 1000;
+    const fallback = hangingFallback();
+    const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback, clock });
+    const urls = ["https://a.example/", "https://b.example/", "https://c.example/", "https://d.example/"];
+    const rpc = new RpcClient(urls, { transport: t, clock });
+    const started = clock();
+    let settled = false;
+    const call = rpc.blockNumber().finally(() => { settled = true; });
+    call.catch(() => undefined);
+    for (let i = 0; i < 1000 && !settled; i++) {
+      await new Promise((r) => setImmediate(r));
+      if (!settled) mock.timers.tick(50);
+    }
+    await assert.rejects(call, RpcUnavailable);
+    const took = clock() - started;
+    assert.ok(took <= CALL_BUDGET + 0.1, `the call ended within its ${CALL_BUDGET} s budget (${took} s)`);
+    assert.deepEqual(fallback.calls, [[urls[0], 5], [urls[1], 2.5]]);
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 // Review T4: a request on a kept-alive socket (Node 19+ keeps them by default) never sees "connect",
