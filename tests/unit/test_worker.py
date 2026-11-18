@@ -188,3 +188,33 @@ def test_abandoning_a_queued_job_cancels_it():
     abandon(fut)
     w.run_once()
     assert fut.cancelled() and ran == []
+
+
+def test_an_abandoned_job_stops_waiting_for_its_request_in_flight():
+    """Testbed U15: a superseded start whose request is in flight (a host that never answers)
+    ends at once when abandoned, not at the request's 10 s timeout."""
+    import time
+    release = threading.Event()
+
+    class Hanging:
+        def post_json(self, url, payload, timeout):
+            release.wait(10)
+            return {"result": 1}
+    e = FakeEngine()
+    e.transport = Hanging()
+    e.run = lambda gen, transport=None: run_sync(gen, transport)
+
+    def start(engine):
+        yield Request("http://first/", {}, 10.0)
+        return "started"
+    w = Worker(e)
+    fut = w.submit(start)
+    threading.Timer(0.2, lambda: abandon(fut)).start()
+    t = time.monotonic()
+    try:
+        w.run_once()
+        assert time.monotonic() - t < 2.0
+        with pytest.raises(Abandoned, match="in flight"):
+            fut.result(timeout=0)
+    finally:
+        release.set()
