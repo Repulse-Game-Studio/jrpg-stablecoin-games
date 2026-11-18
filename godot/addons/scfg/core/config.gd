@@ -326,8 +326,11 @@ static func build_chain(key: Variant, opts: Variant) -> Variant:
 	confirmations = _positive_int(confirmations, "%s: confirmations" % what)
 	if confirmations is ScfgErr:
 		return confirmations
-	if not _is_str(explorer_tx) or not str(explorer_tx).begins_with("https://") or _count_braces(str(explorer_tx)) != 1:
-		return config_error("chain.bad_explorer_tx", "%s: explorer_tx must be an https:// URL with {} where the transaction hash goes, like 'https://snowtrace.io/tx/{}'" % what)
+	# http:// only for an explorer on this machine (a local devnet's), as for the rpc urls.
+	if not _is_str(explorer_tx) \
+			or not (str(explorer_tx).begins_with("https://") or _local_http(str(explorer_tx))) \
+			or _count_braces(str(explorer_tx)) != 1:
+		return config_error("chain.bad_explorer_tx", "%s: explorer_tx must be an https:// URL (http:// only on 127.0.0.1 or localhost) with {} where the transaction hash goes, like 'https://snowtrace.io/tx/{}'" % what)
 	var formatted: Variant = ScfgPy.py_format1(str(explorer_tx), "0x")
 	if formatted is ScfgErr:
 		if (formatted as ScfgErr).is_a("IndexError") or (formatted as ScfgErr).is_a("KeyError") \

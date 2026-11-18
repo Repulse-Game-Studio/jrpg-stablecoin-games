@@ -415,9 +415,12 @@ namespace Scfg.Core
                 parsed[kv.Key] = new Token(Address(kv.Value, what + ": " + kv.Key + " address"));
             }
             var confirmations = PositiveInt(confirmationsValue, what + ": confirmations");
-            if (!(explorerTx is string explorer) || !explorer.StartsWith("https://", StringComparison.Ordinal)
+            // http:// only for an explorer on this machine (a local devnet's), as for the rpc urls.
+            if (!(explorerTx is string explorer)
+                || !(explorer.StartsWith("https://", StringComparison.Ordinal) || IsLocalHttp(explorer))
                 || CountBraces(explorer) != 1)
-                throw new ConfigError(what + ": explorer_tx must be an https:// URL with {} where the transaction hash goes, "
+                throw new ConfigError(what + ": explorer_tx must be an https:// URL (http:// only on 127.0.0.1 or "
+                                      + "localhost) with {} where the transaction hash goes, "
                                       + "like 'https://snowtrace.io/tx/{}'", "chain.bad_explorer_tx");
             try
             {

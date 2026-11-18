@@ -151,10 +151,10 @@ init python:
 | `key` | Your name for the chain: lowercase letters, digits, `_`, `-`. It is stored in players' receipts, so **never change it after release**. It can't reuse a built-in key (`"arc"` is built in now: if your game added Arc itself, delete that `add_chain()` call; purchases it recorded stay valid, see [Arc](arc.md#upgrading-to-the-version-with-arc-built-in)) |
 | `name` | Shown to players on the network button (at most 32 characters) |
 | `chain_id` | The EVM chain id (see [chainlist.org](https://chainlist.org)). Wallets use it to switch networks, and QR codes carry it |
-| `rpc` | One URL or a list, tried in order. `https://` only, except `http://127.0.0.1` / `http://localhost` for a local test node. The **last** one is also handed to the player's browser wallet if it needs to add the network, so put a public endpoint last |
+| `rpc` | One URL or a list, tried in order. `https://` only, except `http://127.0.0.1` / `http://localhost`, with or without a port (e.g. `http://127.0.0.1:8545`), for a local test node. The same goes for `rpc_urls`. The **last** one is also handed to the player's browser wallet if it needs to add the network, so put a public endpoint last |
 | `tokens` | `{"USDC": "0x…"}` and/or `"USDT"`. Copy addresses from Circle's / Tether's official lists, never from a block explorer search |
 | `confirmations` | Blocks to wait before a payment counts. Use the chain's finality: a few for fast-finality chains, more for chains that reorg |
-| `explorer_tx` | Transaction page with `{}` where the hash goes |
+| `explorer_tx` | Transaction page with `{}` where the hash goes. `https://` only, except `http://127.0.0.1` / `http://localhost` (with any port, e.g. `http://127.0.0.1:4000/tx/{}`) for a local test chain's explorer |
 | `native_symbol` | The gas token (`"AVAX"`, `"ETH"`, …), named in "you need gas" warnings. Default `"ETH"` |
 | `fee_hint` | `"lowest"`, `"low"` (default) or `"high"`, shown under the network name |
 | `testnet` | `False` (default) adds the chain for real-money games; `True` for `configure(testnet=True)` games. Add it twice with the same key to have both |

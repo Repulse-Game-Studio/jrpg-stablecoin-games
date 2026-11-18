@@ -246,9 +246,11 @@ export function buildChain(key: unknown, opts: BuildChainOptions): Chain {
   }
   const confirmations = positiveInt(o["confirmations"], `${what}: confirmations`);
   const explorerTx = o["explorer_tx"];
-  if (typeof explorerTx !== "string" || !explorerTx.startsWith("https://") || explorerTx.split("{}").length - 1 !== 1) {
+  // http:// only for an explorer on this machine (a local devnet's), as for the rpc urls.
+  if (typeof explorerTx !== "string" || !(explorerTx.startsWith("https://") || LOCAL_HTTP.test(explorerTx))
+      || explorerTx.split("{}").length - 1 !== 1) {
     throw new ConfigError(
-      `${what}: explorer_tx must be an https:// URL with {} where the transaction hash goes, like 'https://snowtrace.io/tx/{}'`,
+      `${what}: explorer_tx must be an https:// URL (http:// only on 127.0.0.1 or localhost) with {} where the transaction hash goes, like 'https://snowtrace.io/tx/{}'`,
       { code: "chain.bad_explorer_tx" });
   }
   try {

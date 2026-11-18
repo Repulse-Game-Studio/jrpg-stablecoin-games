@@ -133,6 +133,86 @@
    "in": {
     "chain_id": 43114,
     "confirmations": 5,
+    "explorer_tx": "http://127.0.0.1:4000/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "http://127.0.0.1:8545",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   },
+   "out": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://127.0.0.1:4000/tx/{}",
+    "family": "evm",
+    "fee_hint": "low",
+    "key": "avalanche",
+    "max_log_range": 1000,
+    "min_fee_wei": 0,
+    "name": "Avalanche",
+    "native_symbol": "ETH",
+    "native_token": "",
+    "rpc": [
+     "http://127.0.0.1:8545"
+    ],
+    "testnet": false,
+    "tokens": {
+     "USDC": {
+      "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+      "decimals": 6,
+      "log_address": "",
+      "log_decimals": 0
+     }
+    },
+    "wallet_chain": ""
+   }
+  },
+  {
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://localhost/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   },
+   "out": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://localhost/tx/{}",
+    "family": "evm",
+    "fee_hint": "low",
+    "key": "avalanche",
+    "max_log_range": 1000,
+    "min_fee_wei": 0,
+    "name": "Avalanche",
+    "native_symbol": "ETH",
+    "native_token": "",
+    "rpc": [
+     "https://api.avax.network/ext/bc/C/rpc"
+    ],
+    "testnet": false,
+    "tokens": {
+     "USDC": {
+      "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+      "decimals": 6,
+      "log_address": "",
+      "log_decimals": 0
+     }
+    },
+    "wallet_chain": ""
+   }
+  },
+  {
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
     "explorer_tx": "https://snowtrace.io/tx/{}",
     "key": "avalanche",
     "name": "Avalanche",
@@ -617,6 +697,36 @@
     "chain_id": 43114,
     "confirmations": 5,
     "explorer_tx": "http://snowtrace.io/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "chain.bad_explorer_tx",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://127.0.0.1.evil.org/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "chain.bad_explorer_tx",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://localhost:4000\n/tx/{}",
     "key": "avalanche",
     "name": "Avalanche",
     "rpc": "https://api.avax.network/ext/bc/C/rpc",

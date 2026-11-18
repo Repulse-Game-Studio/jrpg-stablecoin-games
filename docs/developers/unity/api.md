@@ -52,7 +52,7 @@ be called again until payments have started, on the frame after a successful cal
 | `Tokens` | `"USDC"`, `"USDT"`. Default both |
 | `Methods` | A `ScfgMethods`: which payment methods the sheet offers. Default: all of them |
 | `Onramp` | A `ScfgOnramp`: the "Buy some with a card" link, see [The buy link](#the-buy-link-onramp). Default: on, on mainnet |
-| `RpcUrls` | Your own RPC endpoints per chain key (`IDictionary<string, IList<string>>`, https URLs), tried before the built-in public ones |
+| `RpcUrls` | Your own RPC endpoints per chain key (`IDictionary<string, IList<string>>`, https URLs, or `http://127.0.0.1` / `http://localhost` with a port for a local node), tried before the built-in public ones |
 | `Confirmations` | Confirmations required per chain key (`IDictionary<string, int>`) |
 | `PreviousWallets` | Wallets you were paid to before (EVM and Solana addresses can be mixed). Their receipts stay valid |
 | `Accent` | The accent color of the sheet and the checkout page, `"#rrggbb"` |
@@ -127,10 +127,10 @@ asset's configuration in place, as a failing `Configure` does.
 |---|---|
 | `Name` | The name players see |
 | `ChainId` | The EVM chain id |
-| `Rpc` | https RPC endpoints |
+| `Rpc` | https RPC endpoints (`http://127.0.0.1` / `http://localhost`, with any port, for a local node) |
 | `Tokens` | Token symbol to contract address, `{"USDC": "0x..."}`. 6-decimal tokens only |
 | `Confirmations` | Confirmations required |
-| `ExplorerTx` | An https URL with `{}` where the transaction hash goes |
+| `ExplorerTx` | An https URL with `{}` where the transaction hash goes (`http://127.0.0.1` / `http://localhost`, with any port, for a local test chain) |
 | `NativeSymbol` | Optional: the coin that pays the network fee |
 | `FeeHint` | Optional: `"lowest"`, `"low"` or `"high"` |
 | `Testnet` | `true` for a test network, used when `Configure` has `Testnet = true`. The same key can be added once for each network |

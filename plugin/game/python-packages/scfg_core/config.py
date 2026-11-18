@@ -163,9 +163,12 @@ def build_chain(key, *, name, chain_id, rpc, tokens, confirmations, explorer_tx,
                               code="chain.unknown_token")
         parsed[symbol] = Token(_address(address, f"{what}: {symbol} address"))
     confirmations = _positive_int(confirmations, f"{what}: confirmations")
-    if (not isinstance(explorer_tx, str) or not explorer_tx.startswith("https://")
+    # http:// only for an explorer on this machine (a local devnet's), as for the rpc urls.
+    if (not isinstance(explorer_tx, str)
+            or not (explorer_tx.startswith("https://") or _LOCAL_HTTP.match(explorer_tx))
             or explorer_tx.count("{}") != 1):
-        raise ConfigError(f"{what}: explorer_tx must be an https:// URL with {{}} where the "
+        raise ConfigError(f"{what}: explorer_tx must be an https:// URL (http:// only on "
+                          f"127.0.0.1 or localhost) with {{}} where the "
                           f"transaction hash goes, like 'https://snowtrace.io/tx/{{}}'",
                           code="chain.bad_explorer_tx")
     try:

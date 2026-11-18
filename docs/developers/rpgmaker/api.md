@@ -177,7 +177,7 @@ interface ConfigureOptions {
 interface ItemOptions { code: number; price: string; token: "USDC" | "USDT"; title: string; min_price?: string }
 interface ChainOptions {                 // addChain(key, opts), before configure()
   name: string; chain_id: number; rpc: string[]; tokens: Record<string, string>;
-  confirmations: number; explorer_tx: string;     // an https URL with {} where the hash goes
+  confirmations: number; explorer_tx: string;     // an https URL with {} where the hash goes (http only on 127.0.0.1/localhost)
   native_symbol?: string; fee_hint?: string; testnet?: boolean; max_log_range?: number;
 }
 interface PayOptions {

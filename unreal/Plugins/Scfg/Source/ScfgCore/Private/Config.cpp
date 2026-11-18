@@ -787,11 +787,14 @@ Result<chains::Chain> build_chain(const Json& kwargs) {
         parsed.set(symbol, std::move(t));
     }
     SCFG_TRY(BigInt confirmations, detail::positive_int(detail::arg(*kw, "confirmations"), what + ": confirmations"));
-    if (!explorer_tx.is_str() || explorer_tx.as_str().rfind("https://", 0) != 0 ||
+    // http:// only for an explorer on this machine (a local devnet's), as for the rpc urls.
+    if (!explorer_tx.is_str() ||
+        !(explorer_tx.as_str().rfind("https://", 0) == 0 || detail::is_local_http(explorer_tx.as_str())) ||
         detail::count_braces(explorer_tx.as_str()) != 1) {
         return Err::config_error("chain.bad_explorer_tx",
-                                 what + ": explorer_tx must be an https:// URL with {} where the transaction hash "
-                                        "goes, like 'https://snowtrace.io/tx/{}'");
+                                 what + ": explorer_tx must be an https:// URL (http:// only on 127.0.0.1 or "
+                                        "localhost) with {} where the transaction hash goes, like "
+                                        "'https://snowtrace.io/tx/{}'");
     }
     Result<std::string> formatted = py::format1(explorer_tx.as_str(), "0x");
     if (!formatted.ok()) {

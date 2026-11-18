@@ -75,7 +75,7 @@ configuration: declare the items again after it.
 | `Tokens` | `USDC`, `USDT`. Empty: both |
 | `Methods` | An `FScfgMethods`: which payment methods the sheet offers. Default: all of them |
 | `Onramp` | An `FScfgOnramp`: the "Buy some with a card" link, see [The buy link](#the-buy-link-onramp). Default: on, on mainnet |
-| `RpcUrls` | Your own RPC endpoints per chain key (an `FScfgRpcUrls` whose `Urls` are https URLs), tried before the built-in public ones |
+| `RpcUrls` | Your own RPC endpoints per chain key (an `FScfgRpcUrls` whose `Urls` are https URLs, or `http://127.0.0.1` / `http://localhost` with a port for a local node), tried before the built-in public ones |
 | `Confirmations` | Confirmations required per chain key (1 or more; not for Solana, which waits for finalization) |
 | `PreviousWallets` | Wallets you were paid to before (EVM and Solana addresses can be mixed). Their receipts stay valid |
 | `Logo` | An image file shown on the sheet and the checkout page, relative to the project folder: png, jpg or webp. To ship it, keep it in a folder under `Content/` (`Content/Scfg/logo.png`) and stage that folder: see [The logo in a packaged game](#the-logo-in-a-packaged-game) |
@@ -141,10 +141,10 @@ the settings aside (with a warning), items included, for the `Configure` that fo
 |---|---|
 | `Name` | The name players see |
 | `ChainId` | The EVM chain id |
-| `Rpc` | https RPC endpoints |
+| `Rpc` | https RPC endpoints (`http://127.0.0.1` / `http://localhost`, with any port, for a local node) |
 | `Tokens` | Token symbol to contract address, `"USDC"` to `"0x..."`. 6-decimal tokens only |
 | `Confirmations` | Confirmations required, 1 or more |
-| `ExplorerTx` | An https URL with `{}` where the transaction hash goes |
+| `ExplorerTx` | An https URL with `{}` where the transaction hash goes (`http://127.0.0.1` / `http://localhost`, with any port, for a local test chain) |
 | `NativeSymbol` | The coin that pays the network fee. Default `"ETH"` |
 | `FeeHint` | `"lowest"`, `"low"` or `"high"`. Default `"low"` |
 | `MaxLogRange` | The most blocks one log query may span on its RPC endpoints. Default 1000 |

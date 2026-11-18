@@ -391,6 +391,9 @@
   "tests/unit/test_custom_chains.py::test_build_chain_accepts_single_rpc_string_and_lowercase_token": [
    "tier1/custom_chains"
   ],
+  "tests/unit/test_custom_chains.py::test_build_chain_allows_a_plain_http_explorer_on_this_computer": [
+   "tier1/custom_chains"
+  ],
   "tests/unit/test_custom_chains.py::test_build_chain_allows_plain_http_on_this_computer": [
    "tier1/custom_chains"
   ],
