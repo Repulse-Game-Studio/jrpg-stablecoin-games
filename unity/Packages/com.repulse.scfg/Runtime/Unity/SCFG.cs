@@ -232,6 +232,21 @@ namespace Scfg
                     return Misuse(new ConfigError("call SCFG.AddChain() before payments start: the SCFG Settings asset configured"
                                                   + " SCFG before the first scene, and payments started with it. Add your chains and"
                                                   + " call SCFG.Configure() from the first scene's Awake", "configure.after_add_chain"));
+            }
+            if (chain == null) return Misuse(new TypeError("AddChain(): chain must not be null"));
+            // The chain first: one that cannot be built leaves the asset's configuration in place, as a Configure that
+            // fails does.
+            Chain built;
+            try
+            {
+                built = Scfg.Core.Config.BuildChain(chain.ToKwargs(key));
+            }
+            catch (Exception e) when (IsMisuse(e))
+            {
+                return Misuse(e);
+            }
+            if (S.Config != null)
+            {
                 // The asset cannot name a chain added from code, so the Configure from code that has to follow replaces
                 // the asset's configuration anyway: drop it now.
                 S.Config = null;
@@ -242,16 +257,8 @@ namespace Scfg
                 Warn("SCFG.AddChain() set aside the SCFG Settings asset's configuration (it cannot name your own chains):"
                      + " call SCFG.Configure() next, from code.");
             }
-            if (chain == null) return Misuse(new TypeError("AddChain(): chain must not be null"));
-            try
-            {
-                S.CustomChains.Add(Scfg.Core.Config.BuildChain(chain.ToKwargs(key)));
-                return null;
-            }
-            catch (Exception e) when (IsMisuse(e))
-            {
-                return Misuse(e);
-            }
+            S.CustomChains.Add(built);
+            return null;
         }
 
         /// <summary>

@@ -426,6 +426,20 @@ namespace Scfg.Tests
         }
 
         [Test]
+        public void AddChainWithABadChainLeavesTheAssetsConfigurationInPlace()
+        {
+            Assert.That(Make().Apply(), Is.Null);
+            var warned = _rig.Warnings.Count;
+            Assert.That(SCFG.AddChain("Bad Key", MyL2()), Is.EqualTo("chain.invalid_key"));
+            Assert.That(SCFG.Current.Config, Is.Not.Null, "the asset's configuration stays");
+            Assert.That(SCFG.Current.ConfigFromSettings, Is.True);
+            Assert.That(_rig.Warnings.Count, Is.EqualTo(warned), "nothing was set aside");
+            Assert.That(SCFG.ItemTitle("chapter2"), Is.EqualTo("Chapter 2"));
+            Assert.That(SCFG.AddChain("myl2", MyL2()), Is.Null, "a good chain then sets it aside");
+            Assert.That(SCFG.Current.Config, Is.Null);
+        }
+
+        [Test]
         public void AddChainAfterTheAssetsPaymentsStartedIsRefused()
         {
             Assert.That(Make().Apply(), Is.Null);

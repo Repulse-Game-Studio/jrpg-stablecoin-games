@@ -87,7 +87,8 @@ or the error code.
 `Configure`; its key can then be used in `Chains`, `RpcUrls` and `Confirmations`. It returns `null`, or the error
 code. With an [SCFG Settings asset](#scfgsettings), which is applied before your code runs, call it before payments
 start (in the first scene's `Awake`): it sets the asset's configuration aside, items included, for your
-`Configure` that follows.
+`Configure` that follows. A chain that the core refuses (its error code, such as `rpc.not_https`) leaves the
+asset's configuration in place, as a failing `Configure` does.
 
 | `ScfgChain` field | Meaning |
 |---|---|
