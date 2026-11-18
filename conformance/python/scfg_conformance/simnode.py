@@ -33,7 +33,8 @@ _NOT_JSON = "<html><body><h1>502 Bad Gateway</h1></body></html>"
 
 
 class Hung(TransportError):
-    """An Endpoint that hangs: the transport waits out the request's timeout (RecordingTransport)."""
+    """An Endpoint that hangs: the transport waits out the request's timeout
+    (RecordingTransport)."""
 
 
 class _Reply(Exception):

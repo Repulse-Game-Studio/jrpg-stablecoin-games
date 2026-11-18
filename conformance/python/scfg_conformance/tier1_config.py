@@ -389,7 +389,7 @@ _CHAIN_VALID = [
     CHAIN,
     _chain(native_symbol="AVAX", fee_hint="lowest", max_log_range=2000),
     _chain(rpc=["https://a.example.org", "http://127.0.0.1:8545"], fee_hint="high"),
-    _chain(rpc="http://127.0.0.1:8545", explorer_tx="http://127.0.0.1:4000/tx/{}"),  # a local devnet
+    _chain(rpc="http://127.0.0.1:8545", explorer_tx="http://127.0.0.1:4000/tx/{}"),  # local devnet
     _chain(explorer_tx="http://localhost/tx/{}"),
     _chain(tokens={"USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
                    "USDT": "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7"}),

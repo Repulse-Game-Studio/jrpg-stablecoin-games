@@ -80,7 +80,8 @@ class RecordingTransport:
             text = self.world.handle(url, payload)
         except Hung:
             if timeout != int(timeout):
-                raise ValueError(f"a hanging request's timeout must be whole seconds, not {timeout}")
+                raise ValueError(
+                    f"a hanging request's timeout must be whole seconds, not {timeout}") from None
             entry["elapsed"] = int(timeout)
             entry["transport_error"] = {"message": f"timed out after {timeout:g}s", "status": None}
             self.calls.append(entry)
