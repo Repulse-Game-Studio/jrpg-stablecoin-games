@@ -117,6 +117,28 @@ Json awaiting(std::string chain, int64_t created_at) {
                        {"ui_status", "open"}, {"hint_tx", Json()}, {"hint_at", Json()}, {"match", Json()}});
 }
 
+// Answers the first request at once with `first` (the hint's receipt or transaction) and keeps every later one
+// waiting; before_hold runs as the first request is made.
+struct VerdictThenHoldTransport final : scfg::coio::Transport {
+    Json first;
+    std::function<void()> before_hold;
+    std::vector<std::string> methods;
+    std::deque<Promise<Json>> held;
+    size_t cancels = 0;
+    Future<Json> post_json(std::string url, Json payload, double timeout) override {
+        (void)url, (void)timeout;
+        methods.push_back(payload.as_dict().get("method").as_str());
+        if (methods.size() > 1) {
+            held.emplace_back();
+            return held.back().get_future();
+        }
+        if (before_hold) before_hold();
+        return Future<Json>::completed(
+            Json::dict({{"jsonrpc", "2.0"}, {"id", payload.as_dict().get("id")}, {"result", first}}));
+    }
+    void cancel_orphaned() override { ++cancels; }
+};
+
 template <class T>
 std::optional<Result<T>> run_now(scfg::Co<T> co) {
     if (!co.done()) return std::nullopt;
@@ -280,6 +302,85 @@ SCFG_TEST(EngineTests, TheTickStopsAtAbandonedKeepingItsOutcomes) {
         transport.held.clear();  // ps_b's late answer: nobody awaits it
         std::optional<Result<std::vector<engine::StepOutcome>>> next = run_now(eng.tick());
         t.check(next && next->ok() && next->value().size() == 3, mode + "the next tick steps the three");
+    }
+}
+
+// Review V1, test_worker_priority.py's test_a_hint_verdict_reached_before_the_tick_yields_is_reported at the Engine:
+// the step judges the hint (reverted) and clears it, then its next request is abandoned in flight or refused (a
+// command waits). The verdict is the session's outcome, which the tick keeps; it is not lost with the step. On base
+// (the receipt's status 0x0) and on Solana (the transaction's meta.err; its next request is the reference's
+// getSignaturesForAddress).
+SCFG_TEST(EngineTests, AHintVerdictReachedBeforeTheTickYieldsIsKept) {
+    const std::string evm_tx = "0x" + std::string(64, 'a');
+    const std::string sol_tx =
+        "5jRvfZECEfN9pyWHFUF3GZXj3asr8dfVfZWVg6JLg3hP2bw7WZ6JErRVJxy3fSCqQi2c9oFo9YvSQL6LPtQ8s3mn";
+    for (const bool solana : {false, true}) {
+        for (const bool in_flight : {true, false}) {
+            const std::string mode = std::string(solana ? "solana, " : "base, ") + (in_flight ? "in flight: " : "refused: ");
+            const std::string tx = solana ? sol_tx : evm_tx;
+            config::Config cfg = base_config();
+            Json rec = awaiting("base", 1700000000);
+            if (solana) {
+                cfg = config::build_config(Json::dict({{"solana_wallet", "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"},
+                                                       {"testnet", true}}))
+                          .take();
+                (void)config::add_item(cfg, "chapter2", Json::dict({{"code", 37}, {"price", "4.99"}, {"token", "USDC"},
+                                                                    {"title", "Chapter 2"}}))
+                    .take();
+                // tier2/solana/hint_verdicts' session
+                rec = Json::dict({{"id", "ps_a"}, {"kind", "unlock"}, {"item", "chapter2"}, {"title", "Chapter 2"},
+                                  {"token", "USDC"}, {"chain", "solana"}, {"price", "4.99"}, {"code", 37}, {"nonce", 59},
+                                  {"units", 4993759}, {"start_block", 850}, {"cursor", 850},
+                                  {"dest", "EVADx2QYJwSufAQ5Ps5RHRrxKbA5AbTYd28kUwcPcRnm"},
+                                  {"reference", "JDnHLrjMR8xNs1yqEtbPqfmDzkZBnQmYZJYv2TJAF4XZ"}, {"scan_cursor", Json()},
+                                  {"scan_before", Json()}, {"created_at", 1700000000}, {"state", "awaiting"},
+                                  {"ui_status", "open"}, {"match", Json()}});
+            }
+            rec.as_dict().set("hint_tx", tx);
+            rec.as_dict().set("hint_at", 1700000001);
+            VerdictThenHoldTransport transport;
+            transport.first = solana ? Json::dict({{"meta", Json::dict({{"err", "AccountNotFound"}})}})
+                                     : Json::dict({{"status", "0x0"}, {"blockNumber", "0x3e6"}, {"logs", Json::list()},
+                                                   {"transactionHash", tx}});
+            std::vector<std::string> reported;
+            engine::Engine eng(cfg, transport, Json::dict({{"ps_a", rec}}), Json(), [] { return int64_t{1700000010}; },
+                               {}, [&reported](const Err& e) { reported.push_back(e.str()); });
+            bool refuse = false;
+            eng.refuse_requests = [&refuse] { return refuse; };
+            if (!in_flight) transport.before_hold = [&refuse] { refuse = true; };
+            std::optional<Result<std::vector<engine::StepOutcome>>> got;
+            scfg::Job<std::vector<engine::StepOutcome>> job;
+            job.start(eng.tick(), [&got](Result<std::vector<engine::StepOutcome>> r) { got.emplace(std::move(r)); });
+            const std::vector<std::string> asked = solana
+                ? std::vector<std::string>{"getTransaction", "getSignaturesForAddress"}
+                : std::vector<std::string>{"eth_getTransactionReceipt", "eth_blockNumber"};
+            if (in_flight) {
+                if (!t.check(!job.done() && transport.held.size() == 1, mode + "the step waits on its next request")) {
+                    continue;
+                }
+                t.check(eng.pending().as_dict().get("ps_a").as_dict().get("hint_tx").is_null(),
+                        mode + "the hint is cleared already");
+                refuse = true;
+                eng.abandon_in_flight();
+                t.check(transport.methods == asked, mode + "the verdict's request, then the one abandoned");
+                SCFG_CHECK_EQ(t, transport.cancels, size_t{1});
+            } else {
+                t.check(transport.methods == std::vector<std::string>{asked[0]},
+                        mode + "the next request never reached the transport");
+            }
+            if (!t.check(job.done() && got && got->ok(), mode + (got && !got->ok() ? got->err().str() : "the tick"))) {
+                continue;
+            }
+            const std::vector<engine::StepOutcome>& outcomes = got->value();
+            if (!t.check(outcomes.size() == 1, mode + "one outcome, not " + std::to_string(outcomes.size()))) continue;
+            SCFG_CHECK_EQ(t, outcomes[0].session_id, "ps_a");
+            SCFG_CHECK_EQ(t, outcomes[0].status, "waiting");
+            t.check(outcomes[0].error == std::optional<std::string>("tx_reverted"),
+                    mode + "the verdict: " + outcomes[0].error.value_or("None"));
+            t.check(outcomes[0].hint_tx.is_str() && outcomes[0].hint_tx.as_str() == tx, mode + "names the hint judged");
+            t.check(eng.pending().as_dict().get("ps_a").as_dict().get("hint_tx").is_null(), mode + "the hint is cleared");
+            t.check(reported.empty(), mode + "nothing reported: " + (reported.empty() ? "" : reported[0]));
+        }
     }
 }
 

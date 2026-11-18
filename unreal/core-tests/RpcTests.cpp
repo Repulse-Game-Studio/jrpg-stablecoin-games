@@ -409,6 +409,28 @@ SCFG_TEST(RpcTests, AnEndpointIsNotAskedWithLessThanTheFloorLeft) {
     SCFG_CHECK(t, c.live_urls() == std::vector<std::string>({C}));
 }
 
+SCFG_TEST(RpcTests, TheFloorIsAskedAtExactlyMinAttemptLeft) {
+    // test_the_floor_is_asked_at_exactly_min_attempt_left (review V5), the floor's boundary: A hangs (10 s); B fails
+    // after 3 s, leaving exactly MIN_ATTEMPT, so C is asked with that timeout; after 3.1 s (1.9 s left) it is not,
+    // and stays live. (Its vector is tier2/rpc/an_endpoint_is_asked_with_exactly_the_floor_left.)
+    const std::string C = "https://c.rpc";
+    for (const auto& [b_takes, asked] : std::vector<std::pair<double, bool>>{{3.0, true}, {3.1, false}}) {
+        const std::string mode = "B takes " + std::to_string(b_takes) + ": ";
+        TimedTransport tr;
+        tr.costs = {{B, b_takes}};
+        RpcClient c = timed_client({A, B, C}, tr);
+        Result<BigInt> r = run(c.block_number());
+        if (t.check(!r.ok(), mode + "fails")) SCFG_CHECK_EQ(t, r.err().kind, "RpcUnavailable");
+        using Calls = std::vector<std::pair<std::string, double>>;
+        Calls expected = {{A, 10.0}, {B, 5.0}};
+        if (asked) expected.emplace_back(C, rpc::MIN_ATTEMPT);
+        t.check(tr.calls == expected, mode + (asked ? "C is asked with the floor" : "C is not asked"));
+        const std::vector<std::string> live = c.live_urls();
+        t.check((std::find(live.begin(), live.end(), C) != live.end()) == !asked,
+                mode + (asked ? "C cooled down" : "C stays live"));
+    }
+}
+
 SCFG_TEST(RpcTests, TheClockIsSettableAndReadOnEveryCall) {
     // Python: a float clock; until = 5.5 + 30.0 = 35.5, live again at 35.5 and not at 35.4
     Fx c({{A, fails()}});

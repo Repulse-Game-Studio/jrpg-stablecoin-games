@@ -624,6 +624,9 @@ Co<watcher::StepOutcome> SolanaBackend::advance(Json pending, Json receipts, std
                                                          std::move(rec), std::move(out)});
     Status done = co_await detail::steps(s);
     if (!done.ok()) {
+        // The tick yields to a command (worker.py, Err Abandoned): a verdict reached earlier in this step is reported
+        // now (as below); the rest of the step waits for the next tick.
+        if (done.err().is_a("Abandoned") && s->out.error) co_return s->out;
         if (!::scfg::rpc::network_failure(done.err())) co_return std::move(done).err();
         // A verdict on the hint from earlier in this step wins: the hint is already cleared, and later steps are
         // plain "waiting", so it would never be reported.
