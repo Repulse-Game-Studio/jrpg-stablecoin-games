@@ -193,6 +193,17 @@ public:
 	// AddChain() sets it aside (with a warning) or, once payments started, is refused. Returns the first Err.
 	TOptional<scfg::Err> ApplySettings(
 		const FScfgOptions& InOptions, const TArray<FScfgSettingsChain>& Chains, const TArray<FScfgSettingsItem>& Items);
+	// UScfgSubsystem::ConfigureWithSettings: these settings rows with options given by code (the settings' own with a
+	// runtime wallet). Checked first, touching nothing: the chains are built and the configuration with them, and a
+	// failure (wallet.missing from a wallet file not read yet, a mistyped wallet) is reported and leaves everything as
+	// it was, so the call can be retried (review T3). Then, as a code call, it replaces any configuration (the
+	// settings' applied at start, or an earlier call's) with no AddChain() warning: the chains are exactly these
+	// rows, then Configure(Options), then AddItem() for each item. Returns the first Err.
+	TOptional<scfg::Err> ConfigureWithSettings(
+		const FScfgOptions& InOptions, const TArray<FScfgSettingsChain>& Chains, const TArray<FScfgSettingsItem>& Items);
+	// Line goes to the reporter as a warning at the end of the first frame (the facade's ticker), unless a
+	// configuration exists by then: the settings' "no wallet" warning, which game code configuring at start makes moot.
+	void WarnUnlessConfiguredAfterAFrame(FString Line);
 	// The configuration is the settings' (ApplySettings), not one from code.
 	bool IsConfigFromSettings() const { return Config.has_value() && bConfigFromSettings; }
 	// A configured logo (relative to ProjectDir; empty: FPaths::ProjectDir()) as a full path that exists, "" for none,
@@ -378,6 +389,7 @@ private:
 	// True while the store's constructor runs (its OnError then reports a file that cannot be read).
 	TSharedRef<bool> StoreLoading = MakeShared<bool>(false);
 	FTSTicker::FDelegateHandle PumpHandle;
+	FTSTicker::FDelegateHandle NoticeHandle;  // WarnUnlessConfiguredAfterAFrame's, removed at shutdown
 
 	std::optional<scfg::config::Config> Config;
 	std::vector<scfg::config::CustomChain> CustomChains;

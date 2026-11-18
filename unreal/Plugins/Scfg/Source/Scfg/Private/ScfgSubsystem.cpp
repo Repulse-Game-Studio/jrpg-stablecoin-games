@@ -119,9 +119,12 @@ void UScfgSubsystem::StartFacade(const FScfgFacadeOptions& Options, const UScfgS
 	{
 		if (Settings->HasRows())
 		{
-			Facade->GetReporter().Warning(TEXT("scfg: the SCFG settings (Project Settings > Plugins > SCFG) have chains or "
-				"items but no wallet, so they are not applied at start: set a wallet there, configure from code, or call "
-				"ConfigureWithSettings(Wallet) with a wallet supplied at runtime."));
+			// Only if nothing configured SCFG by the end of the first frame: a game that applies the settings with a
+			// runtime wallet (ConfigureWithSettings) in its Init() or first BeginPlay gets no warning (the opt-out).
+			Facade->WarnUnlessConfiguredAfterAFrame(TEXT("scfg: the SCFG settings (Project Settings > Plugins > SCFG) "
+				"have chains or items but no wallet, so they were not applied at start, and nothing configured SCFG in "
+				"the first frame: set a wallet there, configure from code, or call ConfigureWithSettings(Wallet) with a "
+				"wallet supplied at runtime."));
 		}
 		return;
 	}
@@ -200,28 +203,15 @@ FString UScfgSubsystem::ConfigureWithSettings(const FString& Wallet, const FStri
 
 FString UScfgSubsystem::ApplySettingsWith(const UScfgSettings& Settings, const FString& Wallet, const FString& SolanaWallet)
 {
-	for (const FScfgSettingsChain& Row : Settings.Chains)
+	FScfgFacade* F = Live(TEXT("ConfigureWithSettings()"));
+	if (!F)
 	{
-		if (FString Err = AddChain(Row.Key, Row.Chain); !Err.IsEmpty())
-		{
-			return Err;
-		}
+		return FString(TEXT("RuntimeError"));
 	}
 	FScfgOptions Options = Settings.Options;
 	Options.Wallet = Wallet.TrimStartAndEnd();
 	Options.SolanaWallet = SolanaWallet.TrimStartAndEnd();
-	if (FString Err = Configure(Options); !Err.IsEmpty())
-	{
-		return Err;
-	}
-	for (const FScfgSettingsItem& Row : Settings.Items)
-	{
-		if (FString Err = AddItem(Row.Id, Row.ToItem()); !Err.IsEmpty())
-		{
-			return Err;
-		}
-	}
-	return FString();
+	return ScfgGuard::ErrCode(F->ConfigureWithSettings(Options, Settings.Chains, Settings.Items));
 }
 
 void UScfgSubsystem::Pay(EScfgPayKind Kind, const FScfgPayRequest& Request, const FOnScfgPaid& OnPaid)

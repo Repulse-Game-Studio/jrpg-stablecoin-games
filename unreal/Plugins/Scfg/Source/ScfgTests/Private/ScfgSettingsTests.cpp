@@ -469,11 +469,6 @@ bool FScfgSettingsInitializeTest::RunTest(const FString& Parameters)
 		Project->Options.bTestnet = true;
 		Project->Chains.Reset();
 		Project->Items = {ScfgSettingsTests::ItemRow(TEXT("chapter2"), 1, TEXT("4.99"), TEXT("Chapter 2"))};
-		if (!bWallet)
-		{
-			AddExpectedMessagePlain(TEXT("have chains or items but no wallet, so they are not applied"),
-				ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
-		}
 		TStrongObjectPtr<UGameInstance> Instance(NewObject<UGameInstance>(GEngine));
 		Instance->InitializeStandalone();
 		UWorld* World = Instance->GetWorld();
@@ -519,10 +514,13 @@ bool FScfgSettingsEmptyTest::RunTest(const FString& Parameters)
 		const TStrongObjectPtr<UScfgSettings> S = Make([](UScfgSettings& E) { E.Options.Wallet = TEXT("   "); });
 		FGame G(W, S.Get());
 		TestNull(TEXT("a blank wallet is no wallet"), G.F().GetConfig());
-		SameLines(*this, TEXT("rows without a wallet: one warning"), W.Reports().Warnings,
+		TestEqual(TEXT("no warning before the game's code ran (Unreal testbed)"), W.Reports().Warnings.Num(), 0);
+		W.Frame();
+		SameLines(*this, TEXT("rows without a wallet and nothing configured in the first frame: one warning"),
+			W.Reports().Warnings,
 			{TEXT("scfg: the SCFG settings (Project Settings > Plugins > SCFG) have chains or items but no wallet, so they "
-				  "are not applied at start: set a wallet there, configure from code, or call ConfigureWithSettings(Wallet) "
-				  "with a wallet supplied at runtime.")});
+				  "were not applied at start, and nothing configured SCFG in the first frame: set a wallet there, "
+				  "configure from code, or call ConfigureWithSettings(Wallet) with a wallet supplied at runtime.")});
 		TestEqual(TEXT("no error"), W.Reports().Errors.Num(), 0);
 		TestEqual(TEXT("the game's own chain is not refused"), G.Scfg->AddChain(TEXT("myl2"), MyL2()), FString());
 	}
@@ -554,6 +552,49 @@ bool FScfgSettingsRuntimeWalletTest::RunTest(const FString& Parameters)
 	}
 	TestEqual(TEXT("the settings' item"), G.F().ItemTitle(S->Items[0].Id), S->Items[0].Title);
 	TestEqual(TEXT("no error"), W.Reports().Errors.Num(), 0);
+	W.Frame();
+	TestEqual(TEXT("no 'no wallet' warning: the game configured in the first frame"), W.Reports().Warnings.Num(), 0);
+	return true;
+}
+
+SCFG_SETTINGS_TEST(FScfgSettingsRuntimeWalletRetryTest, "ARuntimeWalletCallCanBeRetriedAndRepeated")
+
+// Review T3: a call that fails (a wallet file not read yet: no wallet) changes nothing, so the retry with the wallet
+// works with the settings' chain row (no chain.duplicate); a second call replaces the configuration; with settings
+// applied at start (their own wallet) the call replaces them without AddChain()'s "set aside" warning.
+bool FScfgSettingsRuntimeWalletRetryTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSettingsTests;
+	const FString Other = TEXT("0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359");
+	{
+		FWorld W;
+		const TStrongObjectPtr<UScfgSettings> S = Make([](UScfgSettings& E) { E.Options.Wallet.Reset(); });
+		FGame G(W, S.Get());
+		TestEqual(TEXT("no wallet yet"), G.Scfg->ApplySettingsWith(*S, FString(), FString()), FString(TEXT("wallet.missing")));
+		TestNull(TEXT("nothing changed"), G.F().GetConfig());
+		TestEqual(TEXT("the retry"), G.Scfg->ApplySettingsWith(*S, UTF8_TO_TCHAR(kDev), FString()), FString());
+		TestEqual(TEXT("a second call replaces it"), G.Scfg->ApplySettingsWith(*S, Other, FString()), FString());
+		if (TestNotNull(TEXT("configured"), G.F().GetConfig()))
+		{
+			TestEqual(TEXT("the second call's wallet"), ScfgString::FromUtf8(G.F().GetConfig()->wallet.value_or("")), Other);
+		}
+		TestEqual(TEXT("the settings' item"), G.F().ItemTitle(TEXT("chapter2")), FString(TEXT("Chapter 2")));
+		TestEqual(TEXT("one error: the first call's"), W.Reports().Errors.Num(), 1);
+		TestEqual(TEXT("no warning"), W.Reports().Warnings.Num(), 0);
+	}
+	{
+		FWorld W;
+		const TStrongObjectPtr<UScfgSettings> S = Make();
+		FGame G(W, S.Get());
+		TestTrue(TEXT("applied at start"), G.F().IsConfigFromSettings());
+		TestEqual(TEXT("replaced with a runtime wallet"), G.Scfg->ApplySettingsWith(*S, Other, FString()), FString());
+		TestFalse(TEXT("a code configuration now"), G.F().IsConfigFromSettings());
+		if (TestNotNull(TEXT("configured"), G.F().GetConfig()))
+		{
+			TestEqual(TEXT("that wallet"), ScfgString::FromUtf8(G.F().GetConfig()->wallet.value_or("")), Other);
+		}
+		TestEqual(TEXT("no 'set aside' warning, no error"), W.Reports().Warnings.Num() + W.Reports().Errors.Num(), 0);
+	}
 	return true;
 }
 

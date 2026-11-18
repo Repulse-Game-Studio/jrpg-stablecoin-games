@@ -204,8 +204,9 @@ def test_the_no_wallet_start_blanks_the_settings_wallet_and_expects_the_showcase
     assert "0x52908400098527886E0F7030069857D2E4169EE7" not in source
     log = "\n".join([
         "[1][0]LogScfg: Warning: scfg: the SCFG settings (Project Settings > Plugins > SCFG) have "
-        "chains or items but no wallet, so they are not applied at start: set a wallet there, "
-        "configure from code, or call ConfigureWithSettings(Wallet) with a wallet supplied at runtime.",
+        "chains or items but no wallet, so they were not applied at start, and nothing configured "
+        "SCFG in the first frame: set a wallet there, configure from code, or call "
+        "ConfigureWithSettings(Wallet) with a wallet supplied at runtime.",
         "[1][0]LogScfgShowcase: Warning: showcase: " + e2e.NO_WALLET + " Put your wallet address in "
         "Project Settings > Plugins > SCFG > Wallet (with Testnet on), or start the game with "
         "-scfg-showcase-wallet=0x...",

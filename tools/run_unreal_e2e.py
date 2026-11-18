@@ -1263,10 +1263,11 @@ NO_WALLET_ARGS = ("-ini:Game:[/Script/Scfg.ScfgSettings]:Options=(bTestnet=True)
 # What the HUD and the log say then (UScfgShowcaseGameInstance::NO_WALLET).
 NO_WALLET = "No wallet is set, so SCFG is not configured and nothing can be paid."
 # The two warnings that start must log, and may: the plugin's (settings with items but no wallet
-# are not applied) and the showcase's refusal.
+# were not applied, and nothing configured SCFG in the first frame) and the showcase's refusal.
 NO_WALLET_WARNINGS = (
-    re.compile(r"\bLogScfg: Warning: scfg: the SCFG settings \(Project Settings > Plugins > SCFG\) "
-               r"have chains or items but no wallet, so they are not applied at start: "),
+    re.compile(r"\bLogScfg: Warning: scfg: the SCFG settings \(Project Settings > Plugins > "
+               r"SCFG\) have chains or items but no wallet, so they were not applied at start, and "
+               r"nothing configured SCFG in the first frame: "),
     re.compile(r"\bLogScfgShowcase: Warning: showcase: " + re.escape(NO_WALLET)
                + " Put your wallet "),
 )

@@ -149,7 +149,8 @@ buy link's `onrampEnabled`, `onrampUrl` and `onrampChains` (`ScfgOptions.Onramp`
   failed or was cancelled); in the editor's play mode the asset database finds it. Keep one per project: with
   several, none is applied (reported in play mode and in the player) and a build fails.
 - An asset with neither wallet is **not applied** at startup: that is the opt-out for a game that configures from
-  code, not an error. `settings.HasWallet` says which.
+  code, not an error. `settings.HasWallet` says which. If the asset has items and nothing configured SCFG by the end
+  of the first frame, one plain Console line says so.
 - A wallet supplied at runtime (one per build, or read from a file) can still use the asset's options and items:
   `settings.Apply(wallet, solanaWallet)` (either may be `null`) applies the asset with those wallets instead of its
   own and returns the first error code, or `null`. Call it before payments start, as any `Configure`:

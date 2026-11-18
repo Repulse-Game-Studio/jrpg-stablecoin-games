@@ -258,6 +258,8 @@ void FScfgFacade::Shutdown()
 	// 4. The pump.
 	FTSTicker::RemoveTicker(PumpHandle);
 	PumpHandle.Reset();
+	FTSTicker::RemoveTicker(NoticeHandle);
+	NoticeHandle.Reset();
 	bShutDown = true;
 }
 
@@ -460,6 +462,69 @@ TOptional<scfg::Err> FScfgFacade::ApplySettings(
 		}
 	}
 	return {};
+}
+
+TOptional<scfg::Err> FScfgFacade::ConfigureWithSettings(
+	const FScfgOptions& InOptions, const TArray<FScfgSettingsChain>& Chains, const TArray<FScfgSettingsItem>& Items)
+{
+	if (ScfgGuard::OffGameThread(TEXT("ConfigureWithSettings()")))
+	{
+		return ScfgFacadeDetail::WrongThread(TEXT("ConfigureWithSettings()"));
+	}
+	if (Worker || StartError || bShuttingDown)
+	{
+		return Configure(InOptions);  // configure.after_start, with its message
+	}
+	// Checked first, touching nothing (see the header).
+	std::vector<scfg::config::CustomChain> Built;
+	for (const FScfgSettingsChain& Row : Chains)
+	{
+		scfg::Result<scfg::chains::Chain> Chain = scfg::config::build_chain(ScfgConvert::ChainKwargs(Row.Key, Row.Chain));
+		if (!Chain.ok())
+		{
+			return Misuse(Chain.err());
+		}
+		Built.emplace_back(Chain.take());
+	}
+	scfg::Result<scfg::config::Config> Checked = scfg::config::build_config(ScfgConvert::ConfigKwargs(InOptions), Built);
+	if (!Checked.ok())
+	{
+		return Misuse(ScfgGuard::EngineSpelling(Checked.err()));
+	}
+	// Applied as a code call: whatever was configured is replaced, the chains are these rows.
+	SetSettingsAside();
+	CustomChains = std::move(Built);
+	if (TOptional<scfg::Err> Error = Configure(InOptions))
+	{
+		CustomChains.clear();
+		return Error;
+	}
+	for (const FScfgSettingsItem& Row : Items)
+	{
+		if (TOptional<scfg::Err> Error = AddItem(Row.Id, Row.ToItem()))
+		{
+			return Error;
+		}
+	}
+	return {};
+}
+
+void FScfgFacade::WarnUnlessConfiguredAfterAFrame(FString Line)
+{
+	TWeakPtr<FScfgFacade> Weak = AsShared();
+	FTSTicker::RemoveTicker(NoticeHandle);
+	NoticeHandle = Ticker().AddTicker(FTickerDelegate::CreateLambda([Weak, Line = MoveTemp(Line)](float)
+	{
+		if (const TSharedPtr<FScfgFacade> Self = Weak.Pin())
+		{
+			Self->NoticeHandle.Reset();
+			if (!Self->Config && !Self->bShuttingDown)
+			{
+				Self->Reporter->Warning(Line);
+			}
+		}
+		return false;  // once
+	}));
 }
 
 TOptional<scfg::Err> FScfgFacade::AddItem(const FString& ItemId, const FScfgItem& Item)

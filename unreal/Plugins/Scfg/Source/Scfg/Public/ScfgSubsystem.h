@@ -98,9 +98,12 @@ public:
 	FString AddItem(const FString& ItemId, const FScfgItem& Item);
 	// The project settings (Project Settings > Plugins > SCFG: their chains, options and items) with the payout wallets
 	// given here instead of theirs: a wallet supplied at runtime (one per build, or read from a file). An empty wallet
-	// is not set; at least one is required (wallet.missing). Runs AddChain() for each chain row, Configure(), then
-	// AddItem() for each item row, as code calls (the first error code stops it), so call it when Configure() may be
-	// called: before payments start (the game instance's Init() after Super::Init(), or the first level's BeginPlay).
+	// is not set; at least one is required (wallet.missing). It checks the chain rows and the configuration first and
+	// changes nothing when one fails, so a call that fails (a wallet file not read yet) can be retried. Then, as a code
+	// call, it replaces any configuration (the settings' applied at start, or an earlier call's): the chains are the
+	// settings' rows, then Configure(), then AddItem() for each item row (the first error code stops it). Call it when
+	// Configure() may be called: before payments start (the game instance's Init() after Super::Init(), or the first
+	// level's BeginPlay).
 	UFUNCTION(BlueprintCallable, Category = "SCFG")
 	FString ConfigureWithSettings(const FString& Wallet, const FString& SolanaWallet);
 	// ConfigureWithSettings() with these settings instead of the project's (C++ only).

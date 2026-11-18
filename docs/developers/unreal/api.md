@@ -161,12 +161,16 @@ panel.
 - **Applied at start, opt-in.** When the game instance starts, the subsystem applies the settings through the same
   calls a game makes: `AddChain` for each chain row, `Configure(Options)`, then `AddItem` for each item row. Settings
   without a wallet (`Wallet` and `SolanaWallet` both empty) are not applied at all, so a game configured from code is
-  unaffected; if they have chain or item rows, one warning says why. **Validate** reports no problem for the
+  unaffected; if they have chain or item rows and nothing configured SCFG by the end of the first frame, one
+  warning says why. **Validate** reports no problem for the
   missing wallet (it checks the rest with stand-in wallets) and says the settings are not applied.
 - **A wallet supplied at runtime** (one per build, or read from a file) can use the settings' chains, options and
   items: `ConfigureWithSettings(Wallet, SolanaWallet)` (Blueprint too; either may be empty) runs their `AddChain`
   rows, `Configure` with their options and these wallets, then their `AddItem` rows, as calls from code, and returns
-  the first error code or `""`. Leave the wallets in the settings empty, and call it where `Configure` goes (below).
+  the first error code or `""`. It checks the rows and the configuration first and changes nothing when they fail,
+  so a call made before the wallet file was read can simply be repeated; a successful call replaces whatever was
+  configured (the settings applied at start included). Leave the wallets in the settings empty, and call it where
+  `Configure` goes (below).
   `ApplySettingsWith(Settings, Wallet, SolanaWallet)` does the same with another `UScfgSettings` object (C++). A failing row is logged like any misuse, then
   once more naming the settings; a failing chain or `Configure` applies nothing, a failing item keeps what came before
   it.

@@ -74,7 +74,7 @@ const TCHAR* const CODE_SWITCH = TEXT("scfg-showcase-code");
 const TCHAR* const FROM_SETTINGS = TEXT("the project settings (Config/DefaultGame.ini)");
 const TCHAR* const FROM_SETTINGS_WALLET = TEXT("the project settings, with the wallet from the command line");
 const TCHAR* const FROM_CODE = TEXT("code (ConfigureInCode)");
-const TCHAR* const FROM_HARNESS = TEXT("the e2e config");
+const TCHAR* const FROM_HARNESS = TEXT("a harness hook (SetHarnessFactory)");
 
 // The logo, relative to the project folder, or "" when neither file is there.
 FString LogoPath()
