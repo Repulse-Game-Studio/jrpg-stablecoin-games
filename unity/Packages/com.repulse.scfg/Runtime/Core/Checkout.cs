@@ -20,13 +20,60 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
+using System.Numerics;
 using Scfg.Core.Solana;
 
 namespace Scfg.Core
 {
     /// <summary>checkout.py's module tables, read-only (Unity's domain reload off keeps statics between plays).</summary>
+    /// <summary>The buy link's state on a checkout step (Python's checkout.onramp_view).</summary>
+    public readonly struct OnrampView
+    {
+        public string? Url { get; }
+        public bool ShowsOnramp { get; }
+        public bool ShowsOnrampHint { get; }
+
+        public OnrampView(string? url, bool showsOnramp, bool showsOnrampHint)
+        {
+            Url = url;
+            ShowsOnramp = showsOnramp;
+            ShowsOnrampHint = showsOnrampHint;
+        }
+    }
+
     public static class Checkout
     {
+        private static readonly string[] OnrampPages = { "browser", "qr", "manual" }; // static-ok: private table, only read
+
+        /// <summary>
+        /// The buy link's state on a checkout step, as the controller and every port decide it (Python's
+        /// checkout.onramp_view, pinned by the tier1 vectors). Url: configure's onramp page for the chosen network when it
+        /// is offered there, else null; the suggested amount is the session's exact <paramref name="units"/>, or before a
+        /// session (null) the payment <paramref name="amount"/> plus the most the item code and nonce add
+        /// (<see cref="Paylinks.OnrampExactUnits"/>); plus a cent where the token is the network's gas coin (Arc); rounded
+        /// up to whole cents. The link goes on the method step, or on the payment page the sheet opens on when
+        /// <paramref name="path"/> has no method step; the hint shows there instead, without a url, while the player can
+        /// go back and another network in <paramref name="optionKeys"/> has the link.
+        /// </summary>
+        public static OnrampView OnrampView(ConfigData config, string token, string? chainKey, BigInteger? units, Dec amount,
+                                            string step, IReadOnlyList<string> path, bool canGoBack,
+                                            IReadOnlyList<string> optionKeys)
+        {
+            var opts = config.Onramp;
+            Chain? chain = null;
+            if (!string.IsNullOrEmpty(chainKey)) Scfg.Core.Config.EnabledChains(config).TryGetValue(chainKey!, out chain);
+            string? url = null;
+            if (opts.Enabled && chain != null && opts.Chains.Contains(chain.Key))
+            {
+                var exact = units ?? Amounts.DecimalToUnits(amount) + Paylinks.OnrampExactUnits;
+                url = Paylinks.OnrampUrl(opts.Url, chain.Key, chain.ChainId, token, chain.Tokens[token].Address,
+                                         Paylinks.OnrampAmount(exact, chain.NativeToken == token));
+            }
+            bool here = step == "method" || (OnrampPages.Contains(step) && !path.Contains("method"));
+            bool hint = opts.Enabled && here && url == null && canGoBack && optionKeys.Any(k => opts.Chains.Contains(k));
+            return new OnrampView(url, here && url != null, hint);
+        }
+
         public static readonly IReadOnlyList<string> FinalStates = Array.AsReadOnly(new[] { "paid", "underpaid", "expired" });
 
         /// <summary>Errors that judge the reported transaction (the hint) and drop it.</summary>
@@ -233,44 +280,25 @@ namespace Scfg.Core
             return Paylinks.Eip681TransferUri(TokenAddress!, Chain!.ChainId, Recipient!, units);
         }
 
+        private OnrampView Onramp() =>
+            Checkout.OnrampView(Config, Spec.Token, ChainKey, HasSession ? Ints.IntFrom(Py.Get(Session, "units")) : (BigInteger?)null,
+                                Amount, Step, StepPath(), CanGoBack, ChainOptions().Select(o => o.Key).ToList());
+
         /// <summary>
         /// The page where a player without the token buys some with a card, for the chosen network, with the payment
         /// (plus a cent for the fee on Arc) suggested as the amount. Null when configure's onramp doesn't offer it on
-        /// this network.
+        /// this network (see <see cref="Checkout.OnrampView"/>).
         /// </summary>
-        public string? OnrampUrl()
-        {
-            var opts = Config.Onramp;
-            var chain = Chain;
-            if (!opts.Enabled || chain == null || !opts.Chains.Contains(chain.Key)) return null;
-            var units = HasSession ? Ints.IntFrom(Py.Get(Session, "units")) : Amounts.DecimalToUnits(Amount);
-            return Paylinks.OnrampUrl(opts.Url, chain.Key, chain.ChainId, Spec.Token, TokenAddress!,
-                                      Paylinks.OnrampAmount(units, chain.NativeToken == Spec.Token));
-        }
-
-        /// <summary>
-        /// The step where the buy link (or its hint) goes: the method step, or the payment page the sheet opens on when
-        /// the method step is skipped (a single method).
-        /// </summary>
-        private bool OnrampStep() =>
-            Step == "method" || ((Step == "browser" || Step == "qr" || Step == "manual") && !StepPath().Contains("method"));
+        public string? OnrampUrl() => Onramp().Url;
 
         /// <summary>Whether this step offers the buy link.</summary>
-        public bool ShowsOnramp => OnrampStep() && OnrampUrl() != null;
+        public bool ShowsOnramp => Onramp().ShowsOnramp;
 
         /// <summary>
         /// Whether this step points to the buy link instead ("Pick another network"), because the chosen network has none
         /// (Solana) but another one the player can pick has it. Its button goes back to the network step (Back()).
         /// </summary>
-        public bool ShowsOnrampHint
-        {
-            get
-            {
-                var opts = Config.Onramp;
-                if (!opts.Enabled || !OnrampStep() || OnrampUrl() != null || !CanGoBack) return false;
-                return ChainOptions().Any(o => opts.Chains.Contains(o.Key));
-            }
-        }
+        public bool ShowsOnrampHint => Onramp().ShowsOnrampHint;
 
         public string? ExplorerUrl()
         {

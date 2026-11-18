@@ -45,16 +45,22 @@ namespace Scfg.Core
         /// The buy page offered to players who have no stablecoin yet (configure's onramp): a template whose
         /// {placeholders} are filled in for the network the player picked. The default is thirdweb's hosted Buy page,
         /// which needs no account or key; the player connects their own wallet there and buys with a card, then pays as
-        /// usual. tokenEditable=false keeps the page on the network and token the game asked for. (Python's ONRAMP_URL.)
+        /// usual. tokenEditable=false keeps the page on the network and token the game asked for, and paymentMethods=card
+        /// offers card payment only. tokenAddress is not in thirdweb's iframe docs, but the hosted page honours it
+        /// (paylinks.py). (Python's ONRAMP_URL.)
         /// </summary>
         public const string DefaultOnrampUrl = "https://thirdweb.com/bridge/buy-widget?chain={chain_id}"
-                                               + "&tokenAddress={token_address}&amount={amount}&tokenEditable=false";
+                                               + "&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+                                               + "&paymentMethods=card";
 
         public static readonly IReadOnlyList<string> OnrampFields =
             System.Array.AsReadOnly(new[] { "amount", "chain", "chain_id", "token", "token_address" });
 
         /// <summary>On a chain whose gas coin is the token (Arc), the payment's fee is paid in it too: 0.01.</summary>
         public const long OnrampGasUnits = 10_000;
+
+        /// <summary>Before a session exists: the most the item code and nonce add to the price, 0.009999.</summary>
+        public const long OnrampExactUnits = 9_999;
 
         /// <summary>
         /// The matches of Python's ONRAMP_PLACEHOLDER, <c>\{([^{}]*)\}</c>, left to right without overlaps: a

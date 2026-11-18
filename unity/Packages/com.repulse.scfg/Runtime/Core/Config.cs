@@ -588,12 +588,14 @@ namespace Scfg.Core
         // ---- onramp -----------------------------------------------------------------------------------------
 
         /// <summary>
-        /// An https:// URL of printable ASCII (no spaces) whose only braces are placeholders from
-        /// <see cref="Paylinks.OnrampFields"/>, like "{chain_id}".
+        /// An https:// URL of printable ASCII (no spaces) with a host after https:// (its first character not a brace,
+        /// '/', '?' or '#') whose only braces are placeholders from <see cref="Paylinks.OnrampFields"/>, like "{chain_id}".
         /// </summary>
         private static string OnrampUrlArg(object? value)
         {
-            bool ok = value is string s && s.StartsWith("https://", StringComparison.Ordinal) && s.Length <= OnrampUrlLimit;
+            // a host must follow https://: its first character is not a brace, '/', '?' or '#'
+            bool ok = value is string s && s.StartsWith("https://", StringComparison.Ordinal) && s.Length <= OnrampUrlLimit
+                      && s.Length > 8 && "{}/?#".IndexOf(s[8], StringComparison.Ordinal) < 0;
             if (ok)
                 foreach (char ch in (string)value!)
                     if (ch < '!' || ch > '~')
@@ -602,7 +604,7 @@ namespace Scfg.Core
                         break;
                     }
             if (!ok)
-                throw new ConfigError("onramp url must be an https:// URL without spaces, at most "
+                throw new ConfigError("onramp url must be an https:// URL with a host, without spaces, at most "
                                       + OnrampUrlLimit.ToString(CultureInfo.InvariantCulture) + " characters: " + Py.Repr(value),
                                       "onramp.bad_url");
             var url = (string)value!;

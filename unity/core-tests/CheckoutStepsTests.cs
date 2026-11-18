@@ -562,7 +562,7 @@ namespace Scfg.Core.Tests
             var units = Ints.IntFrom(ctl.Session!["units"]);
             Assert.That(units >= 4_990_000 && units < 5_000_000, Is.True, units.ToString(System.Globalization.CultureInfo.InvariantCulture));
             Assert.That(ctl.OnrampUrl(), Is.EqualTo("https://thirdweb.com/bridge/buy-widget?chain=42161&tokenAddress=" + UsdcArb
-                                                   + "&amount=5.00&tokenEditable=false"));
+                                                   + "&amount=5.00&tokenEditable=false&paymentMethods=card"));
         }
 
         [Test]
@@ -572,7 +572,7 @@ namespace Scfg.Core.Tests
             f.Ctl.ChooseNetwork("arc");
             await f.Submitter.Idle();
             f.Ctl.Poll();
-            Assert.That(f.Ctl.OnrampUrl(), Does.EndWith("&amount=5.01&tokenEditable=false"));
+            Assert.That(f.Ctl.OnrampUrl(), Does.EndWith("&amount=5.01&tokenEditable=false&paymentMethods=card"));
         }
 
         [Test]
