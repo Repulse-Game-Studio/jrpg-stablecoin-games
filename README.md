@@ -14,12 +14,17 @@ watches the blockchain itself.
 |---|---|---|---|
 | **Ren'Py 8.2+** | `game/scfg/` and its Python core | Released: desktop and web builds | [Install](docs/developers/install.md) |
 | **Godot 4.3+** | the `addons/scfg/` addon, pure GDScript | Preview: tested on 4.3 and 4.7.2, desktop and web exports | [Install](docs/developers/godot/install.md), [showcase](godot/showcase/README.md) |
+| **Unreal Engine 5.6+** | the `Scfg` plugin (C++, Blueprint), UE 5.6+ | Preview: tested on UE 5.8.4, Linux desktop (uncooked and packaged); 5.6/5.7, Windows, macOS and mobile not yet checked | [Install](docs/developers/unreal/install.md), [showcase](unreal/Project/ScfgDev/README.md) |
 | **RPG Maker MZ** | one plugin file, `js/plugins/SCFG.js` | Preview: tested on an in-repo MZ stand-in, **not yet in real RPG Maker MZ** | [Install](docs/developers/rpgmaker/install.md) |
 
 The three share one payment core: the Ren'Py plugin's Python is the reference, and the TypeScript (RPG Maker)
 and GDScript (Godot) ports replay the same [conformance vectors](conformance/README.md). `tools/package.py` builds
 `scfg-renpy-<version>.zip`, `scfg-godot-<version>.zip` and `scfg-rpgmaker-mz-<version>.zip`; each release
 carries all three. Mobile builds are best effort and unverified on every engine.
+
+The Unreal plugin's C++ core (`unreal/Plugins/Scfg/Source/ScfgCore/`) shares that payment core too and replays the
+same vectors. `tools/package.py --engine unreal` builds its zips, one per engine version:
+`scfg-unreal-<version>-ue5.6.zip`, `-ue5.7.zip` and `-ue5.8.zip`; each release carries those as well.
 
 ![A player tips 3 USDC on Arc in Ruby Dreams: pick an amount, pick a network, scan the QR code, payment confirmed](.github/media/tip-arc.gif)
 
@@ -83,7 +88,7 @@ Players can read how paying works, which wallets work and how to restore a purch
 | `tests/godot_showcase/` | Boots the Godot showcase headless and presses its chain-free buttons (needs `SCFG_GODOT`) |
 | `tools/` | `package.py` (release zip), `sync_demo.py` (copies the plugin into the demos and the Godot showcase), `check_rpcs.py`, `run_renpy_e2e.py`, `run_renpy_web_e2e.py`, `make_ui_assets.py` (screen corner images), `gen_vectors.py` (conformance vectors), `fetch_godot.py` (download a verified Godot binary or web export templates), `run_godot_tests.py` (the GDScript runner, failing closed), `run_godot_e2e.py` / `run_godot_web_e2e.py` (the Godot demo against a local chain), `make_pot.py`, `sync_web_page.py`, `check_text_ids.py` (RPG Maker text ids), `run_rpgmaker_web_e2e.py` / `run_rpgmaker_desktop_e2e.py` (the RPG Maker plugin against a local chain) |
 | `contracts/` | `MockToken.sol` (6-decimal mock token) and the Arc stand-ins `ArcMockUsdc.sol` / `ArcSystemEmitter.sol`, used by integration tests |
-| `unreal/` | The Unreal port, in development (Linux and UE 5.8 only so far, no release yet): the C++ payment core in plain C++20 (`Plugins/Scfg/Source/ScfgCore/`) with its tests, lints and conformance runners (`core-tests/`) and the drivers of the integration and server suites (`core-driver/`), built with CMake; the `Scfg` plugin around it (the glue module `Scfg`: a game-instance subsystem with a Blueprint API, the worker, the store, the localhost checkout page and the Slate payment sheet, with automation tests run in the editor); and the development project `Project/ScfgDev/` with its showcase. Its tools: `tools/run_unreal_e2e.py` (the Unreal showcase against a local chain, under `xvfb-run`), `tools/run_unreal_build.py` / `tools/run_unreal_tests.py` (the plugin's headless build and automation tests), and the Unreal text ids in `tools/check_text_ids.py`. See [its README](unreal/README.md) |
+| `unreal/` | The Unreal port (Preview: tested on UE 5.8.4 on Linux only; its first release is 0.3.0): the C++ payment core in plain C++20 (`Plugins/Scfg/Source/ScfgCore/`) with its tests, lints and conformance runners (`core-tests/`) and the drivers of the integration and server suites (`core-driver/`), built with CMake; the `Scfg` plugin around it (the glue module `Scfg`: a game-instance subsystem with a Blueprint API, the worker, the store, the localhost checkout page and the Slate payment sheet, with automation tests run in the editor); and the development project `Project/ScfgDev/` with its showcase. Its tools: `tools/run_unreal_e2e.py` (the Unreal showcase against a local chain, under `xvfb-run`), `tools/run_unreal_build.py` / `tools/run_unreal_tests.py` (the plugin's headless build and automation tests), and the Unreal text ids in `tools/check_text_ids.py`. See [its README](unreal/README.md) |
 | `tests/unreal_showcase/` | Boots the Unreal showcase under `xvfb-run` and presses its chain-free buttons (needs UE 5.8; deselected unless `-m unreal_showcase`) |
 
 ## Development
@@ -124,7 +129,7 @@ uv run python tools/run_rpgmaker_desktop_e2e.py --family evm      # or arc, sola
 dotnet test unity/Scfg.sln -c Release
 uv run pytest -m integration tests/integration/test_cs_core.py
 
-# C++ core (CMake 3.25+, Ninja, a C++20 compiler; the start of the Unreal port, in development): tests, lints and
+# C++ core (CMake 3.25+, Ninja, a C++20 compiler; the Unreal port's payment core): tests, lints and
 # the conformance vectors, also under ASan/UBSan; its local-chain twins (tests/integration/test_cpp_core.py) run with
 # the integration tests above when cmake and a compiler are found; see unreal/README.md. Its LocaleTests group needs
 # tr_TR.UTF-8 and de_DE.UTF-8 (or another comma-decimal locale) and fails without one: sudo locale-gen tr_TR.UTF-8 de_DE.UTF-8
@@ -151,6 +156,7 @@ uv run python tools/run_unreal_e2e.py --family evm   # or arc, solana; --package
 uv run pytest -m unreal_showcase   # the Unreal showcase's boot test, no chain (tools/run_unreal_e2e.py --showcase; guide: unreal/Project/ScfgDev/README.md)
 uv run python tools/run_unreal_build.py --target ScfgDev --config Shipping   # the Unreal plugin built headless, failing on any warning
 uv run python tools/run_unreal_tests.py --filter Scfg   # its automation tests in the editor, headless (builds the editor first)
+uv run python tools/package.py --engine unreal   # build dist/scfg-unreal-<version>-ue5.6/5.7/5.8.zip (the plugin source, without its tests)
 uv run python tools/make_pot.py --check; uv run python tools/sync_web_page.py --check
 uv run python tools/check_text_ids.py --check   # RPG Maker and Unreal text ids agree with the shared messages and the Godot template (--engine unreal: no Node)
 

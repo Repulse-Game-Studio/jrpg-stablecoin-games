@@ -64,6 +64,8 @@
 // the launch (no xdg-open, no browser of the developer's), and the clipboard is the X server's (Xvfb's).
 #pragma once
 
+#include "Misc/Build.h"   // UE_BUILD_SHIPPING
+
 #if !UE_BUILD_SHIPPING
 
 #include "CoreMinimal.h"

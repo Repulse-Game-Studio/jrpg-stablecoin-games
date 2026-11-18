@@ -1,0 +1,123 @@
+name: unreal
+
+# The Unreal plugin in a real UE 5.8 editor, on a self-hosted Linux runner (GitHub's hosted runners have no Unreal
+# Engine): the editor and Shipping builds of the dev project with strict includes, the automation tests, the Linux
+# e2e under Xvfb for evm, arc and solana, the showcase tour (uncooked and packaged), and the release zips with
+# RunUAT BuildPlugin on the 5.8 one. The C++ core's own tests run without Unreal in test.yml (cpp-core).
+#
+# It needs a runner registered with the labels self-hosted, linux and unreal, UE_ROOT set in the runner's
+# environment, and the repository variable UNREAL_RUNNER=true (notes/unreal-port/unreal-setup-guide.md, "Self-hosted
+# CI runner"). Without the variable every job is skipped instead of waiting for a runner that does not exist.
+# There is no pull_request trigger on purpose: a self-hosted runner must never run code from a fork's pull request.
+
+on:
+  # What the Unreal jobs build or run (the e2e reuses the Godot and Ren'Py runners' chain families, helpers and
+  # mocks; the zip carries the Unreal guide and the license). The weekly run covers everything else.
+  push:
+    branches: [main]
+    paths:
+      - "unreal/**"
+      - "plugin/game/scfg/web/**"
+      - "plugin/game/python-packages/scfg_core/**"
+      - "conformance/vectors/**"
+      - "contracts/**"
+      - "docs/developers/unreal/**"
+      - "LICENSE"
+      - "tools/run_unreal_build.py"
+      - "tools/run_unreal_tests.py"
+      - "tools/run_unreal_e2e.py"
+      - "tools/package.py"
+      - "tools/package_unreal.py"
+      - "tools/run_godot_e2e.py"
+      - "tools/run_renpy_e2e.py"
+      - "tools/sync_demo.py"
+      - "tests/unreal_showcase/**"
+      - "tests/integration/browser_mocks.py"
+      - "tests/integration/mock_token.py"
+      - "tests/integration/solana_local.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/unreal.yml"
+  schedule:
+    - cron: "0 6 * * 1"   # weekly, as test.yml: a changed runner machine shows up here
+  workflow_dispatch:      # run by hand from the Actions tab
+
+permissions:
+  contents: read
+
+# One Unreal process at a time on the runner: runs never overlap, and a running one is not cancelled (its engine
+# processes are killed by the wrappers' own timeouts, not halfway through by a newer push).
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash   # -eo pipefail: a failed command before a pipe fails the step
+
+jobs:
+  editor:
+    if: vars.UNREAL_RUNNER == 'true'
+    runs-on: [self-hosted, linux, unreal]
+    timeout-minutes: 480   # the wrappers time out each build (3600 s) and run (1800 s) themselves
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The runner has UE 5.8 at UE_ROOT and the e2e's tools
+        run: |
+          if [ -z "${UE_ROOT:-}" ] || [ ! -x "$UE_ROOT/Engine/Binaries/Linux/UnrealEditor" ]; then
+            echo "::error::UE_ROOT (${UE_ROOT:-unset}) is not a UE 5.8 install: set it in the runner's environment"
+            exit 1
+          fi
+          for tool in uv xvfb-run anvil solana-test-validator; do
+            command -v "$tool" > /dev/null || { echo "::error::$tool is not on the runner's PATH"; exit 1; }
+          done
+          test -f /usr/share/vulkan/icd.d/lvp_icd.json || { echo "::error::Mesa's lavapipe (mesa-vulkan-drivers) is missing"; exit 1; }
+      - run: uv sync
+
+      # UBT has no strict-includes switch of its own: these are the three that BuildPlugin's -StrictIncludes passes
+      # (BuildPluginCommand.Automation.cs), so each .cpp of the plugin and the dev project compiles on its own,
+      # with no precompiled header and no unity file to hide a missing include.
+      - name: Editor build with strict includes, failing on any warning of ours
+        run: uv run python tools/run_unreal_build.py --target ScfgDevEditor --config Development -- -NoPCH -NoSharedPCH -DisableUnity
+      - name: Shipping game build with strict includes (no test module may be linked in)
+        run: uv run python tools/run_unreal_build.py --target ScfgDev --config Shipping -- -NoPCH -NoSharedPCH -DisableUnity
+      - name: Automation tests in the editor, headless
+        run: uv run python tools/run_unreal_tests.py --no-build --filter Scfg
+
+      # The runner starts each game on an X server of its own (it re-runs itself under xvfb-run -a and refuses any
+      # other display), rendered by lavapipe.
+      - name: Linux e2e under Xvfb (EVM)
+        run: uv run python tools/run_unreal_e2e.py --no-build --family evm
+      - name: Linux e2e under Xvfb (Arc, native USDC send)
+        run: uv run python tools/run_unreal_e2e.py --no-build --family arc
+      - name: Linux e2e under Xvfb (Solana)
+        run: uv run python tools/run_unreal_e2e.py --no-build --family solana
+      - name: The showcase tour, uncooked
+        run: uv run python tools/run_unreal_e2e.py --showcase --no-build
+      - name: The showcase tour on the packaged game (BuildCookRun, Development)
+        run: uv run python tools/run_unreal_e2e.py --showcase --packaged
+
+      - name: Release zips build
+        run: uv run python tools/package.py --engine unreal
+      - name: BuildPlugin on the 5.8 zip (the stripped plugin builds on its own, outside the dev project)
+        run: |
+          version=$(uv run python -c "import sys; sys.path.insert(0, 'plugin/game/python-packages'); from scfg_core import __version__; print(__version__)")
+          work="$RUNNER_TEMP/buildplugin"
+          rm -rf "$work"
+          mkdir -p "$work/extract"
+          unzip -q "dist/scfg-unreal-$version-ue5.8.zip" -d "$work/extract"
+          # BuildPlugin passes no -ubtargs: UBA's host comes from the environment (XmlConfig.cs); UAT's logs stay
+          # in the work directory.
+          UnrealBuildTool_UnrealBuildAccelerator__Host=127.0.0.1 \
+          uebp_LogFolder="$work/uat-logs" uebp_EngineSavedFolder="$work/uat-saved" \
+          timeout 3600 "$UE_ROOT/Engine/Build/BatchFiles/RunUAT.sh" BuildPlugin \
+            -Plugin="$work/extract/Scfg/Scfg.uplugin" -Package="$work/package" -Rocket -TargetPlatforms=Linux \
+            -StrictIncludes -unattended -utf8output -nop4 2>&1 | tee "$work/buildplugin.log"
+          grep -q "BUILD SUCCESSFUL" "$work/buildplugin.log"
+          if grep -iE "\b(warning|error)\b" "$work/buildplugin.log"; then
+            echo "::error::BuildPlugin logged a warning or an error (above)"
+            exit 1
+          fi
+          for f in README.md LICENSE NOTICES.txt Resources/Web/index.html; do
+            test -f "$work/package/$f" || { echo "::error::the built plugin has no $f"; exit 1; }
+          done

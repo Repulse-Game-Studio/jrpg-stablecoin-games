@@ -4,6 +4,7 @@
 #if !UE_BUILD_SHIPPING
 
 #include "Engine/GameViewportClient.h"
+#include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Application/SlateUser.h"
 #include "GenericPlatform/GenericApplication.h"
@@ -23,6 +24,7 @@
 #include "SocketSubsystem.h"
 #include "Sockets.h"
 #include "UnrealClient.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/SViewport.h"
 #include "Widgets/SWindow.h"
 #include "Widgets/Text/STextBlock.h"

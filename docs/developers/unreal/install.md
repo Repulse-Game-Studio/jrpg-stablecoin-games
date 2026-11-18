@@ -41,8 +41,12 @@ needs the compiler for step 3. If the editor will not build the plugin for it, a
 Class**), which turns the project into a C++ project, and open it again.
 
 The plugin from the 5.8 zip builds on its own (`RunUAT BuildPlugin` on Linux: the editor, and a Development and a
-Shipping game), but it has not yet been copied into a fresh project and opened in the editor; until now it was used
-only inside the repository's own development project (a C++ project, on Linux).
+Shipping game). Copied into the `Plugins` folder of a fresh C++ project made from the Blank template, it packaged as a
+Linux Development game (BuildCookRun), the game started with the plugin loaded and its SCFG project settings applied,
+and the checkout page's files were staged with it. That project changed nothing else but one packaging setting, the
+zen store turned off for the cooked output (Packaging > "Use Zen Server as cooked output store", for the test
+machine's network isolation); the default, with the zen store on, has not been tried. Nor have opening such a project
+in the editor, and Blueprint-only projects.
 
 ## Try the showcase first
 

@@ -5,6 +5,7 @@
 
 #include "CoreMinimal.h"
 #include "IDetailCustomization.h"
+#include "UObject/WeakObjectPtr.h"   // FWeakObjectPtr: WeakObjectPtrTemplates.h only declares it
 #include "UObject/WeakObjectPtrTemplates.h"
 
 class UScfgSettings;

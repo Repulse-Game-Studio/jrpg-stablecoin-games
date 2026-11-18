@@ -23,6 +23,7 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/ScopeExit.h"
+#include "UObject/Package.h"
 #include "UObject/StrongObjectPtr.h"
 
 #include "Engine/Engine.h"
