@@ -146,9 +146,14 @@ namespace Scfg.E2E
             var oldProduct = PlayerSettings.productName;
             var oldCompany = PlayerSettings.companyName;
             var oldDefines = PlayerSettings.GetScriptingDefineSymbols(target);
+            var oldRunInBackground = PlayerSettings.runInBackground;
             try
             {
                 PlayerSettings.SetScriptingBackend(target, il2cpp ? ScriptingImplementation.IL2CPP : ScriptingImplementation.Mono2x);
+                // The windowed run (SCFG_E2E_WINDOWED=1) is under Xvfb, which has no window manager: the window never
+                // gets the focus, and a player without Run In Background stops its frames until it does, so the
+                // driver never answers. -batchmode players run regardless.
+                PlayerSettings.runInBackground = true;
                 PlayerSettings.SetManagedStrippingLevel(target, il2cpp ? ManagedStrippingLevel.High : ManagedStrippingLevel.Minimal);
                 PlayerSettings.productName = Product;
                 PlayerSettings.companyName = Company;
@@ -169,6 +174,7 @@ namespace Scfg.E2E
                 PlayerSettings.productName = oldProduct;
                 PlayerSettings.companyName = oldCompany;
                 PlayerSettings.SetScriptingDefineSymbols(target, oldDefines);
+                PlayerSettings.runInBackground = oldRunInBackground;
                 AssetDatabase.SaveAssets();
             }
         }
