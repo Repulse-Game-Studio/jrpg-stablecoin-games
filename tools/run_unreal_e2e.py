@@ -876,6 +876,15 @@ def buy_link_drawn_in_the_sheet(game: Game, snap: dict, shots: Path, family: str
     and arc families dress as): laid out within the method options' width, its text in one or more
     lines inside it, and drawn (the screenshot). The solana family runs on testnet: no link and no
     hint."""
+    if family != "solana":
+        # a step's first frame lays its buttons out at height 0: measure once the layout has settled
+        def laid_out(s):
+            view = sheet(s)
+            return view is not None and button(view, "onramp") is not None and all(
+                b["rect"][3] > 0 for b in view["buttons"]
+                if b["name"] == "onramp" or b["name"].startswith("method_"))
+
+        snap = wait_for(game, "the method step laid out", laid_out)
     view = sheet(snap)
     link = button(view, "onramp")
     if family == "solana":
