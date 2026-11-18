@@ -9,9 +9,9 @@
 // One command at a time: a network command runs until its Co finishes or is destroyed, and while it runs (suspended
 // on a request) no other command may start, as Python's Worker and PumpWorker queue commands and never interleave
 // jobs. Starting a network command, or calling report_hint, set_ui_status, discard_session or restore_apply, while
-// one runs, or add_item, is a programming error and aborts (running() tells). The glue queues commands, as the PumpWorker does;
-// the readers (pending(), receipts(), snapshot(), config(), chain()) are not commands. The next command may start
-// from the finished one's Job on_done, which runs after its coroutine has returned.
+// one runs, or add_item, is a programming error and aborts (running() tells). The glue queues commands, as the
+// PumpWorker does; the readers (pending(), receipts(), snapshot(), config(), chain()) are not commands. The next
+// command may start from the finished one's Job on_done, which runs after its coroutine has returned.
 //
 // Lifetime: the Engine's coroutines refer to it (member coroutines) and to the transport, so the caller keeps both
 // alive, and does not move the Engine, while one runs (Co.h, "Teardown order": destroy the Jobs first). Destroying a
@@ -27,9 +27,10 @@
 //
 // Errors: a crash while stepping one session (or, later, checking one receipt or classifying one transfer) is
 // reported to on_error and counted, never propagated, exactly where Python has `except Exception`; a BaseException
-// (CancelledError) is never contained, and neither is Abandoned (a refused request, below): the tick stops there. on_error is called from inside the running command's coroutine, so it must not
-// destroy the Job or Co that runs the command (Co.h, Job): that destroys the frame that is executing, which is
-// undefined behaviour with no diagnostic. A handler that wants to tear down records the wish and acts after on_done.
+// (CancelledError) is never contained, and neither is Abandoned (a refused request, below): the tick stops there.
+// on_error is called from inside the running command's coroutine, so it must not destroy the Job or Co that runs the
+// command (Co.h, Job): that destroys the frame that is executing, which is undefined behavior with no diagnostic. A
+// handler that wants to tear down records the wish and acts after on_done.
 #pragma once
 
 #include "Scfg/BackendsBase.h"

@@ -83,7 +83,7 @@ public:
     friend SCFGCORE_API std::strong_ordering operator<=>(const BigInt& a, const BigInt& b);
 
 private:
-    // Normalised: no high zero limbs, and zero is never negative.
+    // Normalized: no high zero limbs, and zero is never negative.
     bool neg_ = false;
     std::vector<uint32_t> mag_;
 

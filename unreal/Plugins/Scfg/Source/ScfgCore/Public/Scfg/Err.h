@@ -42,11 +42,11 @@ struct SCFGCORE_API Err {
     // test output; not Python's str(exc)).
     std::string str() const;
 
-    // A new error of any kind in the table; an unknown kind is recorded in errors::misuse() (ruling R5).
+    // A new error of any kind in the table; an unknown kind is recorded in errors::misuse().
     static Err make(std::string k, std::string msg);
     static Err value_error(std::string msg);
     static Err type_error(std::string msg);
-    // msg is the key's repr, already formatted (ruling R4).
+    // msg is the key's repr, already formatted.
     static Err key_error(std::string msg);
     static Err index_error(std::string msg);
     static Err overflow_error(std::string msg);

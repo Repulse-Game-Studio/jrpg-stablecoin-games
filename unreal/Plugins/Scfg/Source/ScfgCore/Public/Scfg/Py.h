@@ -71,6 +71,17 @@ SCFGCORE_API bool is_decimal_digit(uint32_t cp);
 SCFGCORE_API std::string strip(std::string_view s);
 // A-Z to a-z, nothing else (the locale never matters).
 SCFGCORE_API std::string lower_ascii(std::string_view s);
+// The lowercase hex digits, HEX_DIGITS[v] for v in 0..15 (bytes.hex(), hex(), the \uXXXX of json.dumps).
+inline constexpr char HEX_DIGITS[] = "0123456789abcdef";
+// The value 0-15 of an ASCII hex digit of either case, or -1 (no other digit counts, whatever the locale).
+constexpr int hex_value(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+// An ASCII hex digit of either case.
+constexpr bool is_hex_digit(char c) { return hex_value(c) >= 0; }
 // s.lower() as far as a search for an ASCII phrase can tell: A-Z become a-z, U+212A (Kelvin) becomes k and U+0130
 // becomes "i" + U+0307, the only non-ASCII characters whose lowercase holds an ASCII character (checked over every
 // code point with CPython 3.9); every other character stays itself, since it and its lowercase are both non-ASCII.
@@ -167,7 +178,7 @@ SCFGCORE_API bool truthy(const Json& v);
 // NaN equals nothing), str by content, lists in order, dicts by key set and values (order ignored), None only None.
 // Values must be acyclic.
 SCFGCORE_API bool eq(const Json& a, const Json& b);
-// The KeyError Python raises for d[key] (its message is repr(key), ruling R4).
+// The KeyError Python raises for d[key] (its message is repr(key)).
 SCFGCORE_API Err key_error(std::string_view key);
 // The same for a key of any type. Python raises KeyError(key) and formats it only when it is printed, so a key
 // whose repr fails (an int of more than 4300 digits) still makes a KeyError; its message is then what

@@ -135,8 +135,6 @@ bool is_native_symbol(const Json& v) {
     return true;
 }
 
-bool is_hex(char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'); }
-
 // s.count("{}") (non-overlapping).
 size_t count_braces(std::string_view s) {
     size_t n = 0;
@@ -327,7 +325,7 @@ Result<std::string> accent(const Json& value) {
     if (good) {
         std::string_view s = value.as_str();
         good = !s.empty() && s[0] == '#' && (s.size() == 4 || s.size() == 7 || s.size() == 9);
-        for (size_t i = 1; good && i < s.size(); ++i) good = is_hex(s[i]);
+        for (size_t i = 1; good && i < s.size(); ++i) good = py::is_hex_digit(s[i]);
     }
     if (!good) {
         SCFG_TRY(std::string shown, py::repr(value));
@@ -523,14 +521,14 @@ Result<Onramp> merge_onramp(const Json& onramp, const std::vector<std::string>& 
 
 // ---- build_config ----
 
-constexpr Param kConfigParams[] = {
+constexpr Param CONFIG_PARAMS[] = {
     {"wallet", false, true},        {"testnet"},  {"chains"}, {"tokens"}, {"methods"},
     {"rpc_urls"},                   {"confirmations"}, {"previous_wallets"}, {"logo"}, {"accent"},
     {"custom_chains"},              {"solana_wallet"}, {"onramp"},
 };
 
 Result<Config> build(const Json& kwargs, const std::vector<CustomChain>* typed) {
-    SCFG_TRY(const Json::Dict* kw, bind(kwargs, "build_config", kConfigParams));
+    SCFG_TRY(const Json::Dict* kw, bind(kwargs, "build_config", CONFIG_PARAMS));
     bool testnet = py::truthy(arg(*kw, "testnet", false));
     std::vector<CustomChain> raw;
     if (typed == nullptr) {

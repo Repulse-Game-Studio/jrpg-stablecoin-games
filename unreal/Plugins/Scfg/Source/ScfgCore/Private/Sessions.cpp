@@ -8,13 +8,10 @@
 #include "Scfg/Py.h"
 
 #include <algorithm>
-#include <optional>
 #include <string>
 #include <utility>
 
 namespace scfg::sessions::detail {
-
-bool is_hex(char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'); }
 
 // rec[key] = value on a stored record: the TypeError Python raises when the record is not a dict.
 Status set_item(Json& rec, std::string key, Json value) {
@@ -45,7 +42,7 @@ std::string new_session_id(Entropy& entropy) { return "ps_" + entropy.token_hex(
 Result<std::string> normalize_tx_hash(const Json& tx_hash) {
     if (tx_hash.is_str()) {
         const std::string s = py::strip(tx_hash.as_str());
-        if (s.size() == 66 && s[0] == '0' && s[1] == 'x' && std::all_of(s.begin() + 2, s.end(), detail::is_hex)) {
+        if (s.size() == 66 && s[0] == '0' && s[1] == 'x' && std::all_of(s.begin() + 2, s.end(), py::is_hex_digit)) {
             return py::lower_ascii(s);
         }
     }

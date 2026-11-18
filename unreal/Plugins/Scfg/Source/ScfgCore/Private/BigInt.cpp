@@ -2,6 +2,8 @@
 // No Python twin: Python's int (sign and magnitude, 32-bit limbs, Knuth's algorithm D for division).
 #include "Scfg/BigInt.h"
 
+#include "Scfg/Py.h"
+
 #include <algorithm>
 #include <bit>
 
@@ -9,8 +11,8 @@ namespace scfg {
 namespace bigint_detail {
 
 using Limbs = std::vector<uint32_t>;
-constexpr uint64_t kBase = uint64_t(1) << 32;
-constexpr uint32_t kDecChunk = 1000000000;  // 10^9 < 2^32: one short multiply/divide per 9 decimal digits
+constexpr uint64_t LIMB_BASE = uint64_t(1) << 32;
+constexpr uint32_t DEC_CHUNK = 1000000000;  // 10^9 < 2^32: one short multiply/divide per 9 decimal digits
 
 void trim(Limbs& a) {
     while (!a.empty() && a.back() == 0) a.pop_back();
@@ -141,7 +143,7 @@ void divmod(const Limbs& u, const Limbs& v, Limbs& q, Limbs& r) {
         return;
     }
     const size_t m = u.size(), n = v.size();
-    // D1: normalise so that v's top limb has its high bit set (then qhat is at most 2 too large).
+    // D1: normalize so that v's top limb has its high bit set (then qhat is at most 2 too large).
     const unsigned s = unsigned(std::countl_zero(v[n - 1]));
     Limbs vn(n), un(m + 1);
     for (size_t i = n - 1; i > 0; --i) {
@@ -160,10 +162,10 @@ void divmod(const Limbs& u, const Limbs& v, Limbs& q, Limbs& r) {
         uint64_t num = (uint64_t(un[j + n]) << 32) | un[j + n - 1];
         uint64_t qhat = num / vn[n - 1];
         uint64_t rhat = num % vn[n - 1];
-        while (qhat >= kBase || qhat * vn[n - 2] > ((rhat << 32) | un[j + n - 2])) {
+        while (qhat >= LIMB_BASE || qhat * vn[n - 2] > ((rhat << 32) | un[j + n - 2])) {
             --qhat;
             rhat += vn[n - 1];
-            if (rhat >= kBase) break;
+            if (rhat >= LIMB_BASE) break;
         }
         // D4: multiply and subtract qhat * vn from un[j .. j+n].
         int64_t borrow = 0;
@@ -189,7 +191,7 @@ void divmod(const Limbs& u, const Limbs& v, Limbs& q, Limbs& r) {
         }
     }
     trim(q);
-    // D8: unnormalise the remainder.
+    // D8: unnormalize the remainder.
     r.assign(n, 0);
     for (size_t i = 0; i < n; ++i) {
         r[i] = uint32_t((uint64_t(un[i]) >> s) | (uint64_t(un[i + 1]) << (32 - s)));
@@ -200,13 +202,6 @@ void divmod(const Limbs& u, const Limbs& v, Limbs& q, Limbs& r) {
 std::string bad_literal(std::string_view s, int base) {
     return std::string("invalid literal for int() with base ") + (base == 10 ? "10" : "16") + ": '" + std::string(s) +
            "'";
-}
-
-int hex_digit(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
 }
 
 }  // namespace bigint_detail
@@ -254,7 +249,7 @@ Result<BigInt> BigInt::from_hex(std::string_view s) {
     if (digits.empty()) return Err::value_error(bigint_detail::bad_literal(s, 16));
     bigint_detail::Limbs mag((digits.size() + 7) / 8);
     for (size_t i = 0; i < digits.size(); ++i) {
-        int d = bigint_detail::hex_digit(digits[digits.size() - 1 - i]);  // i-th digit from the right
+        int d = py::hex_value(digits[digits.size() - 1 - i]);  // i-th digit from the right
         if (d < 0) return Err::value_error(bigint_detail::bad_literal(s, 16));
         mag[i / 8] |= uint32_t(d) << (4 * (i % 8));
     }
@@ -273,7 +268,7 @@ std::string BigInt::to_decimal() const {
     if (mag_.empty()) return "0";
     bigint_detail::Limbs work = mag_;
     std::vector<uint32_t> chunks;  // base 10^9, least significant first
-    while (!work.empty()) chunks.push_back(bigint_detail::div_small(work, bigint_detail::kDecChunk));
+    while (!work.empty()) chunks.push_back(bigint_detail::div_small(work, bigint_detail::DEC_CHUNK));
     std::string out = neg_ ? "-" : "";
     for (size_t i = chunks.size(); i-- > 0;) {
         char buf[9];
@@ -290,7 +285,6 @@ std::string BigInt::to_decimal() const {
 
 std::string BigInt::to_hex() const {
     if (mag_.empty()) return "0";
-    static constexpr char kDigits[] = "0123456789abcdef";
     std::string out = neg_ ? "-" : "";
     bool started = false;
     for (size_t i = mag_.size(); i-- > 0;) {
@@ -298,7 +292,7 @@ std::string BigInt::to_hex() const {
             unsigned d = (mag_[i] >> (4 * k)) & 0xf;
             if (d == 0 && !started) continue;
             started = true;
-            out += kDigits[d];
+            out += py::HEX_DIGITS[d];
         }
     }
     return out;

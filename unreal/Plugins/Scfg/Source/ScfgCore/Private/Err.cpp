@@ -21,7 +21,7 @@ struct Kind {
 // godot/addons/scfg/core/err.gd's BASES, whole: Python built-ins, the decimal module's
 // signals, the QR generator's DataTooLongError, scfg_core's own, and asyncio's CancelledError (a BaseException,
 // so an `except Exception` around a session step does not swallow a cancellation).
-constexpr std::array<Kind, 28> kKinds = {{
+constexpr std::array<Kind, 28> KINDS = {{
     {"BaseException", ""},
     {"Exception", "BaseException"},
     {"ValueError", "Exception BaseException"},
@@ -60,7 +60,7 @@ constexpr std::array<Kind, 28> kKinds = {{
 }};
 
 const Kind* find(std::string_view name) {
-    for (const Kind& k : kKinds) {
+    for (const Kind& k : KINDS) {
         if (k.name == name) return &k;
     }
     return nullptr;
@@ -83,12 +83,12 @@ PrintSink& print_sink() {
 bool Err::is_a(std::string_view k) const {
     const errors::detail::Kind* asked = errors::detail::find(k);
     if (asked == nullptr) {
-        errors::detail::report_misuse("Err::is_a: unknown kind " + std::string(k) + " (add it to Err.cpp's kKinds)");
+        errors::detail::report_misuse("Err::is_a: unknown kind " + std::string(k) + " (add it to Err.cpp's KINDS)");
         return false;
     }
     const errors::detail::Kind* mine = errors::detail::find(kind);
     if (mine == nullptr) {
-        errors::detail::report_misuse("Err::is_a: an Err of unknown kind " + kind + " (add it to Err.cpp's kKinds)");
+        errors::detail::report_misuse("Err::is_a: an Err of unknown kind " + kind + " (add it to Err.cpp's KINDS)");
         return false;
     }
     if (mine == asked) return true;
@@ -110,7 +110,7 @@ std::string Err::str() const {
 
 Err Err::make(std::string k, std::string msg) {
     if (errors::detail::find(k) == nullptr) {
-        errors::detail::report_misuse("Err::make: unknown kind " + k + " (add it to Err.cpp's kKinds)");
+        errors::detail::report_misuse("Err::make: unknown kind " + k + " (add it to Err.cpp's KINDS)");
     }
     Err e;
     e.kind = std::move(k);

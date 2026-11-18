@@ -18,7 +18,7 @@ namespace scfg::py::detail {
 // The zero of every run of ten Unicode decimal digits (Nd) in CPython 3.9's unicodedata (Unicode 13.0.0, the
 // project's interpreter), copied from pystr.ts ND_ZEROS / Py.cs NdZeros: 65 runs, 650 digits. Not a newer table: a
 // newer one has more digit sets (Tangsa U+16AC0, Kawi, Nag Mundari, ...) that Python 3.9 refuses.
-constexpr std::array<uint32_t, 65> kNdZeros = {
+constexpr std::array<uint32_t, 65> ND_ZEROS = {
     0x30,    0x660,   0x6f0,   0x7c0,   0x966,   0x9e6,   0xa66,   0xae6,   0xb66,   0xbe6,   0xc66,   0xce6,
     0xd66,   0xde6,   0xe50,   0xed0,   0xf20,   0x1040,  0x1090,  0x17e0,  0x1810,  0x1946,  0x19d0,  0x1a80,
     0x1a90,  0x1b50,  0x1bb0,  0x1c40,  0x1c50,  0xa620,  0xa8d0,  0xa900,  0xa9d0,  0xa9f0,  0xaa50,  0xabf0,
@@ -27,8 +27,7 @@ constexpr std::array<uint32_t, 65> kNdZeros = {
     0x1d7f6, 0x1e140, 0x1e2f0, 0x1e950, 0x1fbf0,
 };
 
-constexpr char kLowerHex[] = "0123456789abcdef";
-constexpr char kUpperHex[] = "0123456789ABCDEF";
+constexpr char UPPER_HEX_DIGITS[] = "0123456789ABCDEF";
 
 uint8_t byte_at(std::string_view s, size_t i) { return static_cast<uint8_t>(s[i]); }
 
@@ -78,7 +77,7 @@ void append_escape(std::string& out, uint32_t cp) {
         out += "\\U";
         digits = 8;
     }
-    for (int k = digits - 1; k >= 0; --k) out += kLowerHex[(cp >> (4 * k)) & 15];
+    for (int k = digits - 1; k >= 0; --k) out += HEX_DIGITS[(cp >> (4 * k)) & 15];
 }
 
 // CPython's Py_UNICODE_ISPRINTABLE for the non-ASCII characters that matter in practice: Cc, Cf, Zs, Zl, Zp, Cs and
@@ -273,7 +272,7 @@ Status check_utf8(std::string_view s, bool surrogates) {
                 if (b < (k == 1 ? lo : 0x80) || b > (k == 1 ? hi : 0xBF)) break;
             }
         }
-        std::string where = k == 1 ? "byte 0x" + std::string{kLowerHex[b0 >> 4], kLowerHex[b0 & 15]} +
+        std::string where = k == 1 ? "byte 0x" + std::string{HEX_DIGITS[b0 >> 4], HEX_DIGITS[b0 & 15]} +
                                          " in position " + dec(i)
                                    : "bytes in position " + dec(i) + "-" + dec(i + k - 1);
         return Err::value_error("'utf-8' codec can't decode " + where + ": " + reason);
@@ -301,14 +300,6 @@ std::string int_ascii(std::string_view s) {
         }
     }
     return a;
-}
-
-// The value of an ASCII hex digit, or -1.
-int hex_value(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
 }
 
 // A well-formed int(s, 16) literal: its sign and its significant hex digits (ASCII, leading zeros dropped, so ""
@@ -454,7 +445,7 @@ bool is_space(uint32_t cp) {
 int decimal_value(uint32_t cp) {
     if (cp >= 0x30 && cp <= 0x39) return static_cast<int>(cp - 0x30);
     if (cp < 0x660) return -1;
-    for (uint32_t z : detail::kNdZeros) {
+    for (uint32_t z : detail::ND_ZEROS) {
         if (cp >= z && cp < z + 10) return static_cast<int>(cp - z);
     }
     return -1;
@@ -612,8 +603,8 @@ Result<std::string> quote(std::string_view s, std::string_view safe) {
             out += static_cast<char>(b);
         } else {
             out += '%';
-            out += detail::kUpperHex[b >> 4];
-            out += detail::kUpperHex[b & 15];
+            out += detail::UPPER_HEX_DIGITS[b >> 4];
+            out += detail::UPPER_HEX_DIGITS[b & 15];
         }
     }
     return out;
@@ -738,13 +729,13 @@ Result<std::optional<int64_t>> py_int_hex_int64(const Json& x) {
     SCFG_TRY(detail::HexLiteral lit, detail::hex_literal(x.as_str()));
     if (lit.digits.size() > 16) return std::optional<int64_t>();  // at least 2**64: decided before converting
     uint64_t mag = 0;
-    for (char c : lit.digits) mag = (mag << 4) | static_cast<uint64_t>(detail::hex_value(c));
-    constexpr uint64_t kInt64Max = 0x7fffffffffffffff;
+    for (char c : lit.digits) mag = (mag << 4) | static_cast<uint64_t>(hex_value(c));
+    constexpr uint64_t MAX_INT64 = 0x7fffffffffffffff;
     if (!lit.negative) {
-        if (mag > kInt64Max) return std::optional<int64_t>();
+        if (mag > MAX_INT64) return std::optional<int64_t>();
         return std::optional<int64_t>(static_cast<int64_t>(mag));
     }
-    if (mag > kInt64Max + 1) return std::optional<int64_t>();
+    if (mag > MAX_INT64 + 1) return std::optional<int64_t>();
     // -mag in int64_t without overflow: -(mag - 1) - 1
     return std::optional<int64_t>(mag == 0 ? 0 : -static_cast<int64_t>(mag - 1) - 1);
 }
@@ -863,14 +854,14 @@ std::partial_ordering compare_numbers(const Number& a, const Number& b) {
     const BigInt& i = a.is_int ? a.i : b.i;
     const double f = a.is_int ? b.f : a.f;
     std::partial_ordering r = std::partial_ordering::unordered;  // (int i) <=> (float f)
-    constexpr double kExact = 9007199254740992.0;                 // 2**53: every int up to it is a double
+    constexpr double EXACT = 9007199254740992.0;                  // 2**53: every int up to it is a double
     if (std::isnan(f)) {
         r = std::partial_ordering::unordered;
     } else if (std::isinf(f)) {
         r = f > 0 ? std::partial_ordering::less : std::partial_ordering::greater;
     } else if (i >= BigInt(-(int64_t{1} << 53)) && i <= BigInt(int64_t{1} << 53)) {
         r = static_cast<double>(i.to_int64().value()) <=> f;
-    } else if (std::fabs(f) < kExact) {
+    } else if (std::fabs(f) < EXACT) {
         r = i.sign() < 0 ? std::partial_ordering::less : std::partial_ordering::greater;  // |i| > 2**53 > |f|
     } else {
         r = i <=> detail::from_integral_double(f);  // a double that large is an integer: compare exactly

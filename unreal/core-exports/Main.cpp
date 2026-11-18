@@ -1,9 +1,9 @@
 // Copyright 2026 Repulse
-// No Python twin: the export check of ruling R2-3. Linked against scfg_core_shared, the core built as a shared
-// library with -fvisibility=hidden where only SCFGCORE_API is visible, as an Unreal module that depends on ScfgCore
-// links against libUnrealEditor-ScfgCore.so. It calls into several of the core's files (Json, Amounts, Config,
-// Engine, Co, Checkout, RestoreFlow, LocalServer); a symbol it needs that lost its export is an undefined reference, so the build fails before ctest
-// runs it. The run checks the answers too, so a link that succeeded by accident still fails the test.
+// No Python twin: the export check. Linked against scfg_core_shared, the core built as a shared library with
+// -fvisibility=hidden where only SCFGCORE_API is visible, as an Unreal module that depends on ScfgCore links against
+// libUnrealEditor-ScfgCore.so. It calls into several of the core's files (Json, Amounts, Config, Engine, Co, Checkout,
+// RestoreFlow, LocalServer); a symbol it needs that lost its export is an undefined reference, so the build fails
+// before ctest runs it. The run checks the answers too, so a link that succeeded by accident still fails the test.
 #include "Scfg/Amounts.h"
 #include "Scfg/Checkout.h"
 #include "Scfg/Co.h"

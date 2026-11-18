@@ -2,11 +2,11 @@
 // Twin of scfg_core/coio.py, its transport half (TransportError, Request, response_from_envelope), and of
 // rpc.UrllibTransport's rules for reading an HTTP answer (parse_rpc_body), as unity/.../Core/Coio.cs ports them.
 //
-// The core never performs a network request itself. Where Python's generator yields a Request, a Co<T> awaits
-// the Future<Json> an injected Transport hands out (Co.h). TransportError is an Err kind (Err::transport_error).
-// Not ported: run_sync, Sync and synced (Co and Job replace them), and UrllibTransport itself: a real transport
-// is platform code (the console driver's, Unreal's FHttpModule in phase 2) that reads the answer's status and
-// bytes and hands them to parse_rpc_body.
+// The core never performs a network request itself. Where Python's generator yields a Request, a Co<T> awaits the
+// Future<Json> an injected Transport hands out (Co.h). TransportError is an Err kind (Err::transport_error). Not
+// ported: run_sync, Sync and synced (Co and Job replace them), and UrllibTransport itself: a real transport is platform
+// code (the console driver's, the Scfg module's FHttpModule transport) that reads the answer's status and bytes and
+// hands them to parse_rpc_body.
 #pragma once
 
 #include "Scfg/Co.h"

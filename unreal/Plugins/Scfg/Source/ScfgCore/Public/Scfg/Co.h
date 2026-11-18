@@ -25,9 +25,9 @@
 // - Parameters are taken by value: a reference, string_view, span or pointer dangles after the first suspension
 //   (LintTests.CoroutineParamsByValue). A member coroutine (RpcClient::call) relies on its object outliving it,
 //   which its caller guarantees, as for any member function; do not move the object while one runs.
-// - No coroutine lambdas (ruling R8, LintTests.NoCoroutineLambdas): Clang miscompiles them in cases that
-//   involve a promise constructor taking the coroutine's arguments (llvm/llvm-project#91983), so the promises here
-//   are default-constructible and the coroutines are named functions.
+// - No coroutine lambdas (LintTests.NoCoroutineLambdas): Clang miscompiles them in cases that involve a promise
+//   constructor taking the coroutine's arguments (llvm/llvm-project#91983), so the promises here are
+//   default-constructible and the coroutines are named functions.
 // - Co<void> ends with `co_return scfg::ok();` (or an Err / a Status): a promise cannot have both return_void and
 //   return_value, and flowing off the end of a coroutine is undefined. Reaching final_suspend without a result
 //   is caught there and aborts (g++ 13 does not warn; Clang does, -Wreturn-type).
@@ -62,7 +62,6 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <type_traits>
 #include <utility>
 
 namespace scfg {
@@ -298,7 +297,7 @@ struct JobFlags {
     bool finished = false;
 };
 
-// Job's root: awaits the work, then reports it. A named function, not a lambda (ruling R8).
+// Job's root: awaits the work, then reports it. A named function, not a lambda (see the rules above).
 template <class T>
 Co<void> job_root(Co<T> work, std::function<void(Result<T>)> on_done, std::shared_ptr<JobFlags> flags) {
     Result<T> r = co_await std::move(work);
@@ -311,7 +310,7 @@ Co<void> job_root(Co<T> work, std::function<void(Result<T>)> on_done, std::share
 
 }  // namespace co_detail
 
-// Keeps a root coroutine alive for a caller outside coroutines (the driver, the tests, phase 2's worker), as
+// Keeps a root coroutine alive for a caller outside coroutines (the driver, the tests, the Scfg module's worker), as
 // Python's run_sync and the PumpWorker drive a generator. Destroying the Job cancels an unfinished root.
 template <class T>
 class Job {
@@ -332,7 +331,7 @@ public:
     //
     // A callback that work calls while it runs (an Engine's on_error, the ErrorSink of reverify and restore, a
     // transport's own callbacks) runs inside one of work's frames. Destroying this Job there destroys the frame that
-    // is executing: undefined behaviour, and nothing detects it. Such a callback records what it wants and the
+    // is executing: undefined behavior, and nothing detects it. Such a callback records what it wants and the
     // owner acts on it after on_done (or from its own loop).
     void start(Co<T> work, std::function<void(Result<T>)> on_done) {
         if (flags_ && (flags_->in_callback || !flags_->finished))

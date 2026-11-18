@@ -4,7 +4,7 @@
 //
 // Lists and dicts are shared handles, as Python names are: copying a Json aliases the same list or dict, so an
 // append through the copy shows in the original. deep_copy() copies (Python's copy.deepcopy). Scalars (strings too)
-// are values. An int is an int64_t, or a BigInt beyond it, always normalised: a value that fits int64 is never
+// are values. An int is an int64_t, or a BigInt beyond it, always normalized: a value that fits int64 is never
 // stored as a BigInt. A bool is not an int here (is_int() is false for it), although Python's bool is one; py::eq
 // and py::py_int treat it as Python does.
 //
@@ -74,7 +74,7 @@ public:
             v_ = BigInt::from_uint64(static_cast<uint64_t>(i));
         }
     }
-    // Normalised: stored as int64 when it fits.
+    // Normalized: stored as int64 when it fits.
     Json(BigInt i);
     Json(double d) : v_(d) {}
     Json(std::string s) : v_(std::move(s)) {}
@@ -96,7 +96,7 @@ public:
     bool is_bool() const { return std::holds_alternative<bool>(v_); }
     // An int of any size (not a bool).
     bool is_int() const { return std::holds_alternative<int64_t>(v_) || std::holds_alternative<BigInt>(v_); }
-    // An int that fits int64_t (normalisation makes that every int64 value).
+    // An int that fits int64_t (normalization makes that every int64 value).
     bool is_int64() const { return std::holds_alternative<int64_t>(v_); }
     bool is_float() const { return std::holds_alternative<double>(v_); }
     bool is_str() const { return std::holds_alternative<std::string>(v_); }

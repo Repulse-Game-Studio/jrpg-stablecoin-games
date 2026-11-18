@@ -18,7 +18,7 @@
 
 namespace scfg::engine::detail {
 
-constexpr std::array<std::string_view, 4> kSessionKeys = {"item", "amount", "token", "title"};
+constexpr std::array<std::string_view, 4> SESSION_KEYS = {"item", "amount", "token", "title"};
 
 // copy.deepcopy(dict(store or {})): None (or another falsy value) is an empty dict, a dict is copied.
 Json own_store(const Json& store) {
@@ -63,7 +63,7 @@ private:
 };
 
 // RefusingTransport's forwarder: transport_'s answer to the request becomes the Engine's own Future's. A named
-// function, not a lambda (Co.h, ruling R8); destroyed while it waits (abandon), it resumes nothing.
+// function, not a lambda (Co.h, no coroutine lambdas); destroyed while it waits (abandon), it resumes nothing.
 Co<void> forward_answer(Future<Json> inner, std::shared_ptr<Promise<Json>> answer) {
     Result<Json> got = co_await std::move(inner);
     if (!answer->completed()) answer->complete(std::move(got));  // resumes the waiting command inside this call
@@ -214,7 +214,7 @@ Co<Json> Engine::start_session(Json kind, Json chain_name, Json opts) {
     }
     for (const auto& [key, value] : opts.as_dict()) {
         (void)value;
-        if (std::find(detail::kSessionKeys.begin(), detail::kSessionKeys.end(), key) == detail::kSessionKeys.end()) {
+        if (std::find(detail::SESSION_KEYS.begin(), detail::SESSION_KEYS.end(), key) == detail::SESSION_KEYS.end()) {
             co_return Err::type_error("start_session() got an unexpected keyword argument " + py::repr_str(key));
         }
     }

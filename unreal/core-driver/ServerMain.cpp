@@ -18,11 +18,9 @@
 // on any stderr line).
 //
 // The listener and the connections are non-blocking: the loop waits only in poll(2) on stdin, at most 2 ms, then pumps.
-#include "Scfg/Entropy.h"
 #include "Scfg/Err.h"
 #include "Scfg/Json.h"
 #include "Scfg/LocalServer.h"
-#include "Scfg/Py.h"
 #include "Scfg/Result.h"
 #include "Scfg/Submitter.h"
 

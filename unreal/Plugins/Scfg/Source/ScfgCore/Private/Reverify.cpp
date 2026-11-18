@@ -18,7 +18,7 @@
 
 namespace scfg::reverify::detail {
 
-// What one pass of reverify_receipts hands each receipt's judgement (shared by its coroutines).
+// What one pass of reverify_receipts hands each receipt's judgment (shared by its coroutines).
 struct Pass {
     backends::base::RpcFor rpc_for;
     OrderedMap<chains::Chain> chains;

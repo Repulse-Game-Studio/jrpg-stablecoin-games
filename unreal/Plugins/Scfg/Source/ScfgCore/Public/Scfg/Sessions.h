@@ -78,7 +78,7 @@ SCFGCORE_API void remove_session(Json::Dict& store, std::string_view sid);
 // (Python's order then depends on which pairs its sort compares).
 SCFGCORE_API Result<std::vector<Json>> list_sessions(const Json::Dict& store);
 
-// How a hint's tx id is checked and normalised (a backend's normalize_tx).
+// How a hint's tx id is checked and normalized (a backend's normalize_tx).
 using Normalize = std::function<Result<std::string>(const Json&)>;
 
 // rec = store[sid] (KeyError); rec["hint_tx"] = normalize(tx_hash); rec["hint_at"] = now. A record that is not a

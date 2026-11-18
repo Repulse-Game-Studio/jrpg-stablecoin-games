@@ -18,7 +18,7 @@
 //   completes;
 // - accepts an empty done: nobody waits for that command (Python drops the Future; the worker still reports its Err);
 // - lets done submit another command (the abandoned session start's discard does);
-// - honours a session start's abandon flag (worker.py's abandon(fut)): once it is true, a start that has not run is
+// - honors a session start's abandon flag (worker.py's abandon(fut)): once it is true, a start that has not run is
 //   cancelled (CancelledError) and never runs, and a running one is refused its next RPC request (Err Abandoned,
 //   Engine::refuse_requests), so the player's next pick does not wait behind the endpoints of the one they left. A
 //   fake may ignore it; an empty flag is never set.

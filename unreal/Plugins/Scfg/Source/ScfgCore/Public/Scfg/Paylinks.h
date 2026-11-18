@@ -1,8 +1,8 @@
 // Copyright 2026 Repulse
 // Twin of scfg_core/paylinks.py (and of unity/.../Core/Paylinks.cs, rpgmaker/src/core/paylinks.ts).
-// Payment links (EIP-681), the buy page link (onramp) and QR code geometry. The QR matrix comes from QrCodeGen.h (Project Nayuki's generator).
-// Rendering is left to the engine: qr_rects merges each row's dark modules into horizontal runs, so the screen draws
-// a few hundred rectangles instead of thousands of single squares.
+// Payment links (EIP-681), the buy page link (onramp) and QR code geometry. The QR matrix comes from QrCodeGen.h
+// (Project Nayuki's generator). Rendering is left to the engine: qr_rects merges each row's dark modules into
+// horizontal runs, so the screen draws a few hundred rectangles instead of thousands of single squares.
 #pragma once
 
 #include "Scfg/BigInt.h"
@@ -22,7 +22,7 @@ namespace scfg::paylinks {
 // filled in for the network the player picked. The default is thirdweb's hosted Buy page, which needs no account or
 // key; the player connects their own wallet there and buys with a card, then pays as usual. tokenEditable=false keeps
 // the page on the network and token the game asked for, and paymentMethods=card offers card payment only.
-// tokenAddress is not in thirdweb's iframe docs, but the hosted page honours it (paylinks.py).
+// tokenAddress is not in thirdweb's iframe docs, but the hosted page honors it (paylinks.py).
 inline constexpr std::string_view ONRAMP_URL =
     "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}"
     "&tokenEditable=false&paymentMethods=card";

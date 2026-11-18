@@ -18,8 +18,7 @@ namespace scfg::evm::detail {
 bool is_hex_word(std::string_view s, size_t digits) {
     if (s.size() != digits + 2 || s[0] != '0' || s[1] != 'x') return false;
     for (size_t i = 2; i < s.size(); ++i) {
-        char c = s[i];
-        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) return false;
+        if (!py::is_hex_digit(s[i])) return false;
     }
     return true;
 }

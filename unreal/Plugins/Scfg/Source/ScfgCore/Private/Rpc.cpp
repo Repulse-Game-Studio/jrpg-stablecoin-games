@@ -1,6 +1,7 @@
 // Copyright 2026 Repulse
 // Twin of scfg_core/rpc.py: RpcClient, is_range_error, suggested_range, _parse_error, _is_rate_error.
-// The one file waived for <chrono>/steady_clock (ruling R3): the default monotonic clock, Python's time.monotonic.
+// The one file waived for <chrono>/steady_clock (LintTests' WAIVERS): the default monotonic clock, Python's
+// time.monotonic.
 #include "Scfg/Rpc.h"
 
 #include "Scfg/Ints.h"
@@ -13,10 +14,10 @@
 
 namespace scfg::rpc::detail {
 
-constexpr std::array<std::string_view, 3> kRateHints = {"rate limit", "too many requests", "rate-limit"};
+constexpr std::array<std::string_view, 3> RATE_HINTS = {"rate limit", "too many requests", "rate-limit"};
 // Phrases providers use for "your eth_getLogs block range is too wide". Some say "archive" (publicnode answers
 // wide ranges with "Archive requests require a personal token").
-constexpr std::array<std::string_view, 8> kRangeHints = {"range",      "too many",      "limit",     "exceed",
+constexpr std::array<std::string_view, 8> RANGE_HINTS = {"range",      "too many",      "limit",     "exceed",
                                                          "max results", "response size", "too large", "archive"};
 
 template <size_t N>
@@ -79,9 +80,9 @@ std::optional<Attempt> failed() { return std::nullopt; }
 
 namespace scfg::rpc {
 
-bool is_range_error(const Err& err) { return detail::lowered_contains_any(err.message, detail::kRangeHints); }
+bool is_range_error(const Err& err) { return detail::lowered_contains_any(err.message, detail::RANGE_HINTS); }
 
-bool is_rate_error(const Err& err) { return detail::lowered_contains_any(err.message, detail::kRateHints); }
+bool is_rate_error(const Err& err) { return detail::lowered_contains_any(err.message, detail::RATE_HINTS); }
 
 BigInt suggested_range(const Err& err, const BigInt& tried) {
     std::optional<int64_t> best;

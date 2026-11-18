@@ -11,7 +11,7 @@
     {
       "name": "release",
       "inherits": "base",
-      "displayName": "Optimised (-O2), assertions kept",
+      "displayName": "Optimized (-O2), assertions kept",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_CXX_FLAGS_RELEASE": "-O2"
@@ -31,7 +31,7 @@
     {
       "name": "clang-libcxx",
       "inherits": "release",
-      "displayName": "Clang and libc++ (as Unreal's Linux, Mac and Android toolchains), optimised (-O2), assertions kept",
+      "displayName": "Clang and libc++ (as Unreal's Linux, Mac and Android toolchains), optimized (-O2), assertions kept",
       "cacheVariables": {
         "CMAKE_CXX_COMPILER": "clang++",
         "CMAKE_CXX_FLAGS": "-stdlib=libc++",

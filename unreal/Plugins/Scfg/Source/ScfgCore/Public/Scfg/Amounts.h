@@ -26,7 +26,7 @@ namespace scfg::amounts {
 
 inline constexpr int64_t TOKEN_DECIMALS = 6;
 // Decimal("1000000"). A function-local static, as MIN_TIP() and the registries: nothing in the core runs at static
-// initialisation, which an Unreal module loaded on demand would run at an unknown time.
+// initialization, which an Unreal module loaded on demand would run at an unknown time.
 SCFGCORE_API const Dec& MAX_AMOUNT();
 // The magnitude bound of every amount the core reads: a nonzero amount's adjusted exponent (the power of ten of its
 // leading digit, Decimal.adjusted()) must lie in [-40, 40]. That is far beyond any token amount (the smallest unit is

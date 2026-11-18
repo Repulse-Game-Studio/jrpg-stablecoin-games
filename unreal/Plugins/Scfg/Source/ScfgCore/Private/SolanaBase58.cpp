@@ -15,8 +15,8 @@ namespace scfg::solana::base58::detail {
 
 // math.log(256) and math.log(58) as CPython computes them (bit for bit), so the limit is the same double whatever
 // this platform's libm rounds log() to.
-inline constexpr double kLog256 = 0x1.62e42fefa39efp+2;  // 5.545177444479562
-inline constexpr double kLog58 = 0x1.03de4c5c6464dp+2;   // 4.060443010546419
+inline constexpr double LOG_256 = 0x1.62e42fefa39efp+2;  // 5.545177444479562
+inline constexpr double LOG_58 = 0x1.03de4c5c6464dp+2;   // 4.060443010546419
 
 // The alphabet index of a code point, or -1.
 int digit_of(uint32_t cp) {
@@ -112,7 +112,7 @@ Result<std::vector<uint8_t>> b58decode(const Json& text) {
 std::optional<double> max_encoded_length(const BigInt& length) {
     std::optional<double> f = detail::to_double(length);
     if (!f) return std::nullopt;
-    double x = *f * detail::kLog256 / detail::kLog58;
+    double x = *f * detail::LOG_256 / detail::LOG_58;
     if (std::isinf(x)) return std::nullopt;  // math.ceil(inf): OverflowError
     return std::ceil(x);
 }

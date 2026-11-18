@@ -1,5 +1,6 @@
 // Copyright 2026 Repulse
-// No Python twin: the plugin's version (scfg_core/__init__.py's __version__ is the Ren'Py package's own).
+// No Python twin: the plugin's version. Kept equal to Scfg.uplugin's VersionName (RunnerTests.CoreLinks) and to
+// scfg_core's __version__ (tools/package_unreal.py).
 #pragma once
 
 #include "Scfg/Export.h"

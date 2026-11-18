@@ -16,7 +16,6 @@
 #pragma once
 
 #include "Scfg/BackendsBase.h"
-#include "Scfg/BigInt.h"
 #include "Scfg/Export.h"
 #include "Scfg/Json.h"
 #include "Scfg/Result.h"
@@ -46,11 +45,11 @@ using sessions::SOLANA_HINT_TIMEOUT_S;
 // nullopt (a failed transaction, nothing gained, or no account of owner's that gained). The node's values are
 // carried as they are (transfers::Transfer): sig as given, the accountIndex as sent, any owner as the payer, the slot
 // unbounded. The payer is the owner that lost the most of the mint (the first of them, in accountIndex order), else
-// the fee payer (accountKeys[0], a str or a {pubkey} entry, whatever its pubkey holds), else None. Raises what Python raises, in its order: AttributeError for a value with no .get,
-// KeyError for a missing accountIndex, uiTokenAmount or amount (or slot), TypeError for an unhashable accountIndex
-// or owner and for accountIndexes Python cannot sort (a str and an int, or None beside anything), int_from's errors
-// for an amount or slot. Port limit: a NaN accountIndex is ordered last, where CPython's place for it depends on
-// its set's hash order.
+// the fee payer (accountKeys[0], a str or a {pubkey} entry, whatever its pubkey holds), else None. Raises what Python
+// raises, in its order: AttributeError for a value with no .get, KeyError for a missing accountIndex, uiTokenAmount or
+// amount (or slot), TypeError for an unhashable accountIndex or owner and for accountIndexes Python cannot sort (a str
+// and an int, or None beside anything), int_from's errors for an amount or slot. Port limit: a NaN accountIndex is
+// ordered last, where CPython's place for it depends on its set's hash order.
 SCFGCORE_API Result<std::optional<transfers::Transfer>> transfer_to(const Json& tx, const Json& sig,
                                                                     std::string_view mint, std::string_view owner);
 

@@ -65,7 +65,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 namespace scfg::local_server {
@@ -115,9 +114,9 @@ struct Logo {
 
 // Python's fut.cancel() for a build the page stopped waiting for (or that the server dropped). May be empty.
 using CancelBuild = std::function<void()>;
-// build_tx(account, done): build the unsigned Solana transfer the (normalized) account signs. done gets the result once,
-// now (inside the call) or later; it holds only weak state, so it may run after the server is gone. An Err is Python's
-// raise: the page gets a 503 at once.
+// build_tx(account, done): build the unsigned Solana transfer the (normalized) account signs. done gets the result
+// once, now (inside the call) or later; it holds only weak state, so it may run after the server is gone. An Err is
+// Python's raise: the page gets a 503 at once.
 using BuildTx = std::function<Result<CancelBuild>(std::string account, worker::OnDone<Json> done)>;
 
 // One accepted connection, non-blocking, as the platform's socket. Destroying it closes it.

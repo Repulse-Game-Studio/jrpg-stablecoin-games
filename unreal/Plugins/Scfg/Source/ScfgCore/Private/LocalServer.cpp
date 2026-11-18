@@ -104,14 +104,6 @@ std::string lstrip_blanks(std::string_view s) {
     return std::string(s.substr(i));
 }
 
-std::string ascii_lower(std::string_view s) {
-    std::string out(s);
-    for (char& c : out) {
-        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
-    }
-    return out;
-}
-
 // A header name as email's headerRE takes it: printable ASCII but the colon (the colon is never in it here).
 bool header_name(std::string_view s) {
     for (char c : s) {
@@ -146,7 +138,7 @@ void finish_header(std::map<std::string, std::string>& out, const std::vector<st
     if (parts.empty()) return;
     const std::string& first = parts[0];
     const size_t colon = first.find(':');
-    std::string name = ascii_lower(std::string_view(first).substr(0, colon));
+    std::string name = py::lower_ascii(std::string_view(first).substr(0, colon));
     if (out.count(name) != 0) return;
     std::string value = lstrip_blanks(std::string_view(first).substr(colon + 1));
     for (size_t i = 1; i < parts.size(); ++i) value += parts[i];

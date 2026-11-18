@@ -61,18 +61,11 @@ Json copy(const Json& v, Path& path) {
 
 bool digit_at(std::string_view s, size_t k) { return k < s.size() && s[k] >= '0' && s[k] <= '9'; }
 
-int hex_value(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
-}
-
 // The four hex digits at s[p..p+4) as a number, or -1.
 int32_t hex4(std::string_view s, size_t p) {
     int32_t u = 0;
     for (size_t k = 0; k < 4; ++k) {
-        int h = hex_value(s[p + k]);
+        int h = py::hex_value(s[p + k]);
         if (h < 0) return -1;
         u = u * 16 + h;
     }
@@ -427,9 +420,8 @@ private:
     }
 
     void hex_escape(uint32_t unit) {
-        static constexpr char kHex[] = "0123456789abcdef";
         out += "\\u";
-        for (int shift = 12; shift >= 0; shift -= 4) out += kHex[(unit >> shift) & 15];
+        for (int shift = 12; shift >= 0; shift -= 4) out += py::HEX_DIGITS[(unit >> shift) & 15];
     }
 
     // ensure_ascii: everything outside ' '..'~' as \uXXXX (astral characters as surrogate pairs, a lone surrogate as

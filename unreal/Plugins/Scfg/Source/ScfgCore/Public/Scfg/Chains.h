@@ -21,7 +21,7 @@
 //
 // MAINNET() and TESTNET() are the mutable registries themselves (Python's module-level dicts): the integration
 // driver points entries at local nodes, as tests/integration's monkeypatch.setitem does. They are built on first use
-// (function-local statics), never during static initialisation.
+// (function-local statics), never during static initialization.
 #pragma once
 
 #include "Scfg/BigInt.h"
@@ -44,7 +44,7 @@ inline constexpr std::string_view ARC_USDC = "0x36000000000000000000000000000000
 inline constexpr std::string_view ARC_SYSTEM_EMITTER = "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE";
 inline constexpr int64_t ARC_MIN_FEE_WEI = 20'000'000'000;  // Arc's mempool silently drops anything below 20 gwei
 
-// Python's frozen Token dataclass. Build one with make(), which runs __post_init__'s normalisation; the fields are
+// Python's frozen Token dataclass. Build one with make(), which runs __post_init__'s normalization; the fields are
 // public (as the dataclass's are readable) but a Token assembled by hand skips that check.
 struct SCFGCORE_API Token {
     std::string address;  // EIP-55 checksummed for an EVM token; the canonical base58 mint for Solana
