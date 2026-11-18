@@ -858,6 +858,9 @@
    "tier2/rpc/getlogs_range_shrinks_to_a_stated_limit",
    "tier2/rpc/getlogs_gives_up_at_the_minimum_range"
   ],
+  "tests/unit/test_rpc_client.py::test_the_floor_is_asked_at_exactly_min_attempt_left": [
+   "tier2/rpc/an_endpoint_is_asked_with_exactly_the_floor_left"
+  ],
   "tests/unit/test_sessions.py::test_bad_tx_hash": [
    "tier1/tx_ids",
    "tier2/evm/hint_verified"
@@ -1188,6 +1191,9 @@
   ],
   "tests/unit/test_watcher_awaiting.py::test_hint_underpaid_unlock_is_final": [
    "tier2/evm/underpaid_hint_is_final"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_hint_verdict_survives_a_network_failure_later_in_the_step": [
+   "tier2/evm/hint_verdict_survives_a_network_failure"
   ],
   "tests/unit/test_watcher_awaiting.py::test_hint_with_several_transfers_takes_largest_qualifying": [
    "tier2/evm/hint_picks_largest_transfer"

@@ -123,6 +123,28 @@ def _call_floor(s):
     assert _urls(s) == [C] and rec["start_block"] == 995
 
 
+@scenario("rpc/an_endpoint_is_asked_with_exactly_the_floor_left", covers=covers(
+    "rpc_client", "the_floor_is_asked_at_exactly_min_attempt_left"))
+def _call_floor_boundary(s):
+    """The floor's boundary: A hangs (10 s), B takes 3 s to say it is rate limited, so exactly
+    the 2 s floor is left: C is asked, with a 2 s timeout (it hangs, so the replay checks that
+    timeout through its `elapsed`), and D is not. (rpc/an_endpoint_is_not_asked_with_less_than_
+    the_floor_left is the side just under it.)"""
+    s.config(wallet=DEV_EVM, chains=["avalanche"])
+    s.custom_chain(**dict(AVALANCHE, rpc=[A, B, C, D]))
+    s.item(**CHAPTER2)
+    node = s.evm("avalanche")
+    node.endpoint(A).hangs = True
+    node.endpoint(B).slow = 3
+    node.endpoint(B).rate_limited = True
+    node.endpoint(C).hangs = True
+    started = s.now
+    s.expect("other").start_session("unlock", "avalanche", item="chapter2")
+    timing = [(c["url"], c.get("elapsed"), c.get("took")) for c in s.steps[-1]["calls"]]
+    assert timing == [(A, 10, None), (B, None, 3), (C, 2, None)]
+    assert s.now == started + 15
+
+
 @scenario("rpc/receipt_and_block_hash_requests", covers=covers(
     "rpc_client", "receipt_and_block_hash", "block_hash_none_for_unknown_block"))
 def _block_hash(s):

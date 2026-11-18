@@ -221,3 +221,25 @@ def test_the_lookup_counts_inside_the_timeout(monkeypatch, no_proxy):
     with pytest.raises(TransportError):
         UrllibTransport().post_json("https://rpc.example/", {"id": 1}, 1.0)
     assert len(given) == 1 and 0 < given[0] <= 0.65, given
+
+
+@pytest.mark.parametrize("no_proxy_value, url, proxied", [
+    ("rpc.example:8545", "https://rpc.example:8545/", False),   # urllib goes direct: look it up
+    ("rpc.example:8545", "https://rpc.example/", True),          # another port: through the proxy
+    ("rpc.example", "https://rpc.example:8545/", False),
+    ("", "https://rpc.example:8545/", True),
+])
+def test_the_proxy_check_is_urllibs_own_with_the_port(monkeypatch, no_proxy, no_proxy_value, url,
+                                                      proxied):
+    """Review V4: the lookup is skipped exactly when urllib goes through the proxy, a no_proxy
+    entry with a port included (urllib asks proxy_bypass with the request's host:port)."""
+    import urllib.request
+
+    from scfg_core.rpc import _proxied
+
+    monkeypatch.setenv("https_proxy", "http://127.0.0.1:3128")
+    if no_proxy_value:
+        monkeypatch.setenv("no_proxy", no_proxy_value)
+    assert _proxied(url) is proxied
+    handler_skips = urllib.request.proxy_bypass(urllib.request.Request(url).host)
+    assert proxied is (not handler_skips), "the same answer as urllib's ProxyHandler"

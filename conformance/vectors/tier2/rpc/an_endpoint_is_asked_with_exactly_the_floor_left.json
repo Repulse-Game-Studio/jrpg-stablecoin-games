@@ -1,0 +1,99 @@
+{
+ "covers": [
+  "tests/unit/test_rpc_client.py::test_the_floor_is_asked_at_exactly_min_attempt_left"
+ ],
+ "id": "rpc/an_endpoint_is_asked_with_exactly_the_floor_left",
+ "setup": {
+  "clock": 1700000000,
+  "config": {
+   "chains": [
+    "avalanche"
+   ],
+   "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+  },
+  "custom_chains": [
+   {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "https://snowtrace.io/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "native_symbol": "AVAX",
+    "rpc": [
+     "https://rpc-a.example",
+     "https://rpc-b.example",
+     "https://rpc-c.example",
+     "https://rpc-d.example"
+    ],
+    "tokens": {
+     "USDC": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+    }
+   }
+  ],
+  "items": [
+   {
+    "code": 37,
+    "item_id": "chapter2",
+    "price": "4.99",
+    "title": "Chapter 2",
+    "token": "USDC"
+   }
+  ],
+  "pending": {},
+  "receipts": {}
+ },
+ "steps": [
+  {
+   "action": "start_session",
+   "args": {
+    "chain": "avalanche",
+    "item": "chapter2",
+    "kind": "unlock"
+   },
+   "at": 1700000000,
+   "calls": [
+    {
+     "elapsed": 10,
+     "method": "eth_blockNumber",
+     "params": [],
+     "transport_error": {
+      "message": "timed out after 10s",
+      "status": null
+     },
+     "url": "https://rpc-a.example"
+    },
+    {
+     "method": "eth_blockNumber",
+     "params": [],
+     "response_text": "{\"error\": {\"code\": -32005, \"message\": \"rate limit exceeded\"}, \"id\": 2, \"jsonrpc\": \"2.0\"}",
+     "took": 3,
+     "url": "https://rpc-b.example"
+    },
+    {
+     "elapsed": 2,
+     "method": "eth_blockNumber",
+     "params": [],
+     "transport_error": {
+      "message": "timed out after 2s",
+      "status": null
+     },
+     "url": "https://rpc-c.example"
+    }
+   ],
+   "entropy": [],
+   "internal_errors": 0,
+   "raises": {
+    "type": "other"
+   },
+   "returns": null,
+   "snapshot": {
+    "owned": [],
+    "pending": {},
+    "receipts": {},
+    "tip_total": "0",
+    "unready": []
+   }
+  }
+ ],
+ "tier": 2
+}

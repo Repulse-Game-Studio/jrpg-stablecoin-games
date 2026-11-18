@@ -59,3 +59,39 @@ def test_a_start_does_not_wait_behind_the_watching_of_pending_payments():
     finally:
         node.release.set()
         w.stop()
+
+
+class RevertingNode(Node):
+    """The hinted transaction reverted (eth_getTransactionReceipt status 0x0); every other
+    request hangs while `hang` is set."""
+
+    def post_json(self, url, payload, timeout):
+        if payload["method"] == "eth_getTransactionReceipt":
+            self.methods.append(payload["method"])
+            receipt = {"status": "0x0", "blockNumber": "0x3e8", "logs": []}
+            return {"jsonrpc": "2.0", "id": payload["id"], "result": receipt}
+        return super().post_json(url, payload, timeout)
+
+
+def test_a_hint_verdict_reached_before_the_tick_yields_is_reported():
+    """Review V1: the tick judged the hint (reverted) and cleared it, then waits on its next
+    request; a command makes it yield. The verdict is still reported, not lost with the step."""
+    cfg = build_config(DEV, chains=["base"], testnet=True)
+    add_item(cfg, "chapter2", code=37, price="4.99", token="USDC", title="Chapter 2")
+    node = RevertingNode()
+    engine = Engine(cfg, transport=node, clock=lambda: 1700000000)
+    sid = engine.start_session("unlock", "base", item="chapter2")["id"]
+    tx = "0x" + "ab" * 32
+    engine.report_hint(sid, tx)
+    w = Worker(engine, interval=lambda: 60.0)
+    node.hang = True
+    w.start()
+    try:
+        assert node.hung.wait(5), "the tick went on to its next request after the verdict"
+        assert engine.pending[sid]["hint_tx"] is None, "the hint is cleared already"
+        w.submit(lambda e: "the player's command").result(timeout=5)
+        outcomes = w.drain_outcomes()
+        assert [(o.session_id, o.error, o.hint_tx) for o in outcomes] == [(sid, "tx_reverted", tx)]
+    finally:
+        node.release.set()
+        w.stop()

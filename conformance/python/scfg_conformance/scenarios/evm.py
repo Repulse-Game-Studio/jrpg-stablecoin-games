@@ -286,6 +286,23 @@ def _hint_reverted(s):
     assert s.steps[-1]["snapshot"]["pending"][rec["id"]]["hint_tx"] is None
 
 
+@scenario("evm/hint_verdict_survives_a_network_failure", covers=covers(
+    "watcher_awaiting", "hint_verdict_survives_a_network_failure_later_in_the_step"))
+def _hint_verdict_survives_a_network_failure(s):
+    """The hint is judged (reverted) and cleared, then the scan's eth_blockNumber fails: the
+    verdict is reported, not replaced by network_unavailable (the next step has no hint)."""
+    node, usdc = _mainnet(s)
+    rec = _hinted(s, tx_hash(1))
+    node.add_transfer(usdc, PAYER_EVM, DEV_EVM, rec["units"], block=998, tx_hash=tx_hash(1))
+    node.receipts[tx_hash(1)]["status"] = "0x0"
+    for url in node.urls:
+        node.endpoint(url).fail_from("eth_blockNumber", 1, -32000, "internal error")
+    out = _outcome(s)
+    assert out.error == "tx_reverted" and out.hint_tx == tx_hash(1), out
+    assert "eth_blockNumber" in [c["method"] for c in s.steps[-1]["calls"]]
+    assert s.steps[-1]["snapshot"]["pending"][rec["id"]]["hint_tx"] is None
+
+
 @scenario("evm/hint_not_a_payment", covers=covers("watcher_awaiting", "hint_not_a_payment"))
 def _hint_not_a_payment(s):
     """A mined hinted transaction without a qualifying transfer is tx_not_a_payment."""

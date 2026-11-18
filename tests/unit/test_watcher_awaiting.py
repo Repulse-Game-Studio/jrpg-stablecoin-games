@@ -155,6 +155,23 @@ def test_hint_reverted():
     assert out.hint_tx == TX  # names the hint judged, as on Solana
 
 
+def test_hint_verdict_survives_a_network_failure_later_in_the_step():
+    """Review V1 (the EVM twin of Solana's rule): the hint was judged and cleared, then the scan's
+    eth_blockNumber fails. The verdict is reported, not replaced by network_unavailable: the next
+    step has no hint, so it would never be."""
+    from scfg_core.rpc import RpcUnavailable
+
+    pending, receipts, chain, rec = setup()
+    set_hint(pending, rec["id"], TX, now=0.0)
+    chain.receipts[TX] = receipt_with(status="0x0")
+
+    def down():
+        raise RpcUnavailable("fake outage")
+    chain.block_number = down
+    out = step(pending, receipts, chain, rec)
+    assert out.error == "tx_reverted" and out.hint_tx == TX and rec["hint_tx"] is None
+
+
 def test_hint_not_a_payment():
     pending, receipts, chain, rec = setup()
     set_hint(pending, rec["id"], TX, now=0.0)

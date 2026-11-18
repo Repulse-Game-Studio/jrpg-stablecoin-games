@@ -153,6 +153,21 @@ def test_an_endpoint_is_not_asked_with_less_than_the_floor_left():
     assert rpc.live_urls() == [C]
 
 
+@pytest.mark.parametrize("b_takes, asked", [(3, True), (3.1, False)])
+def test_the_floor_is_asked_at_exactly_min_attempt_left(b_takes, asked):
+    """Review V5, the floor's boundary: with exactly MIN_ATTEMPT left C is asked, with that
+    timeout; with less (1.9 s) it is not, and stays live."""
+    C = "https://c.rpc"
+    clock = FakeClock()
+    t = TimedTransport(clock, {B: b_takes})
+    rpc = RpcClient([A, B, C], clock=clock)
+    with pytest.raises(RpcUnavailable):
+        Sync(rpc, t).block_number()
+    expected = [(A, 10.0), (B, 5.0)] + ([(C, MIN_ATTEMPT)] if asked else [])
+    assert t.calls == expected
+    assert (C in rpc.live_urls()) is (not asked)
+
+
 @pytest.mark.parametrize("bad", ["not a dict", {"jsonrpc": "2.0", "id": 1}])
 def test_malformed_response_counts_as_endpoint_failure(bad):
     c, _, _ = client({A: lambda m, p: bad, B: lambda m, p: ok("0x2")})

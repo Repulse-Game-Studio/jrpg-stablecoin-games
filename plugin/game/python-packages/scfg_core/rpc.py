@@ -120,13 +120,15 @@ def _ssl_context() -> ssl.SSLContext:
         return ssl.create_default_context()
 
 
-def _proxied(url: str, host: str) -> bool:
+def _proxied(url: str) -> bool:
     """urllib sends this url through a proxy (the environment's, or the Windows / macOS system
-    setting): the proxy resolves the name, and this machine may well not be able to."""
-    scheme = urllib.parse.urlsplit(url).scheme
+    setting): the proxy resolves the name, and this machine may well not be able to. Asked as
+    urllib's ProxyHandler asks it: proxy_bypass of the request's host as the url gives it, with
+    its port (a no_proxy entry such as rpc.example:8545 matches only that port)."""
     try:
-        proxy = urllib.request.getproxies().get(scheme)
-        return bool(proxy) and not urllib.request.proxy_bypass(host)
+        request = urllib.request.Request(url)
+        proxy = urllib.request.getproxies().get(request.type)
+        return bool(proxy) and not urllib.request.proxy_bypass(request.host)
     except Exception:
         return False  # an unreadable proxy setting: urllib's own handler decides
 
@@ -153,7 +155,7 @@ def resolve_within(url: str, timeout: float) -> float:
         return 0.0  # a literal address: nothing to resolve
     except ValueError:
         pass
-    if _proxied(url, host):
+    if _proxied(url):
         return 0.0
     started = time.monotonic()
 

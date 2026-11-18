@@ -25,6 +25,7 @@ from .models import Item, PaymentResult
 from .receipts import add_receipt, make_receipt, receipt_key
 from .rpc import RpcError, RpcUnavailable
 from .sessions import HINT_TIMEOUT_S, clear_hint, is_past_horizon, remove_session, session_price
+from .worker import Abandoned
 
 SCAN_STEP_BLOCKS = 10_000  # upper bound on blocks scanned per advance()
 MAX_SCAN_CALLS = 5  # eth_getLogs calls per advance(), to be gentle with public RPCs
@@ -180,5 +181,14 @@ def advance(pending: MutableMapping, receipts: MutableMapping, sid: str, *, rpc,
         out.result = result_from_match(rec, "paid", chain.key, m)
         return out
     except (RpcUnavailable, RpcError):
-        out.error = "network_unavailable"
+        # A verdict on the hint from earlier in this step wins (backends/solana.py): the hint is
+        # already cleared, and later steps are plain "waiting", so it would never be reported.
+        if out.error is None:
+            out.error = "network_unavailable"
         return out
+    except Abandoned:
+        # The tick yields to a command (worker.py). A verdict on the hint reached earlier in this
+        # step is reported now, for the same reason; the rest of the step waits for the next tick.
+        if out.error is not None:
+            return out
+        raise
