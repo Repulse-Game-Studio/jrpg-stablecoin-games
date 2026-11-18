@@ -37,11 +37,13 @@ jobs:
       - run: uv run python tools/check_unity_meta.py   # every file of the Unity package has its .meta (git-URL installs need them)
       - run: uv run python tools/make_pot.py --check   # the Godot translation template is current
       - run: uv run python tools/check_text_ids.py --check   # the RPG Maker, Unity and Unreal text ids agree with the shared messages and the Godot template
-      - name: Release zips build
+      - name: Release archives build   # every engine's version file must agree with scfg_core, on each push
         run: |
           uv run python tools/package.py
           uv run python tools/package.py --engine godot
           uv run python tools/package.py --engine rpgmaker
+          uv run python tools/package.py --engine unity
+          uv run python tools/package.py --engine unreal
 
   godot-core:
     runs-on: ubuntu-latest
