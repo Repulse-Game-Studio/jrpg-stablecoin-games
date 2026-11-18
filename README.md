@@ -201,11 +201,12 @@ The desktop e2e defaults to SDL's offscreen video driver. Where that isn't avail
 ## Releasing
 
 1. Set the new version in `plugin/game/python-packages/scfg_core/__init__.py` (`__version__`) and in every
-   engine's own version file: `godot/addons/scfg/plugin.cfg`, `rpgmaker/src/mz/version.ts`, `npm/package.json`,
-   the Unity `unity/Packages/com.repulse.scfg/package.json` (and `Runtime/Core/PackageVersion.cs`), and the Unreal
-   `unreal/Plugins/Scfg/Scfg.uplugin` (`VersionName`) with `scfg::VERSION` in
-   `unreal/Plugins/Scfg/Source/ScfgCore/Private/Version.cpp`. `tools/package.py` refuses any that differs, and
-   `test.yml` builds every archive on each push. Merge it to `main`.
+   engine's own version file: `godot/addons/scfg/plugin.cfg`, `rpgmaker/src/mz/version.ts`, the Unity
+   `unity/Packages/com.repulse.scfg/package.json` and `Runtime/Core/PackageVersion.cs` (`PackageVersion.Text`),
+   and the Unreal `unreal/Plugins/Scfg/Scfg.uplugin` (`VersionName`) with `scfg::VERSION` in
+   `unreal/Plugins/Scfg/Source/ScfgCore/Private/Version.cpp`. `tools/package.py` refuses an archive whose
+   version file differs, and `test.yml` builds every archive on each push. Set `npm/package.json` too (the npm
+   job writes the tag's version into it before publishing, so it is not checked). Merge it to `main`.
 2. Check that the editor workflows ran green on that commit: `unity.yml` (the Unity suites and e2e, needs the
    Unity license secrets) and `unreal.yml` (the Unreal editor build, automation tests and e2e, on the self-hosted
    runner). Neither runs on a tag, and `release.yml` runs only the cores' tests, so this is the only editor gate

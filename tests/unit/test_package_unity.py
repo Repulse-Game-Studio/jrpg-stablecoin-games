@@ -39,3 +39,19 @@ def test_the_page_copy_is_checked_in_the_package_given(tmp_path):
     (copy / WEB / "bridge.js.bytes").write_bytes(b"drift")
     found = page_problems(package.unity_problems(copy))
     assert len(found) == 1 and "drifted" in found[0] and str(copy / WEB) in found[0], found
+
+
+def version_problems(found):
+    return [p for p in found if "PackageVersion.Text" in p]
+
+
+def test_the_csharp_version_constant_must_be_the_cores(tmp_path):
+    copy = copy_package(tmp_path)
+    assert package.unity_version_constant(copy) == package.semver(package.__version__)
+    assert version_problems(package.unity_problems(copy)) == []
+    source = copy / "Runtime" / "Core" / "PackageVersion.cs"
+    source.write_text(source.read_text().replace(package.semver(package.__version__), "9.9.9"))
+    found = version_problems(package.unity_problems(copy))
+    assert len(found) == 1 and "9.9.9" in found[0], found
+    source.unlink()
+    assert "None" in version_problems(package.unity_problems(copy))[0]

@@ -40,7 +40,8 @@ The RPG Maker MZ zip unzips into an MZ project folder:
 The Unity tarball is a UPM package as `npm pack` lays it out (Package Manager: + > Add package from
 tarball), the package folder unity/Packages/com.repulse.scfg/ under package/:
 
-    package/package.json               (its "version" must be the core's, in semver form)
+    package/package.json               (its "version" must be the core's, in semver form, and so
+                                       must Runtime/Core/PackageVersion.cs's PackageVersion.Text)
     package/Runtime/, Editor/, Samples~/, Documentation~/ ... (the package, every .meta included)
     package/Documentation~/scfg-unity-guide.md (Unity guide, joined from docs/developers/unity/)
 
@@ -394,8 +395,21 @@ def unity_package_manifest(package=UNITY_PACKAGE):
     return json.loads((package / "package.json").read_text(encoding="utf-8"))
 
 
+UNITY_VERSION_CONSTANT = re.compile(r'public const string Text = "([^"]*)";')
+
+
+def unity_version_constant(package=UNITY_PACKAGE):
+    """Scfg.Core.PackageVersion.Text (Runtime/Core/PackageVersion.cs), or None when not found."""
+    source = package / "Runtime" / "Core" / "PackageVersion.cs"
+    if not source.is_file():
+        return None
+    found = UNITY_VERSION_CONSTANT.search(source.read_text(encoding="utf-8"))
+    return found.group(1) if found else None
+
+
 def unity_problems(package=UNITY_PACKAGE):
-    """What stops the Unity tarball: the version, the license copy, .meta files, the page copy."""
+    """What stops the Unity tarball: the version (package.json and the C# constant), the license
+    copy, .meta files, the page copy."""
     sys.path.insert(0, str(ROOT / "tools"))
     import check_unity_meta
     import check_unity_samples
@@ -407,6 +421,12 @@ def unity_problems(package=UNITY_PACKAGE):
         out.append(
             f"package.json version {manifest.get('version')} != scfg_core {__version__} "
             f"(as semver: {semver(__version__)})"
+        )
+    constant = unity_version_constant(package)
+    if constant != semver(__version__):
+        out.append(
+            f"PackageVersion.Text {constant} (Runtime/Core/PackageVersion.cs) != scfg_core "
+            f"{__version__} (as semver: {semver(__version__)})"
         )
     license_copy = package / "LICENSE.md"
     if not license_copy.is_file() or license_copy.read_text(encoding="utf-8") != (
