@@ -226,6 +226,20 @@ func test_each_attempt_waits_at_most_what_is_left_of_the_budget() -> bool:
 	return T.done()
 
 
+## Review T5: A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not asked
+## with a sliver of time, nor cooled down for failing it.
+func test_an_endpoint_is_not_asked_with_less_than_the_floor_left() -> bool:
+	var c_ := "https://c.rpc"
+	var clock := F.FakeClock.new()
+	var t := TimedTransport.new(clock, {B: 4})
+	var rpc := ScfgRpcClient.new([A, B, c_], {"transport": t, "clock": clock.fn})
+	T.eq(ScfgRpcClient.MIN_ATTEMPT, 2.0, "MIN_ATTEMPT")
+	T.is_err(await rpc.block_number(), "RpcUnavailable", "1 s left: C is not asked")
+	T.eq(t.calls, [[A, 10.0], [B, 5.0]], "A and B only")
+	T.eq(rpc.live_urls(), [c_], "C skipped, not cooled down")
+	return T.done()
+
+
 func test_malformed_response_counts_as_endpoint_failure() -> bool:
 	for bad: Variant in ["not a dict", {"jsonrpc": "2.0", "id": 1}, null, [1], 5.0]:
 		var r := _client({A: F.always(bad), B: F.always(F.ok("0x2"))})

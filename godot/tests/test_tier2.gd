@@ -7,7 +7,7 @@ const Vectors := preload("res://tests/vectors.gd")
 const Tier2 := preload("res://tests/tier2.gd")
 
 ## Every Tier 2 vector: the count of conformance/vectors/tier2/**/*.json, pinned.
-const ENABLED_COUNT := 122
+const ENABLED_COUNT := 123
 
 
 func _vectors() -> Array:
@@ -165,6 +165,31 @@ func test_replay_transport_checks_and_waits_out_an_elapsed_call() -> bool:
 	t.load([hang])
 	await t.post_json("u", {"method": "m", "params": []}, 10.0)
 	T.eq(t.problems.size(), 1, "another timeout is a problem")
+	return T.done()
+
+
+func test_replay_transport_waits_out_a_slow_answer() -> bool:
+	var t := Tier2.ReplayTransport.new()
+	var waited: Array = []
+	t.wait = func(seconds: Variant) -> void: waited.append(seconds)
+	var slow := {"url": "u", "method": "m", "params": [], "took": 4.0,
+		"transport_error": {"message": "HTTP 503", "status": 503}}
+	t.load([slow])
+	var got: Variant = await t.post_json("u", {"method": "m", "params": []}, 5.0)
+	T.is_err(got, "TransportError", "the recorded transport error, after the wait")
+	T.eq(t.problems, [], "a timeout over took")
+	T.eq(waited, [4.0], "the clock moves by took")
+	var answer := {"url": "u", "method": "m", "params": [], "took": 3.0,
+		"response_text": "{\"result\": 7}"}
+	t.load([answer])
+	waited.clear()
+	got = await t.post_json("u", {"method": "m", "params": []}, 10.0)
+	T.json_eq(got, {"result": 7}, "the recorded answer, after the wait")
+	T.eq(waited, [3.0], "a slow answer moves the clock too")
+	T.eq(t.problems, [], "10 s is over 3 s")
+	t.load([slow])
+	await t.post_json("u", {"method": "m", "params": []}, 4.0)
+	T.eq(t.problems.size(), 1, "a timeout not over took is a problem")
 	return T.done()
 
 

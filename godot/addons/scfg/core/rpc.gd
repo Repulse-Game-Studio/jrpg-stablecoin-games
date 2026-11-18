@@ -5,7 +5,8 @@
 ## block ranges. The client therefore:
 ##   * tries endpoints in order on every call, skipping ones in cooldown, within a total budget of
 ##     CALL_BUDGET seconds per call (each attempt waits at most what is left of it, so a chain with
-##     four dead endpoints says so after 15 s, not 40),
+##     four dead endpoints says so after 15 s, not 40; an endpoint is not asked with less than
+##     MIN_ATTEMPT seconds left),
 ##   * puts a failing endpoint in cooldown (30 s, doubling to 10 min),
 ##   * remembers, per endpoint, the largest eth_getLogs range it accepts (public providers allow
 ##     anything from 50 to 2000+ blocks), shrinking it when a provider says a range is too large.
@@ -37,6 +38,10 @@ const COOLDOWN_MAX := 600.0
 ## Measured on the client's clock, so a session start on a chain whose endpoints all hang fails
 ## after 15 s whatever the number of urls.
 const CALL_BUDGET := 15.0
+## The least of the budget an endpoint is asked with: under it the endpoints left are skipped (not
+## cooled down) and the call is RpcUnavailable, so no endpoint is cooled down for failing a request
+## it was given a sliver of time for.
+const MIN_ATTEMPT := 2.0
 ## The smallest eth_getLogs block range (also the smallest max_log_range a chain may declare:
 ## ScfgConfig.MIN_LOG_RANGE is this constant).
 const MIN_LOG_RANGE := 10
@@ -338,7 +343,7 @@ func _call(method: String, params: Array) -> Variant:
 		if _state[url]["until"] > now:
 			continue
 		var left: float = deadline - (clock.call() as float)
-		if left <= 0:
+		if left < MIN_ATTEMPT:
 			break  # CALL_BUDGET spent: the rest are not tried (nor cooled down)
 		var res: Variant = await _attempt(url, method, params, now, minf(timeout, left))
 		if res is ScfgErr:

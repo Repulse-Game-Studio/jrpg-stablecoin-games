@@ -456,7 +456,8 @@ class StepEntropy:
 ## recorded call used once, identical requests take their copies in recorded order. The JSON-RPC
 ## id is ignored; params match by JSON value. A call with `elapsed` (a request that hung) must
 ## have been made with that timeout, and moves the clock by it (`wait`, the replay's clock) before
-## its transport_error is returned.
+## its transport_error is returned. A call with `took` (a slow answer) moves the clock by it before
+## it is answered, and its timeout must be over it.
 ##
 ## Every request first waits `frames` process frames (1 by default), as a real transport does: a
 ## coroutine that never suspends returns its value even when the caller forgot `await`, so only
@@ -490,6 +491,11 @@ class ReplayTransport:
 			if T.first_diff(c["params"], payload.get("params")) != "":
 				continue
 			_used[i] = true
+			if c.has("took"):
+				if timeout <= float(c["took"]):  # JSON numbers may be floats: compare by value
+					problems.append("%s %s: timeout %s is not over the %s s the answer took" % [url,
+						payload.get("method"), ScfgPy.py_str(timeout), ScfgPy.py_str(c["took"])])
+				wait.call(c["took"])
 			if c.has("elapsed"):
 				if timeout != float(c["elapsed"]):  # JSON numbers may be floats: compare by value
 					problems.append("%s %s: timeout %s, recorded %s" % [url, payload.get("method"),
