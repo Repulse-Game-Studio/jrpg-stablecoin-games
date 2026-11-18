@@ -22,7 +22,14 @@ def tool():
 
 
 def test_the_repository_passes(tool):
-    assert tool.problems() == []
+    assert tool.problems(unity=True) == []
+
+
+def test_the_unity_table_is_compared_only_when_asked(tool, monkeypatch):
+    monkeypatch.setattr(tool, "unity_problems", lambda texts, vectors: ["the Unity table, compared"])
+    texts = tool.default_texts()
+    assert tool.problems(texts) == []
+    assert tool.problems(texts, unity=True) == ["the Unity table, compared"]
 
 
 def test_default_ids_come_from_the_machine_readable_dump(tool):

@@ -168,7 +168,7 @@ def test_the_repository_passes_against_rpg_maker(tool):
 
 @pytest.mark.parametrize("node", ["missing", "too old"])
 def test_the_rpg_maker_branch_alone_fails_in_one_line(tool, monkeypatch, capsys, node):
-    # phase 2 final re-review N1: `--engine rpgmaker` ended in a NodeMissing traceback
+    # `--engine rpgmaker` once ended in a NodeMissing traceback
     def old_node(*args, **kwargs):
         raise subprocess.CalledProcessError(1, ["node"], output="", stderr="SyntaxError: Unexpected token ':'\n")
     monkeypatch.setattr(tool.shutil, "which", lambda name: None if node == "missing" else "/usr/bin/node")
@@ -182,7 +182,7 @@ def test_the_rpg_maker_branch_alone_fails_in_one_line(tool, monkeypatch, capsys,
 
 @pytest.mark.parametrize("engine", ["all", "rpgmaker"])
 def test_each_run_starts_node_once(tool, monkeypatch, capsys, engine):
-    # phase 2 final re-review N1: `--engine all` ran Node for the Unreal branch and again in problems()
+    # `--engine all` once ran Node for the Unreal branch and again in problems()
     runs = []
 
     def dump(*args, **kwargs):
@@ -193,4 +193,3 @@ def test_each_run_starts_node_once(tool, monkeypatch, capsys, engine):
     assert tool.main(["--check", "--engine", engine]) == 1  # a two-text RM table has problems
     assert len(runs) == 1, runs
     assert "has no RM default text" in capsys.readouterr().err
-    assert tool._HANDED_OVER == []  # nothing left for a later default_texts() call

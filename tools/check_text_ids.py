@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Check the RPG Maker plugin's player-facing text ids (rpgmaker/src/mz/texts.ts).
+"""Check the engines' text ids (RPG Maker, Unity, Unreal) against the shared messages and Godot.
+
+THE RPG MAKER BRANCH checks the RPG Maker plugin's player-facing text ids
+(rpgmaker/src/mz/texts.ts), and the Unity table against them.
 
     uv run python tools/check_text_ids.py --check    # exit 1 and list the problems, else 0
     uv run python tools/check_text_ids.py --check --engine unreal   # the Unreal ids only, no Node
@@ -102,14 +105,8 @@ def node_available() -> bool:
     return shutil.which("node") is not None
 
 
-# The RM texts main() already read through Node, which the next default_texts() call returns (once)
-# instead of running Node again: problems() reads the real table through default_texts() itself.
-_HANDED_OVER: list[dict[str, str]] = []
-
-
 def default_texts() -> dict[str, str]:
-    if _HANDED_OVER:
-        return _HANDED_OVER.pop()
+    """The RM default texts (id -> English), from `node texts_dump.ts`."""
     if not node_available():
         raise NodeMissing(
             f"{NO_NODE}: the RPG Maker texts come from `node {DUMP.relative_to(ROOT)}`")
@@ -195,8 +192,7 @@ def unity_problems(texts: dict[str, str], vectors: dict[str, str],
     if not table.exists():
         return [f"missing {table}"]
     own = unity_texts(table)
-    restore_ids = {RESTORE_PREFIX + code for code, _ in
-                   restore_messages(RESTORE_FLOW.read_text(encoding="utf-8"), RESTORE_FLOW.name)}
+    restore_ids = {RESTORE_PREFIX + code for code, _ in _restore()}
     found: list[str] = []
     for tid, english in sorted(own.items()):
         if tid in vectors or tid in restore_ids:
@@ -231,13 +227,14 @@ def _restore() -> list:
     return restore_messages(RESTORE_FLOW.read_text(encoding="utf-8"), RESTORE_FLOW.name)
 
 
-def problems(texts: dict[str, str] | None = None, src: Path = RM_SRC) -> list[str]:
-    """Every problem. Given `texts` (a test's stand-in for the RM table), the Unity table is not
-    compared: it is checked against the real RM table only (unity_problems)."""
-    real = texts is None
+def problems(texts: dict[str, str] | None = None, src: Path = RM_SRC,
+             unity: bool = False) -> list[str]:
+    """The RPG Maker branch's problems, for the RM table `texts` (None: the real one, through
+    Node). With `unity`, the Unity table is compared with `texts` too (unity_problems): main()
+    passes the real table, a test passes its own stand-in without it."""
     texts = default_texts() if texts is None else texts
     found: list[str] = []
-    vectors = json.loads(MESSAGES_JSON.read_text(encoding="utf-8"))["messages"]
+    vectors = _vectors()
     for mid, english in sorted(vectors.items()):
         if mid not in texts:
             found.append(f"messages.json id {mid!r} has no RM default text")
@@ -247,17 +244,15 @@ def problems(texts: dict[str, str] | None = None, src: Path = RM_SRC) -> list[st
         if tid not in texts:
             found.append(f"{where} asks for text id {tid!r}, which has no RM default text")
     by_id = set(vectors.values())
-    if RESTORE_FLOW.exists():
-        restore = restore_messages(RESTORE_FLOW.read_text(encoding="utf-8"), RESTORE_FLOW.name)
-        for code, english in restore:
-            rid = RESTORE_PREFIX + code
-            by_id.add(english)
-            if rid not in texts:
-                found.append(f"Godot restore message {code!r} has no RM text {rid!r}")
-            elif _norm(texts[rid]) != _norm(english):
-                found.append(f"RM text {rid!r} is {texts[rid]!r}, "
-                             f"Godot's restore message {code!r} says {english!r}")
-    if real:
+    for code, english in _restore():
+        rid = RESTORE_PREFIX + code
+        by_id.add(english)
+        if rid not in texts:
+            found.append(f"Godot restore message {code!r} has no RM text {rid!r}")
+        elif _norm(texts[rid]) != _norm(english):
+            found.append(f"RM text {rid!r} is {texts[rid]!r}, "
+                         f"Godot's restore message {code!r} says {english!r}")
+    if unity:
         found.extend(unity_problems(texts, vectors))
     have = {_norm(v) for v in texts.values()}
     if POT.exists():
@@ -372,61 +367,43 @@ def _why(e: Exception) -> str:
 RM_UNREADABLE = (NodeMissing, subprocess.CalledProcessError, OSError, ValueError)
 
 
-def _hand_over(texts: dict[str, str]) -> None:
-    """The next default_texts() call (problems()'s own) returns `texts`: Node runs once per run."""
-    _HANDED_OVER.clear()
-    _HANDED_OVER.append(dict(texts))
+# What a run without problems prints, per --engine.
+CONSISTENT = {
+    "all": "RPG Maker text ids are consistent with the shared messages, Godot, Unity and Unreal",
+    "rpgmaker": "RPG Maker text ids are consistent with the shared messages, Godot and Unity",
+    "unreal": "Unreal text ids are consistent",
+}
 
 
-def _main_with_unreal(engine: str) -> int:
-    """main() for `--engine all` and `--engine unreal`: the RPG Maker branch (with `all`) through
-    problems() on the real RM table, and the Unreal branch, with the RM texts when Node gives
-    them."""
+def main(argv: list[str] | None = None) -> int:
+    """Reads the RM table once (Node), then runs the RPG Maker branch on it (`all`, `rpgmaker`)
+    and the Unreal branch (`all`, `unreal`), with the RM texts when Node gives them."""
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--check", action="store_true", help="exit 1 on problems (the default)")
+    parser.add_argument("--engine", choices=["all", "rpgmaker", "unreal"], default="all",
+                        help="which branch to run (default: both; see the module docstring)")
+    engine = parser.parse_args(argv).engine
     found: list[str] = []
     rm_texts: dict[str, str] | None = None
     try:
         rm_texts = default_texts()
     except RM_UNREADABLE as e:
         reason = _why(e)
-        if engine == "all":
-            found.append(f"the RPG Maker branch cannot run: {reason}")
-        else:
+        if engine == "unreal":
             print(f"Unreal ids not compared with RPG Maker's (skipped: {reason})")
-    if rm_texts is not None and engine == "all":
-        _hand_over(rm_texts)
-        found.extend(problems())
-    found.extend(unreal_problems(rm_texts))
-    for line in found:
-        print(line, file=sys.stderr)
-    if found:
-        return 1
-    if engine == "all":
-        print("RPG Maker text ids are consistent with the shared messages, Godot, Unity and Unreal")
-    else:
-        print("Unreal text ids are consistent")
-    return 0
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--check", action="store_true", help="exit 1 on problems (the default)")
-    parser.add_argument("--engine", choices=["all", "rpgmaker", "unreal"], default="all",
-                        help="which branch to run (default: both; see the module docstring)")
-    engine = parser.parse_args(argv).engine
+        else:
+            found.append(f"the RPG Maker branch cannot run: {reason}")
+    if rm_texts is not None and engine != "unreal":
+        found.extend(problems(rm_texts, unity=True))
     if engine != "rpgmaker":
-        return _main_with_unreal(engine)
-    try:
-        _hand_over(default_texts())
-    except RM_UNREADABLE as e:
-        print(f"the RPG Maker branch cannot run: {_why(e)}", file=sys.stderr)
-        return 1
-    found = problems()
+        found.extend(unreal_problems(rm_texts))
     for line in found:
         print(line, file=sys.stderr)
     if found:
         return 1
-    print("RPG Maker text ids are consistent with the shared messages, Godot and Unity")
+    print(CONSISTENT[engine])
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
