@@ -441,3 +441,66 @@ test("aNameLookupThatNeverAnswersIsBoundedByTheTimeout", async () => {
   const ms = Date.now() - started;
   assert.ok(ms >= 150 && ms < 2000, `at the timeout (${ms} ms)`);
 });
+
+// Review T1 for Node: behind a proxy only the fallback (Chromium's fetch, which uses the OS proxy)
+// reaches the RPC. A lookup Node could not finish in time is a DNS failure, retried through it.
+test("aLookupThatTimesOutGoesOnceMoreThroughTheFallback", async () => {
+  const stuck = {
+    request() {
+      const req = {
+        on() { return req; },
+        setTimeout() { return req; },
+        destroy() { return req; },
+        end() { return req; },
+      };
+      return req;
+    },
+  };
+  const asked: string[] = [];
+  const fallback = {
+    postJson(url: string) {
+      asked.push(url);
+      return Promise.resolve({ jsonrpc: "2.0", id: 1, result: "0x1" });
+    },
+  };
+  const t = new NodeHttpsTransport({ https: stuck, http: stuck, fallback });
+  const answer = await within(t.postJson("https://behind-a-proxy.example/", {}, 0.2), 3000);
+  assert.deepEqual(answer, { jsonrpc: "2.0", id: 1, result: "0x1" });
+  assert.deepEqual(asked, ["https://behind-a-proxy.example/"]);
+});
+
+// Review T4: a request on a kept-alive socket (Node 19+ keeps them by default) never sees "connect",
+// so the lookup timer must stop at once; else an answer streamed for longer than `timeout` in
+// total, every read well inside it, failed as "timed out resolving".
+test("aKeptAliveSocketStopsTheLookupTimer", async () => {
+  let n = 0;
+  const { url } = await serve((_req, res) => {
+    n += 1;
+    if (n === 1) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "first" }));
+      return;
+    }
+    // the second answer streams for 1.2 s in all, each part 0.3 s after the last (timeout 0.8 s)
+    res.writeHead(200, { "Content-Type": "application/json" });
+    const text = JSON.stringify({ jsonrpc: "2.0", id: 2, result: "second" });
+    const parts = [text.slice(0, 5), text.slice(5, 10), text.slice(10, 15), text.slice(15)];
+    let i = 0;
+    const next = () => {
+      res.write(parts[i]);
+      i += 1;
+      if (i < parts.length) setTimeout(next, 300);
+      else res.end();
+    };
+    setTimeout(next, 300);
+  });
+  const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+  const keptAlive = { request: (o: Record<string, unknown>, cb: (res: any) => void) => http.request({ ...o, agent }, cb) };
+  const t = new NodeHttpsTransport({ https: keptAlive, http: keptAlive });
+  try {
+    assert.deepEqual(await t.postJson(url, {}, 0.8), { jsonrpc: "2.0", id: 1, result: "first" });
+    assert.deepEqual(await within(t.postJson(url, {}, 0.8), 5000), { jsonrpc: "2.0", id: 2, result: "second" });
+  } finally {
+    agent.destroy();
+  }
+});

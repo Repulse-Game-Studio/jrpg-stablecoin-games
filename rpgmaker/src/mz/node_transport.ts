@@ -13,7 +13,9 @@
  *     TransportError("timed out"). The name lookup is bounded by it too (rpc.py's
  *     resolve_within): Node's request timeout starts only once the socket is connecting, so a DNS
  *     server that never answers held a request far longer (measured: Node's own 5 s, the
- *     Unity testbed's resolver about 20 s);
+ *     Unity testbed's resolver about 20 s). That timer runs from the request to its socket's
+ *     connect, or stops at once on a kept-alive socket (connected already); its failure carries
+ *     the code EAI_AGAIN, a DNS failure, which THE FALLBACK below retries;
  *   - a 2xx answer is decoded as UTF-8 JSON, else TransportError("invalid JSON response") (JSON as
  *     the core's Python reads it, pystr.ts jsonLoads: an integer literal of more than 4300 digits
  *     is not JSON);
@@ -230,13 +232,19 @@ export class NodeHttpsTransport implements Transport {
           }
         });
         req.on("error", (e: unknown) => fail(messageOf(e), codeOf(e)));
-        // the name lookup has no socket timer yet: give it (and the connect) `timeout` of its own
+        // The name lookup has no socket timer yet: give it (and the connect) `timeout` of its own.
+        // It is a DNS failure (EAI_AGAIN), so with `fallback` the request goes once more through
+        // it, as a name Node cannot resolve does: behind a proxy only the fallback's fetch reaches
+        // the RPC, and a request must not fail on a lookup before that client has tried.
         lookupTimer = setTimeout(() => {
-          fail(`timed out resolving ${target.hostname}`);
+          fail(`timed out resolving ${target.hostname}`, "EAI_AGAIN");
           destroyQuietly();
         }, Math.max(1, timeout * 1000));
         req.on("socket", (socket: any) => {
-          if (socket && typeof socket.once === "function") socket.once("connect", stopLookupTimer);
+          // A kept-alive socket from the agent's pool is connected already and never emits
+          // "connect" (review T4): stop the timer at once, else it would bound the whole exchange.
+          if (!socket || socket.connecting === false) stopLookupTimer();
+          else if (typeof socket.once === "function") socket.once("connect", stopLookupTimer);
         });
         // urllib's socket timeout: every wait on the socket (connect, each read) has `timeout`
         req.setTimeout(Math.max(1, timeout * 1000), () => {
