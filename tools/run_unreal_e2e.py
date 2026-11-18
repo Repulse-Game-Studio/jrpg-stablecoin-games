@@ -41,6 +41,14 @@ staged game: the settings then come from the staged ini, the logo from the pak (
 the project's Additional Non-Asset Directories to Package), and the plugin's editor module
 (ScfgEditor) must not be in the game.
 
+--showcase --live (opt-in, needs internet; never in CI) also checks the plugin's HTTPS path in
+the game: after the second start's 0-request check, the driver's live_https makes one read-only
+JSON-RPC call through FScfgHttpTransport per family, eth_blockNumber on Arbitrum Sepolia and
+getSlot on Solana Devnet, each to that chain's first built-in testnet RPC url (no wallet, key or
+item goes out), and each must answer a number above 0. With --packaged that is the cooked game,
+with the engine's certificate bundle as it is staged. The editor's twin is Scfg.Live.Https
+(SCFG_LIVE=1, unreal/README.md).
+
 --family evm (default) pays USDC on Anvil (the arbitrum entry pointed at a mock token); arc pays
 native USDC on Anvil dressed as Arc; solana pays USDC on solana-test-validator. They need `anvil`
 or `solana-test-validator` on PATH, Playwright's Chromium and `solders` (run it with `uv run`).
@@ -84,7 +92,8 @@ an accepted test-time exposure (ruling R2-16; the foreign MCP's TCP 127.0.0.1:80
 touched). Screenshots of the sheet (one per run) go to --screenshots.
 
     uv run python tools/run_unreal_e2e.py --family solana [--packaged] [--screenshots DIR]
-    uv run python tools/run_unreal_e2e.py --showcase [--packaged | --no-build] [--screenshots DIR]
+    uv run python tools/run_unreal_e2e.py --showcase [--packaged | --no-build] [--live]
+        [--screenshots DIR]
 """
 
 from __future__ import annotations
@@ -1346,6 +1355,24 @@ def showcase_from_code(game: Game, tour: dict) -> None:
     configured_offline_with_the_logo(game, from_settings=False)
 
 
+# The driver waits at most 40 s for both answers (ScfgE2EDriver.cpp, LIVE_PATIENCE).
+LIVE_REPLY_TIMEOUT = 60.0
+
+
+def live_https(game: Game) -> list:
+    """--live: the driver's live_https, one read-only call per family over real HTTPS through the
+    plugin's transport; each must be answered with a number above 0."""
+    calls = game.call("live_https", timeout=LIVE_REPLY_TIMEOUT)
+    expect(isinstance(calls, list) and len(calls) == 2, "live_https should answer two calls", calls)
+    for call in calls:
+        where = f"{call.get('method')} on {call.get('chain')} at {call.get('url')}"
+        expect(call.get("ok") and call.get("url", "").startswith("https://"),
+               f"live {where} failed after {call.get('ms')} ms: {call.get('error')}", call)
+        expect(int(call["value"]) > 0, f"live {where} answered {call['value']}", call)
+        print(f"  live {where}: {call['value']} in {call['ms']} ms")
+    return calls
+
+
 def run_showcase(args, started: float) -> int:
     """--showcase: the tour, in the inner run (own_xvfb already checked)."""
     work = Path(tempfile.mkdtemp(prefix="scfg-unreal-showcase-"))
@@ -1394,6 +1421,9 @@ def run_showcase(args, started: float) -> int:
             else:
                 print(f"2. configured in code, {CODE_SWITCH} (started in {start:.1f} s)")
                 showcase_from_code(game, tour)
+                if args.live:
+                    print("3. live HTTPS through the plugin's transport (--live)")
+                    tour["live"] = live_https(game)
             code = game.quit()
             outputs.append(game.output())
             game.close()
@@ -1756,7 +1786,13 @@ def main(argv=None) -> int:
                     "configured from the project settings, then in code (no chain, no browser; "
                     "tests/unreal_showcase); --family does not apply; with --packaged, on the "
                     "cooked game")
+    ap.add_argument("--live", action="store_true",
+                    help="with --showcase: also one read-only HTTPS JSON-RPC call per family "
+                    "(Arbitrum Sepolia eth_blockNumber, Solana Devnet getSlot) through the "
+                    "plugin's transport in the game; needs internet, sends nothing of the user's")
     args = ap.parse_args(argv)
+    if args.live and not args.showcase:
+        ap.error("--live goes with --showcase")
     if os.environ.get(INNER_ENV):
         return run_inner(args)
     return run_outer(argv)

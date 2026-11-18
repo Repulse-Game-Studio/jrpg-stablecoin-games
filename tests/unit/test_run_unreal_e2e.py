@@ -452,3 +452,56 @@ def test_the_outer_run_kills_its_session_when_done(monkeypatch):
     assert seen["cmd"][:2] == ["xvfb-run", "-a"] and seen["new"] is True
     assert seen["env"][e2e.OUTER_PID_ENV] == str(os.getpid()) and "DISPLAY" not in seen["env"]
     assert killed == [1]  # the background sleep
+
+
+def test_live_goes_with_the_showcase_only(capsys):
+    """--live is the showcase tour's opt-in HTTPS check (final review F2): alone it is refused."""
+    with pytest.raises(SystemExit) as exit_info:
+        e2e.main(["--live"])
+    assert exit_info.value.code == 2
+    assert "--live goes with --showcase" in capsys.readouterr().err
+
+
+class LiveGame:
+    """A stand-in for Game whose live_https answers `calls`."""
+
+    def __init__(self, calls):
+        self.calls = calls
+        self.asked = []
+
+    def call(self, op, timeout=None, **args):
+        self.asked.append((op, timeout, args))
+        return self.calls
+
+
+def live(chain, url, method, value="1", ok=True, error=None):
+    out = {"chain": chain, "url": url, "method": method, "ok": ok, "ms": 120}
+    out.update({"value": value} if ok else {"error": error})
+    return out
+
+
+GOOD = [live("Arbitrum Sepolia", "https://sepolia-rollup.arbitrum.io/rpc", "eth_blockNumber",
+             "250000000"),
+        live("Solana Devnet", "https://api.devnet.solana.com", "getSlot", "400000000")]
+
+
+def test_live_https_accepts_two_positive_answers_over_https(capsys):
+    game = LiveGame(GOOD)
+    assert e2e.live_https(game) == GOOD
+    assert game.asked == [("live_https", e2e.LIVE_REPLY_TIMEOUT, {})]
+    out = capsys.readouterr().out
+    assert "eth_blockNumber on Arbitrum Sepolia at https://sepolia-rollup.arbitrum.io/rpc" in out
+    assert "getSlot on Solana Devnet at https://api.devnet.solana.com: 400000000" in out
+
+
+@pytest.mark.parametrize("calls, why", [
+    ([GOOD[0], live("Solana Devnet", "https://api.devnet.solana.com", "getSlot", ok=False,
+                    error="RpcUnavailable: all RPC endpoints failed")],
+     "failed after 120 ms: RpcUnavailable"),
+    ([GOOD[0], {**GOOD[1], "value": "0"}], "answered 0"),
+    ([GOOD[0], {**GOOD[1], "url": "http://api.devnet.solana.com"}], "failed"),
+    ([GOOD[0]], "should answer two calls"),
+])
+def test_live_https_refuses_a_failure_a_zero_plain_http_or_a_missing_call(calls, why):
+    with pytest.raises(e2e.E2EError, match=why):
+        e2e.live_https(LiveGame(calls))

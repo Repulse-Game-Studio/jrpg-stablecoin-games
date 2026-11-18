@@ -8,7 +8,12 @@ name: unreal
 # It needs a runner registered with the labels self-hosted, linux and unreal, UE_ROOT set in the runner's
 # environment, and the repository variable UNREAL_RUNNER=true (notes/unreal-port/unreal-setup-guide.md, "Self-hosted
 # CI runner"). Without the variable every job is skipped instead of waiting for a runner that does not exist.
-# There is no pull_request trigger on purpose: a self-hosted runner must never run code from a fork's pull request.
+# It has no pull_request trigger, but that does not protect the runner: a fork's pull request can edit this file or
+# add a workflow of its own with on: pull_request and runs-on: [self-hosted, linux, unreal], and its run uses the
+# pull request's copy. What protects it is Settings -> Actions -> General -> "Require approval for all external
+# contributors" (set before the runner is registered), and keeping the runner out of any repository where untrusted
+# forks can run workflows; on a public repository, an organisation runner group closed to it or limited to this
+# workflow on main (the guide's "Security" paragraph).
 
 on:
   # What the Unreal jobs build or run (the e2e reuses the Godot and Ren'Py runners' chain families, helpers and
@@ -61,18 +66,41 @@ jobs:
     runs-on: [self-hosted, linux, unreal]
     timeout-minutes: 480   # the wrappers time out each build (3600 s) and run (1800 s) themselves
     steps:
+      # No token is left in .git/config while the builds, tests and browsers run. The default clean (git clean -ffdx)
+      # stays on, on purpose: every run deletes the dev project's Binaries, Intermediate and DerivedDataCache and
+      # dist/, so it is a full non-unity rebuild and a cold cook (slower), but it builds from the commit alone, as a
+      # developer's checkout or a zip does, and no artefact or Saved state of an earlier run can hide a missing
+      # include, a stale module or a test that passes only on leftovers.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: The runner has UE 5.8 at UE_ROOT and the e2e's tools
+        with:
+          persist-credentials: false
+      - name: The runner has UE 5.8 at UE_ROOT, the e2e's tools and a Chromium for Playwright
         run: |
-          if [ -z "${UE_ROOT:-}" ] || [ ! -x "$UE_ROOT/Engine/Binaries/Linux/UnrealEditor" ]; then
-            echo "::error::UE_ROOT (${UE_ROOT:-unset}) is not a UE 5.8 install: set it in the runner's environment"
+          if [ -z "${UE_ROOT:-}" ] || [ ! -x "$UE_ROOT/Engine/Binaries/Linux/UnrealEditor" ] || [ ! -f "$UE_ROOT/Engine/Build/Build.version" ]; then
+            echo "::error::UE_ROOT (${UE_ROOT:-unset}) is not an Unreal Engine install: set it in the runner's environment"
             exit 1
           fi
+          engine=$(python3 -c "import json, sys; v = json.load(open(sys.argv[1])); print('%d.%d.%d' % (v['MajorVersion'], v['MinorVersion'], v['PatchVersion']))" "$UE_ROOT/Engine/Build/Build.version")
+          case "$engine" in
+            5.8.*) echo "Unreal Engine $engine at $UE_ROOT" ;;
+            *) echo "::error::UE_ROOT ($UE_ROOT) is Unreal Engine $engine, not 5.8"; exit 1 ;;
+          esac
           for tool in uv xvfb-run anvil solana-test-validator; do
             command -v "$tool" > /dev/null || { echo "::error::$tool is not on the runner's PATH"; exit 1; }
           done
           test -f /usr/share/vulkan/icd.d/lvp_icd.json || { echo "::error::Mesa's lavapipe (mesa-vulkan-drivers) is missing"; exit 1; }
-      - run: uv sync
+          uv sync
+          # The tip step's browser, found the way the e2e finds it: the installed Chrome, else Playwright's Chromium.
+          uv run python - <<'PY' || { echo "::error::no Chrome or Playwright Chromium: run uv run playwright install chromium as the runner's user"; exit 1; }
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              try:
+                  browser = p.chromium.launch(channel="chrome", headless=True)
+              except Exception:
+                  browser = p.chromium.launch(headless=True)
+              print("browser", browser.version)
+              browser.close()
+          PY
 
       # UBT has no strict-includes switch of its own: these are the three that BuildPlugin's -StrictIncludes passes
       # (BuildPluginCommand.Automation.cs), so each .cpp of the plugin and the dev project compiles on its own,

@@ -13,6 +13,7 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformProcess.h"
+#include "HAL/PlatformTime.h"
 #include "InputCoreTypes.h"
 #include "Misc/CommandLine.h"
 #include "Misc/CoreDelegates.h"
@@ -41,7 +42,16 @@
 #include "UI/SScfgPaymentSheet.h"
 #include "UI/SScfgScreen.h"
 
+#include "Scfg/BigInt.h"
 #include "Scfg/Chains.h"
+#include "Scfg/Co.h"
+#include "Scfg/Err.h"
+#include "Scfg/Result.h"
+#include "Scfg/Rpc.h"
+#include "Scfg/SolanaRpc.h"
+
+#include <optional>
+#include <string>
 
 #if PLATFORM_LINUX
 #include <dlfcn.h>
@@ -298,6 +308,84 @@ TOptional<bool> CursorLocked(void*)
 	return {};
 }
 #endif
+
+// live_https: the longest it waits for both answers, and each client's own request timeout.
+constexpr double LIVE_PATIENCE = 40.0;
+constexpr double LIVE_TIMEOUT = 30.0;
+
+// One read-only call of live_https through the plugin's transport: an RpcClient over FScfgHttpTransport, on the first
+// RPC url of a built-in testnet chain, and what came back (Scfg.Live.Https in ScfgLiveTests.cpp is its editor twin).
+struct FLiveCall
+{
+	FString Chain;
+	FString Method;
+	std::string Url;
+	FScfgHttpTransport Transport;
+	std::optional<scfg::rpc::RpcClient> Client;
+	std::optional<scfg::solana::rpc::SolanaRpc> Solana;
+	scfg::Job<scfg::BigInt> Job;  // declared last: destroyed before the clients and the transport
+	std::optional<scfg::Result<scfg::BigInt>> Got;
+	double Posted = 0;
+	double Seconds = 0;
+
+	// Starts the call; when the chain or its client cannot be made, Got is the reason at once.
+	void Start(const char* Key)
+	{
+		const scfg::chains::Chain* Found = scfg::chains::TESTNET().find(Key);
+		if (!Found || Found->rpc.empty())
+		{
+			Got.emplace(scfg::Err{"KeyError", std::string("no built-in testnet chain ") + Key});
+			return;
+		}
+		Chain = Utf8(Found->name);
+		Url = Found->rpc[0];
+		const bool bSolana = Found->family == "solana";
+		Method = bSolana ? TEXT("getSlot") : TEXT("eth_blockNumber");
+		scfg::rpc::RpcClientOptions Options;
+		Options.timeout = LIVE_TIMEOUT;
+		scfg::Result<scfg::rpc::RpcClient> Made = scfg::rpc::RpcClient::make({Url}, Transport, Options);
+		if (!Made.ok())
+		{
+			Got.emplace(Made.err());
+			return;
+		}
+		Client.emplace(Made.take());
+		Posted = FPlatformTime::Seconds();
+		auto Done = [this](scfg::Result<scfg::BigInt> R)
+		{
+			Seconds = FPlatformTime::Seconds() - Posted;
+			Got.emplace(std::move(R));
+		};
+		if (bSolana)
+		{
+			Solana.emplace(*Client);
+			Job.start(Solana->get_slot(), Done);
+		}
+		else
+		{
+			Job.start(Client->block_number(), Done);
+		}
+	}
+
+	TSharedRef<FJsonObject> ToJson() const
+	{
+		const TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+		Out->SetStringField(TEXT("chain"), Chain);
+		Out->SetStringField(TEXT("url"), Utf8(Url));
+		Out->SetStringField(TEXT("method"), Method);
+		Out->SetBoolField(TEXT("ok"), Got.has_value() && Got->ok());
+		if (Got && Got->ok())
+		{
+			Out->SetStringField(TEXT("value"), Utf8(Got->value().to_decimal()));
+		}
+		else
+		{
+			Out->SetStringField(TEXT("error"), Got ? Utf8(Got->err().str()) : FString(TEXT("no answer in time")));
+		}
+		Out->SetNumberField(TEXT("ms"), FMath::RoundToInt(Seconds * 1000.0));
+		return Out;
+	}
+};
 }  // namespace ScfgE2EDriverDetail
 
 using namespace ScfgE2EDriverDetail;
@@ -1145,6 +1233,30 @@ void FScfgE2EDriver::Run(int64 Id, const TSharedRef<FJsonObject>& Command)
 	else if (Op == TEXT("http_requests"))
 	{
 		Reply(Id, MakeShared<FJsonValueNumber>(FScfgHttpTransport::ProcessPosts()));
+	}
+	else if (Op == TEXT("live_https"))
+	{
+		// Opt-in (tools/run_unreal_e2e.py --showcase --live): one read-only call per family over real HTTPS, nothing of
+		// the user's in it. Replies [{chain, url, method, ok, value | error, ms}] once both answered or gave up.
+		TArray<TSharedPtr<FLiveCall>> Calls = {MakeShared<FLiveCall>(), MakeShared<FLiveCall>()};
+		Calls[0]->Start("arbitrum");
+		Calls[1]->Start("solana");
+		const double Since = FPlatformTime::Seconds();
+		Steps.Add([this, Id, Calls, Since]()
+		{
+			const bool bAll = Calls[0]->Got.has_value() && Calls[1]->Got.has_value();
+			if (!bAll && FPlatformTime::Seconds() - Since < LIVE_PATIENCE)
+			{
+				return false;
+			}
+			TArray<TSharedPtr<FJsonValue>> Out;
+			for (const TSharedPtr<FLiveCall>& Call : Calls)
+			{
+				Out.Add(MakeShared<FJsonValueObject>(Call->ToJson()));
+			}
+			Reply(Id, MakeShared<FJsonValueArray>(Out));
+			return true;
+		});
 	}
 	else if (Op == TEXT("configuration"))
 	{

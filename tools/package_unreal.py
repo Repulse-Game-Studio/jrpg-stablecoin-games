@@ -6,7 +6,7 @@ Each zip holds the plugin folder, which developers copy into their project's Plu
     Scfg/
         Scfg.uplugin                   (EngineVersion "5.x.0" for that zip; no test module entries)
         Source/ScfgCore/, Source/Scfg/, Source/ScfgEditor/   (source only)
-        Resources/                     (the checkout page copy, Resources/Web/)
+        Resources/                     (the checkout page copy, Resources/Web/, without bridge.js)
         Config/FilterPlugin.ini        (keeps the three files below in a packaged plugin)
         README.md                      (Unreal developer guide, joined from docs/developers/unreal/)
         LICENSE                        (MIT license)
@@ -22,6 +22,11 @@ Files outside Source/, Resources/ and Content/ are dropped by RunUAT BuildPlugin
 Fab builds) unless Config/FilterPlugin.ini lists them
 (AutomationTool/Scripts/BuildPluginCommand.Automation.cs, FilterPluginFiles), hence that file.
 
+The version is in two places in the zip, the .uplugin's VersionName and the core's exported
+scfg::VERSION (Source/ScfgCore/Private/Version.cpp); both must equal scfg_core's __version__.
+Resources/Web/bridge.js (the web exports' bridge, which sync_web_page.py keeps in every copy of the
+page) is left out: the Unreal server never serves it and Scfg.Build.cs never stages it.
+
 Every file is copied byte for byte, apart from Scfg.uplugin; the zips are reproducible (sorted
 entries, fixed timestamps).
 """
@@ -29,6 +34,7 @@ entries, fixed timestamps).
 from __future__ import annotations
 
 import json
+import re
 import sys
 import zipfile
 from pathlib import Path
@@ -45,6 +51,10 @@ TEST_MODULES = ("ScfgCoreTests", "ScfgTests")
 # Build output and editor state (Fab 4.3.7.3.a), wherever they appear under a shipped folder.
 SKIP_PARTS = {"Binaries", "Intermediate", "Saved", "DerivedDataCache", "Build"}
 MAX_PATH = 170  # Fab 4.3.7.3.c
+# Files of the shipped folders that the zip leaves out, relative to the plugin folder.
+NOT_SHIPPED = {"Resources/Web/bridge.js"}
+VERSION_CPP = "Source/ScfgCore/Private/Version.cpp"
+VERSION_LITERAL = re.compile(r'^const std::string_view VERSION = "([^"]*)";$', re.MULTILINE)
 GUIDE_TITLE = "# Stablecoin for Games: Unreal Developer Guide"
 FILTER_PLUGIN = """[FilterPlugin]
 ; The files beside Scfg.uplugin that a packaged copy of the plugin keeps (RunUAT BuildPlugin and
@@ -65,8 +75,15 @@ def descriptor(plugin=PLUGIN):
     return json.loads((plugin / "Scfg.uplugin").read_text(encoding="utf-8"))
 
 
+def core_constant_version(plugin=PLUGIN):
+    """The literal scfg::VERSION is defined to in Version.cpp, or None if it has none."""
+    found = VERSION_LITERAL.findall((plugin / VERSION_CPP).read_text(encoding="utf-8"))
+    return found[0] if len(found) == 1 else None
+
+
 def problems(plugin=PLUGIN, version=__version__):
-    """What stops the zips: the .uplugin's version, and modules the packager does not know."""
+    """What stops the zips: the .uplugin's version, the core's version constant, and modules the
+    packager does not know."""
     out = []
     plugin_descriptor = descriptor(plugin)
     name = plugin_descriptor.get("VersionName")
@@ -74,6 +91,12 @@ def problems(plugin=PLUGIN, version=__version__):
         out.append(
             f"Scfg.uplugin VersionName {name} != scfg_core {version} (the release bump sets both)"
         )
+    constant = core_constant_version(plugin)
+    if constant is None:
+        out.append(f"no scfg::VERSION literal in {VERSION_CPP}")
+    elif constant != name:
+        out.append(f"scfg::VERSION {constant} (Version.cpp) != Scfg.uplugin VersionName {name}"
+                   " (the release bump sets both)")
     modules = [m.get("Name") for m in plugin_descriptor.get("Modules", [])]
     known = set(SHIPPED_MODULES) | set(TEST_MODULES)
     out += [f"Scfg.uplugin module {m} is neither shipped nor a test module" for m in modules
@@ -96,7 +119,7 @@ def packaged_descriptor(engine, plugin=PLUGIN):
 
 def files_to_ship(plugin=PLUGIN):
     """(path, name) for the plugin's own files, sorted, names relative to the plugin folder:
-    Source/<shipped module>/ and Resources/, without build output or hidden files."""
+    Source/<shipped module>/ and Resources/, without build output, hidden files or NOT_SHIPPED."""
     roots = [plugin / "Source" / m for m in SHIPPED_MODULES] + [plugin / "Resources"]
     found = []
     for root in roots:
@@ -105,6 +128,8 @@ def files_to_ship(plugin=PLUGIN):
             if path.is_dir() or SKIP_PARTS & set(rel.parts):
                 continue
             if any(part.startswith(".") for part in rel.parts) or path.name.endswith("~"):
+                continue
+            if rel.as_posix() in NOT_SHIPPED:
                 continue
             found.append((path, rel.as_posix()))
     return sorted(found, key=lambda item: item[1])

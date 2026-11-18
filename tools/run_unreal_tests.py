@@ -38,6 +38,10 @@ the test, while a test runs). The vectors the run read are printed (from
 Scfg.Core.NothingLeftOut's entry), and whether $SCFG_VECTORS chose them. The report directory
 defaults to a new temporary directory, which is kept (its path is printed); a given one loses any
 old index.json first, so a stale report never passes.
+
+The opt-in live test Scfg.Live.Https (two read-only HTTPS JSON-RPC calls to built-in public
+testnet RPCs through the plugin's transport) is registered only when the environment has
+SCFG_LIVE=1, which the editor inherits: `SCFG_LIVE=1 ... --filter Scfg.Live`.
 """
 
 from __future__ import annotations
@@ -221,6 +225,10 @@ def main(argv=None) -> int:
     print("run_unreal_tests: vectors: " + (f"$SCFG_VECTORS={chosen}" if chosen else
                                            "$SCFG_VECTORS unset: found above the plugin's folder"),
           flush=True)
+    print("run_unreal_tests: live: " + (
+        "SCFG_LIVE=1: Scfg.Live.Https makes two read-only HTTPS calls to public testnet RPCs"
+        if os.environ.get("SCFG_LIVE") == "1" else
+        "SCFG_LIVE unset: Scfg.Live.* is not registered (no network)"), flush=True)
     print("run_unreal_tests: " + " ".join(cmd), flush=True)
     try:
         returncode, output = run_unreal_build.run_streamed(cmd, args.timeout, args.log,

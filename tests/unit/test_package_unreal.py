@@ -25,9 +25,10 @@ GENERATED = {"Scfg.uplugin", "Config/FilterPlugin.ini", "README.md", "LICENSE", 
 BUILD_OUTPUT = ("Binaries", "Intermediate", "Saved", "DerivedDataCache")
 
 
-def plugin_copy(dest, version=VERSION):
-    """A copy of the plugin with its VersionName set to `version`, and build output in it (at the
-    plugin's root and in a module folder, as UBT leaves it) and a hidden file."""
+def plugin_copy(dest, version=VERSION, core_version=None):
+    """A copy of the plugin with its VersionName set to `version` and scfg::VERSION (Version.cpp)
+    to `core_version` (default: `version`), and build output in it (at the plugin's root and in a
+    module folder, as UBT leaves it) and a hidden file."""
     plugin = dest / "Scfg"
     shutil.copytree(package_unreal.PLUGIN, plugin,
                     ignore=shutil.ignore_patterns(*BUILD_OUTPUT))
@@ -35,6 +36,11 @@ def plugin_copy(dest, version=VERSION):
     text = descriptor.read_text(encoding="utf-8")
     text = re.sub(r'"VersionName": "[^"]*"', f'"VersionName": "{version}"', text)
     descriptor.write_text(text, encoding="utf-8")
+    constant = plugin / "Source" / "ScfgCore" / "Private" / "Version.cpp"
+    text = constant.read_text(encoding="utf-8")
+    text, count = re.subn(r'(VERSION = )"[^"]*"', rf'\g<1>"{core_version or version}"', text)
+    assert count == 1
+    constant.write_text(text, encoding="utf-8")
     for where in (plugin, plugin / "Source" / "Scfg"):
         for folder in BUILD_OUTPUT:
             (where / folder / "Linux").mkdir(parents=True)
@@ -77,6 +83,18 @@ def test_each_zip_holds_the_plugin_folder_scfg_in_fabs_source_layout(built):
                      "Source/ScfgEditor/ScfgEditor.Build.cs", "Resources/Web/index.html",
                      "Resources/Web/app.js", "Config/FilterPlugin.ini"):
             assert name in rel, name
+
+
+def test_the_zips_ship_the_page_the_server_serves_and_not_bridge_js(built):
+    """Resources/Web/ in the zip is what FScfgLocalServer serves and Scfg.Build.cs stages: the
+    page, app.js, evm.js and solana.js. bridge.js (the web exports' bridge, kept in the tree by
+    sync_web_page.py) is never served or staged, so it does not ship (final review F10)."""
+    plugin, targets = built
+    assert (plugin / "Resources" / "Web" / "bridge.js").is_file()
+    for target in targets:
+        web = sorted(n for n in read_zip(target) if n.startswith("Scfg/Resources/Web/"))
+        assert web == [f"Scfg/Resources/Web/{f}"
+                       for f in ("app.js", "evm.js", "index.html", "solana.js")], web
 
 
 def test_zips_hold_no_test_module_core_tests_or_build_output(built):
@@ -126,6 +144,8 @@ def test_every_source_and_resource_file_ships_byte_for_byte(built):
     for folder in ("Source/ScfgCore", "Source/Scfg", "Source/ScfgEditor", "Resources"):
         for path in (plugin / folder).rglob("*"):
             rel = path.relative_to(plugin)
+            if rel.as_posix() == "Resources/Web/bridge.js":
+                continue
             if path.is_file() and not set(BUILD_OUTPUT) & set(rel.parts) and path.name[0] != ".":
                 expected["Scfg/" + rel.as_posix()] = path.read_bytes()
     assert len(expected) > 150
@@ -176,6 +196,29 @@ def test_a_uplugin_version_that_differs_from_the_core_is_refused(tmp_path):
     with pytest.raises(ValueError, match=f"VersionName 9.9.9 != scfg_core {re.escape(VERSION)}"):
         package_unreal.build_unreal_zips(tmp_path / "dist", plugin)
     assert not (tmp_path / "dist").exists()
+
+
+def test_a_core_version_constant_that_differs_from_the_uplugin_is_refused(tmp_path):
+    """scfg::VERSION (Private/Version.cpp, exported by the core) ships in the zip too: it must say
+    what the .uplugin says (final review F4)."""
+    plugin = plugin_copy(tmp_path, core_version="9.9.8")
+    with pytest.raises(ValueError,
+                       match=f"scfg::VERSION 9.9.8 [(]Version.cpp[)] != Scfg.uplugin VersionName "
+                             f"{re.escape(VERSION)}"):
+        package_unreal.build_unreal_zips(tmp_path / "dist", plugin)
+    assert not (tmp_path / "dist").exists()
+
+
+def test_a_version_cpp_without_the_constant_is_refused(tmp_path):
+    plugin = plugin_copy(tmp_path)
+    (plugin / "Source" / "ScfgCore" / "Private" / "Version.cpp").write_text("// nothing\n")
+    with pytest.raises(ValueError, match="no scfg::VERSION literal in Source/ScfgCore/Private/Version.cpp"):
+        package_unreal.build_unreal_zips(tmp_path / "dist", plugin)
+
+
+def test_the_real_plugins_version_constant_matches_its_uplugin():
+    """In the tree (before and after the release bump) the two versions the zip carries agree."""
+    assert package_unreal.core_constant_version() == package_unreal.descriptor()["VersionName"]
 
 
 def test_main_names_the_version_mismatch_and_fails(tmp_path, capsys):

@@ -37,7 +37,16 @@ static std::set<std::string> split(std::string_view csv) {
     return out;
 }
 
-SCFG_TEST(RunnerTests, CoreLinks) { SCFG_CHECK_EQ(t, scfg::VERSION, "0.3.0"); }
+// The core links, and its exported scfg::VERSION is the plugin's version: the VersionName of Scfg.uplugin, which
+// tools/package_unreal.py ties to scfg_core's __version__ (and to this constant), so no test pins the literal.
+SCFG_TEST(RunnerTests, CoreLinks) {
+    std::ifstream in(std::string(SCFG_REPO_ROOT) + "/unreal/Plugins/Scfg/Scfg.uplugin", std::ios::binary);
+    if (!SCFG_CHECK(t, in.good())) return;
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::smatch m;
+    if (!SCFG_CHECK(t, std::regex_search(text, m, std::regex(R"re("VersionName"\s*:\s*"([^"]+)")re")))) return;
+    SCFG_CHECK_EQ(t, scfg::VERSION, m[1].str());
+}
 
 SCFG_TEST(RunnerTests, RunsAndCounts) {
     Registry r;
