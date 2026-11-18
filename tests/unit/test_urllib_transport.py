@@ -92,7 +92,18 @@ def test_an_overlong_json_integer_is_invalid_json(base_url, interpreter):
     assert info.value.status == 400
 
 
-def test_a_name_lookup_that_never_answers_is_bounded_by_the_timeout(monkeypatch):
+PROXY_VARS = ("http_proxy", "https_proxy", "all_proxy", "no_proxy",
+              "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY")
+
+
+@pytest.fixture
+def no_proxy(monkeypatch):
+    """No proxy from the environment (getproxies reads only the environment on Linux)."""
+    for name in PROXY_VARS:
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_a_name_lookup_that_never_answers_is_bounded_by_the_timeout(monkeypatch, no_proxy):
     """With a DNS server that never answers, getaddrinfo waits for the resolver's own timeout
     (about 20 s per endpoint measured in the Unity testbed): the request's timeout must cover it."""
     import socket
@@ -124,3 +135,89 @@ def test_a_literal_address_needs_no_lookup(monkeypatch):
     monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: pytest.fail("looked up"))
     resolve_within("http://127.0.0.1:8545/", 0.1)
     resolve_within("http://[::1]:8545/", 0.1)
+
+
+class _ConnectProxy(threading.Thread):
+    """A tiny HTTP proxy: records the first request line (a CONNECT) and refuses the tunnel."""
+
+    def __init__(self):
+        import socket
+        super().__init__(daemon=True)
+        self.sock = socket.socket()
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.listen(1)
+        self.port = self.sock.getsockname()[1]
+        self.lines = []
+
+    def run(self):
+        conn, _ = self.sock.accept()
+        with conn:
+            data = b""
+            while b"\r\n\r\n" not in data:
+                chunk = conn.recv(4096)
+                if not chunk:
+                    break
+                data += chunk
+            self.lines.append(data.split(b"\r\n", 1)[0].decode())
+            conn.sendall(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n")
+
+
+def test_behind_a_proxy_the_name_is_left_to_the_proxy(monkeypatch, no_proxy):
+    """Review T1: on a proxy-only network this machine cannot resolve the RPC host, the proxy
+    does. The request must reach the proxy (a CONNECT for the host), not fail on a local lookup."""
+    import socket
+
+    real = socket.getaddrinfo
+
+    def no_dns(host, *args, **kwargs):
+        if host == "rpc.unresolvable.example":
+            raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+        return real(host, *args, **kwargs)
+    monkeypatch.setattr(socket, "getaddrinfo", no_dns)
+    proxy = _ConnectProxy()
+    proxy.start()
+    monkeypatch.setenv("https_proxy", f"http://127.0.0.1:{proxy.port}")
+    with pytest.raises(TransportError):  # the proxy refuses the tunnel (502)
+        UrllibTransport().post_json("https://rpc.unresolvable.example/", {"id": 1}, 5)
+    proxy.join(5)
+    assert len(proxy.lines) == 1 and proxy.lines[0].startswith("CONNECT rpc.unresolvable.example:443 ")
+
+
+def test_a_lookup_error_is_left_to_urlopen(monkeypatch, no_proxy):
+    """Only a lookup that does not answer in time fails the request early: an error is urlopen's
+    to meet (it looks the name up again, and fails or succeeds by itself)."""
+    import socket
+
+    calls = []
+
+    def unknown(host, *args, **kwargs):
+        calls.append(host)
+        raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+    monkeypatch.setattr(socket, "getaddrinfo", unknown)
+    with pytest.raises(TransportError, match="Name or service not known"):
+        UrllibTransport().post_json("https://rpc.example/", {"id": 1}, 2)
+    assert calls == ["rpc.example", "rpc.example"], "urlopen tried after the lookup failed"
+
+
+def test_the_lookup_counts_inside_the_timeout(monkeypatch, no_proxy):
+    """Review T6: the lookup and the request share one timeout; urlopen gets what is left."""
+    import socket
+    import time
+    import urllib.error
+    import urllib.request
+
+    real = socket.getaddrinfo
+
+    def slow(host, *args, **kwargs):
+        time.sleep(0.4)
+        return real("127.0.0.1", *args, **kwargs)
+    monkeypatch.setattr(socket, "getaddrinfo", slow)
+    given = []
+
+    def urlopen(req, timeout, context):
+        given.append(timeout)
+        raise urllib.error.URLError("stop")
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    with pytest.raises(TransportError):
+        UrllibTransport().post_json("https://rpc.example/", {"id": 1}, 1.0)
+    assert len(given) == 1 and 0 < given[0] <= 0.65, given

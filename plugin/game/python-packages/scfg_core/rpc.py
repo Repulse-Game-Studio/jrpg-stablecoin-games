@@ -115,35 +115,54 @@ def _ssl_context() -> ssl.SSLContext:
         return ssl.create_default_context()
 
 
-def resolve_within(url: str, timeout: float) -> None:
-    """Resolve the url's host, giving up after ``timeout`` seconds (TransportError). The socket
-    timeout urlopen gets covers the connection and each read, not the name lookup: with a DNS
-    server that never answers, getaddrinfo waits for the resolver's own timeout (about 20 s per
-    endpoint measured), far past ``timeout``. The lookup runs on a daemon thread; urlopen's own
-    lookup that follows is answered from the resolver's cache."""
+def _proxied(url: str, host: str) -> bool:
+    """urllib sends this url through a proxy (the environment's, or the Windows / macOS system
+    setting): the proxy resolves the name, and this machine may well not be able to."""
+    scheme = urllib.parse.urlsplit(url).scheme
+    try:
+        return bool(urllib.request.getproxies().get(scheme)) and not urllib.request.proxy_bypass(host)
+    except Exception:
+        return False  # an unreadable proxy setting: urllib's own handler decides
+
+
+def resolve_within(url: str, timeout: float) -> float:
+    """Look the url's host up, giving up after ``timeout`` seconds (TransportError): the seconds
+    the lookup took. The socket timeout urlopen gets covers the connection and each read, not the
+    name lookup: with a DNS server that never answers, getaddrinfo waits for the resolver's own
+    timeout (about 20 s per endpoint measured), far past ``timeout``. The lookup runs on a daemon
+    thread.
+
+    Only a lookup that does not answer in time fails the request. One that fails (an unknown
+    name, no network) is left to urlopen, which tries the same lookup and fails by itself, or
+    succeeds where this one could not. Nothing is looked up for a literal address, or when urllib
+    goes through a proxy for this url (the proxy resolves the name: on a proxy-only network this
+    machine cannot). urlopen's own lookup that follows is answered from the OS's cache where it
+    has one (Windows, macOS, a caching resolver on Linux); without one (plain glibc) that second
+    lookup is not bounded by this."""
     host = urllib.parse.urlsplit(url).hostname
     if not host:
-        return
+        return 0.0
     try:
         ipaddress.ip_address(host)
-        return  # a literal address: nothing to resolve
+        return 0.0  # a literal address: nothing to resolve
     except ValueError:
         pass
-    done: dict = {}
+    if _proxied(url, host):
+        return 0.0
+    started = time.monotonic()
 
     def lookup() -> None:
         try:
             socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
-        except OSError as e:
-            done["error"] = e
+        except OSError:
+            pass  # left to urlopen (see above)
 
     thread = threading.Thread(target=lookup, name="scfg-dns", daemon=True)
     thread.start()
     thread.join(timeout)
     if thread.is_alive():
         raise TransportError(f"timed out resolving {host} after {timeout:g}s")
-    if "error" in done:
-        raise TransportError(str(done["error"]))
+    return time.monotonic() - started
 
 
 class UrllibTransport:
@@ -152,12 +171,16 @@ class UrllibTransport:
         self._ua = user_agent
 
     def post_json(self, url: str, payload: dict, timeout: float):
-        resolve_within(url, timeout)
+        # The lookup counts inside the request's timeout, never on top of it: urlopen gets what
+        # is left of it (for the connection and each read).
+        left = timeout - resolve_within(url, timeout)
+        if left <= 0:
+            raise TransportError(f"timed out after {timeout:g}s")
         body = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=body, method="POST", headers={
             "Content-Type": "application/json", "User-Agent": self._ua})
         try:
-            with urllib.request.urlopen(req, timeout=timeout, context=self._ctx) as resp:
+            with urllib.request.urlopen(req, timeout=left, context=self._ctx) as resp:
                 raw = resp.read()
         except urllib.error.HTTPError as e:
             # Some providers send JSON-RPC errors (e.g. "range too large") with a 4xx
