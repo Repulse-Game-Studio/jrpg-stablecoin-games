@@ -559,3 +559,9 @@ def test_before_exit_cuts_the_log_at_the_engines_last_line():
     assert e2e.before_exit(log) == ("LogInit: start\nLogExit: Exiting.", True)
     assert e2e.before_exit("LogInit: start\nSignal 11 caught.\n") == (
         "LogInit: start\nSignal 11 caught.\n", False)
+
+
+def test_only_the_teardown_crash_signals_are_tolerated_without_certificates():
+    assert {-11, -6, 139, 134} == set(e2e.TEARDOWN_CRASH_CODES)
+    for code in (0, 1, 2, -9, -15, 137, 143):
+        assert code not in e2e.TEARDOWN_CRASH_CODES

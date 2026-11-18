@@ -55,7 +55,8 @@ R5-4): the game runs with its certificate bundle replaced by an empty file
 system's off (-ini:Engine:[SSL]:bUsePlatformProvidedCertificates=False), so the SSL module has no
 root certificate and libcurl could not verify a peer; each live call must then be refused with
 "TLS certificate verification unavailable" without being sent (the driver's `sent`). (Deleting
-the staged file is not enough: staging puts the bundle in the pak too.)
+the staged file is not enough: with the dev project's n.VerifyPeer=True, UAT puts the bundle in
+the pak too.)
 
 --family evm (default) pays USDC on Anvil (the arbitrum entry pointed at a mock token); arc pays
 native USDC on Anvil dressed as Arc; solana pays USDC on solana-test-validator. They need `anvil`
@@ -1388,6 +1389,11 @@ REFUSED_ALLOWED = (
 EXITING = re.compile(r"\bLogExit: Exiting\.$", re.MULTILINE)
 
 
+# --no-certificates: the exit codes of that teardown crash (SIGSEGV, SIGABRT), as Popen reports a
+# signal (-11, -6) or a shell does (139, 134). Any other nonzero exit still fails the run.
+TEARDOWN_CRASH_CODES = frozenset({-11, -6, 139, 134})
+
+
 def before_exit(log: str) -> tuple[str, bool]:
     """--no-certificates: a game whose SSL module holds no root certificate crashes after its last
     log line, in the process's own teardown (measured: SIGSEGV or "free(): invalid size" after
@@ -1486,7 +1492,7 @@ def run_showcase(args, started: float) -> int:
             output = game.output()
             tail = game.tail()  # before close(), which closes the log
             game.close()
-            if args.no_certificates and code != 0:
+            if args.no_certificates and code in TEARDOWN_CRASH_CODES:
                 output, exited = before_exit(output)
                 if exited:
                     print(f"  exit code {code}: the engine's crash after 'LogExit: Exiting.' "
@@ -1859,8 +1865,9 @@ def main(argv=None) -> int:
                     "tests/unreal_showcase); --family does not apply; with --packaged, on the "
                     "cooked game")
     ap.add_argument("--no-certificates", action="store_true",
-                    help="with --showcase --packaged --live: delete the staged certificate bundle "
-                    "and turn the system's off; the live calls must be refused unsent")
+                    help="with --showcase --packaged --live: replace the certificate bundle with "
+                    "an empty override file and turn the system's off; the live calls must be "
+                    "refused unsent")
     ap.add_argument("--live", action="store_true",
                     help="with --showcase: also one read-only HTTPS JSON-RPC call per family "
                     "(Arbitrum Sepolia eth_blockNumber, Solana Devnet getSlot) through the "

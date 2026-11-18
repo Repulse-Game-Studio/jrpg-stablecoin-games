@@ -42,9 +42,11 @@ public class Scfg : ModuleRules
 			}
 		}
 		// The engine's root certificate bundle, staged with a Linux game (ruling R5-4). A packaged game does not stage
-		// it by default (BaseGame.ini lists Content/Certificates only for the early-downloader pak), so its TLS would
-		// rest on the distro's bundle alone, and with none the engine turns libcurl's peer verification off
-		// (CurlHttpManager.cpp:277-289). The SSL module reads it from EngineContentDir()/Certificates/ThirdParty/
+		// it by default: BaseGame.ini lists Content/Certificates only for the early-downloader pak, and UAT stages it
+		// (as UFS, into the pak) only when the project's engine ini sets n.VerifyPeer=True
+		// (CopyBuildToStagingDirectory.Automation.cs:2251-2281). Without either, the game's TLS would rest on the
+		// distro's bundle alone, and with none the engine turns libcurl's peer verification off
+		// (CurlHttpManager.cpp:277-289). This loose copy is the one a game without n.VerifyPeer=True gets. The SSL module reads it from EngineContentDir()/Certificates/ThirdParty/
 		// (SslCertificateManager.cpp:331-337, through IFileManager, so a loose file works). Windows and Android load
 		// their system stores; Apple platforms use NSURLSession. Unverified there.
 		if (Target.Platform == UnrealTargetPlatform.Linux || Target.Platform == UnrealTargetPlatform.LinuxArm64)

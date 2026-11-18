@@ -205,7 +205,8 @@ rules.
    certificate bundle itself (`Engine/Content/Certificates/ThirdParty/cacert.pem`, in the staged game's
    `Engine/Content/`): keep it there when you repackage or trim the staged files. Do not set
    `[/Script/Engine.NetworkSettings] n.VerifyPeer=False`. Setting `n.VerifyPeer=True` in your `DefaultEngine.ini`
-   makes the rest of your game's HTTPS fail closed too. Windows and macOS use the system's certificate store
+   makes the rest of your game's HTTPS fail closed too, and makes UAT stage the engine's bundle in the pak on every
+   platform (the tested setup). Windows and macOS use the system's certificate store
    (untested in this preview). If the packaged game's Output Log says
    `scfg: refusing https:// RPC requests: TLS certificate verification unavailable`, no payment can be checked
    until this is fixed.
