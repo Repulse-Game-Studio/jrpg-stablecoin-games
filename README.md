@@ -14,19 +14,16 @@ watches the blockchain itself.
 |---|---|---|---|
 | **Ren'Py 8.2+** | `game/scfg/` and its Python core | Released: desktop and web builds | [Install](docs/developers/install.md) |
 | **Godot 4.3+** | the `addons/scfg/` addon, pure GDScript | Preview: tested on 4.3 and 4.7.2, desktop and web exports | [Install](docs/developers/godot/install.md), [showcase](godot/showcase/README.md) |
-| **Unreal Engine 5.6+** | the `Scfg` plugin (C++, Blueprint), UE 5.6+ | Preview: tested on UE 5.8.4, Linux desktop (uncooked and packaged); 5.6/5.7, Windows, macOS and mobile not yet checked | [Install](docs/developers/unreal/install.md), [showcase](unreal/Project/ScfgDev/README.md) |
 | **RPG Maker MZ** | one plugin file, `js/plugins/SCFG.js` | Preview: tested on an in-repo MZ stand-in, **not yet in real RPG Maker MZ** | [Install](docs/developers/rpgmaker/install.md) |
 | **Unity 6.3 LTS+** | the `com.repulse.scfg` UPM package (git URL or `.tgz`), C# | Preview: tested on 6000.6.9f1, Linux (Mono and IL2CPP) and WebGL players; 6.3 LTS, Windows and macOS not yet checked | [Install](docs/developers/unity/install.md), [samples](unity/Packages/com.repulse.scfg/Samples~/Showcase/README.md) |
+| **Unreal Engine 5.6+** | the `Scfg` plugin (C++, Blueprint), UE 5.6+ | Preview: tested on UE 5.8.4, Linux desktop (uncooked and packaged); 5.6/5.7, Windows, macOS and mobile not yet checked | [Install](docs/developers/unreal/install.md), [showcase](unreal/Project/ScfgDev/README.md) |
 
 They share one payment core: the Ren'Py plugin's Python is the reference, and the TypeScript (RPG Maker),
-GDScript (Godot) and C# (Unity) ports replay the same [conformance vectors](conformance/README.md).
-`tools/package.py` builds `scfg-renpy-<version>.zip`, `scfg-godot-<version>.zip`,
-`scfg-rpgmaker-mz-<version>.zip` and `scfg-unity-<version>.tgz`; each release carries all four. Mobile builds are
-best effort and unverified on every engine.
-
-The Unreal plugin's C++ core (`unreal/Plugins/Scfg/Source/ScfgCore/`) shares that payment core too and replays the
-same vectors. `tools/package.py --engine unreal` builds its zips, one per engine version:
-`scfg-unreal-<version>-ue5.6.zip`, `-ue5.7.zip` and `-ue5.8.zip`; each release carries those as well.
+GDScript (Godot), C# (Unity) and C++ (Unreal, `unreal/Plugins/Scfg/Source/ScfgCore/`) ports replay the same
+[conformance vectors](conformance/README.md). `tools/package.py` builds `scfg-renpy-<version>.zip`,
+`scfg-godot-<version>.zip`, `scfg-rpgmaker-mz-<version>.zip`, `scfg-unity-<version>.tgz` and, with
+`--engine unreal`, one Unreal zip per engine version (`scfg-unreal-<version>-ue5.6.zip`, `-ue5.7.zip` and
+`-ue5.8.zip`); each release carries all of them. Mobile builds are best effort and unverified on every engine.
 
 ![A player tips 3 USDC on Arc in Ruby Dreams: pick an amount, pick a network, scan the QR code, payment confirmed](.github/media/tip-arc.gif)
 
@@ -84,7 +81,7 @@ Players can read how paying works, which wallets work and how to restore a purch
 | `tests/renpy_e2e/`, `tests/renpy_web_e2e/` | Real Ren'Py runs (desktop and web build) driving a payment through the screens |
 | `conformance/` | Language-neutral JSON vectors recorded from `scfg_core` (the reference for the JS and GDScript ports), the generator, a Python replay runner and the receipt schema. See [its README](conformance/README.md) |
 | `rpgmaker/` | The RPG Maker MZ plugin: the TypeScript port of the payment core (`src/core/`, dependency-free, Node 22.18+), the MZ glue (`src/mz/`: plugin header, commands, `window.SCFG`, the HTML payment sheet, the NW.js checkout server), the esbuild build to `js/plugins/SCFG.js`, an MZ stand-in (`test/mz_shim/`) its tests run on, the demo kit (`demo/`) and the JSON-lines driver for the integration tests. See [its README](rpgmaker/README.md) |
-| `tests/rpgmaker_ui/`, `tests/server_security/` | The RPG Maker sheet in headless Chrome on the MZ stand-in; the localhost checkout server's security suite (Python, GDScript, Node and C# servers) |
+| `tests/rpgmaker_ui/`, `tests/server_security/` | The RPG Maker sheet in headless Chrome on the MZ stand-in; the localhost checkout server's security suite (Python, GDScript, Node, C# and C++ servers) |
 | `godot/` | Godot 4.3+ addon (`addons/scfg/`: the `Scfg` autoload, payment sheet, localhost/web checkout and the pure-GDScript payment core in `core/`), the runnable `showcase/` (a one-screen tour of the API) and `demo/` (the game the e2e tests play), its headless test runner and the JSON-lines driver for the integration tests. See [its README](godot/README.md) |
 | `unity/` | The Unity port (Preview): the C# payment core (`Scfg.Core`, with the worker and the checkout, restore and overlay controllers) under `Packages/com.repulse.scfg/Runtime/Core/`, the localhost checkout server (`Scfg.Desktop`) under `Runtime/Desktop/`, the Unity glue (the `SCFG` facade, UI Toolkit screens, store and transport) under `Runtime/Unity/` with its Unity Test Framework tests, the `ScfgSettings` asset, the Showcase and Demo samples (`Samples~/`), the dev project (`Project/`, with the Linux and WebGL e2e driver), their NUnit tests (`core-tests/`) and the JSON-lines drivers for the integration tests (`core-driver/`) and the server security suite (`server-driver/`). Desktop and WebGL (the WebGL checkout is the shared page shown over the game). See [its README](unity/README.md) |
 | `tests/godot_showcase/` | Boots the Godot showcase headless and presses its chain-free buttons (needs `SCFG_GODOT`) |
@@ -119,13 +116,13 @@ uv run pytest -m live                     # pinned real Arc payments, read-only
 (cd rpgmaker && npm ci && npm run typecheck && npm run build && npm test)
 # the RPG Maker sheet in headless Chrome (needs the npm ci above and Playwright's Chromium)
 uv run pytest tests/rpgmaker_ui           # (a plain `uv run pytest` deselects it; naming the directory or SCFG_REQUIRE_JS=1 runs it)
-# the Node quarter of the localhost checkout server security suite (the default run covers Python, C# when dotnet is found and, with SCFG_GODOT, Godot)
-uv run pytest tests/server_security       # naming the directory runs the Node quarter too (skips it without Node)
+# the Node part of the localhost checkout server security suite (the default run covers Python, C# when dotnet is found and, with SCFG_GODOT, Godot)
+uv run pytest tests/server_security       # naming the directory runs the Node part too (skips it without Node)
 # the RPG Maker plugin end to end on the MZ stand-in (anvil / solana-test-validator on PATH)
 uv run python tools/run_rpgmaker_web_e2e.py --family evm          # or arc
 uv run python tools/run_rpgmaker_desktop_e2e.py --family evm      # or arc, solana
 
-# C# core (.NET 8 SDK; the start of the Unity port, in development): tests and the conformance vectors; its
+# C# core (.NET 8 SDK; the Unity port's payment core): tests and the conformance vectors; its
 # local-chain twins (tests/integration/test_cs_core.py) run with the integration tests above when dotnet is found
 # (on PATH, in $DOTNET_ROOT or in ~/.dotnet); see unity/README.md
 dotnet test unity/Scfg.sln -c Release
