@@ -63,16 +63,7 @@ namespace Scfg
         private static void EmitReceiptsChanged()
         {
             S.ReceiptsRev++;
-            var handlers = S.ReceiptsChanged;
-            if (handlers == null) return;
-            try
-            {
-                handlers();
-            }
-            catch (Exception e)
-            {
-                Debug.LogException(e);
-            }
+            Call(S.ReceiptsChanged);
         }
 
         /// <summary>
@@ -222,7 +213,7 @@ namespace Scfg
         /// </summary>
         public static string? ExportReceipts(string? path = null)
         {
-            var target = path ?? Path.Combine(Application.persistentDataPath, "scfg-receipts.json");
+            var target = path ?? Path.Combine(Application.persistentDataPath, ExportFileName);
             var list = new List<object?>();
             foreach (var kv in SourceReceipts()) list.Add(DeepCopy.Of(kv.Value));
             try

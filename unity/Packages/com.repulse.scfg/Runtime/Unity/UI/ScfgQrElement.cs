@@ -8,8 +8,14 @@ using UnityEngine.UIElements;
 
 namespace Scfg
 {
-    public sealed class ScfgQrElement : VisualElement
+    internal sealed class ScfgQrElement : VisualElement
     {
+        /// <summary>
+        /// The modules' color: ScfgSheet.uss's default --scfg-ink (#17202e). The element paints it itself, so a style
+        /// sheet's own --scfg-ink does not change it.
+        /// </summary>
+        private static readonly Color Ink = new Color(0.09f, 0.125f, 0.18f);
+
         public const int Border = 2;
 
         private int _size;
@@ -66,7 +72,7 @@ namespace Scfg
             var p = ctx.painter2D;
             p.fillColor = Color.white;
             FillRect(p, ox, oy, m * _size, m * _size);
-            p.fillColor = new Color(0.09f, 0.125f, 0.18f);
+            p.fillColor = Ink;
             foreach (var run in _runs) FillRect(p, ox + run.X * m, oy + run.Y * m, run.Width * m, m);
         }
 

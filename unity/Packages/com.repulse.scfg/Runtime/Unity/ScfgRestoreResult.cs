@@ -6,6 +6,7 @@ using Scfg.Core;
 
 namespace Scfg
 {
+    /// <summary>How a restore ended (ScfgRestoreResult.Status).</summary>
     public enum ScfgRestoreStatus
     {
         /// <summary>Receipts were added (Restored lists them).</summary>
@@ -18,9 +19,12 @@ namespace Scfg
         Failed,
     }
 
+    /// <summary>What a restore found (see the file header).</summary>
     public sealed class ScfgRestoreResult
     {
+        /// <summary>How the restore ended.</summary>
         public ScfgRestoreStatus Status { get; internal set; }
+        /// <summary>The receipts it added to this device (empty unless Restored).</summary>
         public IReadOnlyList<ScfgReceipt> Restored { get; internal set; } = new List<ScfgReceipt>();
         /// <summary>The core's lookup error ("tx_not_found"), or a ConfigError code for a misused Restore.</summary>
         public string? Error { get; internal set; }

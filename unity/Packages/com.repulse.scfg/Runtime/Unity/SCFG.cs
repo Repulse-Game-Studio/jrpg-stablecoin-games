@@ -52,7 +52,13 @@ namespace Scfg
     /// <summary>The SCFG facade (see the file header).</summary>
     public static partial class SCFG
     {
+        /// <summary>The folder under Application.persistentDataPath that holds the state file.</summary>
+        public const string StateFolder = "scfg";
+        /// <summary>The state file (receipts and pending payments), in <see cref="StateFolder"/>.</summary>
         public const string StateFileName = "state.json";
+        /// <summary>ExportReceipts' default file, in Application.persistentDataPath.</summary>
+        public const string ExportFileName = "scfg-receipts.json";
+        /// <summary>Seconds between saves of pending-payment progress (scan positions); other changes are saved at once.</summary>
         public const double PendingSaveInterval = 10.0;
         /// <summary>Characters of a transaction hash (hex) or a Solana signature (base58).</summary>
         public const string TxChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -220,7 +226,8 @@ namespace Scfg
         internal static string ErrCode(Exception e) =>
             e is ConfigError ce && !string.IsNullOrEmpty(ce.Code) ? ce.Code : e.GetType().Name;
 
-        private static bool IsMisuse(Exception e) => e is ValueError || e is TypeError || e is KeyError;
+        /// <summary>A developer error from the core's validation (reported and returned as a code, never thrown).</summary>
+        internal static bool IsMisuse(Exception e) => e is ValueError || e is TypeError || e is KeyError;
 
         /// <summary>
         /// The error's message, with Unity's names where the core's names Python's keywords (wallet.missing:
@@ -383,7 +390,10 @@ namespace Scfg
             return key ?? "";
         }
 
+        /// <summary>True in a WebGL player (the browser checkout is then shown over the game).</summary>
         public static bool IsWeb => S.Platform.IsWeb;
+
+        /// <summary>True on a phone or tablet (the sheet then offers "Open wallet app").</summary>
         public static bool IsMobile => S.Platform.IsMobile;
 
         /// <summary>True where payments can run: every platform the package builds for (parity with Ren'Py and Godot).</summary>
@@ -403,7 +413,7 @@ namespace Scfg
         // --- worker lifecycle --------------------------------------------------------------------------
 
         private static string StorePath =>
-            S.StorePath ?? Path.Combine(Application.persistentDataPath, "scfg", StateFileName);
+            S.StorePath ?? Path.Combine(Application.persistentDataPath, StateFolder, StateFileName);
 
         private static double Interval() =>
             S.Checkouts.Count == 0 && S.Restores.Count == 0 ? PollIdleS : PollOpenS;
@@ -411,7 +421,7 @@ namespace Scfg
         private static IScheduler Scheduler()
         {
             if (S.Scheduler != null) return S.Scheduler;
-            S.OwnScheduler ??= new UnityScheduler(() => S.Clock(), e => ReportError("worker error:", e));
+            S.OwnScheduler ??= new UnityScheduler(() => S.Clock(), LogWorkerError);
             return S.OwnScheduler;
         }
 
@@ -754,7 +764,21 @@ namespace Scfg
             }
             catch (Exception e)
             {
-                Debug.LogException(e);
+                ReportError("a game handler threw:", e);
+            }
+        }
+
+        /// <summary>The same for a handler without an argument.</summary>
+        private static void Call(Action? cb)
+        {
+            if (cb == null) return;
+            try
+            {
+                cb();
+            }
+            catch (Exception e)
+            {
+                ReportError("a game handler threw:", e);
             }
         }
 

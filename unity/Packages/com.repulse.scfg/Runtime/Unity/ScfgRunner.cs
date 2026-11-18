@@ -39,8 +39,7 @@ namespace Scfg
             if (_instance == null) return;
             var go = _instance.gameObject;
             _instance = null;
-            if (Application.isPlaying) Destroy(go);
-            else DestroyImmediate(go);
+            ScfgObjects.Destroy(go);
         }
 
         /// <summary>Domain reload off: unhook and drop the last session's runner.</summary>
@@ -51,11 +50,7 @@ namespace Scfg
             DestroyRunner();
             // a runner of an earlier session that survived (domain reload on loses _instance, not the object)
             foreach (var stale in Resources.FindObjectsOfTypeAll<ScfgRunner>())
-                if (stale != null)
-                {
-                    if (Application.isPlaying) Destroy(stale.gameObject);
-                    else DestroyImmediate(stale.gameObject);
-                }
+                if (stale != null) ScfgObjects.Destroy(stale.gameObject);
         }
 
         private void Update() => SCFG.Pump();

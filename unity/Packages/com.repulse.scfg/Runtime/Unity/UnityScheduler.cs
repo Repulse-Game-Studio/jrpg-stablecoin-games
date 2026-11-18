@@ -13,7 +13,7 @@ using UnityEngine;
 namespace Scfg
 {
     /// <summary>The Worker's <see cref="IScheduler"/> on Unity's frame loop (see the file header).</summary>
-    public sealed class UnityScheduler : IScheduler
+    internal sealed class UnityScheduler : IScheduler
     {
         private sealed class Entry
         {

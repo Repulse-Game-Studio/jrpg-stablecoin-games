@@ -253,9 +253,9 @@ namespace Scfg.Tests
             Assert.That(Error(t)!.Message, Does.Contain("timed out"));
         }
 
-        // U12 of the Unity testbed: UnityWebRequest's timeout leaves the name lookup out, so a DNS server that never
-        // answered held a request about 20 s. The transport's own deadline (Pump) ends it at its timeout whatever it
-        // waits on: here an address that never resolves nor connects, with the deadline's clock moved past 10 s.
+        // UnityWebRequest's timeout leaves the name lookup out, so a DNS server that never answered held a request
+        // about 20 s. The transport's own deadline (Pump) ends it at its timeout whatever it waits on: here an address
+        // that never resolves nor connects, with the deadline's clock moved past 10 s.
         [UnityTest]
         public IEnumerator ThePumpEndsARequestAtItsTimeoutWhateverItWaitsOn()
         {
@@ -326,7 +326,7 @@ namespace Scfg.Tests
             Assert.That(Error(later), Is.TypeOf<HostGone>());
         }
 
-        // Testbed U15: a request nobody waits for any more (its job abandoned, its tick yielding to a command) is aborted
+        // A request nobody waits for any more (its job abandoned, its tick yielding to a command) is aborted
         // when the Engine's AbandonInFlight token is cancelled, not left to run to its timeout.
         [UnityTest]
         public IEnumerator ACancelledTokenAbortsTheRequestInFlight()

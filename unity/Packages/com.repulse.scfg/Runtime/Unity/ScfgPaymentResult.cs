@@ -7,6 +7,7 @@ using Scfg.Core;
 
 namespace Scfg
 {
+    /// <summary>How a payment ended (ScfgPaymentResult.Status).</summary>
     public enum ScfgPaymentStatus
     {
         /// <summary>The payment confirmed.</summary>
@@ -28,15 +29,23 @@ namespace Scfg
     /// <summary>A payment's outcome (see the file header). Every field but Status may be null.</summary>
     public sealed class ScfgPaymentResult
     {
+        /// <summary>How the payment ended.</summary>
         public ScfgPaymentStatus Status { get; internal set; }
+        /// <summary>Unlock or Tip; null for a call refused before it had a kind.</summary>
         public ScfgPayKind? Kind { get; internal set; }
+        /// <summary>The item id of an unlock.</summary>
         public string? Item { get; internal set; }
         /// <summary>The amount actually paid, "4.99"; null when nothing was matched on chain.</summary>
         public string? Amount { get; internal set; }
+        /// <summary>The token paid, "USDC" or "USDT".</summary>
         public string? Token { get; internal set; }
+        /// <summary>The chain key the payment was made on (SCFG.ChainName gives its display name).</summary>
         public string? Chain { get; internal set; }
+        /// <summary>The payment's transaction hash (EVM) or signature (Solana).</summary>
         public string? TxHash { get; internal set; }
+        /// <summary>The address that paid.</summary>
         public string? Payer { get; internal set; }
+        /// <summary>The payment session's id (the pending payment's SessionId while it is watched).</summary>
         public string? SessionId { get; internal set; }
         /// <summary>A ConfigError code for a misused Pay ("item.unknown"), or the core's reason for a failed payment.</summary>
         public string? Error { get; internal set; }
@@ -96,15 +105,25 @@ namespace Scfg
     {
         /// <summary>The receipt key ("chain:tx_hash:log_index").</summary>
         public string Key { get; }
+        /// <summary>The chain key (SCFG.ChainName gives its display name).</summary>
         public string? Chain { get; }
+        /// <summary>The transaction hash (EVM) or signature (Solana).</summary>
         public string? TxHash { get; }
+        /// <summary>The transfer's index in its transaction's logs (EVM; 0 on Solana).</summary>
         public long LogIndex { get; }
+        /// <summary>The block (EVM) or slot (Solana) the payment is in.</summary>
         public long Block { get; }
+        /// <summary>Unlock or Tip.</summary>
         public ScfgPayKind? Kind { get; }
+        /// <summary>The item id of an unlock.</summary>
         public string? Item { get; }
+        /// <summary>The amount paid, "4.99".</summary>
         public string? Amount { get; }
+        /// <summary>"USDC" or "USDT".</summary>
         public string? Token { get; }
+        /// <summary>The address that paid.</summary>
         public string? Payer { get; }
+        /// <summary>The wallet that was paid (yours, or one of ScfgOptions.PreviousWallets).</summary>
         public string? Recipient { get; }
         /// <summary>"payment" or "restore".</summary>
         public string? Source { get; }
@@ -142,13 +161,19 @@ namespace Scfg
     /// <summary>A payment still being watched for (state.json's pending record).</summary>
     public sealed class ScfgPendingPayment
     {
+        /// <summary>The payment session's id (ScfgPaymentResult.SessionId of its result).</summary>
         public string SessionId { get; }
+        /// <summary>Unlock or Tip.</summary>
         public ScfgPayKind? Kind { get; }
+        /// <summary>The item id of an unlock.</summary>
         public string? Item { get; }
+        /// <summary>What the sheet showed as the payment's title.</summary>
         public string? Title { get; }
         /// <summary>The price asked, "4.99".</summary>
         public string? Price { get; }
+        /// <summary>"USDC" or "USDT".</summary>
         public string? Token { get; }
+        /// <summary>The chain key the player chose, or null before they chose one.</summary>
         public string? Chain { get; }
         /// <summary>"awaiting" or "confirming".</summary>
         public string? State { get; }

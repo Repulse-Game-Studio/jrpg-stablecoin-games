@@ -11,7 +11,7 @@ using System.Runtime.InteropServices;
 namespace Scfg
 {
     /// <summary>The page a WebGL player runs in (see ScfgWeb.jslib for each call's contract).</summary>
-    public interface IScfgWebJs
+    internal interface IScfgWebJs
     {
         /// <summary>Runs one of the checkout page's scripts in the page's global scope; false when it threw.</summary>
         bool Load(string code);
@@ -88,8 +88,8 @@ namespace Scfg
                 else if (!_warned)
                 {
                     _warned = true;
-                    UnityEngine.Debug.LogWarning("scfg: UnityEngine.WebGLInput.captureAllKeyboardInput was not found; "
-                                                 + "the page's text fields may not get the keys the game takes");
+                    SCFG.Warn("UnityEngine.WebGLInput.captureAllKeyboardInput was not found; the page's text fields may"
+                              + " not get the keys the game takes");
                 }
             }
         }

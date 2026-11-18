@@ -31,7 +31,11 @@ using UnityEngine;
 
 namespace Scfg
 {
-    /// <summary>The SCFG Settings asset (see the file header).</summary>
+    /// <summary>
+    /// The SCFG Settings asset (see the file header). Its fields keep Unity's serialized-field names (camelCase, read
+    /// as settings.wallet), unlike the PascalCase ScfgOptions they convert to with <see cref="ToOptions()"/>: the names
+    /// are what the asset files store.
+    /// </summary>
     [CreateAssetMenu(menuName = "SCFG Settings", fileName = "ScfgSettings", order = 1000)]
     [HelpURL("https://jrpg.com/stablecoinforgames/docs/developers/unity/api#scfgsettings")]
     public sealed class ScfgSettings : ScriptableObject
@@ -40,16 +44,22 @@ namespace Scfg
         [Serializable]
         public sealed class Item
         {
+            /// <summary>The item's id, as SCFG.Owns("chapter2") and SCFG.Pay ask for it.</summary>
             [Tooltip("The item's id, as SCFG.Owns(\"chapter2\") and SCFG.Pay ask for it.")]
             public string id = "";
+            /// <summary>1..99, unique per game. Never change it after release: receipts carry it.</summary>
             [Tooltip("1..99, unique per game. Never change it after release: receipts carry it.")]
             public int code = 1;
+            /// <summary>The price as a decimal string, such as 4.99.</summary>
             [Tooltip("The price as a decimal string, such as 4.99.")]
             public string price = "";
+            /// <summary>USDC or USDT.</summary>
             [Tooltip("USDC or USDT.")]
             public string token = "USDC";
+            /// <summary>What the player sees on the payment sheet.</summary>
             [Tooltip("What the player sees on the payment sheet.")]
             public string title = "";
+            /// <summary>Optional: the least a payment may be and still unlock (default: the price).</summary>
             [Tooltip("Optional: the least a payment may be and still unlock (default: the price).")]
             public string minPrice = "";
 
@@ -60,28 +70,46 @@ namespace Scfg
             };
         }
 
+        /// <summary>Your EVM payout address (0x...). At least one of the two wallets is required.</summary>
+        [Header("Wallets")]
         [Tooltip("Your EVM payout address (0x...). At least one of the two wallets is required.")]
         public string wallet = "";
+        /// <summary>Your Solana payout address (base58).</summary>
         [Tooltip("Your Solana payout address (base58).")]
         public string solanaWallet = "";
+        /// <summary>Use the test networks. Develop with this on; turn it off for the release.</summary>
+        [Header("Networks and tokens")]
         [Tooltip("Use the test networks. Develop with this on; turn it off for the release.")]
         public bool testnet = true;
+        /// <summary>The networks offered, in order (empty: every network your wallets can receive on).</summary>
         [Tooltip("The networks offered, in order (empty: every network your wallets can receive on).")]
         public List<string> chains = new List<string>();
+        /// <summary>The tokens accepted (empty: USDC and USDT).</summary>
         [Tooltip("The tokens accepted (empty: USDC and USDT).")]
         public List<string> tokens = new List<string>();
+        /// <summary>The accent color of the sheet and the checkout page, #rrggbb (empty: the default).</summary>
+        [Header("Look")]
         [Tooltip("The accent color of the sheet and the checkout page, #rrggbb (empty: the default).")]
         public string accent = "";
+        /// <summary>The logo on the sheet and the checkout page.</summary>
         [Tooltip("The logo on the sheet and the checkout page.")]
         public Sprite? logo;
+        /// <summary>The "No USDC yet? Buy some with a card" link on the sheet (on mainnet, on the built-in EVM networks). Off hides it.</summary>
+        [Header("Buy link")]
         [Tooltip("The \"No USDC yet? Buy some with a card\" link on the sheet (on mainnet, on the built-in EVM networks). Off hides it.")]
         public bool onrampEnabled = true;
+        /// <summary>Optional: your own buy page, an https:// template with {chain}, {chain_id}, {token}, {token_address} and {amount} (empty: thirdweb's buy page).</summary>
         [Tooltip("Optional: your own buy page, an https:// template with {chain}, {chain_id}, {token}, {token_address} and {amount} (empty: thirdweb's buy page).")]
         public string onrampUrl = "";
+        /// <summary>Optional: the EVM networks the buy link is offered on (empty: the built-in EVM networks of a mainnet game; none on testnet).</summary>
         [Tooltip("Optional: the EVM networks the buy link is offered on (empty: the built-in EVM networks of a mainnet game; none on testnet).")]
         public List<string> onrampChains = new List<string>();
+        /// <summary>WebGL builds: tells two games with the same product name on one web origin apart (see ScfgOptions.WebStorageId). Set it once and never change it.</summary>
+        [Header("WebGL")]
         [Tooltip("WebGL builds: tells two games with the same product name on one web origin apart (see ScfgOptions.WebStorageId). Set it once and never change it.")]
         public string webStorageId = "";
+        /// <summary>The paid unlocks.</summary>
+        [Header("Items")]
         [Tooltip("The paid unlocks.")]
         public List<Item> items = new List<Item>();
 
@@ -184,8 +212,7 @@ namespace Scfg
             _logoCopy = null;
             _logoCopyOf = null;
             if (copy == null || (!evenIfShown && ReferenceEquals(SCFG.Current.Logo, copy))) return;
-            if (Application.isPlaying) Destroy(copy);
-            else DestroyImmediate(copy);
+            ScfgObjects.Destroy(copy);
         }
 
         // unloaded, or the scripts reload (SCFG's state goes with them)
@@ -194,7 +221,7 @@ namespace Scfg
         /// <summary>The rect of a texture as a readable copy, or null when no graphics device can read it.</summary>
         internal static Texture2D? Crop(Texture2D texture, RectInt rect)
         {
-            var pixels = Read(texture, rect);
+            var pixels = ScfgImages.ReadPixels(texture, rect);
             if (pixels == null) return null;
             var copy = new Texture2D(rect.width, rect.height, TextureFormat.RGBA32, false);
             copy.SetPixels32(pixels);
@@ -223,7 +250,7 @@ namespace Scfg
             int ay = Mathf.Clamp(Mathf.FloorToInt(v0 * texture.height), 0, texture.height - 1);
             int aw = Mathf.Clamp(Mathf.CeilToInt(u1 * texture.width), ax + 1, texture.width) - ax;
             int ah = Mathf.Clamp(Mathf.CeilToInt(v1 * texture.height), ay + 1, texture.height) - ay;
-            var source = Read(texture, new RectInt(ax, ay, aw, ah));
+            var source = ScfgImages.ReadPixels(texture, new RectInt(ax, ay, aw, ah));
             if (source == null) return null;
             var output = new Color32[w * h];
             var pivot = sprite.pivot;
@@ -259,48 +286,6 @@ namespace Scfg
             copy.Apply();
             return copy;
         }
-
-        /// <summary>A rect of a texture's pixels (row by row from the bottom), or null when no graphics device can read it.</summary>
-        private static Color32[]? Read(Texture2D texture, RectInt rect)
-        {
-            if (texture.isReadable && !IsCrunched(texture.format))
-            {
-                try
-                {
-                    var colors = texture.GetPixels(rect.x, rect.y, rect.width, rect.height);
-                    var pixels = new Color32[colors.Length];
-                    for (int i = 0; i < colors.Length; i++) pixels[i] = colors[i];
-                    return pixels;
-                }
-                catch (Exception)
-                {
-                    // a format the CPU cannot read: through the GPU below
-                }
-            }
-            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null) return null;
-            var rt = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32,
-                texture.isDataSRGB ? RenderTextureReadWrite.sRGB : RenderTextureReadWrite.Linear);
-            var previous = RenderTexture.active;
-            var read = new Texture2D(rect.width, rect.height, TextureFormat.RGBA32, false);
-            try
-            {
-                Graphics.Blit(texture, rt);
-                RenderTexture.active = rt;
-                read.ReadPixels(new Rect(rect.x, rect.y, rect.width, rect.height), 0, 0);
-                return read.GetPixels32();
-            }
-            finally
-            {
-                RenderTexture.active = previous;
-                RenderTexture.ReleaseTemporary(rt);
-                if (Application.isPlaying) Destroy(read);
-                else DestroyImmediate(read);
-            }
-        }
-
-        private static bool IsCrunched(TextureFormat f) =>
-            f == TextureFormat.DXT1Crunched || f == TextureFormat.DXT5Crunched || f == TextureFormat.ETC_RGB4Crunched
-            || f == TextureFormat.ETC2_RGBA8Crunched;
 
         // --- applying and validating ---------------------------------------------------------------------
 
@@ -349,8 +334,11 @@ namespace Scfg
         /// <summary>What <see cref="Validate"/> found wrong: the core's code and message.</summary>
         public sealed class Problem
         {
+            /// <summary>The ConfigError code ("wallet.invalid").</summary>
             public string Code { get; }
+            /// <summary>What is wrong, in words.</summary>
             public string Message { get; }
+            /// <summary>A problem with its code and message.</summary>
             public Problem(string code, string message)
             {
                 Code = code;
@@ -379,7 +367,7 @@ namespace Scfg
                 kw["custom_chains"] = new List<object?>();
                 cfg = Scfg.Core.Config.BuildConfig(kw);
             }
-            catch (Exception e) when (e is ValueError || e is TypeError || e is KeyError)
+            catch (Exception e) when (SCFG.IsMisuse(e))
             {
                 return new Problem(SCFG.ErrCode(e), SCFG.Spelled(e));
             }
@@ -390,7 +378,7 @@ namespace Scfg
                 {
                     Scfg.Core.Config.AddItem(cfg, item.id, item.ToItem().ToKwargs());
                 }
-                catch (Exception e) when (e is ValueError || e is TypeError || e is KeyError)
+                catch (Exception e) when (SCFG.IsMisuse(e))
                 {
                     return new Problem(SCFG.ErrCode(e), "item \"" + item.id + "\": " + e.Message);
                 }
@@ -452,7 +440,7 @@ namespace Scfg
 
         /// <summary>
         /// Test hook (editor): when set, FindAll looks only in these folders, so the package's tests run the same in a
-        /// game project that has its own SCFG Settings asset (testbed U14).
+        /// game project that has its own SCFG Settings asset.
         /// </summary>
         internal static string[]? SearchFoldersOverride;
 

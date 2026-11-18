@@ -173,7 +173,7 @@ namespace Scfg.Tests
             Assert.That(SCFG.Current.Config, Is.Null, "no asset: nothing is configured");
         }
 
-        // Testbed U2/E5: no wallet is the opt-out (the game configures from code), not a problem; the rest is still checked.
+        // No wallet is the opt-out (the game configures from code), not a problem; the rest is still checked.
         [Test]
         public void AnAssetWithoutAWalletIsValidAndNotAppliedAtStartup()
         {
@@ -198,7 +198,7 @@ namespace Scfg.Tests
             Assert.That(_rig.Reported, Is.Empty, "and not reported as an error");
         }
 
-        // Testbed E6: a wallet supplied at runtime, with the asset's options and items.
+        // A wallet supplied at runtime, with the asset's options and items.
         [Test]
         public void ApplyWithAWalletUsesThatWalletAndTheAssetsItems()
         {
@@ -355,7 +355,7 @@ namespace Scfg.Tests
         }
 
         // The asset tests look only in a folder of their own (ScfgSettings.SearchFoldersOverride), so they pass in a game
-        // project that has its own SCFG Settings asset too (testbed U14). Its folder, made and removed by each test.
+        // project that has its own SCFG Settings asset too. Its folder, made and removed by each test.
         private const string Scope = "Assets/ScfgSettingsTestScope";
 
         private static void EnterScope()

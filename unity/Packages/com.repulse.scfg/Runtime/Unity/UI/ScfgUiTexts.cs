@@ -13,6 +13,7 @@ using Scfg.Core;
 
 namespace Scfg
 {
+    /// <summary>The English texts of the package's screens, by id (see the file header), for a screen of your own.</summary>
     public static class ScfgUiTexts
     {
         /// <summary>The sheet's own strings and the notices (RPG Maker's SHEET and NOTICES).</summary>
@@ -135,11 +136,11 @@ namespace Scfg
             return new ReadOnlyDictionary<string, string>(all);
         }
 
-        /// <summary>The text <paramref name="id"/>; an unknown id shows as itself (and is logged in development builds).</summary>
+        /// <summary>The text <paramref name="id"/>; an unknown id shows as itself (and is warned about in development builds).</summary>
         public static string Get(string id)
         {
             if (All.TryGetValue(id, out var text)) return text;
-            if (UnityEngine.Debug.isDebugBuild) UnityEngine.Debug.LogError("scfg: unknown text id \"" + id + "\"");
+            SCFG.Warn("unknown text id \"" + id + "\"");
             return id;
         }
 

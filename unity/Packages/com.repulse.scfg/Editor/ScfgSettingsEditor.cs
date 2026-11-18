@@ -20,6 +20,7 @@ using UnityEngine;
 
 namespace Scfg.Editor
 {
+    /// <summary>The SCFG Settings inspector: the asset's fields and a Validate button (see the file header).</summary>
     [CustomEditor(typeof(ScfgSettings))]
     public sealed class ScfgSettingsEditor : UnityEditor.Editor
     {
@@ -36,6 +37,7 @@ namespace Scfg.Editor
             Repaint();
         }
 
+        /// <inheritdoc/>
         public override void OnInspectorGUI()
         {
             var settings = (ScfgSettings)target;

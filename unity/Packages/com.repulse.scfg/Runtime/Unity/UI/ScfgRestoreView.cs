@@ -14,25 +14,26 @@ using UnityEngine.UIElements;
 
 namespace Scfg
 {
+    /// <summary>The package's restore screen (see the file header).</summary>
     public sealed class ScfgRestoreView : ScfgScreenView
     {
+        /// <summary>The restore this screen shows.</summary>
         public ScfgRestoreController Controller { get; }
         private RestoreController Ctl => Controller.Core;
         private string? _synced;
 
+        /// <summary>A restore screen for <paramref name="controller"/>; add its <see cref="ScfgScreenView.Root"/> to a panel.</summary>
         public ScfgRestoreView(ScfgRestoreController controller)
         {
             Controller = controller ?? throw new ArgumentNullException(nameof(controller));
             Root.AddToClassList("scfg-screen--restore");
         }
 
-        protected override bool ReadyToShow() => true;
-
         protected override string Signature()
         {
             var c = Ctl;
             var sb = new StringBuilder();
-            void Add(object? v) => sb.Append(v?.ToString() ?? "∅").Append('\u001f');
+            void Add(object? v) => AddField(sb, v);
             Add(c.State); Add(c.Error); Add(c.Candidates.Count);
             Add(string.Join(",", c.Choices.OrderBy(kv => kv.Key).Select(kv => kv.Key.ToString(CultureInfo.InvariantCulture) + "=" + kv.Value)));
             Add(c.CanConfirm); Add(c.Added.Count);
@@ -40,9 +41,6 @@ namespace Scfg
             Add(Controller.ReceiptsRevision);
             return sb.ToString();
         }
-
-        protected override bool Moved(string? before, string after) =>
-            before == null || before.Substring(0, before.IndexOf('\u001f')) != after.Substring(0, after.IndexOf('\u001f'));
 
         protected override string Primary()
         {

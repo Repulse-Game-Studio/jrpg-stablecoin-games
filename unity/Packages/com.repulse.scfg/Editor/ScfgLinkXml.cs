@@ -10,8 +10,10 @@ using UnityEditor.UnityLinker;
 
 namespace Scfg.Editor
 {
+    /// <summary>Hands the package's Runtime/link.xml to the managed linker of every player build (see the file header).</summary>
     public sealed class ScfgLinkXml : IUnityLinkerProcessor
     {
+        /// <inheritdoc/>
         public int callbackOrder => 0;
 
         /// <summary>The package's Runtime/link.xml as a full path, or null when the package cannot be found.</summary>
@@ -24,6 +26,7 @@ namespace Scfg.Editor
             return File.Exists(path) ? path : null;
         }
 
+        /// <inheritdoc/>
         public string GenerateAdditionalLinkXmlFile(BuildReport report, UnityLinkerBuildPipelineData data)
         {
             var path = PackageLinkXml();

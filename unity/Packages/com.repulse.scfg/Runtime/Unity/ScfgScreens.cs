@@ -54,6 +54,7 @@ namespace Scfg
     /// </summary>
     public sealed class ScfgCheckoutController
     {
+        /// <summary>The core's checkout controller: read its fields, call its methods from the sheet's buttons.</summary>
         public CheckoutController Core { get; }
         internal string Cid { get; }
         internal Action<ScfgPaymentResult>? Callback { get; }
@@ -75,22 +76,29 @@ namespace Scfg
         /// <summary>The buy link: opens configure's onramp page for the chosen network.</summary>
         public void OpenOnramp() => SCFG.OpenOnramp(this);
 
+        /// <summary>Opens a block explorer link (the controller's explorer URL for a transaction); null does nothing.</summary>
         public void OpenExplorer(string? url) => SCFG.OpenExplorer(url);
 
+        /// <summary>Puts <paramref name="text"/> on the clipboard (an address, an amount, a hash).</summary>
         public void Copy(string text) => SCFG.Copy(text);
 
         /// <summary>The clipboard's first word, hash characters only, into the hash field.</summary>
         public void Paste() => SCFG.PasteInto(this);
 
+        /// <summary>True on a phone or tablet (SCFG.IsMobile).</summary>
         public bool IsMobile => SCFG.IsMobile;
+        /// <summary>True in a WebGL player (SCFG.IsWeb).</summary>
         public bool IsWeb => SCFG.IsWeb;
+        /// <summary>The accent color, "#rrggbb" (SCFG.Accent).</summary>
         public string Accent => SCFG.Accent;
+        /// <summary>The configured logo, or null.</summary>
         public Texture2D? Logo => SCFG.LogoTexture;
     }
 
     /// <summary>What a restore screen binds to: the core's <see cref="RestoreController"/> plus Paste and the helpers.</summary>
     public sealed class ScfgRestoreController
     {
+        /// <summary>The core's restore controller: read its fields, call its methods from the screen's buttons.</summary>
         public RestoreController Core { get; }
         internal string Rid { get; }
         internal Action<ScfgRestoreResult>? Callback { get; }
@@ -103,7 +111,9 @@ namespace Scfg
             Callback = callback;
         }
 
+        /// <summary>The clipboard's first word, hash characters only, into the hash field.</summary>
         public void Paste() => SCFG.PasteInto(this);
+        /// <summary>Puts <paramref name="text"/> on the clipboard (a receipt's hash).</summary>
         public void Copy(string text) => SCFG.Copy(text);
 
         /// <summary>An item's title (the declared one, else the id).</summary>
@@ -118,18 +128,29 @@ namespace Scfg
         /// <summary>Changes each time SCFG.ReceiptsChanged is raised: compare it instead of copying the receipts.</summary>
         public int ReceiptsRevision => SCFG.ReceiptsRevision;
 
+        /// <summary>True in a WebGL player (SCFG.IsWeb).</summary>
         public bool IsWeb => SCFG.IsWeb;
+        /// <summary>The accent color, "#rrggbb" (SCFG.Accent).</summary>
         public string Accent => SCFG.Accent;
+        /// <summary>The configured logo, or null.</summary>
         public Texture2D? Logo => SCFG.LogoTexture;
     }
 
-    /// <summary>Where the game runs and how it reaches the world outside (tests replace it).</summary>
+    /// <summary>
+    /// Where the game runs and how it reaches the world outside: the platform checks, opening a URL and the clipboard.
+    /// The facade uses its own; tests replace it with a recording one (that setting is not part of the API).
+    /// </summary>
     public interface IScfgPlatform
     {
+        /// <summary>True in a WebGL player.</summary>
         bool IsWeb { get; }
+        /// <summary>True on a phone or tablet.</summary>
         bool IsMobile { get; }
+        /// <summary>Opens <paramref name="url"/> in the browser or the app that handles it.</summary>
         void OpenUrl(string url);
+        /// <summary>Puts <paramref name="text"/> on the system clipboard.</summary>
         void ClipboardSet(string text);
+        /// <summary>The system clipboard's text ("" when empty).</summary>
         string ClipboardGet();
     }
 

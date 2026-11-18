@@ -18,9 +18,9 @@
 // sessions) into a copy in localStorage, keeping receipts other tabs of this game saved and dropping the ones this tab
 // removed. The first read of the state once Configure ran merges the copy back (state.json wins a conflict) and saves at
 // once; merged receipts are re-verified like any other. Receipts it adds raise ReceiptsChanged (unlike Godot, the
-// queries can answer before Configure, so a game may already have shown the receipts without them). A missing, blocked or full localStorage only warns (development
-// builds, once). After every save the package asks the page to write persistentDataPath to IndexedDB (Unity does so by
-// itself only when the page sets config.autoSyncPersistentDataPath).
+// queries can answer before Configure, so a game may already have shown the receipts without them). A missing, blocked
+// or full localStorage only warns (development builds, once). After every save the package asks the page to write
+// persistentDataPath to IndexedDB (Unity does so by itself only when the page sets config.autoSyncPersistentDataPath).
 #nullable enable
 using System;
 using System.Collections.Generic;

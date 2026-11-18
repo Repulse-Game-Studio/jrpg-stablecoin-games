@@ -10,7 +10,7 @@
 // once per frame from the facade, aborts every request whose download passed the cap (the browser's fetch is
 // aborted with it), giving the same "response too large" a frame or so later. UnityWebRequest.timeout is whole
 // seconds and does not bound the name lookup: with a DNS server that never answers, a request waited for the
-// resolver's own timeout (about 20 s measured in the testbed), past the 10 s each RPC request is given. So Pump() also
+// resolver's own timeout (about 20 s measured on Linux), past the 10 s each RPC request is given. So Pump() also
 // fails every request older than its timeout ("timed out after Ns"), the lookup included, as Godot's HTTPRequest
 // timeout does. Off the web the User-Agent is urllib's "scfg/0.1"; a browser keeps its own.
 //
@@ -36,13 +36,13 @@ using UnityEngine.Networking;
 namespace Scfg
 {
     /// <summary>The transport's host went away (Godot's HostGone): <see cref="UnityWebRequestTransport.Close"/> ended the request.</summary>
-    public sealed class HostGone : Exception
+    internal sealed class HostGone : Exception
     {
         public HostGone(string url) : base("the transport was closed (request to " + url + ")") { }
     }
 
     /// <summary>The <see cref="ITransport"/> of a Unity game (see the file header).</summary>
-    public sealed class UnityWebRequestTransport : ICancellableTransport
+    internal sealed class UnityWebRequestTransport : ICancellableTransport
     {
         public const string UserAgent = "scfg/0.1";
         public const int RedirectLimit = 8;

@@ -28,7 +28,7 @@ using Scfg.Core;
 namespace Scfg
 {
     /// <summary>What <see cref="ScfgWebMirror.Read"/> found.</summary>
-    public sealed class ScfgWebMirrorRead
+    internal sealed class ScfgWebMirrorRead
     {
         public JsonObject Receipts { get; }
         public string? Warning { get; }
@@ -44,7 +44,7 @@ namespace Scfg
     }
 
     /// <summary>The receipts' copy in localStorage (see the file header).</summary>
-    public sealed class ScfgWebMirror
+    internal sealed class ScfgWebMirror
     {
         public const long Version = 1;
         public const string Prefix = "scfg:";

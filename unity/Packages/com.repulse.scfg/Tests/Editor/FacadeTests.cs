@@ -58,7 +58,7 @@ namespace Scfg.Tests
             Assert.That(SCFG.Configure(new ScfgOptions { Wallet = ScfgRig.Dev, Accent = "red" }), Is.EqualTo("accent.invalid"));
             Assert.That(_rig.Reported.Count, Is.EqualTo(4));
             Assert.That(_rig.Reported.All(r => r.StartsWith("scfg: ")), Is.True);
-            // testbed U7: Unity's names, not the core's Python keywords
+            // Unity's names, not the core's Python keywords
             Assert.That(_rig.Reported[0], Does.Contain("ScfgOptions.Wallet").And.Contain("ScfgOptions.SolanaWallet"));
             Assert.That(_rig.Reported[0], Does.Not.Contain("wallet="));
             Assert.That(SCFG.Configure(new ScfgOptions { Wallet = ScfgRig.Dev }), Is.Null);

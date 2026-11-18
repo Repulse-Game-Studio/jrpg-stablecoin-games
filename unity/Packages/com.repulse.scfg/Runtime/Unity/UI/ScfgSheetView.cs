@@ -5,9 +5,8 @@
 // waiting -> done. Every step has the header (the back arrow while the controller CanGoBack, the step dots, the logo,
 // the title and the price), a scrolling body, the pinned buy link where the controller shows it (ShowsOnramp: "No USDC
 // yet? Buy some with a card"; or ShowsOnrampHint, which goes back to the network step), the pinned forward button when
-// the step has one, and the footer (the
-// status message, the status line and Cancel / Continue playing / Continue). Development builds also show the
-// developer lines (DEV MODE and the controller's DevWarnings()).
+// the step has one, and the footer (the status message, the status line and Cancel / Continue playing / Continue).
+// Development builds also show the developer lines (DEV MODE and the controller's DevWarnings()).
 //
 // Keyboard and gamepad: each step focuses its primary control (the selected option, the forward button, the first
 // Copy, Continue); cancel (Escape, gamepad B) goes back, or closes as "cancel" on the first step.
@@ -21,10 +20,14 @@ using UnityEngine.UIElements;
 
 namespace Scfg
 {
+    /// <summary>The package's payment sheet (see the file header).</summary>
     public sealed class ScfgSheetView : ScfgScreenView
     {
         private static readonly string[] EndedStates = { "closed", "paid", "underpaid", "expired" };
+        private const int AmountMaxLength = 8;
+        private const string AmountChars = "0123456789.";
 
+        /// <summary>The checkout this sheet shows.</summary>
         public ScfgCheckoutController Controller { get; }
         private CheckoutController Ctl => Controller.Core;
 
@@ -33,13 +36,12 @@ namespace Scfg
 
         private readonly Dictionary<string, string> _synced = new Dictionary<string, string>(StringComparer.Ordinal);
 
+        /// <summary>A sheet for <paramref name="controller"/>; add its <see cref="ScfgScreenView.Root"/> to a panel.</summary>
         public ScfgSheetView(ScfgCheckoutController controller)
         {
             Controller = controller ?? throw new ArgumentNullException(nameof(controller));
             Root.AddToClassList("scfg-screen--payment");
         }
-
-        protected override bool ReadyToShow() => true;
 
         /// <summary>The step dots shown (index, count), or null when there are none.</summary>
         public (int Index, int Count)? Dots()
@@ -53,7 +55,7 @@ namespace Scfg
         {
             var c = Ctl;
             var sb = new StringBuilder();
-            void Add(object? v) => sb.Append(v?.ToString() ?? "∅").Append('\u001f');
+            void Add(object? v) => AddField(sb, v);
             Add(c.Step); Add(c.State); Add(c.Error); Add(c.CanGoBack); Add(c.HintTx); Add(c.Confirmations); Add(c.Required);
             Add(c.Method); Add(c.ChainKey); Add(c.PriceText); Add(c.SessionId); Add(c.BrowserFailed);
             Add(string.Join(",", c.ChainOptions().Select(o => o.Key)));
@@ -61,9 +63,6 @@ namespace Scfg
             Add(c.Result?.TxHash); Add(c.Message()); Add(c.ShowsOnramp); Add(c.ShowsOnrampHint);
             return sb.ToString();
         }
-
-        protected override bool Moved(string? before, string after) =>
-            before == null || before.Substring(0, before.IndexOf('\u001f')) != after.Substring(0, after.IndexOf('\u001f'));
 
         protected override string Primary()
         {
@@ -262,7 +261,7 @@ namespace Scfg
             body.Add(grid);
             body.Add(Text(ScfgUiTexts.Get("or_enter_your_own"), "scfg-label"));
             var row = Row();
-            var field = Field("custom_amount", c.CustomAmount, 8, "0123456789.", t => { Ctl.CustomAmount = t; _synced["custom_amount"] = t; },
+            var field = Field("custom_amount", c.CustomAmount, AmountMaxLength, AmountChars, t => { Ctl.CustomAmount = t; _synced["custom_amount"] = t; },
                 () => Ctl.ApplyCustomAmount(), "amount");
             field.AddToClassList("scfg-grow");
             row.Add(field);

@@ -2,7 +2,6 @@
 // see SCFG.cs for the overview and ScfgScreens.cs for the screen contract.
 #nullable enable
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using Scfg.Core;
 using UnityEngine;

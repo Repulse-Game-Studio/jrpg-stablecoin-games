@@ -15,7 +15,7 @@ using Scfg.Core;
 namespace Scfg
 {
     /// <summary>The checkout page's bridge in the game's own web page (see the file header).</summary>
-    public sealed class ScfgWebPage : IOverlayUi
+    internal sealed class ScfgWebPage : IOverlayUi
     {
         /// <summary>The page's scripts, bridge.js first (it marks the page as embedded).</summary>
         public static readonly IReadOnlyList<string> Scripts = new[] { "bridge.js", "evm.js", "solana.js", "app.js" };

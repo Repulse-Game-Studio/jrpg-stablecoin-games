@@ -16,6 +16,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -26,6 +27,15 @@ namespace Scfg
     {
         private static readonly CustomStyleProperty<Color> AccentProperty = new CustomStyleProperty<Color>("--scfg-accent");
 
+        /// <summary>Separates the fields of a <see cref="Signature"/> (see <see cref="AddField"/>).</summary>
+        private const char FieldSeparator = '\u001f';
+
+        /// <summary>The docked sheet's width in design pixels (see DockSheet).</summary>
+        private const float SheetWidth = 520f;
+        /// <summary>A screen narrower than this (in design pixels) shows the sheet across its whole width.</summary>
+        private const float FullWidthBelow = SheetWidth * 1.6f;
+
+        /// <summary>Raised once, with how the player closed the screen (<see cref="CloseWith"/>).</summary>
         public event Action<string>? Closed;
 
         /// <summary>The full-screen root: add it to a panel (the default host gives it a UIDocument of its own).</summary>
@@ -37,6 +47,7 @@ namespace Scfg
         /// <summary>The sheet's content, rebuilt when the signature changes.</summary>
         protected VisualElement Layout { get; }
 
+        /// <summary>True once <see cref="CloseWith"/> ran: the screen no longer rebuilds or reacts to input.</summary>
         public bool Ended { get; private set; }
 
         /// <summary>The host sets it when the screen's GameObject is destroyed.</summary>
@@ -79,22 +90,44 @@ namespace Scfg
 
         // --- the subclass's part -----------------------------------------------------------------------
 
-        protected abstract bool ReadyToShow();
+        /// <summary>
+        /// Whether the screen can be built yet (Tick does nothing until it can). True here; kept for parity with Godot's
+        /// _ready_to_show, for a screen that waits for something before its first build.
+        /// </summary>
+        protected virtual bool ReadyToShow() => true;
 
-        /// <summary>What the current build shows: a change rebuilds the screen.</summary>
+        /// <summary>
+        /// What the current build shows: a change rebuilds the screen. Build it with <see cref="AddField"/>, the step
+        /// (or state) first: <see cref="Moved"/> compares that first field.
+        /// </summary>
         protected abstract string Signature();
 
+        /// <summary>Adds the current build's controls to <see cref="Layout"/> (registering each with <see cref="Reg"/>).</summary>
         protected abstract void Build();
 
         /// <summary>The key of the control to focus after a build.</summary>
         protected abstract string Primary();
 
-        /// <summary>Whether a build moved to another step (the focus then goes to the primary control).</summary>
-        protected virtual bool Moved(string? before, string after) => before == null;
+        /// <summary>
+        /// Whether a build moved to another step (the focus then goes to the primary control): the first build, or a
+        /// first signature field that changed.
+        /// </summary>
+        protected virtual bool Moved(string? before, string after) => before == null || FirstField(before) != FirstField(after);
+
+        private static string FirstField(string signature)
+        {
+            int end = signature.IndexOf(FieldSeparator);
+            return end < 0 ? signature : signature.Substring(0, end);
+        }
+
+        /// <summary>Appends one field of a <see cref="Signature"/> (null shows as "∅").</summary>
+        protected static void AddField(StringBuilder signature, object? value) =>
+            signature.Append(value?.ToString() ?? "∅").Append(FieldSeparator);
 
         /// <summary>Copies the controller's values into the fields the player is not typing in.</summary>
         protected virtual void SyncFields() { }
 
+        /// <summary>Cancel (Escape, gamepad B): go back a step, or close the screen.</summary>
         protected abstract void OnCancel();
 
         // --- the frame -------------------------------------------------------------------------------
@@ -115,8 +148,8 @@ namespace Scfg
             SyncFields();
         }
 
-        /// <summary>How many times the screen was built (tests).</summary>
-        public int Builds => _builds;
+        /// <summary>How many times the screen was built (the package's tests).</summary>
+        internal int Builds => _builds;
 
         private void Rebuild()
         {
@@ -140,18 +173,19 @@ namespace Scfg
             Closed?.Invoke(how);
         }
 
-        // --- registry, for focus and for tests ---------------------------------------------------------
+        // --- registry: focus, and the package's tests ------------------------------------------------
 
         /// <summary>The control registered under <paramref name="key"/> in the current build, or null.</summary>
-        public VisualElement? Control(string key) => _controls.TryGetValue(key, out var c) ? c : null;
+        internal VisualElement? Control(string key) => _controls.TryGetValue(key, out var c) ? c : null;
 
-        public IReadOnlyCollection<string> Keys => _controls.Keys;
+        /// <summary>The keys of the current build's registered controls.</summary>
+        internal IReadOnlyCollection<string> Keys => _controls.Keys;
 
         /// <summary>The focusable controls of the current build, in visual order.</summary>
-        public IReadOnlyList<VisualElement> FocusOrder => _order;
+        internal IReadOnlyList<VisualElement> FocusOrder => _order;
 
         /// <summary>Runs the action of the enabled control <paramref name="key"/> (a button press); false if there is none.</summary>
-        public bool Press(string key)
+        internal bool Press(string key)
         {
             if (!_actions.TryGetValue(key, out var action) || !_controls.TryGetValue(key, out var c)) return false;
             if (!c.enabledInHierarchy || c.style.display == DisplayStyle.None) return false;
@@ -160,8 +194,12 @@ namespace Scfg
         }
 
         /// <summary>The text of the label (or button) <paramref name="key"/>, or null.</summary>
-        public string? TextOf(string key) => Control(key) is TextElement t ? t.text : null;
+        internal string? TextOf(string key) => Control(key) is TextElement t ? t.text : null;
 
+        /// <summary>
+        /// Registers <paramref name="c"/> under <paramref name="key"/> for this build; a focusable one joins the focus
+        /// order, and <paramref name="row"/> names the row left and right move within. Returns <paramref name="c"/>.
+        /// </summary>
         protected T Reg<T>(T c, string key, string? row = null) where T : VisualElement
         {
             _controls[key] = c;
@@ -190,7 +228,7 @@ namespace Scfg
         }
 
         /// <summary>The focused control's key in the current build ("" when the focus is elsewhere).</summary>
-        public string Focused => FocusedKey();
+        internal string Focused => FocusedKey();
 
         private void Focus(string keep)
         {
@@ -321,20 +359,24 @@ namespace Scfg
             }
         }
 
+        /// <summary>A "#rrggbb" color; one that does not parse is the default accent (Config.DefaultAccent).</summary>
         public static Color ParseColor(string hex) =>
-            ColorUtility.TryParseHtmlString(hex, out var c) ? c : new Color(0.055f, 0.486f, 0.455f);
+            ColorUtility.TryParseHtmlString(hex, out var c) || ColorUtility.TryParseHtmlString(Scfg.Core.Config.DefaultAccent, out c)
+                ? c
+                : Color.black;
 
-        /// <summary>A docked sheet 520 design pixels wide, or the whole width on a portrait or narrow screen.</summary>
+        /// <summary>A docked sheet SheetWidth design pixels wide, or the whole width on a portrait or narrow screen.</summary>
         private void DockSheet()
         {
             var size = Root.layout.size;
             if (float.IsNaN(size.x) || size.x <= 0) return;
-            bool full = size.x < size.y || 520f * 1.6f > size.x;
+            bool full = size.x < size.y || FullWidthBelow > size.x;
             Sheet.EnableInClassList("scfg-sheet--full", full);
         }
 
         // --- builders --------------------------------------------------------------------------------
 
+        /// <summary>An empty element with the USS class <paramref name="cls"/>.</summary>
         protected static VisualElement Box(string cls)
         {
             var b = new VisualElement();
@@ -342,6 +384,7 @@ namespace Scfg
             return b;
         }
 
+        /// <summary>A row container (USS class <paramref name="cls"/>, by default scfg-row).</summary>
         protected static VisualElement Row(string cls = "scfg-row")
         {
             var b = new VisualElement();
@@ -349,6 +392,7 @@ namespace Scfg
             return b;
         }
 
+        /// <summary>A plain-text label (no rich text) with the class scfg-text, and <paramref name="cls"/> if another.</summary>
         protected static Label Text(string text, string cls = "scfg-text")
         {
             var l = new Label(text);
@@ -361,6 +405,10 @@ namespace Scfg
         /// <summary>An address, amount or hash (the Copy buttons next to it copy it; it is not in the focus order).</summary>
         protected static Label Mono(string text) => Text(text, "scfg-mono");
 
+        /// <summary>
+        /// A registered button: <paramref name="onPress"/> runs on a click or Submit; the classes
+        /// scfg-button--accent and scfg-button--primary fill it with the accent.
+        /// </summary>
         protected Button Button(string key, string text, string cls, Action onPress, string? row = null)
         {
             var b = new Button(onPress) { text = text };
@@ -422,7 +470,7 @@ namespace Scfg
 
         internal static string Filter(string text, string allowed, int maxLength)
         {
-            var output = new System.Text.StringBuilder();
+            var output = new StringBuilder();
             foreach (var ch in text)
             {
                 if (output.Length >= maxLength) break;
@@ -431,8 +479,10 @@ namespace Scfg
             return output.ToString();
         }
 
+        /// <summary>A horizontal separator.</summary>
         protected static VisualElement Rule() => Box("scfg-rule");
 
+        /// <summary>A step dot, in the accent when <paramref name="filled"/>.</summary>
         protected VisualElement Dot(bool filled)
         {
             var d = Box("scfg-dot");
@@ -444,6 +494,7 @@ namespace Scfg
             return d;
         }
 
+        /// <summary>A registered status line: a dot in <paramref name="tone"/> (USS class scfg-tone--tone) and the text.</summary>
         protected VisualElement StatusRow(string text, string tone, string key)
         {
             var row = Row("scfg-status");
@@ -467,6 +518,7 @@ namespace Scfg
             return img;
         }
 
+        /// <summary>A vertical scroll view added to <paramref name="parent"/>; returns its content container.</summary>
         protected VisualElement ScrollingBody(VisualElement parent)
         {
             var scroll = new ScrollView(ScrollViewMode.Vertical);
@@ -476,6 +528,7 @@ namespace Scfg
             return scroll.contentContainer;
         }
 
+        /// <summary>An integer as text, in the invariant culture.</summary>
         protected static string Int(long n) => n.ToString(CultureInfo.InvariantCulture);
     }
 }

@@ -7,7 +7,6 @@
 using System;
 using Scfg.Core;
 using Scfg.Desktop;
-using UnityEngine;
 
 namespace Scfg
 {

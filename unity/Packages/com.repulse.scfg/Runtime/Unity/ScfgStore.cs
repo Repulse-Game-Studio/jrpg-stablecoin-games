@@ -24,7 +24,7 @@ using Scfg.Core;
 namespace Scfg
 {
     /// <summary>What <see cref="ScfgStore.Load"/> read.</summary>
-    public sealed class ScfgStoreLoad
+    internal sealed class ScfgStoreLoad
     {
         public JsonObject Pending { get; }
         public JsonObject Receipts { get; }
@@ -47,7 +47,7 @@ namespace Scfg
     }
 
     /// <summary>The state file (see the file header).</summary>
-    public static class ScfgStore
+    internal static class ScfgStore
     {
         /// <summary>Strict UTF-8: invalid bytes are a corrupt file, never U+FFFD-patched text.</summary>
         private static readonly UTF8Encoding Strict = new UTF8Encoding(false, true);

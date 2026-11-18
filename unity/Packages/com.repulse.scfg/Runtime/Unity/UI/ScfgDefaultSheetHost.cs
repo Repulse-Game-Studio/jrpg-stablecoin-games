@@ -11,11 +11,17 @@ using UnityEngine.UIElements;
 
 namespace Scfg
 {
+    /// <summary>The package's sheet host: UI Toolkit screens on a panel of their own (see the file header).</summary>
     public sealed class ScfgDefaultSheetHost : IScfgSheetHost
     {
+        /// <summary>The sort order of the package's panel: above the game's own UI Toolkit panels.</summary>
         public const int SortingOrder = 1000;
+        /// <summary>The Resources path of the screens' style sheet (Resources/ScfgUI/ScfgSheet.uss).</summary>
         public const string StyleResource = "ScfgUI/ScfgSheet";
+        /// <summary>The Resources path of the package's theme (Resources/ScfgUI/ScfgTheme.tss).</summary>
         public const string ThemeResource = "ScfgUI/ScfgTheme";
+        /// <summary>The panel's reference resolution: it scales with the screen size from this, matching on Expand.</summary>
+        public static readonly Vector2Int ReferenceResolution = new Vector2Int(960, 720);
         /// <summary>
         /// The package's PanelSettings asset: an asset (not one made at runtime) carries the text settings and ICU data
         /// the editor assigns, so wrapped text and line breaking work in a build.
@@ -35,11 +41,7 @@ namespace Scfg
 
         internal static void ResetStatics()
         {
-            if (_panel != null)
-            {
-                if (Application.isPlaying) Object.Destroy(_panel);
-                else Object.DestroyImmediate(_panel);
-            }
+            ScfgObjects.Destroy(_panel);
             _panel = null;
             _styles = null;
             _stylesTried = false;
@@ -68,17 +70,28 @@ namespace Scfg
             p.name = "SCFG Panel";
             p.hideFlags = HideFlags.HideAndDontSave;
             if (p.themeStyleSheet == null) p.themeStyleSheet = Resources.Load<ThemeStyleSheet>(ThemeResource);
-            p.sortingOrder = SortingOrder;
-            p.scaleMode = PanelScaleMode.ScaleWithScreenSize;
-            p.referenceResolution = new Vector2Int(960, 720);
-            p.screenMatchMode = PanelScreenMatchMode.Expand;
-            p.clearColor = false;
+            ConfigurePanel(p);
             _panel = p;
             return p;
         }
 
+        /// <summary>
+        /// Sets <paramref name="panel"/> up as the package's panel is: <see cref="SortingOrder"/>, scaled with the screen
+        /// size from <see cref="ReferenceResolution"/> (Expand), and no clear color, so the game shows through.
+        /// </summary>
+        public static void ConfigurePanel(PanelSettings panel)
+        {
+            panel.sortingOrder = SortingOrder;
+            panel.scaleMode = PanelScaleMode.ScaleWithScreenSize;
+            panel.referenceResolution = ReferenceResolution;
+            panel.screenMatchMode = PanelScreenMatchMode.Expand;
+            panel.clearColor = false;
+        }
+
+        /// <inheritdoc/>
         public IScfgScreen? OpenPayment(ScfgCheckoutController controller) => Open(new ScfgSheetView(controller), "SCFG Payment Sheet");
 
+        /// <inheritdoc/>
         public IScfgScreen? OpenRestore(ScfgRestoreController controller) => Open(new ScfgRestoreView(controller), "SCFG Restore");
 
         private static ScfgScreenView Open(ScfgScreenView view, string name)
@@ -95,7 +108,7 @@ namespace Scfg
             {
                 // a screen that cannot build is not left dimming the game: the flow then fails with sheet.unavailable
                 ScfgScreenTicker.Forget(view);
-                Destroy(go);
+                ScfgObjects.Destroy(go);
                 throw;
             }
             return view;
@@ -113,21 +126,17 @@ namespace Scfg
             return doc;
         }
 
+        /// <inheritdoc/>
         public void Close(IScfgScreen screen)
         {
             if (screen is ScfgScreenView view && ScfgScreenTicker.Of(view) is ScfgScreenTicker t && t != null)
             {
                 ScfgScreenTicker.Forget(view);
-                Destroy(t.gameObject);
+                ScfgObjects.Destroy(t.gameObject);
             }
         }
 
-        private static void Destroy(GameObject go)
-        {
-            if (Application.isPlaying) Object.Destroy(go);
-            else Object.DestroyImmediate(go);
-        }
-
+        /// <inheritdoc/>
         public void Notify(string text)
         {
             var doc = NewDocument("SCFG Notice", out var go);
@@ -170,7 +179,7 @@ namespace Scfg
             }
             catch (System.Exception e)
             {
-                Debug.LogException(e);
+                SCFG.ReportError("a screen's Tick threw:", e);
             }
         }
 
@@ -184,7 +193,7 @@ namespace Scfg
 
     /// <summary>A short notice at the top right (Godot's ui/toast.gd): shown for Seconds, faded out, then destroyed.</summary>
     [AddComponentMenu("")]
-    public sealed class ScfgToast : MonoBehaviour
+    internal sealed class ScfgToast : MonoBehaviour
     {
         public const float Seconds = 3f;
         public const float FadeSeconds = 0.3f;
@@ -192,8 +201,8 @@ namespace Scfg
         private VisualElement? _box;
         private float _age;
 
-        /// <summary>The notice's text (tests).</summary>
-        public string Text { get; private set; } = "";
+        /// <summary>The notice's text (the package's tests).</summary>
+        internal string Text { get; private set; } = "";
 
         internal void Show(VisualElement root, string text)
         {

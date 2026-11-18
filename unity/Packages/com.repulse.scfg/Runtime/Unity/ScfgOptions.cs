@@ -172,19 +172,25 @@ namespace Scfg
     /// <summary>An EVM chain that is not built in (SCFG.AddChain, before Configure).</summary>
     public sealed class ScfgChain
     {
+        /// <summary>The display name players see ("My L2").</summary>
         public string? Name { get; set; }
+        /// <summary>The EVM chain id.</summary>
         public long ChainId { get; set; }
         /// <summary>https RPC endpoints.</summary>
         public IList<string>? Rpc { get; set; }
         /// <summary>Token symbol to contract address ({"USDC": "0x..."}); 6-decimal tokens only.</summary>
         public IDictionary<string, string>? Tokens { get; set; }
+        /// <summary>Blocks on top of a payment's block before it counts as paid.</summary>
         public int Confirmations { get; set; }
         /// <summary>An https URL with "{}" where the transaction hash goes.</summary>
         public string? ExplorerTx { get; set; }
+        /// <summary>The gas token's symbol ("ETH").</summary>
         public string? NativeSymbol { get; set; }
         /// <summary>"lowest", "low" or "high".</summary>
         public string? FeeHint { get; set; }
+        /// <summary>A test network: offered only when Configure's Testnet is on, and a mainnet chain only when it is off.</summary>
         public bool Testnet { get; set; }
+        /// <summary>The most blocks one log query may span on this chain's RPC endpoints (default: the core's).</summary>
         public long? MaxLogRange { get; set; }
 
         internal JsonObject ToKwargs(string key)
