@@ -62,6 +62,26 @@ namespace Scfg.Tests
         }
 
         [Test]
+        public void TheOnrampOptionReachesTheCore()
+        {
+            Assert.That(SCFG.Configure(new ScfgOptions { Wallet = ScfgRig.Dev }), Is.Null);
+            Assert.That(SCFG.Current.Config!.Onramp.Enabled, Is.True, "on by default on mainnet");
+            Assert.That(SCFG.Current.Config!.Onramp.Chains, Does.Contain("arbitrum"));
+            Assert.That(SCFG.Configure(new ScfgOptions { Wallet = ScfgRig.Dev, Onramp = new ScfgOnramp { Enabled = false } }), Is.Null);
+            Assert.That(SCFG.Current.Config!.Onramp.Enabled, Is.False);
+            Assert.That(SCFG.Configure(new ScfgOptions
+            {
+                Wallet = ScfgRig.Dev, Onramp = new ScfgOnramp { Chains = new List<string> { "base" }, Url = "https://buy.example/{chain}" },
+            }), Is.Null);
+            Assert.That(SCFG.Current.Config!.Onramp.Chains, Is.EqualTo(new[] { "base" }));
+            Assert.That(SCFG.Current.Config!.Onramp.Url, Is.EqualTo("https://buy.example/{chain}"));
+            Assert.That(SCFG.Configure(new ScfgOptions { Wallet = ScfgRig.Dev, Onramp = new ScfgOnramp { Url = "https://" } }),
+                        Is.EqualTo("onramp.bad_url"));
+            Assert.That(SCFG.Configure(new ScfgOptions { Wallet = ScfgRig.Dev, Onramp = new ScfgOnramp { Chains = new List<string> { "solana" } } }),
+                        Is.EqualTo("onramp.disabled_chain"));
+        }
+
+        [Test]
         public void MisuseNeverThrows()
         {
             Assert.That(SCFG.Configure(null!), Is.EqualTo("TypeError"));

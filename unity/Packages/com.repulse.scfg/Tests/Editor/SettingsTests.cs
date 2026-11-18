@@ -402,6 +402,16 @@ namespace Scfg.Tests
             }
         }
 
+        [Test]
+        public void TheAssetsOnrampFieldsAreValidatedAndApplied()
+        {
+            Assert.That(Make(s => s.onrampUrl = "http://buy.example").Validate()!.Code, Is.EqualTo("onramp.bad_url"));
+            Assert.That(Make(s => s.onrampChains = new List<string> { "base" }).Validate()!.Code, Is.EqualTo("onramp.disabled_chain"));
+            Assert.That(Make().ToOptions().Onramp, Is.Null, "the defaults are left to the core");
+            Assert.That(Make(s => s.onrampEnabled = false).Apply(), Is.Null);
+            Assert.That(SCFG.Current.Config!.Onramp.Enabled, Is.False);
+        }
+
         // --- AddChain with the asset -------------------------------------------------------------------------
 
         private static ScfgChain MyL2() => new ScfgChain
