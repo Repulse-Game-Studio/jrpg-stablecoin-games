@@ -276,6 +276,7 @@ interface RecordedCall {
   response_text?: string;
   transport_error?: { message: string; status: number | null };
   elapsed?: number;
+  took?: number;
 }
 
 /**
@@ -283,7 +284,8 @@ interface RecordedCall {
  * recorded call used once, identical requests take their copies in recorded order. The JSON-RPC
  * id is ignored; params match by JSON equality (`true` is not `1`). A call with `elapsed` (a
  * request that hung) must have been made with that timeout, and moves the clock by it (`wait`)
- * before its transport_error is raised.
+ * before its transport_error is raised. A call with `took` (a slow answer) moves the clock by it
+ * before it is answered, and its timeout must be over it.
  */
 export class ReplayTransport implements Transport {
   private calls: RecordedCall[] = [];
@@ -306,6 +308,10 @@ export class ReplayTransport implements Transport {
       const c = this.calls[i]!;
       if (!this.used[i] && c.url === url && c.method === payload.method && jsonEqual(c.params, payload.params)) {
         this.used[i] = true;
+        if (c.took !== undefined) {
+          if (timeout <= c.took) this.problems.push(`${url} ${payload.method}: timeout ${timeout} is not over the ${c.took} s the answer took`);
+          this.wait(c.took);
+        }
         if (c.elapsed !== undefined) {
           if (timeout !== c.elapsed) this.problems.push(`${url} ${payload.method}: timeout ${timeout}, recorded ${c.elapsed}`);
           this.wait(c.elapsed);

@@ -5,7 +5,7 @@ import { FakeClock, FakeTransport, down, err, ok } from "../../test/rpc_fakes.ts
 import type { Transport } from "./coio.ts";
 import { TransportError } from "./coio.ts";
 import { KeyError, ValueError } from "./errors.ts";
-import { CALL_BUDGET, COOLDOWN_MAX, COOLDOWN_START, pyHexInt, MIN_LOG_RANGE, RpcClient, RpcError, RpcUnavailable, isRangeError, suggestedRange } from "./rpc.ts";
+import { CALL_BUDGET, COOLDOWN_MAX, COOLDOWN_START, pyHexInt, MIN_ATTEMPT, MIN_LOG_RANGE, RpcClient, RpcError, RpcUnavailable, isRangeError, suggestedRange } from "./rpc.ts";
 
 const A = "https://a.rpc";
 const B = "https://b.rpc";
@@ -144,6 +144,19 @@ test("test_each_attempt_waits_at_most_what_is_left_of_the_budget", async () => {
   const t = new TimedTransport(clock, { [A]: 3, [B]: 10, [C]: 1 }, [C]);
   assert.equal(await new RpcClient([A, B, C], { transport: t, clock: clock.call }).blockNumber(), 7);
   assert.deepEqual(t.calls, [[A, 10.0], [B, 10.0], [C, 2.0]]);
+});
+
+test("test_an_endpoint_is_not_asked_with_less_than_the_floor_left", async () => {
+  // Review T5: A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not
+  // asked with a sliver of time, nor cooled down for failing it.
+  const C = "https://c.rpc";
+  const clock = new FakeClock();
+  const t = new TimedTransport(clock, { [B]: 4 });
+  const rpc = new RpcClient([A, B, C], { transport: t, clock: clock.call });
+  assert.equal(MIN_ATTEMPT, 2.0);
+  await assert.rejects(rpc.blockNumber(), RpcUnavailable);
+  assert.deepEqual(t.calls, [[A, 10.0], [B, 5.0]]);
+  assert.deepEqual(rpc.liveUrls(), [C]);
 });
 
 for (const [name, bad] of [["not_a_dict", "not a dict"], ["no_result_or_error", { jsonrpc: "2.0", id: 1 }]] as const) {

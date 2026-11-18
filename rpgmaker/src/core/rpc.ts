@@ -5,7 +5,8 @@
  * eth_getLogs block ranges. The client tries endpoints in order on every call, skipping
  * ones in cooldown (30 s doubling to 10 min), within a total budget of CALL_BUDGET seconds
  * per call (each attempt waits at most what is left of it, so a chain with four dead
- * endpoints says so after 15 s, not 40), and remembers per endpoint the largest
+ * endpoints says so after 15 s, not 40; an endpoint is not asked with less than MIN_ATTEMPT
+ * seconds left), and remembers per endpoint the largest
  * eth_getLogs range it accepts. Network access is an injected `Transport`; methods are
  * async where Python's are cooperative generators.
  */
@@ -24,6 +25,12 @@ export const COOLDOWN_MAX = 600.0;
  * 15 s whatever the number of urls.
  */
 export const CALL_BUDGET = 15.0;
+/**
+ * The least of the budget an endpoint is asked with: under it the endpoints left are skipped (not
+ * cooled down) and the call is RpcUnavailable, so no endpoint is cooled down for failing a
+ * request it was given a sliver of time for.
+ */
+export const MIN_ATTEMPT = 2.0;
 /** The smallest eth_getLogs block range a chain may be configured with. */
 export const MIN_LOG_RANGE = 10;
 const RATE_HINTS = ["rate limit", "too many requests", "rate-limit"];
@@ -235,7 +242,7 @@ export class RpcClient {
     for (const url of this.urls) {
       if (this._state.get(url)!.until > now) continue;
       const left = deadline - this.clock();
-      if (left <= 0) break; // CALL_BUDGET spent: the rest are not tried (nor cooled down)
+      if (left < MIN_ATTEMPT) break; // CALL_BUDGET spent: the rest are not tried (nor cooled down)
       const res = await this._attempt(url, method, params, now, Math.min(this.timeout, left));
       if (res === null) continue;
       const [kind, value] = res;

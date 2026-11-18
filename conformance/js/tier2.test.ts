@@ -14,7 +14,7 @@ import { loadTier2 } from "./vectors.ts";
 const vectors = loadTier2();
 
 test("the vectors directory has every Tier 2 scenario", () => {
-  assert.equal(vectors.length, 122);
+  assert.equal(vectors.length, 123);
 });
 
 for (const { path, vector } of vectors) {
@@ -22,9 +22,9 @@ for (const { path, vector } of vectors) {
 }
 
 test("test_every_vector_enabled", () => {
-  assert.equal(vectors.length, 122);
+  assert.equal(vectors.length, 123);
   assert.deepEqual(vectors.filter((v) => !ENABLED(v.vector)).map((v) => v.path), []);
-  assert.equal(vectors.filter((v) => ENABLED(v.vector)).length, 122);
+  assert.equal(vectors.filter((v) => ENABLED(v.vector)).length, 123);
   assert.ok(vectors.some((v) => v.path === "tier2/solana/readiness_crash.json"));
   assert.ok(vectors.some((v) => v.path === "tier2/solana/scan_far_behind.json"));
 });
@@ -86,6 +86,19 @@ test("test_replay_transport_elapsed_checks_the_timeout_and_moves_the_clock", asy
   await assert.rejects(t.postJson("https://b", { method: "m", params: [] }, 10), TransportError); // recorded 5
   assert.equal(now, 115);
   assert.deepEqual(t.problems, ["https://b m: timeout 10, recorded 5"]);
+});
+
+test("test_replay_transport_took_checks_the_timeout_and_moves_the_clock_before_answering", async () => {
+  let now = 100;
+  const t = new ReplayTransport((seconds) => { now += seconds; });
+  const slow = (url: string, took: number) => ({ url, method: "m", params: [], took, response_text: '{"result": "0x1"}' });
+  t.load([slow("https://a", 4), slow("https://b", 5)]);
+  assert.equal(((await t.postJson("https://a", { method: "m", params: [] }, 5)) as any).result, "0x1");
+  assert.equal(now, 104);
+  assert.deepEqual(t.problems, []);
+  assert.equal(((await t.postJson("https://b", { method: "m", params: [] }, 5)) as any).result, "0x1"); // took 5
+  assert.equal(now, 109);
+  assert.deepEqual(t.problems, ["https://b m: timeout 5 is not over the 5 s the answer took"]);
 });
 
 test("test_scripted_entropy_checks_fn_and_n_in_order", () => {
