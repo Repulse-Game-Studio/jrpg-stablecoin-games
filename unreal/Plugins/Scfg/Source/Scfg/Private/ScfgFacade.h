@@ -194,9 +194,10 @@ public:
 	TOptional<scfg::Err> ApplySettings(
 		const FScfgOptions& InOptions, const TArray<FScfgSettingsChain>& Chains, const TArray<FScfgSettingsItem>& Items);
 	// UScfgSubsystem::ConfigureWithSettings: these settings rows with options given by code (the settings' own with a
-	// runtime wallet). Checked first, touching nothing: the chains are built and the configuration with them, and a
-	// failure (wallet.missing from a wallet file not read yet, a mistyped wallet) is reported and leaves everything as
-	// it was, so the call can be retried (review T3). Then, as a code call, it replaces any configuration (the
+	// runtime wallet). Checked first, touching nothing: the chains are built, the configuration with them, its logo
+	// file and every item row on a copy, and a failure (wallet.missing from a wallet file not read yet, a mistyped
+	// wallet, a missing logo, an item the wallets cannot sell) is reported and leaves everything as it was, so the call
+	// can be retried (review T3, V3): it applies entirely or not at all. Then, as a code call, it replaces any configuration (the
 	// settings' applied at start, or an earlier call's) with no AddChain() warning: the chains are exactly these
 	// rows, then Configure(Options), then AddItem() for each item. Returns the first Err.
 	TOptional<scfg::Err> ConfigureWithSettings(

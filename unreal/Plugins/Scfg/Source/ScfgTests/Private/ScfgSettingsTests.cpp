@@ -598,6 +598,44 @@ bool FScfgSettingsRuntimeWalletRetryTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+SCFG_SETTINGS_TEST(FScfgSettingsRuntimeWalletAtomicTest, "ARuntimeWalletCallAppliesEntirelyOrNotAtAll")
+
+// Review V3: after a successful call, one whose item row fails (a code used twice) or whose logo file is missing
+// changes nothing: the first call's configuration, chains and items stay.
+bool FScfgSettingsRuntimeWalletAtomicTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSettingsTests;
+	FWorld W;
+	const TStrongObjectPtr<UScfgSettings> S = Make([](UScfgSettings& E) { E.Options.Wallet.Reset(); });
+	FGame G(W, S.Get());
+	TestEqual(TEXT("the first call"), G.Scfg->ApplySettingsWith(*S, UTF8_TO_TCHAR(kDev), FString()), FString());
+	const TStrongObjectPtr<UScfgSettings> BadItem = Make([](UScfgSettings& E)
+	{
+		E.Options.Wallet.Reset();
+		E.Items.Add(ItemRow(TEXT("chapter3"), 1, TEXT("2.00"), TEXT("Chapter 3")));  // code 1 again
+	});
+	TestEqual(TEXT("an item row that fails"),
+		G.Scfg->ApplySettingsWith(*BadItem, TEXT("0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359"), FString()),
+		FString(TEXT("item.duplicate_code")));
+	const TStrongObjectPtr<UScfgSettings> BadLogo = Make([](UScfgSettings& E)
+	{
+		E.Options.Wallet.Reset();
+		E.Options.Logo = TEXT("Content/NoSuchFolder/no-such-logo.png");
+	});
+	TestEqual(TEXT("a missing logo"),
+		G.Scfg->ApplySettingsWith(*BadLogo, TEXT("0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359"), FString()),
+		FString(TEXT("logo.file_missing")));
+	if (TestNotNull(TEXT("still configured"), G.F().GetConfig()))
+	{
+		TestEqual(TEXT("with the first call's wallet"), ScfgString::FromUtf8(G.F().GetConfig()->wallet.value_or("")),
+			FString(UTF8_TO_TCHAR(kDev)));
+	}
+	TestEqual(TEXT("and its item"), G.F().ItemTitle(TEXT("chapter2")), FString(TEXT("Chapter 2")));
+	TestNotEqual(TEXT("no Chapter 3 (ItemTitle falls back to the id)"), G.F().ItemTitle(TEXT("chapter3")),
+		FString(TEXT("Chapter 3")));
+	return true;
+}
+
 SCFG_SETTINGS_TEST(FScfgSettingsWalletMessageTest, "TheMissingWalletNamesUnrealsFields")
 
 // Testbed U7 in Unreal: wallet.missing names Options.Wallet / SolanaWallet, not the core's Python keywords.

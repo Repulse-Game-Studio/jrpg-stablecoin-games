@@ -491,6 +491,22 @@ TOptional<scfg::Err> FScfgFacade::ConfigureWithSettings(
 	{
 		return Misuse(ScfgGuard::EngineSpelling(Checked.err()));
 	}
+	// The logo file and every item row too (review V3), against the checked copy, as Configure() and AddItem() will
+	// check them: nothing below can fail on them, so a call either applies entirely or changes nothing.
+	scfg::config::Config Copy = Checked.take();
+	if (scfg::Result<FString> Logo = LogoFile(Options.ProjectDir, Copy.logo); !Logo.ok())
+	{
+		return Misuse(Logo.err());
+	}
+	for (const FScfgSettingsItem& Row : Items)
+	{
+		scfg::Result<scfg::models::Item> Added = scfg::config::add_item(
+			Copy, scfg::Json(ScfgString::ToUtf8(Row.Id)), ScfgConvert::ItemKwargs(Row.ToItem()));
+		if (!Added.ok())
+		{
+			return Misuse(Added.err());
+		}
+	}
 	// Applied as a code call: whatever was configured is replaced, the chains are these rows.
 	SetSettingsAside();
 	CustomChains = std::move(Built);
