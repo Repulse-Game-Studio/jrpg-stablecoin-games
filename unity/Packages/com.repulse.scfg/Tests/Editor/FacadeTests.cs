@@ -440,6 +440,118 @@ namespace Scfg.Tests
             Assert.That(SCFG.Current.Worker!.Interval(), Is.EqualTo(15.0));
         }
 
+        // --- running unfocused (desktop) ----------------------------------------------------------------
+
+        [Test]
+        public void RunInBackgroundIsOnWhileTheSheetIsOpenAndPutBackWhenItCloses()
+        {
+            var (_, screen, _) = OpenManualPayment();
+            Assert.That(_rig.RunInBackground, Is.True, "set when the sheet opened");
+            Assert.That(_rig.RunInBackgroundSets, Is.EqualTo(new[] { true }));
+            _rig.Pump(3, 1);
+            Assert.That(_rig.RunInBackgroundSets, Is.EqualTo(new[] { true }), "set once, not every frame");
+            screen.Close("cancel");
+            _rig.Pump();
+            Assert.That(_rig.RunInBackground, Is.False, "the game's value is back");
+            Assert.That(_rig.RunInBackgroundSets, Is.EqualTo(new[] { true, false }));
+        }
+
+        [Test]
+        public void AGameThatRunsInBackgroundKeepsItsSetting()
+        {
+            _rig.RunInBackground = true;
+            var (_, screen, _) = OpenManualPayment();
+            screen.Close("cancel");
+            _rig.Pump();
+            Assert.That(_rig.RunInBackground, Is.True);
+            Assert.That(_rig.RunInBackgroundSets.Distinct(), Is.EqualTo(new[] { true }));
+        }
+
+        [Test]
+        public void AKeptPlayingCheckoutHoldsRunInBackgroundUntilItIsFinal()
+        {
+            var (_, screen, ctl) = OpenManualPayment();
+            screen.Close("keep_playing");
+            _rig.Pump();
+            Assert.That(SCFG.Current.Background.Count, Is.EqualTo(1));
+            Assert.That(_rig.RunInBackground, Is.True, "its browser page still has to answer");
+            _rig.PaySession(ctl);
+            _rig.Pump(3, 16);
+            Assert.That(SCFG.Current.Background.Count, Is.EqualTo(0));
+            Assert.That(_rig.RunInBackground, Is.False);
+        }
+
+        [Test]
+        public void TwoSheetsHoldRunInBackgroundUntilTheLastCloses()
+        {
+            var (_, a, _) = OpenManualPayment();
+            SCFG.Pay(ScfgPayKind.Tip, new ScfgPayRequest { Amount = "3", Token = "USDC" });
+            var b = _rig.Host.Last;
+            a.Close("cancel");
+            _rig.Pump();
+            Assert.That(_rig.RunInBackground, Is.True);
+            b.Close("cancel");
+            _rig.Pump();
+            Assert.That(_rig.RunInBackground, Is.False);
+            Assert.That(_rig.RunInBackgroundSets, Is.EqualTo(new[] { true, false }));
+        }
+
+        [Test]
+        public void ARestoreHoldsRunInBackgroundAndTheResetPutsItBack()
+        {
+            _rig.Configure();
+            SCFG.Restore();
+            Assert.That(_rig.RunInBackground, Is.True);
+            _rig.Host.Last.Close("close");
+            _rig.Pump();
+            Assert.That(_rig.RunInBackground, Is.False, "closing the restore screen puts it back");
+            SCFG.Restore();
+            Assert.That(_rig.RunInBackground, Is.True);
+            SCFG.ResetStatics(); // the domain-reload reset, with only a restore open
+            Assert.That(_rig.RunInBackground, Is.False);
+            Assert.That(SCFG.Current.HoldingBackground, Is.False);
+        }
+
+        [Test]
+        public void QuittingPutsRunInBackgroundBack()
+        {
+            OpenManualPayment();
+            Assert.That(_rig.RunInBackground, Is.True);
+            SCFG.Shutdown();
+            Assert.That(_rig.RunInBackground, Is.False);
+        }
+
+        [Test]
+        public void ARefusedSheetLeavesRunInBackgroundAlone()
+        {
+            _rig.Configure(ManualOnly());
+            _rig.Host.Refuse = true;
+            SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
+            Assert.That(_rig.RunInBackground, Is.False);
+        }
+
+        [Test]
+        public void MobileNeverTouchesRunInBackground()
+        {
+            _rig.Platform.IsMobile = true;
+            var (_, screen, _) = OpenManualPayment();
+            screen.Close("cancel");
+            _rig.Pump();
+            Assert.That(_rig.RunInBackgroundSets, Is.Empty, "mobile ignores the setting");
+        }
+
+        [Test]
+        public void WebGLNeverTouchesRunInBackground()
+        {
+            _rig.Web();
+            _rig.Configure(ManualOnly());
+            SCFG.Pay(ScfgPayKind.Tip, new ScfgPayRequest { Amount = "3", Token = "USDC" });
+            _rig.Settle();
+            _rig.Host.Last.Close("cancel");
+            _rig.Pump();
+            Assert.That(_rig.RunInBackgroundSets, Is.Empty, "the checkout page is in the game's own tab");
+        }
+
         [Test]
         public void QuittingWithTheSheetOpenResolvesWithoutDelivering()
         {

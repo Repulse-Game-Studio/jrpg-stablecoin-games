@@ -267,6 +267,19 @@ gameplayActions.Enable();
 Time.timeScale = timeScale;
 ```
 
+### Run In Background
+
+On desktop the checkout page, the RPC requests and the payment checks run from the package's own per-frame update,
+so they stop whenever the player stops. With **Run In Background** off (Player Settings > Resolution and
+Presentation), a player that loses the focus stops its frames, and the player has to switch to the browser to pay
+there. So while a payment sheet, a checkout kept for its browser page (**Keep playing**) or a restore screen is
+open, the package sets `Application.runInBackground = true`. When the last of them closes (a kept checkout closes
+once its payment is final or the browser page times out), at quit and when play mode starts again without a
+domain reload, it puts back the value it found. Your game does not need to change the setting. If your own code
+changes `Application.runInBackground` while a sheet is open, the package's restore overwrites it; set it again
+after the sheet closes. WebGL builds (the page is in the game's own tab) and mobile (Unity ignores the setting
+there) are left alone.
+
 Keyboard and gamepad work in the sheet without setup. Each step focuses its main control; up and down move through
 the controls in visual order, left and right within a row, and the ends stay put, so the focus never leaves the
 sheet for the game behind it. Tab and Shift+Tab move too. Enter or the gamepad's south button presses, and Escape or

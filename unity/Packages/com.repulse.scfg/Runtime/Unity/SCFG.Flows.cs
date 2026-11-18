@@ -92,10 +92,12 @@ namespace Scfg
             }
             var ctl = new ScfgCheckoutController(core, NewId("c"), cb);
             S.Checkouts[ctl.Cid] = ctl;
+            HoldRunInBackground(); // before the player can switch to the browser
             IScfgScreen? screen = OpenScreen(host => host.OpenPayment(ctl));
             if (screen == null)
             {
                 S.Checkouts.Remove(ctl.Cid);
+                HoldRunInBackground();
                 core.Cancel(); // discards a session start already submitted, as a cancel does
                 done(FailedPayment(kind, req, cb, NoScreen("OpenPayment")));
                 return;
@@ -215,10 +217,12 @@ namespace Scfg
             }
             var ctl = new ScfgRestoreController(new RestoreController(worker.Submit), NewId("r"), cb);
             S.Restores[ctl.Rid] = ctl;
+            HoldRunInBackground(); // the player may switch to a wallet or an explorer to find the transaction
             IScfgScreen? screen = OpenScreen(host => host.OpenRestore(ctl));
             if (screen == null)
             {
                 S.Restores.Remove(ctl.Rid);
+                HoldRunInBackground();
                 done(FailedRestore(cb, NoScreen("OpenRestore")));
                 return;
             }

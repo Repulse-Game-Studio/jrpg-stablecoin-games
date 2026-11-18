@@ -25,7 +25,9 @@
 // the screens closed since the last frame; drain the Worker's outcomes, give each to every open and background checkout
 // controller and deliver its result; Poll() every controller (which pumps its localhost page) and register its callback;
 // close background controllers whose session is final or older than the browser timeout; poll the restore controllers
-// and deliver a finished one; warn once about unready routes; then mirror a new snapshot to disk.
+// and deliver a finished one; warn once about unready routes; then mirror a new snapshot to disk. On desktop,
+// Application.runInBackground is on while a sheet, a kept checkout or a restore is open (HoldRunInBackground), since
+// the pump is all that serves the localhost page while the player is in the browser.
 //
 // PERSISTENCE (Sync): receipt changes, sessions added or removed, and a session's state or hint_tx changing are written
 // at once; other pending changes (scan progress) at most every PendingSaveInterval seconds, and once more at quit. A
@@ -146,6 +148,10 @@ namespace Scfg
             public bool KeyboardHanded; // an overlay is shown: captureAllKeyboardInput was set to false
             public bool GameCapturesKeyboard = true; // the game's captureAllKeyboardInput before that
 
+            // running unfocused (HoldRunInBackground)
+            public bool HoldingBackground; // Application.runInBackground was set on for an open checkout or restore
+            public bool GameRunInBackground; // the game's value before that
+
             // test hooks (Setup); not part of the API
             public string? StorePath;
             public Func<double> Clock = () => Time.realtimeSinceStartupAsDouble;
@@ -157,6 +163,8 @@ namespace Scfg
             public IScfgPlatform Platform = new UnityPlatform();
             public Func<ServerArgs, ICheckoutServer>? ServerFactory;
             public IScfgWebJs? Js; // the page (default: ScfgBrowserJs on a WebGL player)
+            public Func<bool> GetRunInBackground = () => Application.runInBackground;
+            public Action<bool> SetRunInBackground = v => Application.runInBackground = v;
             public bool Quiet;
             public bool? DevBuild;
             public readonly List<string> Reported = new List<string>();
@@ -449,6 +457,7 @@ namespace Scfg
             s.Checkouts.Clear();
             s.Background.Clear();
             s.Restores.Clear();
+            ReleaseRunInBackground();
             if (s.Worker != null)
             {
                 s.Worker.Stop();
@@ -493,6 +502,7 @@ namespace Scfg
                 Shutdown();
                 S.Quiet = quiet;
             }
+            ReleaseRunInBackground(); // a restore alone open does not need the Shutdown above
             ScfgDefaultSheetHost.ResetStatics();
             ScfgRunner.ResetStatics();
             S = new State();
@@ -569,6 +579,54 @@ namespace Scfg
             finally
             {
                 S.Pumping = false;
+                HoldRunInBackground(); // after this frame's closes
+            }
+        }
+
+        // --- running unfocused (desktop) -----------------------------------------------------------------
+
+        /// <summary>
+        /// On desktop the localhost checkout page, the RPC transport and the watcher run only from the pump, so a player
+        /// that stops its frames when it loses the focus (Run In Background off) would leave the browser checkout page
+        /// unanswered while the player is in the browser. So while a payment sheet, a checkout kept for its browser page
+        /// (keep playing) or a restore is open, Application.runInBackground is on; the game's own value is put back when
+        /// the last one closes, at quit and at the domain-reload reset. Not on WebGL (the page is in the game's tab) or
+        /// mobile (the setting is ignored there).
+        /// </summary>
+        internal static void HoldRunInBackground()
+        {
+            bool want = !S.ShuttingDown && !S.Platform.IsWeb && !S.Platform.IsMobile
+                        && (S.Checkouts.Count > 0 || S.Background.Count > 0 || S.Restores.Count > 0);
+            if (want == S.HoldingBackground) return;
+            if (!want)
+            {
+                ReleaseRunInBackground();
+                return;
+            }
+            S.HoldingBackground = true;
+            try
+            {
+                S.GameRunInBackground = S.GetRunInBackground();
+                S.SetRunInBackground(true);
+            }
+            catch (Exception e)
+            {
+                ReportError("cannot set Application.runInBackground:", e);
+            }
+        }
+
+        /// <summary>Put the game's Application.runInBackground back, if HoldRunInBackground changed it.</summary>
+        private static void ReleaseRunInBackground()
+        {
+            if (!S.HoldingBackground) return;
+            S.HoldingBackground = false;
+            try
+            {
+                S.SetRunInBackground(S.GameRunInBackground);
+            }
+            catch (Exception e)
+            {
+                ReportError("cannot set Application.runInBackground:", e);
             }
         }
 

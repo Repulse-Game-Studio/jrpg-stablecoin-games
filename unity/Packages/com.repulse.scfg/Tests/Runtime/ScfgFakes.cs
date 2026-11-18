@@ -324,6 +324,10 @@ namespace Scfg.Tests
         /// <summary>When set, the facade runs as a WebGL build on this page (kept across Restart).</summary>
         public FakeWebJs? WebJs;
         public long Wall = 1_800_000_000;
+        /// <summary>The game's Application.runInBackground as the facade sees it (never the editor's real setting).</summary>
+        public bool RunInBackground;
+        /// <summary>Every value the facade set it to, in order.</summary>
+        public readonly List<bool> RunInBackgroundSets = new List<bool>();
         public string StorePath => Path.Combine(Dir, "scfg", "state.json");
 
         public ScfgRig(bool fakeServers = true)
@@ -348,6 +352,12 @@ namespace Scfg.Tests
             s.Scheduler = s.OwnScheduler;
             s.Platform = Platform;
             s.SheetHost = Host;
+            s.GetRunInBackground = () => RunInBackground;
+            s.SetRunInBackground = v =>
+            {
+                RunInBackground = v;
+                RunInBackgroundSets.Add(v);
+            };
             if (WebJs != null)
             {
                 Platform.IsWeb = true;

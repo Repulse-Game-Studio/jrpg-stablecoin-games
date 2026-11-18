@@ -151,8 +151,10 @@ namespace Scfg.E2E
             {
                 PlayerSettings.SetScriptingBackend(target, il2cpp ? ScriptingImplementation.IL2CPP : ScriptingImplementation.Mono2x);
                 // The windowed run (SCFG_E2E_WINDOWED=1) is under Xvfb, which has no window manager: the window never
-                // gets the focus, and a player without Run In Background stops its frames until it does, so the
-                // driver never answers. -batchmode players run regardless.
+                // gets the focus, and a player without Run In Background stops its frames until it does. The package
+                // turns it on only while a sheet or a restore is open (SCFG.HoldRunInBackground), but the e2e driver
+                // also has to answer between them (its first snapshot comes before any sheet), so the build turns it
+                // on for the whole run. -batchmode players run regardless.
                 PlayerSettings.runInBackground = true;
                 PlayerSettings.SetManagedStrippingLevel(target, il2cpp ? ManagedStrippingLevel.High : ManagedStrippingLevel.Minimal);
                 PlayerSettings.productName = Product;

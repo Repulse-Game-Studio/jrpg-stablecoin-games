@@ -66,6 +66,27 @@ namespace Scfg.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheRunnerKeepsRunInBackgroundOnWhileTheBrowserCheckoutIsOpen()
+        {
+            _rig.Configure(new ScfgMethods { Qr = false, Manual = false });
+            var call = SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
+            yield return Frames(4);
+            Assert.That(_rig.RunInBackground, Is.True, "on while the sheet is open, so the page answers unfocused");
+            var screen = _rig.Host.Last;
+            screen.Checkout.OpenBrowser();
+            screen.Close("keep_playing");
+            yield return Frames();
+            Assert.That(_rig.RunInBackground, Is.True, "still on for the kept browser page");
+            _rig.PaySession(screen.Checkout.Core);
+            _rig.Tick();
+            yield return Frames();
+            Assert.That(SCFG.Current.Background, Is.Empty);
+            Assert.That(_rig.RunInBackground, Is.False, "the game's value is back once the payment is final");
+            Assert.That(_rig.RunInBackgroundSets, Is.EqualTo(new[] { true, false }));
+            Assert.That(call.GetAwaiter().IsCompleted, Is.True);
+        }
+
+        [UnityTest]
         public IEnumerator TheLocalhostPageAnswersOnItsUrlAndClosesWithTheSheet()
         {
             _rig.Configure(new ScfgMethods { Qr = false, Manual = false });
