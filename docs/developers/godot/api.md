@@ -41,8 +41,8 @@ that it is refused with `configure.after_start`.
 The sheet shows a **No USDC yet? Buy some with a card** link (with the payment's token) on the method step, or
 on the only payment page when there is one method. It opens a buy page for the network the player picked, in
 the browser (a new tab on a web export), where they buy the token with a card into their own wallet and then
-pay as usual. The default page is thirdweb's hosted Buy widget, locked to the network and token, with the
-payment rounded up to cents (plus a cent for the fee on Arc) as the suggested amount. On a network it isn't
+pay as usual. The default page is thirdweb's hosted Buy widget, card payment only, locked to the network
+and token, with the payment rounded up to cents (plus a cent for the fee on Arc) as the suggested amount. On a network it isn't
 offered on, like Solana, the sheet says **No USDC yet? Pick another network to buy some with a card** there
 instead, which goes back to the network step, when another network the player can pick has the link.
 

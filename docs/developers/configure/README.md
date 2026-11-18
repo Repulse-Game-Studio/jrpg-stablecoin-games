@@ -52,12 +52,20 @@ web build). They buy the token with a card into their own wallet, come back and 
 the payment itself is unchanged and still goes straight to your wallet.
 
 The default page is [thirdweb's hosted Buy widget](https://portal.thirdweb.com/bridge/buy-widget/iframe).
-It needs no account or key on your side. The link locks it to the network and token, and
-suggests the payment rounded up to whole cents (plus a cent on Arc, where the fee is paid in
-USDC) as the amount. The page only learns the network, the token and that amount: no wallet
-address and nothing about the item. The player connects their wallet there, and thirdweb's
-card partners handle the purchase and the identity checks. Their regions, minimum amounts
-and fees apply, and the player pays the fees.
+It needs no account or key on your side. The link locks it to the network and token, offers card
+payment only, and suggests the payment rounded up to whole cents (plus a cent on Arc, where the fee
+is paid in USDC) as the amount; before the payment's exact amount is known it suggests the most it
+can be (the price plus 0.009999), so the player never buys too little. The link itself carries
+only the network, the token's contract and that amount: no wallet address and nothing about the
+item. A web build opens it with `noopener,noreferrer`, so the page is not told the game's address,
+and a desktop game hands it to the player's browser, which sends no referrer for a link opened
+from outside. What the provider learns after that is up to the player and the provider: the player
+connects their wallet there, and thirdweb's card partners handle the purchase and the identity
+checks, with their own regions, minimum amounts and fees (the player pays the fees).
+
+**On by default.** A game that upgrades to 0.3.0 shows the link on mainnet without changing its
+configuration. If linking to an outside purchase flow matters for your store or region, turn it
+off with `onramp={"enabled": False}`.
 
 ```renpy
 scfg.configure(wallet="0x...", onramp={"enabled": False})            # hide it
@@ -69,10 +77,14 @@ scfg.configure(wallet="0x...", onramp={"url": "https://buy.example/?net={chain_i
 |---|---|---|
 | `enabled` | `True` | `False` hides the link |
 | `chains` | built-in EVM chains | The networks it is offered on, from `chains=` (EVM only). Left out: the built-in EVM chains of a mainnet game, and none on testnet, where cards buy no test tokens; list chains to see the link while testing. Chains you added with `add_chain()` are only offered when listed |
-| `url` | thirdweb | Your own `https://` page, without spaces, at most 2048 characters. `{chain}` (the chain key), `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused |
+| `url` | thirdweb | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}` (the chain key), `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused |
 
 A mistake raises a `ConfigError` at startup with a code such as `onramp.unknown_option`,
-`onramp.bad_url`, `onramp.unknown_placeholder`, `onramp.disabled_chain` or `onramp.not_evm`.
+`onramp.bad_url` (also for a url without a host after `https://`), `onramp.unknown_placeholder`,
+`onramp.disabled_chain` or `onramp.not_evm`. The other engines take the same option in their own
+spelling: `"onramp"` in Godot's `configure()`, the **Buy Link** parameter in RPG Maker MZ,
+`ScfgOptions.Onramp` (and the SCFG Settings asset's onramp fields) in Unity, and `FScfgOptions.Onramp`
+(and the project settings) in Unreal; see each engine's API page.
 Solana isn't offered yet: thirdweb's page buys on EVM networks only. A player who picked
 Solana (or another network without the link) sees **No USDC yet? Pick another network to buy
 some with a card** in its place instead, which goes back to the network step, as long as
