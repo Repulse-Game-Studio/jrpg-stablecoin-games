@@ -25,13 +25,15 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools" / "run_unreal_e2e.py"
-ENGINE = Path(os.environ.get("UE_ROOT", "/mnt/files/UnrealEngine"))
+ENGINE = os.environ.get("UE_ROOT", "")
 LAVAPIPE = Path("/usr/share/vulkan/icd.d/lvp_icd.json")
 
 
 def _missing() -> str | None:
-    if not (ENGINE / "Engine" / "Binaries" / "Linux" / "UnrealEditor").is_file():
-        return f"no UE 5.8 at {ENGINE} (set UE_ROOT)"
+    if not ENGINE:
+        return "UE_ROOT is not set (the folder of a UE 5.8 engine)"
+    if not (Path(ENGINE) / "Engine" / "Binaries" / "Linux" / "UnrealEditor").is_file():
+        return f"no UE 5.8 at {ENGINE} (UE_ROOT)"
     if not shutil.which("xvfb-run"):
         return "xvfb-run not found on PATH"
     if not LAVAPIPE.is_file():

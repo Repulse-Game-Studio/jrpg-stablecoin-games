@@ -1,11 +1,12 @@
 """tests/unreal_showcase: the Unreal showcase's headless boot test, the twin of tests/godot_showcase.
-Every test here is marked `unreal_showcase` (registered here: pyproject.toml is not touched) and
-deselected unless the `-m` expression names it, so a plain `pytest` never builds or starts Unreal:
+Every test here is marked `unreal_showcase` (registered here, so the marker travels with the
+directory) and deselected unless the `-m` expression names it, so a plain `pytest` never builds or
+starts Unreal:
 
     uv run pytest -m unreal_showcase
 
-The test runs `tools/run_unreal_e2e.py --showcase`, which needs UE 5.8 ($UE_ROOT or
-/mnt/files/UnrealEngine), xvfb-run and Mesa's lavapipe, and no chain; a missing one skips the test
+The test runs `tools/run_unreal_e2e.py --showcase`, which needs UE 5.8 (its folder in $UE_ROOT),
+xvfb-run and Mesa's lavapipe, and no chain; a missing one skips the test
 (SCFG_REQUIRE_UNREAL=1 fails instead)."""
 
 from pathlib import Path
