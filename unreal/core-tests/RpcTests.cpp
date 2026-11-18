@@ -394,6 +394,21 @@ SCFG_TEST(RpcTests, EachAttemptWaitsAtMostWhatIsLeftOfTheBudget) {
     SCFG_CHECK(t, tr.calls == Calls({{A, 10.0}, {B, 10.0}, {C, 2.0}}));
 }
 
+SCFG_TEST(RpcTests, AnEndpointIsNotAskedWithLessThanTheFloorLeft) {
+    // Review T5: A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not asked with a sliver
+    // of time, nor cooled down for failing it.
+    const std::string C = "https://c.rpc";
+    TimedTransport tr;
+    tr.costs = {{B, 4}};
+    RpcClient c = timed_client({A, B, C}, tr);
+    SCFG_CHECK(t, rpc::MIN_ATTEMPT == 2.0);
+    Result<BigInt> r = run(c.block_number());
+    if (SCFG_CHECK(t, !r.ok())) SCFG_CHECK_EQ(t, r.err().kind, "RpcUnavailable");
+    using Calls = std::vector<std::pair<std::string, double>>;
+    SCFG_CHECK(t, tr.calls == Calls({{A, 10.0}, {B, 5.0}}));
+    SCFG_CHECK(t, c.live_urls() == std::vector<std::string>({C}));
+}
+
 SCFG_TEST(RpcTests, TheClockIsSettableAndReadOnEveryCall) {
     // Python: a float clock; until = 5.5 + 30.0 = 35.5, live again at 35.5 and not at 35.4
     Fx c({{A, fails()}});

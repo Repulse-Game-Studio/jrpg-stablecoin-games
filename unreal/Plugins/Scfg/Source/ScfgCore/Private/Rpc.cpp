@@ -202,7 +202,7 @@ Co<std::pair<Json, std::string>> RpcClient::call_with_url(std::string method, Js
         std::string url = urls_[i];
         if (state_.find(url)->until > now) continue;
         double left = deadline - clock();
-        if (left <= 0) break;  // CALL_BUDGET spent: the rest are not tried (nor cooled down)
+        if (left < MIN_ATTEMPT) break;  // CALL_BUDGET spent: the rest are not tried (nor cooled down)
         SCFG_CO_TRY(std::optional<Attempt> res, co_await attempt(url, method, params, now, std::min(timeout, left)));
         if (!res) continue;
         if (res->error) co_return std::move(*res->error);

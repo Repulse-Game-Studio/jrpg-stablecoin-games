@@ -498,6 +498,10 @@ void ReplayTransport::load(const Json& calls) {
             problems.push_back("a recorded call's elapsed is not an int: " + detail::show(c));
             continue;
         }
+        if (const Json* took = c.as_dict().find("took"); took != nullptr && !took->is_int64()) {
+            problems.push_back("a recorded call's took is not an int: " + detail::show(c));
+            continue;
+        }
         calls_.push_back(c);
     }
     used_.assign(calls_.size(), false);
@@ -510,6 +514,7 @@ scfg::Future<Json> ReplayTransport::post_json(std::string url, Json payload, dou
     const Json params = payload.is_dict() ? payload.as_dict().get("params") : Json();
     std::optional<Result<Json>> answer;
     std::optional<int64_t> elapsed;
+    std::optional<int64_t> took;
     for (size_t i = 0; i < calls_.size() && !answer; ++i) {
         const Json::Dict& c = calls_[i].as_dict();
         if (used_[i] || c.get("url").as_str() != url || !json_eq(c.get("method"), method) ||
@@ -517,6 +522,13 @@ scfg::Future<Json> ReplayTransport::post_json(std::string url, Json payload, dou
             continue;
         }
         used_[i] = true;
+        if (const Json* recorded = c.find("took")) {
+            took = recorded->as_int64();
+            if (timeout <= static_cast<double>(*took)) {
+                problems.push_back(url + " " + detail::text(py::str(method)) + ": timeout " + detail::seconds(timeout) +
+                                   " is not over the " + std::to_string(*took) + " s the answer took");
+            }
+        }
         if (const Json* recorded = c.find("elapsed")) {
             elapsed = recorded->as_int64();
             if (timeout != static_cast<double>(*elapsed)) {
@@ -555,12 +567,13 @@ scfg::Future<Json> ReplayTransport::post_json(std::string url, Json payload, dou
         if (std::optional<Err> e = fault(url, payload)) answer = std::move(*e);
     }
     if (mode_ == ReplayMode::Immediate) {
+        if (took && wait) wait(*took);
         if (elapsed && wait) wait(*elapsed);
         return scfg::Future<Json>::completed(std::move(*answer));
     }
     scfg::Promise<Json> promise;
     scfg::Future<Json> future = promise.get_future();
-    queue_.push_back(Waiting{std::move(promise), std::move(*answer), elapsed});
+    queue_.push_back(Waiting{std::move(promise), std::move(*answer), elapsed, took});
     return future;
 }
 
@@ -568,6 +581,7 @@ bool ReplayTransport::pump_one() {
     if (queue_.empty()) return false;
     Waiting w = std::move(queue_.front());
     queue_.pop_front();
+    if (w.took && wait) wait(*w.took);        // a slow answer: that long before it is given
     if (w.elapsed && wait) wait(*w.elapsed);  // the request hung that long before it failed
     w.promise.complete(std::move(w.answer));  // may queue the next request before it returns
     return true;

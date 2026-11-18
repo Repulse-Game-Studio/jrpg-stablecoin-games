@@ -69,7 +69,9 @@ private:
 // the transport's failure (Err TransportError with its message and status); response_text is read with
 // json::loads_text. An unrecorded request is a problem, answered with an AssertionError. A call with "elapsed" (a
 // request that hung) must have been made with exactly that timeout (a problem otherwise), and moves the clock by it
-// (`wait`) before its answer is given: inside post_json in Immediate mode, inside pump_one in Deferred mode.
+// (`wait`) before its answer is given: inside post_json in Immediate mode, inside pump_one in Deferred mode. A call
+// with "took" (a slow answer) moves the clock by it the same way before it is answered, and its timeout must be
+// over it (a problem otherwise).
 class ReplayTransport final : public scfg::coio::Transport {
 public:
     explicit ReplayTransport(ReplayMode mode = ReplayMode::Immediate) : mode_(mode) {}
@@ -93,7 +95,7 @@ public:
 
     std::vector<std::string> problems;
     // replay.py's wait: moves the runner's clock (the one the Engine and every RpcClient read) by a hung call's
-    // "elapsed" seconds. Empty: the clock stays.
+    // "elapsed" seconds and a slow call's "took" seconds. Empty: the clock stays.
     std::function<void(int64_t seconds)> wait;
     // Called first on every request (a test's probe).
     std::function<void(const std::string& url, const scfg::Json& payload)> on_call;
@@ -106,6 +108,7 @@ private:
         scfg::Promise<scfg::Json> promise;
         scfg::Result<scfg::Json> answer;
         std::optional<int64_t> elapsed;  // the recorded call's "elapsed", waited when the answer is given
+        std::optional<int64_t> took;     // the recorded call's "took", waited (first) when the answer is given
     };
     ReplayMode mode_;
     std::vector<scfg::Json> calls_;

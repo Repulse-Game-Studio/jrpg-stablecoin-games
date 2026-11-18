@@ -5,10 +5,10 @@
 // Public RPC endpoints are free but unreliable: they rate-limit, go down, and cap eth_getLogs block ranges. The
 // client tries endpoints in order on every call, skipping ones in cooldown (30 s doubling to 10 min, on the
 // injected clock), within a total budget of CALL_BUDGET seconds per call (each attempt waits at most what is left
-// of it, so a chain with four dead endpoints says so after 15 s, not 40), and remembers per endpoint the largest
-// eth_getLogs range it accepts, shrinking it when a provider says a range is too large. Every network method is a
-// Co<...> that awaits the injected Transport where Python's generator yields a Request. Response ids are never
-// checked against request ids, as in Python.
+// of it, so a chain with four dead endpoints says so after 15 s, not 40; an endpoint is not asked with less than
+// MIN_ATTEMPT seconds left), and remembers per endpoint the largest eth_getLogs range it accepts, shrinking it when
+// a provider says a range is too large. Every network method is a Co<...> that awaits the injected Transport where
+// Python's generator yields a Request. Response ids are never checked against request ids, as in Python.
 //
 // Errors are Err kinds: RpcError (a JSON-RPC error object from the node: rpc_code, message (Python's
 // err.message) and url, the endpoint that answered) and RpcUnavailable (every endpoint failed or is cooling
@@ -43,10 +43,13 @@ namespace scfg::rpc {
 inline constexpr double COOLDOWN_START = 30.0;
 inline constexpr double COOLDOWN_MAX = 600.0;
 // The most seconds one call() spends across a chain's endpoints: the first attempt gets the full per-request
-// timeout (10 s), each later one min(timeout, what is left); once nothing is left the endpoints not tried yet are
-// skipped (not cooled down) and the call is RpcUnavailable. Measured on the RpcClient's clock, so a session start
-// on a chain whose endpoints all hang fails after 15 s whatever the number of urls.
+// timeout (10 s), each later one min(timeout, what is left); once less than MIN_ATTEMPT is left the endpoints not
+// tried yet are skipped (not cooled down) and the call is RpcUnavailable. Measured on the RpcClient's clock, so a
+// session start on a chain whose endpoints all hang fails after 15 s whatever the number of urls.
 inline constexpr double CALL_BUDGET = 15.0;
+// The least of the budget an endpoint is asked with: under it the endpoints left are skipped (not cooled down) and
+// the call is RpcUnavailable, so no endpoint is cooled down for failing a request it was given a sliver of time for.
+inline constexpr double MIN_ATTEMPT = 2.0;
 // The smallest eth_getLogs block range the client narrows to, and the smallest max_log_range a custom chain may
 // declare (config.build_chain).
 inline constexpr int64_t MIN_LOG_RANGE = 10;
