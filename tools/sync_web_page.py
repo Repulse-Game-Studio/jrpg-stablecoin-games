@@ -28,7 +28,12 @@ SRC = ROOT / "plugin" / "game" / "scfg" / "web"
 # RPG Maker MZ is no target: rpgmaker/build.mjs embeds the page in SCFG.js at build time.
 UNITY_TARGET = (ROOT / "unity" / "Packages" / "com.repulse.scfg" / "Runtime" / "Unity" / "Resources"
                 / "ScfgWeb")
-TARGETS = [ROOT / "godot" / "addons" / "scfg" / "web", UNITY_TARGET]
+TARGETS = [
+    ROOT / "godot" / "addons" / "scfg" / "web",
+    UNITY_TARGET,
+    # The Unreal plugin's localhost checkout page (Scfg.Build.cs stages it as RuntimeDependencies).
+    ROOT / "unreal" / "Plugins" / "Scfg" / "Resources" / "Web",
+]
 # Targets whose copies carry a suffix (Unity imports only known extensions as TextAssets) and
 # Unity .meta files.
 UNITY_TARGETS = {UNITY_TARGET}
@@ -127,10 +132,6 @@ def sync(src: Path, target: Path) -> list:
         shutil.copyfile(path, tmp)
         os.replace(tmp, target / name)
     return []
-
-
-# The Unreal plugin's localhost checkout page (Scfg.Build.cs stages it as RuntimeDependencies).
-TARGETS.append(ROOT / "unreal" / "Plugins" / "Scfg" / "Resources" / "Web")
 
 
 def main(argv=None) -> int:

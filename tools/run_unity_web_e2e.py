@@ -25,7 +25,7 @@ cap and a blocked IndexedDB:
      game's page closed, state.json is deleted from IndexedDB (what another Unity game on the same
      origin can do), and after the game loads again every receipt is back from the copy and saved
      to IndexedDB again;
-  5. download cap (phase-2 finding F14): a POST through the facade's own UnityWebRequestTransport
+  5. download cap: a POST through the facade's own UnityWebRequestTransport
      (the one its RPC clients use, pumped by SCFG.Pump only) to an endpoint that streams far more
      than Coio.MaxResponseBytes fails with "response too large", and the endpoint saw the download
      stop before it sent everything; and the jslib says persistentDataPath is persistent;
@@ -79,6 +79,7 @@ from run_godot_e2e import (  # noqa: E402
     sheet,
     shows,
 )
+from run_godot_web_e2e import copy_value, receipts_of, wait_for, wait_state  # noqa: E402
 from run_renpy_web_e2e import serve  # noqa: E402
 
 from browser_mocks import install_mock_solana_wallet, install_mock_wallet  # noqa: E402
@@ -163,8 +164,8 @@ def build_webgl(unity: str, out: Path, log: Path) -> Path:
         "-projectPath",
         str(PROJECT),
         # The editor opens on Linux, never WebGL, and BuildPlayer targets WebGL from there,
-        # as a CI script on a Linux-active project does (testbed U1: a direct WebGLInput use
-        # failed to compile that way).
+        # as a CI script on a Linux-active project does (a direct WebGLInput use failed to
+        # compile that way).
         "-buildTarget",
         "Linux64",
         "-executeMethod",
@@ -209,18 +210,6 @@ class WebGame(gweb.WebGame):
 
     def problems(self) -> list[str]:
         return self.page.evaluate("() => (window.scfgE2EProblems || []).slice()")
-
-
-def wait_for(game: WebGame, what: str, pred, timeout: float = 60, tick=None):
-    return gweb.wait_for(game, what, pred, timeout, tick)
-
-
-def wait_state(game: WebGame, what: str, pred, timeout: float = 60, tick=None) -> dict:
-    return gweb.wait_state(game, what, pred, timeout, tick)
-
-
-def receipts_of(state: dict) -> list[dict]:
-    return gweb.receipts_of(state)
 
 
 def overlay_hidden(page) -> None:
@@ -358,10 +347,6 @@ def pay_unlock_with_overlay(game: WebGame, fam) -> None:
         f"1. browser wallet: the overlay paid with the keyboard, chapter2 owned "
         f"(tx {found[0]['tx_hash']}); the explorer link opened {link} without an opener"
     )
-
-
-def copy_value(game: WebGame, name: str) -> str:
-    return gweb.copy_value(game, name)
 
 
 PASTE = "  0xC0FFEE!12 and more\n"  # what the player has on the clipboard
@@ -670,7 +655,6 @@ def run(unity: str | None, family: str, player: str | None, headed: bool) -> int
     work = Path(tempfile.mkdtemp(prefix="scfg-unity-web-e2e-"))
     fam = httpd = None
     console: list[tuple[str, str]] = []
-    game = None
     try:
         if player:
             web = Path(player)
