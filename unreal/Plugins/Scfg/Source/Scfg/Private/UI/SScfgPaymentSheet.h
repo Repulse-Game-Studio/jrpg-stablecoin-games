@@ -4,7 +4,9 @@
 //
 // One step at a time, as the controller's step says: amount (tips) -> network -> method -> browser | qr | manual ->
 // waiting -> done. Every step has the header (the back arrow while the controller can_go_back, the step dots, the
-// logo, the title and the price), a scrolling body, the pinned forward button when the step has one, and the footer
+// logo, the title and the price), a scrolling body, the pinned buy link where the controller shows it (ShowsOnramp:
+// "No USDC yet? Buy some with a card"; or ShowsOnrampHint, which goes back to the network step), the pinned forward
+// button when the step has one, and the footer
 // (the message, the status line and Cancel / Continue playing / Continue). Development builds also show the developer
 // lines (DEV MODE and the controller's dev_warnings()); Shipping does not.
 //
@@ -14,7 +16,7 @@
 //
 // Control keys (for tests and drivers, Godot's): back, title, price, forward, cancel, keep_playing, continue,
 // message, status, logo; preset_<amount>, custom_amount, set_amount; network_<key>; method_<name>; qr, wallet_app;
-// copy_amount, copy_recipient, copy_token, tx_input, check; progress, explorer, reopen; copy_tx.
+// copy_amount, copy_recipient, copy_token, tx_input, check; progress, explorer, reopen; copy_tx; onramp, onramp_hint.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -55,6 +57,9 @@ private:
 	void StepAmount(SVerticalBox& Body);
 	void StepNetwork(SVerticalBox& Body);
 	void StepMethod(SVerticalBox& Body);
+	// "No USDC yet? Buy some with a card" (Godot's _onramp_link), pinned below the scrolling body and above the forward
+	// button, in that place in the focus order.
+	void OnrampLink(SVerticalBox& Step);
 	void StepBrowser(SVerticalBox& Body);
 	void StepQr(SVerticalBox& Body);
 	void StepManual(SVerticalBox& Body);

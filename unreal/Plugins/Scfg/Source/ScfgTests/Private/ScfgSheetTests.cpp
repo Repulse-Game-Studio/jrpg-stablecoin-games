@@ -357,6 +357,51 @@ bool FScfgSheetUnlockByKeysTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// test_sheet.gd's test_the_buy_link_sits_on_the_method_step_and_opens_the_buy_page: the link is on the method step
+// only (not before a network, not on a payment page the method step led to), between the methods and the forward
+// button in the focus order, and opens the controller's onramp_url through the platform.
+SCFG_SHEET_TEST(FScfgSheetOnrampTest, "TheBuyLinkSitsOnTheMethodStepAndOpensTheBuyPage")
+
+bool FScfgSheetOnrampTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgSheetTestsDetail;
+	FSheetRig R(*this);
+	if (!R.bReady)
+	{
+		return false;
+	}
+	R.Started(*this);
+	R.W.Pay(EScfgPayKind::Unlock, Unlock());
+	R.Frame(2);
+	const TSharedPtr<SScfgPaymentSheet> Sheet = R.Sheet();
+	if (!TestTrue(TEXT("the sheet"), Sheet.IsValid()))
+	{
+		return false;
+	}
+	TestFalse(TEXT("not before a network is chosen"), Sheet->IsShown(TEXT("onramp")));
+	TestTrue(TEXT("pick Arbitrum"), Sheet->Press(TEXT("network_arbitrum")));
+	R.Pass();
+	TestEqual(TEXT("the method step"), Sheet->ShownStep(), FString(TEXT("method")));
+	TestTrue(TEXT("the qr method"), Sheet->Press(TEXT("method_qr")));
+	R.Frame(2);
+	TestFalse(TEXT("not on a method's page the method step led to"), Sheet->IsShown(TEXT("onramp")));
+	TestTrue(TEXT("back"), Sheet->Press(TEXT("back")));
+	R.Frame(2);
+	TestTrue(TEXT("on the method step"), Sheet->IsShown(TEXT("onramp")));
+	TestFalse(TEXT("no hint beside it"), Sheet->IsShown(TEXT("onramp_hint")));
+	TestEqual(TEXT("its text"), Sheet->TextOf(TEXT("onramp")), FString(TEXT("No USDC yet? Buy some with a card")));
+	const TArray<FString> Order = Sheet->FocusOrder();
+	const int32 Link = Order.IndexOfByKey(FString(TEXT("onramp")));
+	TestTrue(TEXT("after the methods and before the forward button in the focus order"),
+		Link > Order.IndexOfByKey(FString(TEXT("method_manual"))) &&
+		(Order.IndexOfByKey(FString(TEXT("forward"))) == INDEX_NONE || Link < Order.IndexOfByKey(FString(TEXT("forward")))));
+	const FString Url = Sheet->GetController().OnrampUrl();
+	TestTrue(*FString::Printf(TEXT("the card-only buy page (%s)"), *Url), Url.EndsWith(TEXT("&paymentMethods=card")));
+	TestTrue(TEXT("press it"), Sheet->Press(TEXT("onramp")));
+	TestTrue(TEXT("it opens the buy page"), R.W.Platform->Opened.Num() == 1 && R.W.Platform->Opened[0] == Url);
+	return true;
+}
+
 // Escape on the first step closes as "cancel", and the gamepad's back button does the same as Escape.
 SCFG_SHEET_TEST(FScfgSheetEscapeTest, "EscapeAndGamepadBack")
 

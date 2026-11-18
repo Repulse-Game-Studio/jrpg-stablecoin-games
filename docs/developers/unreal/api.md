@@ -74,6 +74,7 @@ configuration: declare the items again after it.
 | `Chains` | The networks offered, in order, by key (`ethereum`, `arbitrum`, `polygon`, `base`, `arc`, `solana`, or your own). Empty: every network your wallets can receive on |
 | `Tokens` | `USDC`, `USDT`. Empty: both |
 | `Methods` | An `FScfgMethods`: which payment methods the sheet offers. Default: all of them |
+| `Onramp` | An `FScfgOnramp`: the "Buy some with a card" link, see [The buy link](#the-buy-link-onramp). Default: on, on mainnet |
 | `RpcUrls` | Your own RPC endpoints per chain key (an `FScfgRpcUrls` whose `Urls` are https URLs), tried before the built-in public ones |
 | `Confirmations` | Confirmations required per chain key (1 or more; not for Solana, which waits for finalization) |
 | `PreviousWallets` | Wallets you were paid to before (EVM and Solana addresses can be mixed). Their receipts stay valid |
@@ -89,6 +90,31 @@ configuration: declare the items again after it.
 | `Qr.Chains` | The chains the QR code is offered on. Empty: all |
 | `Manual.bEnabled` | The address and exact amount to send by hand, from an exchange or any wallet. Default `true` |
 | `Manual.bAllowTxPaste` | Whether the player may paste the transaction hash on the manual page. Default `true` |
+
+### The buy link (`Onramp`)
+
+Players who have no USDC or USDT yet see **No USDC yet? Buy some with a card** (with the payment's token) on the
+method step, or on the only payment page when there is one method. It opens a buy page for the network they picked
+in their browser, where they buy the token with a card into their own wallet and then pay as usual: the payment
+itself still goes straight to your wallet. The default page is thirdweb's hosted Buy widget, card payment only,
+locked to the network and token, suggesting the payment rounded up to cents (plus a cent for the fee on Arc). The
+link carries only the network, the token's contract and that amount. On a network it isn't offered on, like Solana,
+the sheet says **No USDC yet? Pick another network to buy some with a card** instead, which goes back to the network
+step, when another network the player can pick has the link.
+
+It is **on by default on mainnet**. Turn it off, or change it, with `FScfgOptions.Onramp` (the project settings have
+the same fields under Options > Onramp):
+
+| `FScfgOnramp` field | Meaning |
+|---|---|
+| `bEnabled` | `true` (default) or `false` |
+| `Chains` | The networks it is offered on (enabled EVM networks only). Empty: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens) |
+| `Url` | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused. Empty: thirdweb's page |
+
+A mistake is reported with a code such as `onramp.unknown_option`, `onramp.bad_url`, `onramp.unknown_placeholder`,
+`onramp.disabled_chain` or `onramp.not_evm`. A replacement sheet shows the link while the controller's
+`ShowsOnramp()` is true and opens it with `OpenOnramp()`; while `ShowsOnrampHint()` is true it shows the "Pick another
+network" button there instead, which calls `Back()`.
 
 ### AddItem
 
@@ -459,9 +485,10 @@ frame, so your screen only reads them (every frame, or when they change) and cal
   (`browser`, `qr`, `manual`), `ChainOptions()`, `Title()`, `Token()`, `PriceText()`, `PayAmountText()` (the exact
   amount to send), `Recipient()`, `PaymentUri()` (the QR code's text), `ExplorerUrl()`, `Confirmations()` and
   `Required()`, `StepDots()`, `Message()` (its English) and `MessageId()`, `CanGoBack()`, `IsTestnet()`, `Accent()`,
-  `LogoPath()` and more; the buttons `Back`, `Next`, `SetTip`, `SetCustomAmount`, `ApplyCustomAmount`,
-  `ChooseNetwork`, `ChooseMethod`, `MarkSent`, `SetTxInput`, `SubmitHash`, and those that leave the game,
-  `OpenBrowser`, `OpenWalletApp`, `OpenExplorer`, `Copy`, `Paste`.
+  `LogoPath()`, `ShowsOnramp()` and `ShowsOnrampHint()` (the buy link and its hint) and more; the buttons `Back`,
+  `Next`, `SetTip`, `SetCustomAmount`, `ApplyCustomAmount`, `ChooseNetwork`, `ChooseMethod`, `MarkSent`,
+  `SetTxInput`, `SubmitHash`, and those that leave the game, `OpenBrowser`, `OpenWalletApp`, `OpenOnramp`,
+  `OpenExplorer`, `Copy`, `Paste`.
 - `FScfgRestoreController`: `State()` (`input`, `checking`, `choose`, `saving`, `done`, `closed`), `TxInput()`,
   `Message()`, `NumCandidates()`, `Candidate(Index)`, `PendingChoices()`, `CanConfirm()`, `Added()`, `Receipts()`
   and `ReceiptsRevision()`, `ItemTitle(Id)`, `ChainName(Key)`; the buttons `SetTxInput`, `Check`, `Choose`,

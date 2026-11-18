@@ -68,7 +68,8 @@ FString SScfgPaymentSheet::Signature() const
 	const FScfgCheckoutController& C = *Controller;
 	TArray<FString> Parts = {C.Step(), C.State(), C.MessageId(), C.CanGoBack() ? TEXT("1") : TEXT("0"), C.HintTx(),
 		LexToString(C.Confirmations()), LexToString(C.Required()), C.Method(), C.ChainKey(), C.PriceText(),
-		C.SessionId(), C.BrowserFailed() ? TEXT("1") : TEXT("0"), C.ResultTx(), C.Amount()};
+		C.SessionId(), C.BrowserFailed() ? TEXT("1") : TEXT("0"), C.ResultTx(), C.Amount(),
+		C.ShowsOnramp() ? TEXT("1") : TEXT("0"), C.ShowsOnrampHint() ? TEXT("1") : TEXT("0")};
 	for (const FScfgChainOptionView& O : C.ChainOptions())
 	{
 		Parts.Add(O.Key);
@@ -183,6 +184,7 @@ void SScfgPaymentSheet::BuildContent()
 	const TPair<FString, TFunction<void()>> Forward = BuildStep(*Body);
 	const TSharedRef<SVerticalBox> Step = SNew(SVerticalBox);
 	Step->AddSlot().FillHeight(1).Padding(0, 0, 0, 12)[Scroll];
+	OnrampLink(*Step);
 	if (Forward.Key.IsEmpty())
 	{
 		// the key exists on every step; collapsed when the step has none
@@ -362,6 +364,21 @@ void SScfgPaymentSheet::StepNetwork(SVerticalBox& Body)
 		];
 	}
 	ScfgPaymentSheetDetail::AddTo(Body, Grid);
+}
+
+void SScfgPaymentSheet::OnrampLink(SVerticalBox& Step)
+{
+	FScfgCheckoutController C = *Controller;
+	if (C.ShowsOnrampHint())
+	{
+		Step.AddSlot().AutoHeight().HAlign(HAlign_Left).Padding(0, 0, 0, 10)[Button(TEXT("onramp_hint"),
+			ScfgTexts::Format(TEXT("onramp_hint"), {C.Token()}), TEXT("Scfg.Button.Small"), [C]() mutable { C.Back(); })];
+	}
+	else if (C.ShowsOnramp())
+	{
+		Step.AddSlot().AutoHeight().HAlign(HAlign_Left).Padding(0, 0, 0, 10)[Button(TEXT("onramp"),
+			ScfgTexts::Format(TEXT("onramp_link"), {C.Token()}), TEXT("Scfg.Button.Small"), [C]() mutable { C.OpenOnramp(); })];
+	}
 }
 
 void SScfgPaymentSheet::StepMethod(SVerticalBox& Body)

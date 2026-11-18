@@ -670,6 +670,25 @@ bool FScfgFlowsMobileTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+SCFG_FACADE_FLOWS_TEST(FScfgFlowsOnrampTest, "test_the_buy_link_opens_the_onramp_page")
+
+bool FScfgFlowsOnrampTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgFacadeFlowsTests;
+	FWorld W;
+	W.Started(*this);
+	W.Pay(EScfgPayKind::Unlock, Unlock());
+	FScfgCheckout& Ctl = W.Session(*this);
+	const scfg::Result<std::optional<std::string>> Url = Ctl.Core().onramp_url();
+	const FString Link = Url.ok() && Url.value() ? ScfgString::FromUtf8(*Url.value()) : FString();
+	TestTrue(*FString::Printf(TEXT("the buy page (%s)"), *Link),
+		Link.StartsWith(TEXT("https://thirdweb.com/bridge/buy-widget?chain=42161&")) &&
+		Link.EndsWith(TEXT("&paymentMethods=card")));
+	Ctl.OpenOnramp();
+	SameLines(*this, TEXT("opened in the browser"), W.Platform->Opened, TArray<FString>{Link});
+	return true;
+}
+
 SCFG_FACADE_FLOWS_TEST(FScfgFlowsClipboardTest, "test_copy_and_paste_use_the_clipboard")
 
 bool FScfgFlowsClipboardTest::RunTest(const FString& Parameters)

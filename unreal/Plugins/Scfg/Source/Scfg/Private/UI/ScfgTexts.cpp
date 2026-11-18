@@ -65,6 +65,8 @@ static const FEntry GEntries[] = {
 	{TEXT("solana_extension_sub"), TEXT("Phantom, Solflare or another wallet extension")},
 	{TEXT("evm_opens_browser_note"), TEXT("Opens a checkout page in your browser for MetaMask, Rabby, Coinbase Wallet and other wallet extensions.")},
 	{TEXT("solana_opens_browser_note"), TEXT("Opens a checkout page in your browser for Phantom, Solflare, Backpack and other wallet extensions.")},
+	{TEXT("onramp_link"), TEXT("No %s yet? Buy some with a card")},
+	{TEXT("onramp_hint"), TEXT("No %s yet? Pick another network to buy some with a card")},
 	// paying
 	{TEXT("preparing_payment"), TEXT("Preparing the payment...")},
 	{TEXT("qr_step_open"), TEXT("1. Open your wallet app")},

@@ -176,6 +176,19 @@ FString FScfgCheckoutController::ResultTx() const
 
 int64 FScfgCheckoutController::Confirmations() const { return ScfgCheckoutControllerDetail::Clamp(Checkout->Core().confirmations()); }
 int64 FScfgCheckoutController::Required() const { return ScfgCheckoutControllerDetail::Clamp(Checkout->Core().required()); }
+FString FScfgCheckoutController::OnrampUrl() const
+{
+	const scfg::Result<std::optional<std::string>> Url = Checkout->Core().onramp_url();
+	if (!Url.ok())
+	{
+		ScfgCheckoutControllerDetail::Report(Checkout->GetFacade(), Url.err());
+		return FString();
+	}
+	return ScfgCheckoutControllerDetail::Opt(Url.value());
+}
+
+bool FScfgCheckoutController::ShowsOnramp() const { return Checkout->Core().shows_onramp(); }
+bool FScfgCheckoutController::ShowsOnrampHint() const { return Checkout->Core().shows_onramp_hint(); }
 bool FScfgCheckoutController::CanGoBack() const { return Checkout->Core().can_go_back(); }
 bool FScfgCheckoutController::TxSeen() const { return Checkout->Core().tx_seen(); }
 bool FScfgCheckoutController::BrowserFailed() const { return Checkout->Core().browser_failed(); }
@@ -296,6 +309,7 @@ void FScfgCheckoutController::SubmitHash()
 
 void FScfgCheckoutController::OpenBrowser() { Checkout->OpenBrowser(); }
 void FScfgCheckoutController::OpenWalletApp() { Checkout->OpenWalletApp(); }
+void FScfgCheckoutController::OpenOnramp() { Checkout->OpenOnramp(); }
 void FScfgCheckoutController::OpenExplorer(const FString& Url) { Checkout->OpenExplorer(Url); }
 void FScfgCheckoutController::Copy(const FString& Text) { Checkout->Copy(Text); }
 void FScfgCheckoutController::Paste() { Checkout->Paste(); }

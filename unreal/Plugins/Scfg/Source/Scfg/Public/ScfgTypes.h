@@ -120,6 +120,26 @@ struct FScfgMethods
 	FScfgManualMethod Manual;
 };
 
+// configure()'s onramp: the "No USDC yet? Buy some with a card" link on the payment sheet. The defaults are the core's:
+// on, thirdweb's buy page, on the built-in EVM networks of a mainnet game (none on testnet, where cards buy no test
+// tokens).
+USTRUCT(BlueprintType)
+struct FScfgOnramp
+{
+	GENERATED_BODY()
+
+	// Show the link; off hides it everywhere.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	bool bEnabled = true;
+	// Your own buy page, an https:// template with {chain}, {chain_id}, {token}, {token_address} and {amount}; empty:
+	// thirdweb's buy page.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	FString Url;
+	// The EVM chain keys it is offered on (each one of Chains); empty: the built-in EVM chains of a mainnet game.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	TArray<FString> Chains;
+};
+
 // Configure()'s options: the payout wallet and the rest of build_config's keyword arguments (custom chains come from
 // AddChain()).
 USTRUCT(BlueprintType)
@@ -143,6 +163,9 @@ struct FScfgOptions
 	TArray<FString> Tokens;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FScfgMethods Methods;
+	// The "No USDC yet? Buy some with a card" link (configure's onramp).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	FScfgOnramp Onramp;
 	// Your own RPC urls per chain key, tried before the public ones.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	TMap<FString, FScfgRpcUrls> RpcUrls;

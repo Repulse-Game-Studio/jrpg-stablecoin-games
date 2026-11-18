@@ -53,6 +53,8 @@ public:
 	void OpenBrowser();
 	// "Open wallet app" (phones): the payment request link (EIP-681 or Solana Pay).
 	void OpenWalletApp();
+	// "No USDC yet? Buy some with a card": configure's onramp page for the chosen network.
+	void OpenOnramp();
 	// "View on explorer": opens Url (nothing for "").
 	void OpenExplorer(const FString& Url);
 	void Copy(const FString& Text);

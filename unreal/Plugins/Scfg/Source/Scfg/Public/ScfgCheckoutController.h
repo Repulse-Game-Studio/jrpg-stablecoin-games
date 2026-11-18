@@ -107,6 +107,13 @@ public:
 	bool HasSession() const;
 	FString PaymentUri() const;  // "" before a session started
 	FString ExplorerUrl() const;  // "" without a reported or found transaction
+	// The buy page for the chosen network (configure's onramp), or "" where it is not offered.
+	FString OnrampUrl() const;
+	// This step offers "No USDC yet? Buy some with a card" (OpenOnramp).
+	bool ShowsOnramp() const;
+	// This step points to it instead, "No USDC yet? Pick another network to buy some with a card", whose button goes
+	// back to the network step (Back): the chosen network has none (Solana) but another one the player can pick has it.
+	bool ShowsOnrampHint() const;
 	FString HintTx() const;      // the transaction reported for this payment, or ""
 	FString ResultTx() const;    // the final result's transaction, or ""
 	int64 Confirmations() const;
@@ -147,6 +154,8 @@ public:
 	void SubmitHash();
 	void OpenBrowser();
 	void OpenWalletApp();
+	// "No USDC yet? Buy some with a card": opens configure's onramp page for the chosen network.
+	void OpenOnramp();
 	void OpenExplorer(const FString& Url);
 	void Copy(const FString& Text);
 	void Paste();

@@ -21,9 +21,9 @@
 //     still exists.
 //
 // The flows poll the controller every frame, so a screen only reads its fields and calls its methods, never poll().
-// The buttons that leave the game are the controller wrappers' OpenBrowser, OpenWalletApp, OpenExplorer, Copy and
-// Paste (FScfgCheckout / FScfgRestore, ScfgControllers.h). The flows close the controller (stopping its browser page)
-// before they call Close(screen).
+// The buttons that leave the game are the controller wrappers' OpenBrowser, OpenWalletApp, OpenOnramp, OpenExplorer,
+// Copy and Paste (FScfgCheckout / FScfgRestore, ScfgControllers.h). The flows close the controller (stopping its
+// browser page) before they call Close(screen).
 //
 // This base shows nothing: OpenPayment and OpenRestore return null, and Pay / Restore then resolve Failed with error
 // "sheet.unavailable" (logged once). A plain C++ interface rather than a UInterface: the screens are Slate. A custom

@@ -242,6 +242,8 @@ bool FScfgSettingsFieldsTest::RunTest(const FString& Parameters)
 			}, TEXT("methods.none_enabled")},
 		{TEXT("Methods.Browser.TimeoutMin"), [](UScfgSettings& S) { S.Options.Methods.Browser.TimeoutMin = 0; }, TEXT("methods.bad_timeout")},
 		{TEXT("Methods.Qr.Chains"), [](UScfgSettings& S) { S.Options.Methods.Qr.Chains = {TEXT("polygon")}; }, TEXT("methods.qr_disabled_chain")},
+		{TEXT("Onramp.Url"), [](UScfgSettings& S) { S.Options.Onramp.Url = TEXT("http://buy.example"); }, TEXT("onramp.bad_url")},
+		{TEXT("Onramp.Chains"), [](UScfgSettings& S) { S.Options.Onramp.Chains = {TEXT("nope")}; }, TEXT("onramp.disabled_chain")},
 		{TEXT("RpcUrls"), [](UScfgSettings& S)
 			{
 				FScfgRpcUrls Urls;

@@ -66,6 +66,24 @@ scfg::Json ScfgConvert::ConfigKwargs(const FScfgOptions& Options)
 			{"manual", scfg::Json::dict({{"enabled", scfg::Json(M.Manual.bEnabled)},
 						   {"allow_tx_paste", scfg::Json(M.Manual.bAllowTxPaste)}})},
 		}));
+	const FScfgOnramp& B = Options.Onramp;
+	if (!B.bEnabled || !B.Url.IsEmpty() || B.Chains.Num() > 0)
+	{
+		scfg::Json Buy = scfg::Json::dict();
+		if (!B.bEnabled)
+		{
+			Buy.as_dict().set("enabled", scfg::Json(false));
+		}
+		if (!B.Url.IsEmpty())
+		{
+			Buy.as_dict().set("url", Text(B.Url));
+		}
+		if (B.Chains.Num() > 0)
+		{
+			Buy.as_dict().set("chains", List(B.Chains));
+		}
+		D.set("onramp", Buy);
+	}
 	if (Options.RpcUrls.Num() > 0)
 	{
 		scfg::Json Urls = scfg::Json::dict();
