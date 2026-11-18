@@ -26,8 +26,9 @@ says so in its log: it never pays a placeholder address.
 2. Open `Showcase.unity` there and press **Play**.
 
 The screen is built with UI Toolkit in code (`ScfgShowcase.cs`). If your project has an SCFG Settings asset with a
-wallet, it is applied first, and the showcase's own `SCFG.Configure` call replaces it (with the asset's wallets when
-the component's are blank, and the showcase's own items and testnet). That works only before payments start, so
+wallet, it is applied first, and the showcase's own `SCFG.Configure` call replaces it. That call starts from the
+asset's options (its networks, tokens, accent, logo and buy link, so what you set there shows here), with the asset's
+wallets when the component's are blank, and adds only testnet and the showcase's own items. That works only before payments start, so
 play this scene first: loaded from another scene after payments started there, the showcase says so and stays idle.
 Loaded a second time in the same run, it carries on with the configuration it made the first time.
 

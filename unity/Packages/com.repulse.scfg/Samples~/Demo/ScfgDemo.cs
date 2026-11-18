@@ -77,12 +77,14 @@ namespace Scfg.Samples.Demo
         // Configures SCFG. Null, or the error code Configure or AddItem refused it with (and logged).
         private static string Configure(string evm, string solana)
         {
-            var err = SCFG.Configure(new ScfgOptions
-            {
-                Wallet = evm,
-                SolanaWallet = solana,
-                Testnet = true, // Sepolia / Arbitrum Sepolia / Amoy / Base Sepolia / Solana Devnet: no real money
-            });
+            // With an SCFG Settings asset in the project, its options are the starting point (networks, tokens,
+            // accent, logo, buy link ...); the demo adds only its wallets and testnet, and its own item.
+            var settings = ScfgSettings.Find();
+            var options = settings != null ? settings.ToOptions() : new ScfgOptions();
+            options.Wallet = evm;
+            options.SolanaWallet = solana;
+            options.Testnet = true; // Sepolia / Arbitrum Sepolia / Amoy / Base Sepolia / Solana Devnet: no real money
+            var err = SCFG.Configure(options);
             if (err == null)
                 err = SCFG.AddItem(Item, new ScfgItem { Code = 1, Price = "1.00", Token = "USDC", Title = ItemTitle });
             return err;

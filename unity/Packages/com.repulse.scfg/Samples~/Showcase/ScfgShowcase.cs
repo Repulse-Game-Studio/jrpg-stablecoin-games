@@ -99,14 +99,17 @@ namespace Scfg.Samples.Showcase
         // applied first and this call replaces it, as long as payments have not started (this scene is played first).
         private static string Configure(string evm, string solana)
         {
-            var err = SCFG.Configure(new ScfgOptions
-            {
-                Wallet = evm,
-                SolanaWallet = solana,
-                Testnet = true, // Sepolia, Arbitrum Sepolia, Amoy, Base Sepolia, Arc Testnet, Solana Devnet
-                Accent = Accent,
-                // Optional, among others: Chains, Tokens, Methods, Logo, RpcUrls.
-            });
+            // With an SCFG Settings asset in the project, its options are the starting point (its networks, tokens,
+            // accent, logo, buy link ...), so what you set there shows here too; this scene adds only its wallets and
+            // testnet, and its own items below. Without one, the scene's own options.
+            var settings = ScfgSettings.Find();
+            var options = settings != null ? settings.ToOptions() : new ScfgOptions();
+            options.Wallet = evm;
+            options.SolanaWallet = solana;
+            options.Testnet = true; // Sepolia, Arbitrum Sepolia, Amoy, Base Sepolia, Arc Testnet, Solana Devnet
+            options.Accent ??= Accent;
+            // Optional, among others: Chains, Tokens, Methods, Logo, RpcUrls, Onramp.
+            var err = SCFG.Configure(options);
             if (err != null) return err;
             foreach (var (id, item) in Items)
             {
