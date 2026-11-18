@@ -58,7 +58,11 @@ export interface EngineOptions {
   pending?: SessionStore | null;
   receipts?: Record<string, any> | null;
   clock?: () => number;
-  rpc_factory?: (chain: Chain) => any;
+  /**
+   * A chain's RPC object. `requests` is the Engine's transport behind its refusal (refuseRequests):
+   * build the clients on it, so an abandoned job's requests are refused whoever made the factory.
+   */
+  rpc_factory?: (chain: Chain, requests: Transport) => any;
   on_error?: (e: unknown) => void;
   entropy?: Entropy;
 }
@@ -84,7 +88,9 @@ export class Engine {
   refuseRequests: (() => boolean) | null = null;
   entropy: Entropy;
   unready: Set<string>;
-  private _rpc_factory: (chain: Chain) => any;
+  private _rpc_factory: (chain: Chain, requests: Transport) => any;
+  /** The transport the RPC clients post through: `transport`, refused while refuseRequests says so. */
+  readonly requests: Transport;
   private _rpcs: Map<string, any>;
 
   constructor(config: Config, opts: EngineOptions = {}) {
@@ -95,17 +101,20 @@ export class Engine {
     this.clock = opts.clock ?? (() => Date.now() / 1000);
     this.transport = opts.transport;
     this.entropy = opts.entropy ?? defaultEntropy;
-    this._rpc_factory = opts.rpc_factory ?? ((chain) => {
+    this.requests = {
+      postJson: (url, payload, timeout) => {
+        if (this.refuseRequests !== null && this.refuseRequests()) {
+          return Promise.reject(new Abandoned(`abandoned before its request to ${url}`));
+        }
+        if (this.transport === undefined) {
+          return Promise.reject(new TypeError("Engine needs a transport to build RPC clients"));
+        }
+        return this.transport.postJson(url, payload, timeout);
+      },
+    };
+    this._rpc_factory = opts.rpc_factory ?? ((chain, requests) => {
       if (this.transport === undefined) throw new TypeError("Engine needs a transport to build RPC clients");
-      const refusing: Transport = {
-        postJson: (url, payload, timeout) => {
-          if (this.refuseRequests !== null && this.refuseRequests()) {
-            return Promise.reject(new Abandoned(`abandoned before its request to ${url}`));
-          }
-          return this.transport!.postJson(url, payload, timeout);
-        },
-      };
-      return backendFor(chain).makeRpc(chain, refusing, this.clock);
+      return backendFor(chain).makeRpc(chain, requests, this.clock);
     });
     this._rpcs = new Map();
     this.unready = new Set();
@@ -125,7 +134,7 @@ export class Engine {
   }
 
   rpc(key: string): any {
-    if (!this._rpcs.has(key)) this._rpcs.set(key, this._rpc_factory(this.chain(key)));
+    if (!this._rpcs.has(key)) this._rpcs.set(key, this._rpc_factory(this.chain(key), this.requests));
     return this._rpcs.get(key);
   }
 

@@ -25,7 +25,7 @@ import { FakeClock, FakeTransport } from "../../test/rpc_fakes.ts";
 import { installDiskAssets } from "../../test/mz_assets.ts";
 import { MemoryStorage, bootShim, installShim, resetShim, type Shim } from "../../test/mz_shim/index.ts";
 import {
-  ConfigError, FetchTransport, MAINNET, makePaymentResult, type Chain, type CheckoutController, type PaymentResult, type RestoreController,
+  ConfigError, FetchTransport, MAINNET, TransportError, makePaymentResult, type Chain, type CheckoutController, type PaymentResult, type RestoreController,
   type RestoreResult, type ServerArgs,
 } from "../core/index.ts";
 import { addReceipt } from "../core/receipts.ts";
@@ -295,6 +295,44 @@ function restore(s: Scfg, opts: Record<string, unknown> = {}) {
 const pendingById = (s: Scfg, sid: string) => s.pending().find((r) => r["id"] === sid);
 
 // --- pay -------------------------------------------------------------------------------------
+
+// Review T2: the plugin builds its own RPC clients (its rpc_factory); they must post through the
+// Engine's refusing transport, so a running start the player moved away from is refused its next
+// request instead of trying the rest of its endpoints while the new pick waits behind it.
+test("aRunningStartThePlayerLeftIsRefusedItsNextRequest", async () => {
+  const asked: string[] = [];
+  const held: { url: string; reject: (e: unknown) => void }[] = [];
+  const transport = {
+    postJson(url: string, payload: any) {
+      asked.push(url);
+      if (/arb/.test(url)) {
+        return new Promise((_resolve, reject) => held.push({ url, reject }));
+      }
+      return Promise.resolve({ jsonrpc: "2.0", id: payload.id, result: "0x3e8" });
+    },
+  };
+  const clock = new FakeClock();
+  // no rpc_factory in engine_opts: the plugin's own factory, over this transport
+  const env = await make({ hooks: { transport, engine_opts: { clock: clock.call } } });
+  const box = pay(env.s, "unlock", { item: "chapter2" });
+  env.shim.frame();
+  const ctl = env.host.last.ctl;
+  ctl.chooseNetwork("arbitrum");
+  const running = env.s._worker!.runOnce();
+  for (let i = 0; i < 20 && held.length === 0; i++) await tick();
+  assert.equal(held.length, 1, "the start asked Arbitrum's first endpoint");
+  ctl.chooseNetwork("base"); // the player moves on while the Arbitrum start runs
+  held[0]!.reject(new TransportError("timed out"));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([running, new Promise((_r, reject) => {
+    timer = setTimeout(() => reject(new Error(`the left start kept asking: ${asked.join(", ")}`)), 3000);
+  })]).finally(() => clearTimeout(timer));
+  await pass(env);
+  ctl.poll();
+  assert.equal(asked.filter((u) => /arb/.test(u)).length, 1, "no other Arbitrum endpoint was asked");
+  assert.ok(ctl.state === "waiting" && ctl.chain_key === "base", `the new pick started (${ctl.state})`);
+  assert.equal(box.result, undefined, "the payment is still open");
+});
 
 test("payAlreadyOwnedShortCircuits", async () => {
   const env = await make();
