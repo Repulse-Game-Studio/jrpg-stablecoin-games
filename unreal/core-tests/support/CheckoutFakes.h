@@ -7,7 +7,8 @@
 // Python's fakes replace the RPC objects; the C++ RPC objects are concrete, so the fakes here are a transport that
 // answers JSON-RPC as the fake chains would (FakeNodes), and an RPC factory that points each chain's client at it.
 // A Python fake has no failover cooldown, so these clients' clock jumps a day per read: an endpoint that failed is
-// asked again on the next call, as a Python fake that comes back up answers at once.
+// asked again on the next call, as a Python fake that comes back up answers at once. On that clock every call's
+// CALL_BUDGET would be spent before its first attempt, so these clients have none (an infinite budget).
 #pragma once
 
 #include "Scfg/Checkout.h"

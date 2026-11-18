@@ -12,6 +12,7 @@
 #include "Scfg/Payments.h"
 #include "Scfg/Py.h"
 
+#include <limits>
 #include <string_view>
 #include <utility>
 
@@ -136,6 +137,8 @@ scfg::engine::RpcFactory FakeNodes::rpc_factory() {
         std::vector<std::string> urls{"fake://" + chain.family + "/" + chain.key};
         SCFG_TRY(scfg::backends::base::Rpc rpc, backend->make_rpc(chain.with(std::move(urls)), *this));
         scfg::backends::base::client_of(rpc).clock = [ticks] { return *ticks += 86400.0; };
+        // On that clock every call's CALL_BUDGET is spent before its first attempt: these clients have none.
+        scfg::backends::base::client_of(rpc).budget = std::numeric_limits<double>::infinity();
         return rpc;
     };
 }

@@ -21,6 +21,7 @@
 #include "Scfg/Receipts.h"
 #include "Scfg/Rpc.h"
 
+#include <limits>
 #include <memory>
 #include <string_view>
 #include <utility>
@@ -410,8 +411,10 @@ FScfgFacadeOptions FWorld::Options()
 		SCFG_TRY(const scfg::backends::base::Backend* Backend, scfg::backends::backend_for(Chain));
 		std::vector<std::string> Urls{"fake://evm/" + Chain.key};
 		SCFG_TRY(scfg::backends::base::Rpc Rpc, Backend->make_rpc(Chain.with(std::move(Urls)), **Made));
-		// A Python fake has no failover cooldown: the client's clock jumps a day per read.
+		// A Python fake has no failover cooldown: the client's clock jumps a day per read. On that clock every call's
+		// CALL_BUDGET would be spent before its first attempt, so the client has none.
 		scfg::backends::base::client_of(Rpc).clock = [Ticks]() { return *Ticks += 86400.0; };
+		scfg::backends::base::client_of(Rpc).budget = std::numeric_limits<double>::infinity();
 		return Rpc;
 	};
 	if (bManualWorker)

@@ -34,6 +34,12 @@ namespace scfg_test::tier2::detail {
 
 std::string number(size_t n) { return std::to_string(n); }
 
+// f"{seconds:g}" for a timeout: an integral value as an int (10.0 is "10"), any other as repr.
+std::string seconds(double s) {
+    if (std::isfinite(s) && s == std::floor(s) && std::fabs(s) < 1e15) return std::to_string(static_cast<int64_t>(s));
+    return scfg::pyfloat::repr(s);
+}
+
 // json.dumps of v for a message, cut to about 300 bytes (or the error dumps raised, in <>).
 std::string show(const Json& v) {
     Result<std::string> text = scfg::json::dumps(v, {.sort_keys = true, .ensure_ascii = false});
@@ -488,18 +494,22 @@ void ReplayTransport::load(const Json& calls) {
             problems.push_back("a recorded call is malformed: " + detail::show(c));
             continue;
         }
+        if (const Json* elapsed = c.as_dict().find("elapsed"); elapsed != nullptr && !elapsed->is_int64()) {
+            problems.push_back("a recorded call's elapsed is not an int: " + detail::show(c));
+            continue;
+        }
         calls_.push_back(c);
     }
     used_.assign(calls_.size(), false);
 }
 
 scfg::Future<Json> ReplayTransport::post_json(std::string url, Json payload, double timeout) {
-    (void)timeout;
     ++posts_;
     if (on_call) on_call(url, payload);
     const Json method = payload.is_dict() ? payload.as_dict().get("method") : Json();
     const Json params = payload.is_dict() ? payload.as_dict().get("params") : Json();
     std::optional<Result<Json>> answer;
+    std::optional<int64_t> elapsed;
     for (size_t i = 0; i < calls_.size() && !answer; ++i) {
         const Json::Dict& c = calls_[i].as_dict();
         if (used_[i] || c.get("url").as_str() != url || !json_eq(c.get("method"), method) ||
@@ -507,6 +517,13 @@ scfg::Future<Json> ReplayTransport::post_json(std::string url, Json payload, dou
             continue;
         }
         used_[i] = true;
+        if (const Json* recorded = c.find("elapsed")) {
+            elapsed = recorded->as_int64();
+            if (timeout != static_cast<double>(*elapsed)) {
+                problems.push_back(url + " " + detail::text(py::str(method)) + ": timeout " + detail::seconds(timeout) +
+                                   ", recorded " + std::to_string(*elapsed));
+            }
+        }
         if (const Json* failure = c.find("transport_error")) {
             const Json message = failure->is_dict() ? failure->as_dict().get("message") : Json();
             const Json status = failure->is_dict() ? failure->as_dict().get("status") : Json();
@@ -537,10 +554,13 @@ scfg::Future<Json> ReplayTransport::post_json(std::string url, Json payload, dou
     if (fault) {
         if (std::optional<Err> e = fault(url, payload)) answer = std::move(*e);
     }
-    if (mode_ == ReplayMode::Immediate) return scfg::Future<Json>::completed(std::move(*answer));
+    if (mode_ == ReplayMode::Immediate) {
+        if (elapsed && wait) wait(*elapsed);
+        return scfg::Future<Json>::completed(std::move(*answer));
+    }
     scfg::Promise<Json> promise;
     scfg::Future<Json> future = promise.get_future();
-    queue_.push_back(Waiting{std::move(promise), std::move(*answer)});
+    queue_.push_back(Waiting{std::move(promise), std::move(*answer), elapsed});
     return future;
 }
 
@@ -548,6 +568,7 @@ bool ReplayTransport::pump_one() {
     if (queue_.empty()) return false;
     Waiting w = std::move(queue_.front());
     queue_.pop_front();
+    if (w.elapsed && wait) wait(*w.elapsed);  // the request hung that long before it failed
     w.promise.complete(std::move(w.answer));  // may queue the next request before it returns
     return true;
 }
@@ -803,6 +824,12 @@ std::optional<std::string> replay(const Json& vector, ReplayTransport& transport
     std::optional<std::string> bad_error;
     ScriptedEntropy entropy;
     std::function<int64_t()> clock = [&now]() { return now; };
+    // replay.py's wait. The caller's transport outlives `now`, so the guard takes the hook back on every return.
+    struct WaitHook {
+        ReplayTransport& transport;
+        ~WaitHook() { transport.wait = nullptr; }
+    } hook{transport};
+    transport.wait = [&now](int64_t seconds) { now += seconds; };
     std::function<void(const Err&)> on_error = [&errors, &bad_error](const Err& e) {
         ++errors;
         if (!stands_for_python(e) && !bad_error) bad_error = e.str();
@@ -872,6 +899,7 @@ std::optional<std::string> destroy_engine_while_suspended(const Json& vector, si
     std::function<int64_t()> clock = [&now]() { return now; };
     std::function<void(const Err&)> on_error = [](const Err&) {};
     ReplayTransport transport(ReplayMode::Deferred);
+    transport.wait = [&now](int64_t seconds) { now += seconds; };
     Result<std::unique_ptr<engine::Engine>> built = build_engine(setup, transport, clock, on_error, &entropy);
     if (!built.ok()) return "setup: " + built.err().str();
     std::unique_ptr<engine::Engine> eng = built.take();

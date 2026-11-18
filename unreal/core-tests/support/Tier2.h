@@ -67,7 +67,9 @@ private:
 // order, each recorded call used once, identical requests take their copies in recorded order. The JSON-RPC id is
 // ignored; params match by json_eq (key order ignored, 1 equals 1.0, true is not 1). A recorded transport_error is
 // the transport's failure (Err TransportError with its message and status); response_text is read with
-// json::loads_text. An unrecorded request is a problem, answered with an AssertionError.
+// json::loads_text. An unrecorded request is a problem, answered with an AssertionError. A call with "elapsed" (a
+// request that hung) must have been made with exactly that timeout (a problem otherwise), and moves the clock by it
+// (`wait`) before its answer is given: inside post_json in Immediate mode, inside pump_one in Deferred mode.
 class ReplayTransport final : public scfg::coio::Transport {
 public:
     explicit ReplayTransport(ReplayMode mode = ReplayMode::Immediate) : mode_(mode) {}
@@ -90,6 +92,9 @@ public:
     size_t posts() const { return posts_; }
 
     std::vector<std::string> problems;
+    // replay.py's wait: moves the runner's clock (the one the Engine and every RpcClient read) by a hung call's
+    // "elapsed" seconds. Empty: the clock stays.
+    std::function<void(int64_t seconds)> wait;
     // Called first on every request (a test's probe).
     std::function<void(const std::string& url, const scfg::Json& payload)> on_call;
     // A test's fault: an Err it returns for a request answers that request instead of the recorded call (which is
@@ -100,6 +105,7 @@ private:
     struct Waiting {
         scfg::Promise<scfg::Json> promise;
         scfg::Result<scfg::Json> answer;
+        std::optional<int64_t> elapsed;  // the recorded call's "elapsed", waited when the answer is given
     };
     ReplayMode mode_;
     std::vector<scfg::Json> calls_;

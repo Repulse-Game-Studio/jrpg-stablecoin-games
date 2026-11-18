@@ -4,9 +4,11 @@
 //
 // Public RPC endpoints are free but unreliable: they rate-limit, go down, and cap eth_getLogs block ranges. The
 // client tries endpoints in order on every call, skipping ones in cooldown (30 s doubling to 10 min, on the
-// injected clock), and remembers per endpoint the largest eth_getLogs range it accepts, shrinking it when a
-// provider says a range is too large. Every network method is a Co<...> that awaits the injected Transport
-// where Python's generator yields a Request. Response ids are never checked against request ids, as in Python.
+// injected clock), within a total budget of CALL_BUDGET seconds per call (each attempt waits at most what is left
+// of it, so a chain with four dead endpoints says so after 15 s, not 40), and remembers per endpoint the largest
+// eth_getLogs range it accepts, shrinking it when a provider says a range is too large. Every network method is a
+// Co<...> that awaits the injected Transport where Python's generator yields a Request. Response ids are never
+// checked against request ids, as in Python.
 //
 // Errors are Err kinds: RpcError (a JSON-RPC error object from the node: rpc_code, message (Python's
 // err.message) and url, the endpoint that answered) and RpcUnavailable (every endpoint failed or is cooling
@@ -40,6 +42,11 @@ namespace scfg::rpc {
 
 inline constexpr double COOLDOWN_START = 30.0;
 inline constexpr double COOLDOWN_MAX = 600.0;
+// The most seconds one call() spends across a chain's endpoints: the first attempt gets the full per-request
+// timeout (10 s), each later one min(timeout, what is left); once nothing is left the endpoints not tried yet are
+// skipped (not cooled down) and the call is RpcUnavailable. Measured on the RpcClient's clock, so a session start
+// on a chain whose endpoints all hang fails after 15 s whatever the number of urls.
+inline constexpr double CALL_BUDGET = 15.0;
 // The smallest eth_getLogs block range the client narrows to, and the smallest max_log_range a custom chain may
 // declare (config.build_chain).
 inline constexpr int64_t MIN_LOG_RANGE = 10;
@@ -71,6 +78,7 @@ struct RpcClientOptions {
     // Seconds on a monotonic clock (Python's float time.monotonic); empty: std::chrono::steady_clock.
     std::function<double()> clock = {};
     double timeout = 10.0;
+    double budget = CALL_BUDGET;
 };
 
 // Python rpc.RpcClient. Holds the transport by reference: the caller keeps it alive for the client's lifetime.
@@ -81,9 +89,11 @@ public:
     static Result<RpcClient> make(std::vector<std::string> urls, coio::Transport& transport,
                                   RpcClientOptions options = {});
 
-    // The clock cooldowns run on (settable, as Python's rpc.clock) and each request's timeout (seconds).
+    // The clock cooldowns run on (settable, as Python's rpc.clock), each request's timeout and the most one
+    // call() spends across the endpoints (seconds; call_at and try_at use the plain timeout).
     std::function<double()> clock;
     double timeout = 10.0;
+    double budget = CALL_BUDGET;
 
     const std::vector<std::string>& urls() const { return urls_; }
     // Python log_range: the eth_getLogs block range accepted by the currently preferred endpoint.
@@ -126,8 +136,10 @@ private:
     Status fail(const std::string& url, double now);
     Status ok(const std::string& url);
     const std::string& preferred() const;
-    // Python _attempt: an Attempt, or nullopt when the endpoint failed (and now cools down).
-    Co<std::optional<Attempt>> attempt(std::string url, std::string method, Json params, double now);
+    // Python _attempt: an Attempt, or nullopt when the endpoint failed (and now cools down). The request waits
+    // `wait` seconds (empty: timeout).
+    Co<std::optional<Attempt>> attempt(std::string url, std::string method, Json params, double now,
+                                       std::optional<double> wait = std::nullopt);
     // Python _call: like call(), but also returns which endpoint answered.
     Co<std::pair<Json, std::string>> call_with_url(std::string method, Json params);
 

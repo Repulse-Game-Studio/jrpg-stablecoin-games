@@ -104,6 +104,7 @@ Result<RpcClient> RpcClient::make(std::vector<std::string> urls, coio::Transport
 RpcClient::RpcClient(std::vector<std::string> urls, coio::Transport& transport, RpcClientOptions options)
     : clock(options.clock ? std::move(options.clock) : std::function<double()>(detail::monotonic)),
       timeout(options.timeout),
+      budget(options.budget),
       urls_(std::move(urls)),
       transport_(&transport) {
     for (const std::string& u : urls_) {
@@ -162,9 +163,10 @@ double RpcClient::cooldown_until(std::string_view url) const {
     return st != nullptr ? st->until : 0.0;
 }
 
-Co<std::optional<Attempt>> RpcClient::attempt(std::string url, std::string method, Json params, double now) {
+Co<std::optional<Attempt>> RpcClient::attempt(std::string url, std::string method, Json params, double now,
+                                              std::optional<double> wait) {
     Json payload = Json::dict({{"jsonrpc", "2.0"}, {"id", next_id_++}, {"method", method}, {"params", params}});
-    Result<Json> got = co_await transport_->post_json(url, payload, timeout);
+    Result<Json> got = co_await transport_->post_json(url, payload, wait.value_or(timeout));
     if (!got.ok()) {
         // Python's `except TransportError`: anything else reaches the caller.
         if (!got.err().is_a("TransportError")) co_return std::move(got).err();
@@ -195,10 +197,13 @@ Co<std::optional<Attempt>> RpcClient::attempt(std::string url, std::string metho
 
 Co<std::pair<Json, std::string>> RpcClient::call_with_url(std::string method, Json params) {
     double now = clock();
+    double deadline = now + budget;
     for (size_t i = 0; i < urls_.size(); ++i) {
         std::string url = urls_[i];
         if (state_.find(url)->until > now) continue;
-        SCFG_CO_TRY(std::optional<Attempt> res, co_await attempt(url, method, params, now));
+        double left = deadline - clock();
+        if (left <= 0) break;  // CALL_BUDGET spent: the rest are not tried (nor cooled down)
+        SCFG_CO_TRY(std::optional<Attempt> res, co_await attempt(url, method, params, now, std::min(timeout, left)));
         if (!res) continue;
         if (res->error) co_return std::move(*res->error);
         co_return std::pair<Json, std::string>(std::move(res->result), std::move(url));

@@ -18,6 +18,7 @@
 #include "Scfg/Rpc.h"
 #include "Scfg/SolanaRpc.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <deque>
@@ -196,6 +197,27 @@ Handler logs_handler(std::vector<std::pair<int64_t, int64_t>>& seen, int64_t max
 
 using Spans = std::vector<std::pair<int64_t, int64_t>>;
 
+// test_rpc_client.py's TimedTransport: each url takes costs[url] seconds of the clock (absent: its whole timeout, a
+// hang) and then fails, or answers 0x7 when it is in answers. Records (url, timeout).
+struct TimedTransport final : coio::Transport {
+    double now = 1000;  // FakeClock
+    std::map<std::string, double> costs;
+    std::vector<std::string> answers;
+    std::vector<std::pair<std::string, double>> calls;
+
+    Future<Json> post_json(std::string url, Json, double timeout) override {
+        calls.emplace_back(url, timeout);
+        auto cost = costs.find(url);
+        now += cost == costs.end() ? timeout : std::min(cost->second, timeout);
+        if (std::find(answers.begin(), answers.end(), url) != answers.end()) return Future<Json>::completed(ok("0x7"));
+        return Future<Json>::completed(Err::transport_error("timed out", std::nullopt));
+    }
+};
+
+RpcClient timed_client(std::vector<std::string> urls, TimedTransport& tr) {
+    return RpcClient::make(std::move(urls), tr, {.clock = [&tr] { return tr.now; }}).take();
+}
+
 }  // namespace scfg_test::rpc_tests
 
 using namespace scfg_test::rpc_tests;
@@ -344,6 +366,32 @@ SCFG_TEST(RpcTests, AllEndpointsDownRaisesUnavailable) {
         SCFG_CHECK_EQ(t, r.err().message, "all endpoints failed for eth_blockNumber");
         SCFG_CHECK(t, r.err().is_a("Exception") && !r.err().is_a("RpcError"));
     }
+}
+
+SCFG_TEST(RpcTests, ACallSpendsAtMostItsBudgetAcrossEndpoints) {
+    const std::string C = "https://c.rpc", D = "https://d.rpc";
+    TimedTransport tr;  // every endpoint hangs
+    RpcClient c = timed_client({A, B, C, D}, tr);
+    SCFG_CHECK(t, rpc::CALL_BUDGET == 15.0);
+    SCFG_CHECK_EQ(t, kind_of(run(c.call("eth_blockNumber", Json::list()))), "RpcUnavailable");
+    // The rest of the 15 s, then nothing is left for C, D.
+    using Calls = std::vector<std::pair<std::string, double>>;
+    SCFG_CHECK(t, tr.calls == Calls({{A, 10.0}, {B, 5.0}}));
+    SCFG_CHECK(t, tr.now == 1000.0 + rpc::CALL_BUDGET);
+    // Skipped, not cooled down: the next call asks C.
+    SCFG_CHECK(t, c.live_urls() == std::vector<std::string>({C, D}));
+}
+
+SCFG_TEST(RpcTests, EachAttemptWaitsAtMostWhatIsLeftOfTheBudget) {
+    const std::string C = "https://c.rpc";
+    TimedTransport tr;
+    tr.costs = {{A, 3}, {B, 10}, {C, 1}};
+    tr.answers = {C};
+    RpcClient c = timed_client({A, B, C}, tr);
+    Result<BigInt> r = run(c.block_number());
+    if (SCFG_CHECK(t, r.ok())) SCFG_CHECK(t, r.value() == 7);
+    using Calls = std::vector<std::pair<std::string, double>>;
+    SCFG_CHECK(t, tr.calls == Calls({{A, 10.0}, {B, 10.0}, {C, 2.0}}));
 }
 
 SCFG_TEST(RpcTests, TheClockIsSettableAndReadOnEveryCall) {
