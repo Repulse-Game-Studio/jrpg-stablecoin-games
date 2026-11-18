@@ -72,6 +72,7 @@
 //   test_an_abandoned_job_stops_waiting_for_its_request_in_flight  AnAbandonedStartStopsWaitingForItsRequestInFlight
 //   (test_worker_priority.py) test_a_start_does_not_wait_behind_the_watching_of_pending_payments
 //                                                                  AStartDoesNotWaitBehindTheWatchingOfPendingPayments
+//   test_a_hint_verdict_reached_before_the_tick_yields_is_reported AHintVerdictReachedBeforeTheTickYieldsIsReported
 // The tests here without a twin are the Unreal glue's own: refused stores, OnStateChanged's order and handlers,
 // teardown, Stop() from inside the Engine, a handler destroying the worker, the cancelled or failed startup reverify
 // through Stop(), the receipt commands, the fresh snapshot at Stop().
@@ -764,6 +765,61 @@ bool FScfgWorkerStartBeforeWatchingTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("four pending"), PendingAtStart, 4);
 	TestTrue(TEXT("the pending tips are untouched"),
 		Before.ok() && After && After->ok() && Before.value() == After->value());
+	TestEqual(TEXT("errors"), W.Errors->Num(), 0);
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerHintVerdictBeforeYieldTest, "AHintVerdictReachedBeforeTheTickYieldsIsReported")
+
+// test_a_hint_verdict_reached_before_the_tick_yields_is_reported (review V1): one session on base testnet with a hint
+// whose receipt has status 0x0. The tick judges the hint (reverted) and clears it, then waits on its next request (a
+// host that never answers); a command makes it yield. The verdict is still reported, not lost with the step.
+bool FScfgWorkerHintVerdictBeforeYieldTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	FWorld W;
+	Json Hinted = Awaiting("ps_a", kNow);
+	Hinted.as_dict().set("hint_tx", kTx);
+	Hinted.as_dict().set("hint_at", kNow);
+	if (!TestTrue(TEXT("created"), W.Make(Json::dict({{"ps_a", Hinted}})).ok()))
+	{
+		return false;
+	}
+	*W.Interval = 1000;
+	FFakeTransport* Fake = W.Fake;
+	Fake->Answer = [Fake](const FString& Method) -> Result<Json>
+	{
+		if (Method == TEXT("eth_getTransactionReceipt"))
+		{
+			return Json::dict({{"status", "0x0"}, {"blockNumber", "0x3e8"}, {"logs", Json::list()}});
+		}
+		Fake->bHang = true;  // every request after the verdict hangs
+		return Json("0x3e8");
+	};
+	W.Worker->Start();
+	W.Frames(5);
+	TestTrue(TEXT("the tick went on to its next request after the verdict, which hangs"),
+		W.Worker->IsBusy() && W.Fake->NumHeld() == 1);
+	TestEqual(TEXT("requests"), FString::Join(W.Stats->Methods, TEXT(",")),
+		TEXT("eth_getTransactionReceipt,eth_blockNumber"));
+	TestTrue(TEXT("the hint is cleared already"),
+		W.Worker->GetEngine().pending().as_dict().get("ps_a").as_dict().get("hint_tx").is_null());
+	TestEqual(TEXT("nothing drained yet"), static_cast<int32>(W.Worker->DrainOutcomes().size()), 0);
+	TGot<Json> Ran;
+	W.Worker->Run([](scfg::engine::Engine&) -> Result<Json> { return Json("the player's command"); }, Ran.Callback());
+	W.Frames(3);
+	TestTrue(TEXT("the command ran"), Ran.Ok());
+	const FScfgWorker::FOutcomes Outcomes = W.Worker->DrainOutcomes();
+	if (TestEqual(TEXT("one outcome"), static_cast<int32>(Outcomes.size()), 1))
+	{
+		TestEqual(TEXT("its session"), ScfgString::FromUtf8(Outcomes[0].session_id), TEXT("ps_a"));
+		TestEqual(TEXT("the verdict"), Outcomes[0].error ? ScfgString::FromUtf8(*Outcomes[0].error) : FString(),
+			TEXT("tx_reverted"));
+		TestTrue(TEXT("names the hint judged"), Outcomes[0].hint_tx.is_str() && Outcomes[0].hint_tx.as_str() == kTx);
+	}
+	TestTrue(TEXT("the hint stays cleared"),
+		W.Worker->GetSnapshot().pending.as_dict().get("ps_a").as_dict().get("hint_tx").is_null());
+	TestEqual(TEXT("the hanging request was cancelled"), W.Stats->Cancelled, 1);
 	TestEqual(TEXT("errors"), W.Errors->Num(), 0);
 	return true;
 }
