@@ -1,6 +1,6 @@
-"""The Unreal showcase (unreal/Project/ScfgDev, ScfgShowcase.h) boots and its chain-free buttons
-work, as tests/godot_showcase checks for Godot's (see conftest.py: marked unreal_showcase,
-deselected by default).
+"""The Unreal showcase (the ScfgShowcase plugin, unreal/Plugins/ScfgShowcase, played in the dev
+project unreal/Project/ScfgDev) boots and its chain-free buttons work, as tests/godot_showcase
+checks for Godot's (see conftest.py: marked unreal_showcase, deselected by default).
 
 `tools/run_unreal_e2e.py --showcase` builds the editor target, starts the showcase as a game on an
 Xvfb of its own (xvfb-run -a, lavapipe) with the e2e driver's control socket, and lets it configure
@@ -8,8 +8,10 @@ itself from the project settings (Config/DefaultGame.ini). It clicks Export rece
 data, Notify (off and on), Restore purchases, a tip and an unlock (each sheet closed with Escape on
 its first step, before a network is chosen), and checks the readouts and the event log after each;
 then it starts the showcase again with -scfg-showcase-code and checks the same shop, configured in
-code. Each start must have found the settings' logo and posted no JSON-RPC request (the plugin's
-HTTP transport counts them). Any Error or Warning line of the game fails it."""
+code. Each of the two must have found the logo and posted no JSON-RPC request (the plugin's HTTP
+transport counts them). A third start has the settings without their wallet: the showcase
+configures nothing and its HUD says so. Any Error or Warning line of the game fails it, but the
+two warnings of that third start."""
 
 from __future__ import annotations
 
@@ -59,6 +61,9 @@ def test_the_showcase_boots_and_its_chain_free_buttons_work():
         "Unlock Chapter 2: cancelled on the network step",
         "2. configured in code, -scfg-showcase-code",
         "Configured from: code (ConfigureInCode): the same 11 buttons and readouts",
+        "3. no wallet in the project settings",
+        "the HUD says 'No wallet is set, so SCFG is not configured and nothing can be paid.' and "
+        "has no button; nothing configured, 0 JSON-RPC requests",
     ):
         assert line in out, out
     # each start: the logo found, and no JSON-RPC request made (FScfgHttpTransport's count)

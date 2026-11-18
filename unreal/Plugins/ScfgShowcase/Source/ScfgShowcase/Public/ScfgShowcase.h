@@ -9,22 +9,33 @@
 // Receipts()), the last result and an event log of every result and event. A Slate HUD over the engine's Entry map,
 // with the cursor shown; the game is paused while a sheet is open. Public API only (UScfgSubsystem, UScfgSettings).
 //
-// CONFIGURATION. By default the plugin configures itself from the project settings (Project Settings > Plugins > SCFG,
-// committed in Config/DefaultGame.ini: the testnet example wallet and the three items), when the game instance starts;
-// the showcase only reads them. With -scfg-showcase-code on the command line, or when the project's settings are
-// empty, it configures in code instead (ConfigureInCode: the same values), which replaces the settings ("a code call
-// after it wins", ScfgSettings.h).
+// A PLUGIN OF ITS OWN (unreal/Plugins/ScfgShowcase, the release's scfg-unreal-showcase-<version>.zip): it goes next to
+// the Scfg plugin in a project's Plugins folder (README.md). It has no level of its own: the project's Game Instance
+// Class is UScfgShowcaseGameInstance and its Game Default Map the engine's empty /Engine/Maps/Entry (Project Settings >
+// Maps & Modes); the game instance picks its own game mode (OverrideGameModeClass), so any map works. The repository's
+// dev project (unreal/Project/ScfgDev) loads it from unreal/Plugins, with that wiring in its Config/DefaultEngine.ini.
 //
-// Wiring (Config/DefaultEngine.ini): GameInstanceClass is UScfgShowcaseGameInstance and GameDefaultMap /Engine/Maps/Entry;
-// the game instance picks its own game mode (OverrideGameModeClass), so other game instances (the automation tests')
-// are unaffected.
+// THE WALLET. The payments go to the developer's wallet, never to a placeholder: the -scfg-showcase-wallet=0x... (and
+// -scfg-showcase-solana-wallet=...) command-line switches, else the project settings' Wallet and Solana Wallet
+// (Project Settings > Plugins > SCFG). With neither, the showcase configures nothing, says so on its HUD and logs it
+// ("LogScfgShowcase: Warning: showcase: No wallet is set, ..."), and the shop stays closed.
 //
-// The e2e hook (not in Shipping): with -scfg-e2e=<config.json> on the command line, FScfgE2EDriver (ScfgE2EDriver.h)
-// reads the config. A config with "configure" and "items" points the built-in chain at the local test node, and the
-// game is configured from it instead (tools/run_unreal_e2e.py's payments); one with "own_config": true leaves the
-// configuration to the showcase (the tour of the chain-free buttons, tests/unreal_showcase). A config that cannot be
-// read, or that Configure / AddItem refuses, makes the game quit with exit code 1 (a test run never falls back to
-// another setup). Without the driver a refused configuration is shown on the HUD instead, and the game keeps running.
+// CONFIGURATION. The project settings, when they have a wallet and items: the plugin applies them by itself when the
+// game instance starts, and the showcase only reads them (the dev project's are in its Config/DefaultGame.ini). Settings
+// with items but the wallet from the command line are applied with ConfigureWithSettings(Wallet, SolanaWallet). In
+// code instead (ConfigureInCode: the showcase's three items, testnet, its accent and the logo in this plugin's
+// Resources/, or the project's Content/Showcase/logo.png), with -scfg-showcase-code on the command line, or when the
+// project's settings have no items (a fresh project with only its wallet set), which replaces the settings ("a code
+// call after it wins", ScfgSettings.h). Settings with Testnet off are refused: the showcase runs on testnets only.
+//
+// The harness hook: a test harness may take over the setup (IScfgShowcaseHarness, SetHarnessFactory). The repository's
+// dev project sets one outside Shipping, its e2e driver (unreal/Project/ScfgDev/Source/ScfgDev/ScfgE2EDriver.h), made
+// only when the command line has -scfg-e2e=<config.json>. A harness that provides the configuration (its Options() and
+// Items()) points the game at a local test chain (tools/run_unreal_e2e.py's payments); one whose OwnConfig() is true
+// leaves the configuration to the showcase (the tour of the chain-free buttons, tests/unreal_showcase). A harness that
+// cannot run, or a configuration that Configure / AddItem refuses under one, makes the game quit with exit code 1 (a
+// test run never falls back to another setup); the missing wallet does not, so a harness can check that refusal too.
+// Without a harness a refused configuration is shown on the HUD instead, and the game keeps running.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -38,17 +49,18 @@
 
 #include "ScfgShowcase.generated.h"
 
-class FScfgE2EDriver;
 class SButton;
 class SHorizontalBox;
 class STextBlock;
 class SVerticalBox;
+class UScfgSettings;
 class UScfgSubsystem;
+class UScfgShowcaseGameInstance;
 
 // The showcase's HUD: a view the game instance fills (ScfgShowcase.cpp, "2. The shop"). Every button has a name for
 // keyboard focus and the e2e driver: "Unlock.<item>", "Pay.<item>", "Tip.<amount>", "Restore", "Export", "Clear",
 // "Notify". Only the buttons take clicks: a click anywhere else is the world's.
-class SScfgShowcaseHud final : public SCompoundWidget
+class SCFGSHOWCASE_API SScfgShowcaseHud final : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SScfgShowcaseHud) {}
@@ -123,7 +135,7 @@ private:
 
 // Counts the clicks the world got (a click on the HUD or on a sheet is Slate's and never reaches it).
 UCLASS()
-class AScfgShowcasePlayerController : public APlayerController
+class SCFGSHOWCASE_API AScfgShowcasePlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
@@ -136,7 +148,7 @@ public:
 };
 
 UCLASS()
-class AScfgShowcaseGameMode : public AGameModeBase
+class SCFGSHOWCASE_API AScfgShowcaseGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
 
@@ -144,8 +156,34 @@ public:
 	AScfgShowcaseGameMode();
 };
 
+// A test harness that takes over the showcase's setup (see the file header): made by the factory SetHarnessFactory()
+// sets, in the game instance's Init(), and released when it shuts down.
+class IScfgShowcaseHarness
+{
+public:
+	virtual ~IScfgShowcaseHarness() = default;
+	// True: the showcase configures itself, as it does without a harness (Options() and Items() are not used).
+	virtual bool OwnConfig() const = 0;
+	// Configure()'s options and the items to AddItem(), when OwnConfig() is false.
+	virtual const FScfgOptions& Options() const = 0;
+	virtual const TMap<FString, FScfgItem>& Items() const = 0;
+	// Called once the showcase is configured (or refused for want of a wallet): false (logged) quits with exit code 1.
+	virtual bool Start() = 0;
+};
+
+// Where the payments go (see THE WALLET in the file header): the command line's wallets, else the project settings'.
+struct FScfgShowcaseWallets
+{
+	FString Wallet;
+	FString SolanaWallet;
+	// The wallets came from -scfg-showcase-wallet= / -scfg-showcase-solana-wallet=.
+	bool bFromCommandLine = false;
+
+	bool IsEmpty() const { return Wallet.IsEmpty() && SolanaWallet.IsEmpty(); }
+};
+
 UCLASS()
-class UScfgShowcaseGameInstance : public UGameInstance
+class SCFGSHOWCASE_API UScfgShowcaseGameInstance : public UGameInstance
 {
 	GENERATED_BODY()
 
@@ -169,6 +207,20 @@ public:
 	void ClearLocalData();
 	void ToggleNotify();
 
+	// The harness hook (see the file header): Factory is called once per game instance, in Init(), and returns the
+	// harness, or null for none; it sets bOutFailed (having logged why) when a harness was asked for but cannot be made,
+	// and the game then quits with exit code 1. An empty factory (the default) is no harness: a game never sets one.
+	using FHarnessFactory =
+		TFunction<TSharedPtr<IScfgShowcaseHarness>(UScfgShowcaseGameInstance& Game, bool& bOutFailed)>;
+	static void SetHarnessFactory(FHarnessFactory Factory);
+
+	// The wallets the showcase pays (THE WALLET in the file header): -scfg-showcase-wallet= and
+	// -scfg-showcase-solana-wallet= in CommandLine (either one replaces both of the settings'), else the settings'
+	// Options.Wallet and Options.SolanaWallet, trimmed. Empty: no wallet, nothing is configured.
+	static FScfgShowcaseWallets FindWallets(const TCHAR* CommandLine, const UScfgSettings& Settings);
+	// What the HUD and the log say when no wallet is set.
+	static const TCHAR* const NO_WALLET;
+
 	TSharedPtr<SScfgShowcaseHud> GetHud() const { return Hud; }
 	UScfgSubsystem* Scfg() const;
 	// The game is paused because a sheet is open.
@@ -185,7 +237,9 @@ private:
 
 	// Configures the plugin (see CONFIGURATION in the header): false when the plugin refused it (it logged why).
 	bool ConfigureScfg();
-	bool ConfigureInCode();
+	bool ConfigureInCode(const FScfgShowcaseWallets& Wallets);
+	// Refuses the configuration: Why goes to the HUD and the log (as a warning).
+	bool Refuse(const FString& Why);
 	bool AddItems();
 	void BuildShop();
 	void Refresh();
@@ -197,7 +251,7 @@ private:
 	void BeginSheet();
 	void EndSheet();
 	void AfterFlow();
-	// The setup failed under the e2e driver: quit with exit code 1.
+	// The setup failed under a harness: quit with exit code 1.
 	void Fail();
 
 	UFUNCTION()
@@ -210,9 +264,13 @@ private:
 	// Where the configuration came from, as the HUD says it.
 	FString ConfiguredFrom;
 	bool bConfigured = false;
+	// No wallet is set (the refusal a harness may check: the game keeps running under it).
+	bool bNoWallet = false;
+	// What the HUD shows instead of the shop when the configuration was refused.
+	FString RefusedText;
 	int32 Busy = 0;
 	bool bWasPaused = false;
 	bool bFailed = false;
-	// The e2e driver, outside Shipping when -scfg-e2e= is given (never made in Shipping, where the class is not built).
-	TSharedPtr<FScfgE2EDriver> Driver;
+	// The harness, when the factory made one (the dev project's e2e driver, with -scfg-e2e=).
+	TSharedPtr<IScfgShowcaseHarness> Harness;
 };

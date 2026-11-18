@@ -9,7 +9,8 @@ name: release
 # PyPI and npm use trusted publishing: no token is stored here. Each registry's stablecoin-games-renpy
 # package trusts this repository, this workflow file and its environment ("pypi", "npm").
 # The Unreal plugin ships as three zips, dist/scfg-unreal-<version>-ue5.6.zip, -ue5.7.zip and -ue5.8.zip (one per
-# engine version); tools/package.py refuses a Scfg.uplugin VersionName that differs from scfg_core.__version__. Its
+# engine version), and its optional showcase sample as dist/scfg-unreal-showcase-<version>.zip; tools/package.py
+# refuses a Scfg.uplugin or ScfgShowcase.uplugin VersionName that differs from scfg_core.__version__. Its
 # editor builds, automation tests and e2e need Unreal Engine and run in unreal.yml (on a self-hosted runner), not here.
 # Neither editor workflow runs on a tag: before tagging, check that unity.yml and unreal.yml ran green on the tagged
 # commit, or run their suites locally (README.md, "Releasing").
@@ -93,7 +94,7 @@ jobs:
             exit 1
           fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
-      - name: Build the Unreal zips (one per engine version, 5.6, 5.7 and 5.8)
+      - name: Build the Unreal zips (one per engine version, 5.6, 5.7 and 5.8, and the showcase sample's)
         run: uv run python tools/package.py --engine unreal
 
       - name: Build the release archives
@@ -117,6 +118,7 @@ jobs:
           - \`scfg-renpy-$VERSION.zip\`: Ren'Py 8.2+ (or run \`uvx stablecoin-games-renpy install .\` in the project)
           - \`scfg-godot-$VERSION.zip\`: Godot 4.3+ (preview). Install it from the editor's AssetLib tab with Import..., or copy the \`addons\` folder inside it into your project
           - \`scfg-unreal-$VERSION-ue5.x.zip\`: Unreal Engine 5.6+ (preview, tested on UE 5.8.4, Linux desktop). Pick the zip for your engine version (\`-ue5.6\`, \`-ue5.7\` or \`-ue5.8\`) and unzip it into your project's \`Plugins/\` folder
+          - \`scfg-unreal-showcase-$VERSION.zip\`: optional, the Unreal showcase sample (a one-screen tour of the API on testnets) for a spare project; its folder goes next to the plugin's in \`Plugins/\`, and its README says how to wire it
           - \`scfg-rpgmaker-mz-$VERSION.zip\`: RPG Maker MZ (preview, not yet tested in real RPG Maker MZ)
           - \`scfg-unity-$VERSION.tgz\`: Unity 6.3 LTS+ (preview, tested on Unity 6000.6.9f1, Linux and WebGL players). In the Package Manager: + > Add package from tarball, or + > Add package from git URL with \`https://github.com/$GITHUB_REPOSITORY.git?path=unity/Packages/com.repulse.scfg#$GITHUB_REF_NAME\`
 
@@ -131,6 +133,7 @@ jobs:
             "dist/scfg-unreal-$VERSION-ue5.6.zip" \
             "dist/scfg-unreal-$VERSION-ue5.7.zip" \
             "dist/scfg-unreal-$VERSION-ue5.8.zip" \
+            "dist/scfg-unreal-showcase-$VERSION.zip" \
             "dist/scfg-rpgmaker-mz-$VERSION.zip" \
             "dist/scfg-unity-$VERSION.tgz" \
             --title "Stablecoin for Games $VERSION" \

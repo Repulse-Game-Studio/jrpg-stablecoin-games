@@ -176,6 +176,45 @@ def test_the_tour_checks_the_showcase_logo():
     assert (e2e.PROJECT.parent / e2e.SHOWCASE_LOGO).read_bytes().startswith(b"\x89PNG")
 
 
+def test_the_showcase_plugin_stages_its_own_logo_and_falls_back_to_the_projects():
+    """ConfigureInCode's logo is the showcase plugin's Resources/logo.png when the plugin is inside
+    the project, which its Build.cs stages with a packaged game (the packaged run checks it is
+    staged), else the project's Content/Showcase/logo.png: the dev project's copy, the same file."""
+    plugin = e2e.ROOT / "unreal" / "Plugins" / "ScfgShowcase"
+    assert e2e.PLUGIN_LOGO == "ScfgShowcase/Resources/logo.png"
+    logo = (plugin.parent / e2e.PLUGIN_LOGO).read_bytes()
+    assert logo.startswith(b"\x89PNG")
+    assert logo == (e2e.PROJECT.parent / e2e.SHOWCASE_LOGO).read_bytes()
+    build = (plugin / "Source" / "ScfgShowcase" / "ScfgShowcase.Build.cs").read_text()
+    assert 'RuntimeDependencies.Add(Path.Combine(PluginDirectory, "Resources", "logo.png")' in build
+    source = (plugin / "Source" / "ScfgShowcase" / "Private" / "ScfgShowcase.cpp").read_text()
+    assert 'LOGO_FILE = TEXT("Resources/logo.png")' in source
+    assert f'PROJECT_LOGO = TEXT("{e2e.SHOWCASE_LOGO}")' in source
+
+
+def test_the_no_wallet_start_blanks_the_settings_wallet_and_expects_the_showcases_refusal():
+    """The third start overrides the settings' Options with no wallet (one -ini value, no comma);
+    the HUD's text is the showcase's NO_WALLET, and the two warnings it allows are exactly the
+    plugin's and the showcase's."""
+    assert e2e.NO_WALLET_ARGS == ("-ini:Game:[/Script/Scfg.ScfgSettings]:Options=(bTestnet=True)",)
+    assert "," not in e2e.NO_WALLET_ARGS[0]
+    source = (e2e.ROOT / "unreal" / "Plugins" / "ScfgShowcase" / "Source" / "ScfgShowcase"
+              / "Private" / "ScfgShowcase.cpp").read_text()
+    assert 'TEXT("No wallet is set, so SCFG is not configured and nothing "\n\t"can be paid.' in source
+    assert "0x52908400098527886E0F7030069857D2E4169EE7" not in source
+    log = "\n".join([
+        "[1][0]LogScfg: Warning: scfg: the SCFG settings (Project Settings > Plugins > SCFG) have "
+        "chains or items but no wallet, so they are not applied at start: set a wallet there, "
+        "configure from code, or call ConfigureWithSettings(Wallet) with a wallet supplied at runtime.",
+        "[1][0]LogScfgShowcase: Warning: showcase: " + e2e.NO_WALLET + " Put your wallet address in "
+        "Project Settings > Plugins > SCFG > Wallet (with Testnet on), or start the game with "
+        "-scfg-showcase-wallet=0x...",
+    ])
+    assert e2e.no_wallet_warnings(log) == []
+    assert len(e2e.no_wallet_warnings(log.splitlines()[0])) == 1
+    assert len(e2e.no_wallet_warnings(log + "\n" + log)) == 2
+
+
 def test_the_game_command_renders_on_the_cpu_and_never_headless(tmp_path):
     engine = Path("/ue")
     cmd = e2e.game_command(engine, tmp_path / "c.json", tmp_path / "user")
@@ -209,7 +248,9 @@ def test_problems_are_every_error_and_warning_but_the_measured_engine_ones():
         "[1][0]LogScfg: Error: scfg: worker error: boom",
         "[1][0]LogClass: Error: StructProperty FSomeOtherStruct::Date is not initialized properly",
         "[1][0]LogScfg: Warning: scfg: cannot open the http: link: no xdg-open",
-        "[1][0]LogScfgDev: Warning: showcase: no game viewport, no HUD",
+        "[1][0]LogScfgShowcase: Warning: showcase: no game viewport, no HUD",
+        "[1][0]LogScfgShowcase: Warning: showcase: No wallet is set, so SCFG is not configured and "
+        "nothing can be paid. Put your wallet address in Project Settings > Plugins > SCFG > Wallet",
         "[1][0]LogSlate: Error: something the plugin made Slate say",
         "[1][0]LogHttp: Warning: a request of ours",
         "[1][0]LogEditorDataStorageUI: Warning: something else of that category",

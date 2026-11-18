@@ -1,5 +1,6 @@
-"""Build the Unreal release zips (`tools/package.py --engine unreal`): one per supported engine
-version, dist/scfg-unreal-<version>-ue5.6.zip, -ue5.7.zip and -ue5.8.zip.
+"""Build the Unreal release zips (`tools/package.py --engine unreal`): the plugin's, one per
+supported engine version, dist/scfg-unreal-<version>-ue5.6.zip, -ue5.7.zip and -ue5.8.zip, and the
+optional showcase sample's, dist/scfg-unreal-showcase-<version>.zip.
 
 Each zip holds the plugin folder, which developers copy into their project's Plugins/ folder:
 
@@ -26,6 +27,26 @@ The version is in two places in the zip, the .uplugin's VersionName and the core
 scfg::VERSION (Source/ScfgCore/Private/Version.cpp); both must equal scfg_core's __version__.
 Resources/Web/bridge.js (the web exports' bridge, which sync_web_page.py keeps in every copy of the
 page) is left out: the Unreal server never serves it and Scfg.Build.cs never stages it.
+
+THE SHOWCASE ZIP. The showcase (unreal/Plugins/ScfgShowcase, the dev project's game) is a plugin of
+its own, so the plugin zips stay Fab's: they hold the Scfg plugin and nothing else. Its zip holds
+the sample's folder, which developers copy next to Scfg/ in their project's Plugins/ folder:
+
+    ScfgShowcase/
+        ScfgShowcase.uplugin           (as in the tree: it depends on the Scfg plugin, names no
+                                       engine version)
+        Source/ScfgShowcase/           (source only: the game instance, game mode, controller, HUD)
+        Resources/logo.png             (the sheet's logo, which ScfgShowcase.Build.cs stages)
+        README.md                      (how to install and wire it: Game Instance Class and the
+                                       engine's /Engine/Maps/Entry, since it has no level; the
+                                       wallet in the SCFG project settings, with Testnet on)
+        LICENSE                        (MIT license)
+
+The same rules as the plugin's: no build output or hidden files, every path 170 characters or
+less, its VersionName the core's version. Its modules must be SHOWCASE_MODULES, and its source may
+include none of the Scfg plugin's private headers (Source/*/Private/), so it builds in any project
+with the plugin. The repository's dev project loads it from unreal/Plugins and hands it the e2e
+driver, which stays in the dev project's module.
 
 Every file is copied byte for byte, apart from Scfg.uplugin; the zips are reproducible (sorted
 entries, fixed timestamps).
@@ -65,6 +86,12 @@ FILTER_PLUGIN = """[FilterPlugin]
 /NOTICES.txt
 """
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
+SHOWCASE = ROOT / "unreal" / "Plugins" / "ScfgShowcase"
+SHOWCASE_ROOT = "ScfgShowcase/"
+SHOWCASE_MODULES = ("ScfgShowcase",)
+# The showcase's own files beside its Source/ and Resources/ (the LICENSE is the repository's).
+SHOWCASE_FILES = ("ScfgShowcase.uplugin", "README.md")
+INCLUDE = re.compile(r'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 
 
 def zip_name(engine, version=__version__):
@@ -191,6 +218,106 @@ def path_problems(names):
             if len(name) > MAX_PATH]
 
 
+def showcase_zip_name(version=__version__):
+    return f"scfg-unreal-showcase-{version}.zip"
+
+
+def private_headers(plugin=PLUGIN):
+    """The include paths a dependent cannot reach: every header under the plugin's
+    Source/*/Private/, relative to that Private/ folder ("ScfgFacade.h", "UI/SScfgScreen.h")."""
+    out = set()
+    for private in (plugin / "Source").glob("*/Private"):
+        out |= {p.relative_to(private).as_posix() for p in private.rglob("*.h")}
+    return out
+
+
+def showcase_problems(showcase=SHOWCASE, plugin=PLUGIN, version=__version__):
+    """What stops the showcase zip: its .uplugin's version, its modules, its dependency on Scfg,
+    and an include of one of the plugin's private headers."""
+    out = []
+    found = json.loads((showcase / "ScfgShowcase.uplugin").read_text(encoding="utf-8"))
+    if found.get("VersionName") != version:
+        out.append(f"ScfgShowcase.uplugin VersionName {found.get('VersionName')} != scfg_core "
+                   f"{version} (the release bump sets it)")
+    modules = [m.get("Name") for m in found.get("Modules", [])]
+    if modules != list(SHOWCASE_MODULES):
+        out.append(f"ScfgShowcase.uplugin modules {modules} != {list(SHOWCASE_MODULES)}")
+    folders = sorted(p.name for p in (showcase / "Source").iterdir() if p.is_dir())
+    if folders != sorted(SHOWCASE_MODULES):
+        out.append(f"ScfgShowcase Source/ folders {folders} != {list(SHOWCASE_MODULES)}")
+    if {"Name": "Scfg", "Enabled": True} not in found.get("Plugins", []):
+        out.append("ScfgShowcase.uplugin does not depend on the Scfg plugin")
+    private = private_headers(plugin)
+    public = {p.relative_to(public).as_posix() for public in (plugin / "Source").glob("*/Public")
+              for p in public.rglob("*.h")}
+    for path in sorted((showcase / "Source").rglob("*")):
+        if path.suffix not in (".h", ".cpp", ".cs") or not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        rel = path.relative_to(showcase).as_posix()
+        for name in INCLUDE.findall(text):
+            if name in private and name not in public:
+                out.append(f"{rel} includes {name}, a private header of the Scfg plugin")
+        if path.suffix == ".cs" and "PrivateIncludePaths" in text:
+            out.append(f"{rel} adds include paths: the showcase uses the plugin's public API only")
+    for name in SHOWCASE_FILES:
+        if not (showcase / name).is_file():
+            out.append(f"ScfgShowcase has no {name}")
+    return out
+
+
+def showcase_files(showcase=SHOWCASE):
+    """(path, name) for the showcase's files, sorted, names relative to its folder: its .uplugin
+    and README, Source/<module>/ and Resources/, without build output or hidden files."""
+    found = [(showcase / name, name) for name in SHOWCASE_FILES]
+    roots = [showcase / "Source" / m for m in SHOWCASE_MODULES] + [showcase / "Resources"]
+    for root in roots:
+        for path in root.rglob("*"):
+            rel = path.relative_to(showcase)
+            if path.is_dir() or SKIP_PARTS & set(rel.parts):
+                continue
+            if any(part.startswith(".") for part in rel.parts) or path.name.endswith("~"):
+                continue
+            found.append((path, rel.as_posix()))
+    return sorted(found, key=lambda item: item[1])
+
+
+def showcase_entries(showcase=SHOWCASE):
+    """(name in the zip, bytes) for the showcase zip, sorted by name."""
+    out = [(SHOWCASE_ROOT + name, path.read_bytes()) for path, name in showcase_files(showcase)]
+    if any(name == SHOWCASE_ROOT + "LICENSE" for name, _data in out):
+        raise ValueError(f"{showcase / 'LICENSE'} would be overwritten by the repository's LICENSE")
+    out.append((SHOWCASE_ROOT + "LICENSE", (ROOT / "LICENSE").read_bytes()))
+    return sorted(out)
+
+
+def write_zip(target, files):
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, data in files:
+            info = zipfile.ZipInfo(name, ZIP_DATE)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            zf.writestr(info, data)
+
+
+def build_showcase_zip(dist, showcase=SHOWCASE, plugin=PLUGIN, version=__version__):
+    """dist/scfg-unreal-showcase-<version>.zip (see THE SHOWCASE ZIP in the module docstring); the
+    path written."""
+    found = showcase_problems(showcase, plugin, version)
+    if found:
+        raise ValueError("the Unreal showcase is not ready:\n  " + "\n  ".join(found))
+    files = showcase_entries(showcase)
+    too_long = path_problems(name for name, _data in files)
+    if too_long:
+        raise ValueError(f"Fab allows paths of {MAX_PATH} characters at most:\n  "
+                         + "\n  ".join(too_long))
+    dist.mkdir(parents=True, exist_ok=True)
+    target = dist / showcase_zip_name(version)
+    write_zip(target, files)
+    print(f"  {target.name}: {len(files)} files")
+    return target
+
+
 def build_unreal_zips(dist, plugin=PLUGIN, version=__version__):
     """dist/scfg-unreal-<version>-ue<5.x>.zip for each of ENGINE_VERSIONS (see the module
     docstring); the paths written."""
@@ -206,22 +333,18 @@ def build_unreal_zips(dist, plugin=PLUGIN, version=__version__):
             raise ValueError(f"Fab allows paths of {MAX_PATH} characters at most:\n  "
                              + "\n  ".join(too_long))
         target = dist / zip_name(engine, version)
-        with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
-            for name, data in files:
-                info = zipfile.ZipInfo(name, ZIP_DATE)
-                info.compress_type = zipfile.ZIP_DEFLATED
-                info.external_attr = 0o644 << 16
-                zf.writestr(info, data)
+        write_zip(target, files)
         print(f"  {target.name}: {len(files)} files")
         targets.append(target)
     return targets
 
 
-def main(dist, plugin=PLUGIN):
-    """`tools/package.py --engine unreal`: build the zips into `dist`; 1, with the reason on
-    stderr, when the plugin is not ready."""
+def main(dist, plugin=PLUGIN, showcase=SHOWCASE):
+    """`tools/package.py --engine unreal`: build the plugin's zips and the showcase's into `dist`;
+    1, with the reason on stderr, when the plugin or the showcase is not ready."""
     try:
         targets = build_unreal_zips(dist, plugin)
+        targets.append(build_showcase_zip(dist, showcase, plugin))
     except ValueError as error:
         print(f"package.py --engine unreal: {error}", file=sys.stderr)
         return 1

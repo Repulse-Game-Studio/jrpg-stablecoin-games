@@ -2,7 +2,7 @@
 	"FileVersion": 3,
 	"EngineAssociation": "5.8",
 	"Category": "",
-	"Description": "Development project for the Scfg plugin (unreal/Plugins/Scfg): builds it and runs its automation tests.",
+	"Description": "Development project for the Scfg plugin (unreal/Plugins/Scfg): builds it, runs its automation tests and plays the showcase (unreal/Plugins/ScfgShowcase).",
 	"Modules": [
 		{
 			"Name": "ScfgDev",
@@ -13,6 +13,10 @@
 	"Plugins": [
 		{
 			"Name": "Scfg",
+			"Enabled": true
+		},
+		{
+			"Name": "ScfgShowcase",
 			"Enabled": true
 		},
 		{

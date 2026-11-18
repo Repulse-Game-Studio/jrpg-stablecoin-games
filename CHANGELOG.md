@@ -17,3 +17,13 @@ version). The generated list of changes follows it there.
   false }` in Unity, `FScfgOptions.Onramp.bEnabled = false` in Unreal. See
   [the buy link](docs/developers/configure/README.md#the-buy-link).
 - Web builds open every outside link (the buy page, the explorer) with `noopener,noreferrer`.
+- **Faster "can't reach the network".** Every engine's RPC request timeout now covers the name lookup, a call spends
+  at most 15 s across a chain's endpoints (not 10 s per endpoint), and picking another network while a payment is
+  starting cancels the first start instead of waiting behind it. A start that cannot reach the network says "Can't
+  reach the network. Pick a network to try again." (the waiting screen's "Retrying..." is the one that retries).
+- A custom chain's `explorer_tx` may be `http://127.0.0.1` / `http://localhost` (a local devnet's explorer).
+- Unity: the samples pay your wallet (their component's, or the SCFG Settings asset's) and refuse when none is set;
+  an asset without a wallet is not applied and is no longer an error; `settings.Apply(wallet)` applies it with a
+  wallet supplied at runtime; WebGL builds from any active platform; the package's tests ship (run them through
+  `testables`). Unreal: `ConfigureWithSettings(Wallet, SolanaWallet)` does the same for the project settings, and
+  the showcase ships as an optional sample, `scfg-unreal-showcase-<version>.zip`.

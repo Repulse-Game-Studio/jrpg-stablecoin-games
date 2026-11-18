@@ -49,16 +49,40 @@ in the editor, and Blueprint-only projects.
 
 ## Try the showcase first
 
-The repository's development project, `unreal/Project/ScfgDev`, is a one-screen tour of the whole API. It has three
-unlocks (one with a pay-what-you-want amount), a tip jar, Restore, Export and Clear, and next to them it shows what
-the plugin knows (owned items, tips, pending payments, receipts) and a live log of every result and event. It is
-configured from the project settings, and from code when started with `-scfg-showcase-code`. Its
-`Source/ScfgDev/ScfgShowcase.cpp` is written to be read top to bottom.
+The showcase is a one-screen tour of the whole API, shipped as an optional sample plugin, `ScfgShowcase`. It has
+three unlocks (one with a pay-what-you-want amount), a tip jar, Restore, Export and Clear, and next to them it shows
+what the plugin knows (owned items, tips, pending payments, receipts) and a live log of every result and event. Its
+`Source/ScfgShowcase/Private/ScfgShowcase.cpp` is written to be read top to bottom. It runs on testnets only, so no
+real money moves, and it pays only your wallet: with none set, it configures nothing and says so on its screen.
 
-How to build and run it, in the editor or as a game, and how to pay on a testnet, is in its
-[README](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/blob/main/unreal/Project/ScfgDev/README.md).
-It needs UE 5.8 and runs on testnets, so no real money moves. Put your own testnet wallet in its project settings to
-watch a real test payment arrive. Get test USDC from [Circle's faucet](https://faucet.circle.com/).
+It has no level of its own. It is a game instance class, `UScfgShowcaseGameInstance`, that draws its screen over
+whatever map is loaded and picks its own game mode; it runs on the engine's empty `/Engine/Maps/Entry`.
+
+1. Download `scfg-unreal-showcase-<version>.zip` from the
+   [release page](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases), next to the plugin's zips.
+   Use a fresh or spare C++ project, since the showcase replaces the project's game instance.
+2. With the plugin installed as above, copy the zip's `ScfgShowcase` folder next to it:
+   `<YourProject>/Plugins/ScfgShowcase/ScfgShowcase.uplugin`. Open the project and let the editor build it.
+3. In **Project Settings > Maps & Modes**, set **Game Instance Class** to `ScfgShowcaseGameInstance` and
+   **Game Default Map** to `/Engine/Maps/Entry`. In `Config/DefaultEngine.ini` that is:
+
+   ```ini
+   [/Script/EngineSettings.GameMapsSettings]
+   GameDefaultMap=/Engine/Maps/Entry
+   GameInstanceClass=/Script/ScfgShowcase.ScfgShowcaseGameInstance
+   ```
+
+4. Put your own testnet wallet in **Project Settings > Plugins > SCFG > Wallet**, with **Testnet** on (or start the
+   game with `-scfg-showcase-wallet=0x...`).
+5. Run the project as a game (`UnrealEditor <YourProject>.uproject -game`), or press **Play** in the editor (Play in
+   the editor has not been run by the automated tests yet).
+
+The showcase's `README.md`, in the zip, has the details: where its configuration comes from, how to pay on a testnet
+and the faucets for test money, and packaging. Remove the plugin before you ship your game. From the 0.3.0 zips it
+has been built in a fresh C++ project and started there as a game, headless (UE 5.8.4, Linux).
+
+The repository's development project, `unreal/Project/ScfgDev`, runs the same showcase: it loads the plugin from
+`unreal/Plugins/ScfgShowcase`, and its automated tests play it.
 
 ## Your first payment in C++
 

@@ -1,5 +1,5 @@
 // Copyright 2026 Repulse
-// The development project's log category: the showcase and the e2e driver.
+// The development project's log category: the e2e driver (the showcase logs to LogScfgShowcase).
 #pragma once
 
 #include "CoreMinimal.h"

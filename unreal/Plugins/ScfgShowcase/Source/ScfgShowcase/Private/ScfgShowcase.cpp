@@ -6,37 +6,43 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
+#include "HAL/FileManager.h"
+#include "Interfaces/IPluginManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "Misc/DateTime.h"
 #include "Misc/Parse.h"
+#include "Misc/Paths.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
-#include "ScfgDevLog.h"
 #include "ScfgSettings.h"
+#include "ScfgShowcaseLog.h"
 #include "ScfgSubsystem.h"
-#if !UE_BUILD_SHIPPING
-#include "ScfgE2EDriver.h"
-#endif
 
 namespace ScfgShowcaseDetail
 {
 // --- 1. Configuration ------------------------------------------------------------------------------------------------
-// The project settings (Config/DefaultGame.ini, [/Script/Scfg.ScfgSettings]) hold these same values; ConfigureInCode()
-// uses them with -scfg-showcase-code, or when the project has no settings.
+// ConfigureInCode() uses these values, with -scfg-showcase-code or when the project settings have no items; the dev
+// project's settings (its Config/DefaultGame.ini, [/Script/Scfg.ScfgSettings]) hold the same items and accent.
+//
+// There is no wallet here: the payments go to yours, from the command line or the project settings (FindWallets).
 
-// The wallet that receives the payments. This placeholder is the public example address from the EIP-55 spec: it is
-// not yours, so a real payment to it would be lost. Replace it with your own (here and in the project settings).
-const TCHAR* const WALLET = TEXT("0x52908400098527886E0F7030069857D2E4169EE7");
+// The command-line switches that give the payout wallets (an EVM 0x address, a Solana address).
+const TCHAR* const WALLET_SWITCH = TEXT("scfg-showcase-wallet=");
+const TCHAR* const SOLANA_WALLET_SWITCH = TEXT("scfg-showcase-solana-wallet=");
 // The accent color of the payment sheet, as "#rrggbb".
 const TCHAR* const ACCENT = TEXT("#7c5cff");
-// The logo on the payment sheet and the checkout page, relative to the project folder. A loose file: its folder
-// (Content/Showcase) is in Project Settings > Packaging > Additional Non-Asset Directories to Package, so a packaged
-// game has it too (Config/DefaultGame.ini).
-const TCHAR* const LOGO = TEXT("Content/Showcase/logo.png");
+// The logo on the payment sheet and the checkout page, a path inside the project folder (Configure() takes no other):
+// this plugin's Resources/logo.png when the plugin is in the project's Plugins folder (a loose file, which
+// ScfgShowcase.Build.cs stages with a packaged game at the plugin's own path), else Content/Showcase/logo.png when the
+// project has one (the repository's dev project, which loads the plugin from outside its folder, keeps a copy there
+// and stages its folder: its Config/DefaultGame.ini). Neither found, the showcase configures without a logo.
+const TCHAR* const PLUGIN_NAME = TEXT("ScfgShowcase");
+const TCHAR* const LOGO_FILE = TEXT("Resources/logo.png");
+const TCHAR* const PROJECT_LOGO = TEXT("Content/Showcase/logo.png");
 
 // The paid items, passed to AddItem(). Code (1-99) identifies the item in the payment amount: never change it after
 // release. Pay may charge another amount than the price: anything above it (pay what you want), or down to an optional
@@ -66,8 +72,33 @@ const TCHAR* const TIP_AMOUNTS[] = {TEXT("0.50"), TEXT("1.00"), TEXT("3.00")};
 const TCHAR* const CODE_SWITCH = TEXT("scfg-showcase-code");
 
 const TCHAR* const FROM_SETTINGS = TEXT("the project settings (Config/DefaultGame.ini)");
+const TCHAR* const FROM_SETTINGS_WALLET = TEXT("the project settings, with the wallet from the command line");
 const TCHAR* const FROM_CODE = TEXT("code (ConfigureInCode)");
-const TCHAR* const FROM_E2E = TEXT("the e2e config");
+const TCHAR* const FROM_HARNESS = TEXT("the e2e config");
+
+// The logo, relative to the project folder, or "" when neither file is there.
+FString LogoPath()
+{
+	const FString Project = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+	if (const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(PLUGIN_NAME); Plugin.IsValid())
+	{
+		const FString Full = FPaths::ConvertRelativePathToFull(Plugin->GetBaseDir() / LOGO_FILE);
+		FString Relative = Full;
+		if (IFileManager::Get().FileExists(*Full) && FPaths::MakePathRelativeTo(Relative, *Project)
+			&& !Relative.StartsWith(TEXT("..")) && FPaths::IsRelative(Relative))
+		{
+			return Relative;
+		}
+	}
+	return IFileManager::Get().FileExists(*(Project / PROJECT_LOGO)) ? FString(PROJECT_LOGO) : FString();
+}
+
+// The harness factory (UScfgShowcaseGameInstance::SetHarnessFactory): empty in a game.
+UScfgShowcaseGameInstance::FHarnessFactory& HarnessFactory()
+{
+	static UScfgShowcaseGameInstance::FHarnessFactory Factory;
+	return Factory;
+}
 
 // The status words of godot/showcase (the core's status strings).
 FString Word(EScfgPaymentStatus Status)
@@ -370,25 +401,54 @@ AScfgShowcasePlayerController* UScfgShowcaseGameInstance::PlayerController() con
 	return Cast<AScfgShowcasePlayerController>(GetFirstLocalPlayerController());
 }
 
+const TCHAR* const UScfgShowcaseGameInstance::NO_WALLET = TEXT("No wallet is set, so SCFG is not configured and nothing "
+	"can be paid. Put your wallet address in Project Settings > Plugins > SCFG > Wallet (with Testnet on), or start the "
+	"game with -scfg-showcase-wallet=0x...");
+
+void UScfgShowcaseGameInstance::SetHarnessFactory(FHarnessFactory Factory)
+{
+	ScfgShowcaseDetail::HarnessFactory() = MoveTemp(Factory);
+}
+
+FScfgShowcaseWallets UScfgShowcaseGameInstance::FindWallets(const TCHAR* CommandLine, const UScfgSettings& Settings)
+{
+	using namespace ScfgShowcaseDetail;
+	FScfgShowcaseWallets Out;
+	FString Wallet;
+	FString SolanaWallet;
+	const bool bWallet = FParse::Value(CommandLine, WALLET_SWITCH, Wallet);
+	const bool bSolanaWallet = FParse::Value(CommandLine, SOLANA_WALLET_SWITCH, SolanaWallet);
+	if (bWallet || bSolanaWallet)
+	{
+		Out.Wallet = Wallet.TrimStartAndEnd();
+		Out.SolanaWallet = SolanaWallet.TrimStartAndEnd();
+		Out.bFromCommandLine = !Out.IsEmpty();
+	}
+	if (!Out.bFromCommandLine)
+	{
+		Out.Wallet = Settings.Options.Wallet.TrimStartAndEnd();
+		Out.SolanaWallet = Settings.Options.SolanaWallet.TrimStartAndEnd();
+	}
+	return Out;
+}
+
 void UScfgShowcaseGameInstance::Init()
 {
 	Super::Init();  // the subsystem's Initialize: the project settings are applied here (when they have a wallet)
-#if !UE_BUILD_SHIPPING
-	FString ConfigPath;
-	if (FScfgE2EDriver::Requested(ConfigPath))
+	if (const FHarnessFactory& Factory = ScfgShowcaseDetail::HarnessFactory())
 	{
-		Driver = FScfgE2EDriver::Create(ConfigPath, this);
-		if (!Driver.IsValid())
+		bool bHarnessFailed = false;
+		Harness = Factory(*this, bHarnessFailed);
+		if (bHarnessFailed)
 		{
-			Fail();  // the driver logged why
+			Fail();  // the factory logged why
 			return;
 		}
 	}
-#endif
 	// Before the first frame: payments start on the first frame after a configuration, and a Configure() after that is
 	// configure.after_start.
 	bConfigured = ConfigureScfg();
-	if (!bConfigured && Driver.IsValid())
+	if (!bConfigured && Harness.IsValid() && !bNoWallet)
 	{
 		Fail();
 		return;
@@ -398,55 +458,76 @@ void UScfgShowcaseGameInstance::Init()
 		S->OnPaymentResolved.AddDynamic(this, &UScfgShowcaseGameInstance::HandlePaymentResolved);
 		S->OnReceiptsChanged.AddDynamic(this, &UScfgShowcaseGameInstance::HandleReceiptsChanged);
 	}
-#if !UE_BUILD_SHIPPING
-	if (Driver.IsValid() && !Driver->Start())
+	if (Harness.IsValid() && !Harness->Start())
 	{
 		Fail();
 	}
-#endif
 }
 
 bool UScfgShowcaseGameInstance::ConfigureScfg()
 {
 	using namespace ScfgShowcaseDetail;
+	RefusedText = TEXT("The plugin refused the configuration; see the Output Log (LogScfg).");
 	UScfgSubsystem* S = Scfg();
 	if (!S)
 	{
-		UE_LOG(LogScfgDev, Error, TEXT("showcase: the Scfg subsystem is missing"));
+		UE_LOG(LogScfgShowcase, Error, TEXT("showcase: the Scfg subsystem is missing"));
 		return false;
 	}
 	S->SetNotify(true);  // show a "Payment confirmed" toast for payments that confirm in the background
-#if !UE_BUILD_SHIPPING
-	if (Driver.IsValid() && !Driver->OwnConfig())
+	if (Harness.IsValid() && !Harness->OwnConfig())
 	{
-		ConfiguredFrom = FROM_E2E;
+		ConfiguredFrom = FROM_HARNESS;
 		// Configure and AddItem return "" or the error they logged ("LogScfg: Error: scfg: ...").
-		if (!S->Configure(Driver->Options()).IsEmpty())
+		if (!S->Configure(Harness->Options()).IsEmpty())
 		{
 			return false;
 		}
-		for (const TPair<FString, FScfgItem>& Item : Driver->Items())
+		for (const TPair<FString, FScfgItem>& Item : Harness->Items())
 		{
 			Items.Add({Item.Key, Item.Value});
 		}
 		return AddItems();
 	}
-#endif
+	// The wallet first: never a placeholder's.
 	const UScfgSettings* Settings = GetDefault<UScfgSettings>();
-	if (FParse::Param(FCommandLine::Get(), CODE_SWITCH) || Settings->IsEmpty())
+	const FScfgShowcaseWallets Wallets = FindWallets(FCommandLine::Get(), *Settings);
+	if (Wallets.IsEmpty())
+	{
+		bNoWallet = true;
+		return Refuse(NO_WALLET);
+	}
+	if (FParse::Param(FCommandLine::Get(), CODE_SWITCH) || Settings->Items.IsEmpty())
 	{
 		ConfiguredFrom = FROM_CODE;
-		return ConfigureInCode();
+		return ConfigureInCode(Wallets);
 	}
-	// The subsystem applied the project settings when the game instance started (Super::Init()); a setting it refused
-	// was logged then. Validate() runs the same checks, without touching the subsystem.
-	ConfiguredFrom = FROM_SETTINGS;
-	if (const TArray<FScfgSettingsProblem> Problems = Settings->Validate(); !Problems.IsEmpty())
+	if (!Settings->Options.bTestnet)
 	{
-		UE_LOG(LogScfgDev, Error, TEXT("showcase: the SCFG project settings were not applied (%d problem(s), the first "
-			"%s: %s): press Validate in Project Settings > Plugins > SCFG"), Problems.Num(), *Problems[0].Code,
-			*Problems[0].Message);
-		return false;
+		return Refuse(TEXT("The SCFG project settings have Testnet off, and the showcase runs on testnets only: turn "
+			"Testnet on in Project Settings > Plugins > SCFG."));
+	}
+	if (Wallets.bFromCommandLine)
+	{
+		// The settings were not applied at start (they have no wallet), or had other wallets: these replace them.
+		ConfiguredFrom = FROM_SETTINGS_WALLET;
+		if (!S->ConfigureWithSettings(Wallets.Wallet, Wallets.SolanaWallet).IsEmpty())
+		{
+			return false;
+		}
+	}
+	else
+	{
+		// The subsystem applied the project settings when the game instance started (Super::Init()); a setting it
+		// refused was logged then. Validate() runs the same checks, without touching the subsystem.
+		ConfiguredFrom = FROM_SETTINGS;
+		if (const TArray<FScfgSettingsProblem> Problems = Settings->Validate(); !Problems.IsEmpty())
+		{
+			UE_LOG(LogScfgShowcase, Error, TEXT("showcase: the SCFG project settings were not applied (%d problem(s), the "
+				"first %s: %s): press Validate in Project Settings > Plugins > SCFG"), Problems.Num(), *Problems[0].Code,
+				*Problems[0].Message);
+			return false;
+		}
 	}
 	for (const FScfgSettingsItem& Row : Settings->Items)
 	{
@@ -455,17 +536,27 @@ bool UScfgShowcaseGameInstance::ConfigureScfg()
 	return true;
 }
 
+bool UScfgShowcaseGameInstance::Refuse(const FString& Why)
+{
+	RefusedText = Why;
+	UE_LOG(LogScfgShowcase, Warning, TEXT("showcase: %s"), *Why);
+	return false;
+}
+
 // Configures the plugin and declares the items, as a game does in its game instance's Init(). After the project
 // settings were applied, this Configure() replaces them (options, chains and items).
-bool UScfgShowcaseGameInstance::ConfigureInCode()
+bool UScfgShowcaseGameInstance::ConfigureInCode(const FScfgShowcaseWallets& Wallets)
 {
 	using namespace ScfgShowcaseDetail;
 	FScfgOptions Options;
-	Options.Wallet = WALLET;
-	Options.bTestnet = true;  // Sepolia, Arbitrum Sepolia, Amoy, Base Sepolia, Arc Testnet
+	Options.Wallet = Wallets.Wallet;              // an EVM 0x address
+	Options.SolanaWallet = Wallets.SolanaWallet;  // optional: Solana Devnet is offered too
+	Options.bTestnet = true;  // Sepolia, Arbitrum Sepolia, Amoy, Base Sepolia, Arc Testnet (Solana Devnet)
 	Options.Accent = ACCENT;
-	Options.Logo = LOGO;
-	// Optional, among others: SolanaWallet, Chains, Tokens, Methods, RpcUrls, Confirmations.
+	Options.Logo = LogoPath();
+	UE_LOG(LogScfgShowcase, Log, TEXT("showcase: the logo: %s"), Options.Logo.IsEmpty() ? TEXT("none found")
+		: *Options.Logo);
+	// Optional, among others: Chains, Tokens, Methods, RpcUrls, Confirmations.
 	if (!Scfg()->Configure(Options).IsEmpty())
 	{
 		return false;
@@ -497,8 +588,8 @@ bool UScfgShowcaseGameInstance::AddItems()
 void UScfgShowcaseGameInstance::Fail()
 {
 	bFailed = true;
-	Driver.Reset();
-	UE_LOG(LogScfgDev, Error, TEXT("showcase: the setup failed, quitting with exit code 1"));
+	Harness.Reset();
+	UE_LOG(LogScfgShowcase, Error, TEXT("showcase: the setup failed, quitting with exit code 1"));
 	FPlatformMisc::RequestExitWithStatus(false, 1, TEXT("ScfgShowcase"));
 }
 
@@ -514,7 +605,7 @@ void UScfgShowcaseGameInstance::OnStart()
 	UGameViewportClient* Viewport = GetGameViewportClient();
 	if (!Viewport)
 	{
-		UE_LOG(LogScfgDev, Warning, TEXT("showcase: no game viewport, no HUD"));
+		UE_LOG(LogScfgShowcase, Warning, TEXT("showcase: no game viewport, no HUD"));
 		return;
 	}
 	SAssignNew(Hud, SScfgShowcaseHud);
@@ -530,7 +621,7 @@ void UScfgShowcaseGameInstance::OnStart()
 	}
 	if (!bConfigured)
 	{
-		Hud->SetRefused(TEXT("The plugin refused the configuration; see the Output Log (LogScfg)."));
+		Hud->SetRefused(RefusedText);
 		Log(TEXT("Not configured: the shop is closed."));
 		return;
 	}
@@ -539,7 +630,7 @@ void UScfgShowcaseGameInstance::OnStart()
 	Log(FString::Printf(TEXT("Ready. Configured from %s. Build: %s. Pick something on the left."), *ConfiguredFrom,
 		*ScfgShowcaseDetail::BuildKind()));
 	FocusHud();
-	UE_LOG(LogScfgDev, Log, TEXT("showcase: ready"));
+	UE_LOG(LogScfgShowcase, Log, TEXT("showcase: ready"));
 }
 
 void UScfgShowcaseGameInstance::BuildShop()
@@ -585,7 +676,7 @@ void UScfgShowcaseGameInstance::BuildShop()
 
 void UScfgShowcaseGameInstance::Shutdown()
 {
-	Driver.Reset();
+	Harness.Reset();
 	if (UGameViewportClient* Viewport = GetGameViewportClient(); Viewport && Hud.IsValid())
 	{
 		Viewport->RemoveViewportWidgetContent(Hud.ToSharedRef());
@@ -818,7 +909,7 @@ void UScfgShowcaseGameInstance::SetStatus(const FString& Text)
 
 void UScfgShowcaseGameInstance::Log(const FString& Text)
 {
-	UE_LOG(LogScfgDev, Log, TEXT("showcase: %s"), *Text);
+	UE_LOG(LogScfgShowcase, Log, TEXT("showcase: %s"), *Text);
 	if (Hud.IsValid())
 	{
 		Hud->Log(FDateTime::Now().ToString(TEXT("%H:%M:%S  ")) + Text);

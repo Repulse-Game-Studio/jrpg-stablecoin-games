@@ -164,7 +164,7 @@ uv run python tools/run_unreal_e2e.py --family evm   # or arc, solana; --package
 uv run pytest -m unreal_showcase   # the Unreal showcase's boot test, no chain (tools/run_unreal_e2e.py --showcase; guide: unreal/Project/ScfgDev/README.md)
 uv run python tools/run_unreal_build.py --target ScfgDev --config Shipping   # the Unreal plugin built headless, failing on any warning
 uv run python tools/run_unreal_tests.py --filter Scfg   # its automation tests in the editor, headless (builds the editor first)
-uv run python tools/package.py --engine unreal   # build dist/scfg-unreal-<version>-ue5.6/5.7/5.8.zip (the plugin source, without its tests)
+uv run python tools/package.py --engine unreal   # build dist/scfg-unreal-<version>-ue5.6/5.7/5.8.zip (the plugin source, without its tests) and dist/scfg-unreal-showcase-<version>.zip (the optional showcase sample)
 uv run python tools/make_pot.py --check; uv run python tools/sync_web_page.py --check
 uv run python tools/check_text_ids.py --check   # RPG Maker, Unity and Unreal text ids agree with the shared messages and the Godot template (--engine unreal: no Node)
 
@@ -207,7 +207,8 @@ The desktop e2e defaults to SDL's offscreen video driver. Where that isn't avail
    engine's own version file: `godot/addons/scfg/plugin.cfg`, `rpgmaker/src/mz/version.ts`, the Unity
    `unity/Packages/com.repulse.scfg/package.json` and `Runtime/Core/PackageVersion.cs` (`PackageVersion.Text`),
    and the Unreal `unreal/Plugins/Scfg/Scfg.uplugin` (`VersionName`) with `scfg::VERSION` in
-   `unreal/Plugins/Scfg/Source/ScfgCore/Private/Version.cpp`. `tools/package.py` refuses an archive whose
+   `unreal/Plugins/Scfg/Source/ScfgCore/Private/Version.cpp` and the showcase's
+   `unreal/Plugins/ScfgShowcase/ScfgShowcase.uplugin` (`VersionName`). `tools/package.py` refuses an archive whose
    version file differs, and `test.yml` builds every archive on each push. Set `npm/package.json` too (the npm
    job writes the tag's version into it before publishing, so it is not checked). Add the version's section to
    `CHANGELOG.md` (`## 0.3.0`): `release.yml` puts it at the top of the release notes. Merge it to `main`.
@@ -223,7 +224,7 @@ The desktop e2e defaults to SDL's offscreen video driver. Where that isn't avail
 
 `.github/workflows/release.yml` then runs the lint and unit tests, the C++ and C# cores' tests, checks that the
 tag matches `__version__`, builds every archive with `tools/package.py` (Ren'Py, Godot, RPG Maker MZ, the Unity
-`.tgz` and the three Unreal zips) and publishes them as a GitHub release with generated notes. A second job builds
+`.tgz`, the three Unreal zips and the Unreal showcase zip) and publishes them as a GitHub release with generated notes. A second job builds
 the `stablecoin-games-renpy` package (`uv build`: the installer in `installer/` with the plugin files inside it) and
 uploads it to PyPI through trusted publishing, from the `pypi` environment. A version with letters in it, such as
 `0.3.0rc1`, is published as a prerelease and does not become "latest".

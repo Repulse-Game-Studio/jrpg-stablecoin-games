@@ -251,3 +251,176 @@ def test_the_zips_are_reproducible(tmp_path, built):
             infos = zf.infolist()
         assert [i.filename for i in infos] == sorted(i.filename for i in infos)
         assert {i.date_time for i in infos} == {(1980, 1, 1, 0, 0, 0)}
+
+
+# --- the showcase zip (dist/scfg-unreal-showcase-<version>.zip) -----------------------------------
+
+
+def showcase_copy(dest, version=VERSION):
+    """A copy of unreal/Plugins/ScfgShowcase with its VersionName set to `version`, and build
+    output (at its root and in its module folder) and a hidden file in it."""
+    showcase = dest / "ScfgShowcase"
+    shutil.copytree(package_unreal.SHOWCASE, showcase,
+                    ignore=shutil.ignore_patterns(*BUILD_OUTPUT))
+    descriptor = showcase / "ScfgShowcase.uplugin"
+    text = descriptor.read_text(encoding="utf-8")
+    text = re.sub(r'"VersionName": "[^"]*"', f'"VersionName": "{version}"', text)
+    descriptor.write_text(text, encoding="utf-8")
+    for where in (showcase, showcase / "Source" / "ScfgShowcase"):
+        for folder in BUILD_OUTPUT:
+            (where / folder / "Linux").mkdir(parents=True)
+            (where / folder / "Linux" / "junk.o").write_bytes(b"\0")
+    (showcase / "Resources" / ".DS_Store").write_bytes(b"\0")
+    return showcase
+
+
+@pytest.fixture(scope="module")
+def showcase_built(tmp_path_factory):
+    tmp = tmp_path_factory.mktemp("unreal-showcase-zip")
+    showcase = showcase_copy(tmp)
+    target = package_unreal.build_showcase_zip(tmp / "dist", showcase)
+    return showcase, target
+
+
+def test_the_showcase_zip_is_named_after_the_core_version(showcase_built):
+    _showcase, target = showcase_built
+    assert target.name == f"scfg-unreal-showcase-{VERSION}.zip"
+
+
+def test_the_showcase_zip_holds_the_sample_folder_source_only(showcase_built):
+    """One folder, ScfgShowcase/, that goes next to Scfg/ in a project's Plugins/: its .uplugin,
+    README, LICENSE, its module's source and its logo; no build output or hidden file (Fab
+    4.3.7.3.a, as the plugin zips)."""
+    _showcase, target = showcase_built
+    names = sorted(read_zip(target))
+    assert names == [
+        "ScfgShowcase/LICENSE",
+        "ScfgShowcase/README.md",
+        "ScfgShowcase/Resources/logo.png",
+        "ScfgShowcase/ScfgShowcase.uplugin",
+        "ScfgShowcase/Source/ScfgShowcase/Private/ScfgShowcase.cpp",
+        "ScfgShowcase/Source/ScfgShowcase/Private/ScfgShowcaseLog.h",
+        "ScfgShowcase/Source/ScfgShowcase/Private/ScfgShowcaseModule.cpp",
+        "ScfgShowcase/Source/ScfgShowcase/Public/ScfgShowcase.h",
+        "ScfgShowcase/Source/ScfgShowcase/ScfgShowcase.Build.cs",
+    ], names
+    assert all(len(n) <= 170 for n in names)
+
+
+def test_the_showcase_zip_ships_its_files_byte_for_byte_and_the_license(showcase_built):
+    showcase, target = showcase_built
+    files = read_zip(target)
+    for name, data in files.items():
+        rel = name[len("ScfgShowcase/"):]
+        if rel == "LICENSE":
+            assert data == (ROOT / "LICENSE").read_bytes()
+        else:
+            assert data == (showcase / rel).read_bytes(), rel
+    assert files["ScfgShowcase/Resources/logo.png"].startswith(b"\x89PNG")
+
+
+def test_the_showcase_depends_on_the_plugin_and_names_no_engine_version(showcase_built):
+    """The sample's .uplugin is the tree's: one Runtime module, the Scfg plugin enabled, no
+    EngineVersion (one zip serves every engine version; it was tested on 5.8)."""
+    _showcase, target = showcase_built
+    descriptor = json.loads(read_zip(target)["ScfgShowcase/ScfgShowcase.uplugin"])
+    assert descriptor["VersionName"] == VERSION
+    assert [(m["Name"], m["Type"]) for m in descriptor["Modules"]] == [("ScfgShowcase", "Runtime")]
+    assert descriptor["Plugins"] == [{"Name": "Scfg", "Enabled": True}]
+    assert "EngineVersion" not in descriptor
+
+
+def test_the_showcase_readme_says_how_to_wire_it_and_that_it_has_no_level(showcase_built):
+    _showcase, target = showcase_built
+    readme = read_zip(target)["ScfgShowcase/README.md"].decode()
+    for text in ("GameInstanceClass=/Script/ScfgShowcase.ScfgShowcaseGameInstance",
+                 "GameDefaultMap=/Engine/Maps/Entry", "It has no level of its own",
+                 "Project Settings > Plugins > SCFG > Wallet", "Testnet",
+                 "<YourProject>/Plugins/ScfgShowcase/ScfgShowcase.uplugin", "-game",
+                 "Additional Non-Asset Directories to Package"):
+        assert text in readme, text
+    assert "0x52908400098527886E0F7030069857D2E4169EE7" not in readme
+
+
+def test_the_shipped_showcase_has_no_placeholder_wallet():
+    """The sample never pays a placeholder: no wallet literal in its source (the dev project keeps
+    its own, in its Config/DefaultGame.ini)."""
+    for path in (package_unreal.SHOWCASE / "Source").rglob("*"):
+        if path.is_file():
+            assert not re.search(r"0x[0-9a-fA-F]{40}", path.read_text(encoding="utf-8")), path
+
+
+def test_the_plugin_zips_hold_the_scfg_plugin_alone(built):
+    """The showcase has a zip of its own: the plugin zips (Fab's) hold Scfg/ and nothing else."""
+    _plugin, targets = built
+    for target in targets:
+        assert {n.split("/")[0] for n in read_zip(target)} == {"Scfg"}
+
+
+def test_a_showcase_that_includes_a_private_plugin_header_is_refused(tmp_path):
+    """The sample builds next to the zip's plugin only if it uses its public API: an include of
+    Scfg's Private/ headers (the dev project's e2e driver needs them; the sample must not), or an
+    include path added in its Build.cs, is refused."""
+    showcase = showcase_copy(tmp_path)
+    cpp = showcase / "Source" / "ScfgShowcase" / "Private" / "ScfgShowcase.cpp"
+    cpp.write_text(cpp.read_text(encoding="utf-8") + '\n#include "ScfgFacade.h"\n',
+                   encoding="utf-8")
+    with pytest.raises(ValueError, match="includes ScfgFacade.h, a private header of the Scfg plugin"):
+        package_unreal.build_showcase_zip(tmp_path / "dist", showcase)
+    showcase = showcase_copy(tmp_path / "again")
+    build = showcase / "Source" / "ScfgShowcase" / "ScfgShowcase.Build.cs"
+    build.write_text(build.read_text(encoding="utf-8").replace(
+        "PCHUsage =", 'PrivateIncludePaths.Add("../Scfg/Private");\n\t\tPCHUsage ='), encoding="utf-8")
+    with pytest.raises(ValueError, match="adds include paths"):
+        package_unreal.build_showcase_zip(tmp_path / "dist", showcase)
+    assert not (tmp_path / "dist").exists()
+
+
+def test_a_showcase_version_that_differs_from_the_core_is_refused(tmp_path):
+    showcase = showcase_copy(tmp_path, version="9.9.9")
+    with pytest.raises(ValueError, match=f"ScfgShowcase.uplugin VersionName 9.9.9 != scfg_core "
+                                         f"{re.escape(VERSION)}"):
+        package_unreal.build_showcase_zip(tmp_path / "dist", showcase)
+    assert not (tmp_path / "dist").exists()
+
+
+def test_a_showcase_module_the_packager_does_not_know_is_refused(tmp_path):
+    showcase = showcase_copy(tmp_path)
+    (showcase / "Source" / "ScfgShowcaseExtra").mkdir()
+    with pytest.raises(ValueError, match="ScfgShowcase Source/ folders"):
+        package_unreal.build_showcase_zip(tmp_path / "dist", showcase)
+
+
+def test_the_real_showcase_is_ready_but_for_the_release_bump():
+    """unreal/Plugins/ScfgShowcase passes every check with its own VersionName (the release bump
+    sets it to the core's, as the plugin's)."""
+    version = json.loads((package_unreal.SHOWCASE / "ScfgShowcase.uplugin").read_text())["VersionName"]
+    assert version == package_unreal.descriptor()["VersionName"]
+    assert package_unreal.showcase_problems(version=version) == []
+
+
+def test_the_showcase_zip_is_reproducible(tmp_path, showcase_built):
+    showcase, target = showcase_built
+    again = package_unreal.build_showcase_zip(tmp_path / "again", showcase)
+    assert again.read_bytes() == target.read_bytes()
+    with zipfile.ZipFile(again) as zf:
+        infos = zf.infolist()
+    assert [i.filename for i in infos] == sorted(i.filename for i in infos)
+    assert {i.date_time for i in infos} == {(1980, 1, 1, 0, 0, 0)}
+
+
+def test_main_builds_the_plugin_zips_and_the_showcase_zip(tmp_path, capsys):
+    plugin = plugin_copy(tmp_path)
+    showcase = showcase_copy(tmp_path)
+    assert package_unreal.main(tmp_path / "dist", plugin, showcase) == 0
+    assert sorted(p.name for p in (tmp_path / "dist").iterdir()) == sorted(
+        [f"scfg-unreal-{VERSION}-ue{e}.zip" for e in ENGINES]
+        + [f"scfg-unreal-showcase-{VERSION}.zip"])
+    assert f"wrote {tmp_path / 'dist' / f'scfg-unreal-showcase-{VERSION}.zip'}" in capsys.readouterr().out
+
+
+def test_main_names_a_showcase_problem_and_fails(tmp_path, capsys):
+    plugin = plugin_copy(tmp_path)
+    showcase = showcase_copy(tmp_path, version="9.9.9")
+    assert package_unreal.main(tmp_path / "dist", plugin, showcase) == 1
+    assert "ScfgShowcase.uplugin VersionName 9.9.9" in capsys.readouterr().err

@@ -461,8 +461,8 @@ Otherwise the editor and play in the editor still find the file, but the package
 `logo.file_missing`: project settings with that logo are not applied, and every `Pay` then fails with
 `configure.not_called`. The settings panel's **Validate** warns about a logo that will not be packaged; a logo you
 pass to `Configure` from code is not checked there, so follow the same two rules (or call
-`UScfgSettings::LogoPackagingWarning`). The showcase project does exactly this (`Content/Showcase/logo.png`, its
-`Showcase` folder in that list), and its packaged game is tested with it.
+`UScfgSettings::LogoPackagingWarning`). The repository's dev project, which plays the showcase, does exactly this
+(`Content/Showcase/logo.png`, its `Showcase` folder in that list), and its packaged game is tested with it.
 
 ### Your own sheet host
 

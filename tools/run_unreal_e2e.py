@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Run the Unreal desktop end-to-end test: the dev project's showcase (unreal/Project/ScfgDev,
-Source/ScfgDev/ScfgShowcase.h) with the plugin's real Slate sheet, worker and localhost checkout
-page, in a real rendered game window on a private X server, paying on a local chain.
+"""Run the Unreal desktop end-to-end test: the showcase (the ScfgShowcase plugin,
+unreal/Plugins/ScfgShowcase, ScfgShowcase.h), the dev project's game (unreal/Project/ScfgDev), with
+the plugin's real Slate sheet, worker and localhost checkout page, in a real rendered game window on
+a private X server, paying on a local chain.
 
-The showcase is played the way a player plays it, through its e2e driver (ScfgE2EDriver.h, built
-outside Shipping, made only with -scfg-e2e=<config>): the runner sends commands over a loopback
+The showcase is played the way a player plays it, through the dev project's e2e driver
+(Source/ScfgDev/ScfgE2EDriver.h, built outside Shipping, made only with -scfg-e2e=<config>, and
+handed to the showcase as its harness): the runner sends commands over a loopback
 control socket and the driver clicks the sheet's and the HUD's buttons with real mouse input and
 presses keys through FSlateApplication's platform message handler, and reports what the screen
 shows. Per run (godot/demo's scenarios, tools/run_godot_e2e.py):
@@ -35,11 +37,15 @@ shows. Per run (godot/demo's scenarios, tools/run_godot_e2e.py):
 tests/godot_showcase; see "the showcase tour" below): no chain, no browser. The showcase
 configures itself (from the project settings, then in code with -scfg-showcase-code), and its
 chain-free buttons are pressed with real clicks and their readouts checked; the plugin's HTTP
-transport must have posted no request (the driver's http_requests), and the settings' logo
-(Content/Showcase/logo.png) must have been found. With --packaged the tour runs on the cooked,
-staged game: the settings then come from the staged ini, the logo from the pak (its folder is in
-the project's Additional Non-Asset Directories to Package), and the plugin's editor module
-(ScfgEditor) must not be in the game.
+transport must have posted no request (the driver's http_requests), and the logo
+(Content/Showcase/logo.png: the settings', and the code's, since the dev project loads the
+showcase plugin from outside its folder) must have been found. A third start blanks the settings'
+wallet (-ini:Game:...:Options=...): the showcase must configure nothing, keep its shop closed and
+say so on its HUD, never paying a placeholder. With --packaged the tour runs on the cooked, staged
+game: the settings then come from the staged ini, the logo from the pak (its folder is in the
+project's Additional Non-Asset Directories to Package), the showcase plugin's own logo must be
+staged (ScfgShowcase.Build.cs), and the plugin's editor module (ScfgEditor) must not be in the
+game.
 
 --showcase --live (opt-in, needs internet; never in CI) also checks the plugin's HTTPS path in
 the game: after the second start's 0-request check, the driver's live_https makes one read-only
@@ -141,7 +147,8 @@ DESKTOP_VARS = ("DISPLAY", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_R
 ITEM = "chapter2"
 ITEMS = {ITEM: {"code": 1, "price": "1.00", "token": "USDC", "title": "Chapter 2: The Fall"}}
 CONFIRMED = "Payment confirmed. Thank you!"
-# The showcase's HUD (ScfgShowcase.h): its buttons by name, and its readout of the owned items.
+# The showcase's HUD (unreal/Plugins/ScfgShowcase, ScfgShowcase.h): its buttons by name, and its
+# readout of the owned items.
 UNLOCK = f"Unlock.{ITEM}"
 TIP = "Tip.1.00"
 UNLOCKED = "Owned: Chapter 2: The Fall"
@@ -1235,15 +1242,34 @@ def bad_configs_quit_at_once(make_game, work: Path, control: Control) -> None:
 # (own_config), from the project settings and then, in a second start, in code; the buttons that
 # need no chain are pressed with real clicks and the readouts checked. Testnet, a fresh user dir:
 # no receipt to re-verify and no Solana wallet, so the start asks no chain anything, and the
-# sheets are closed on their first step, before a network is chosen (no session is started).
+# sheets are closed on their first step, before a network is chosen (no session is started). A
+# third start has settings without a wallet: the showcase refuses to configure (THE WALLET in
+# ScfgShowcase.h).
 
 TOUR_BUTTONS = ("Unlock.chapter2", "Unlock.soundtrack", "Unlock.supporter", "Pay.supporter",
                 "Tip.0.50", TIP, "Tip.3.00", "Restore", "Export", "Clear", "Notify")
 FROM_SETTINGS = "Configured from: the project settings (Config/DefaultGame.ini)"
 FROM_CODE = "Configured from: code (ConfigureInCode)"
 CODE_SWITCH = "-scfg-showcase-code"
-# The showcase's logo (its project settings' and ConfigureInCode's), relative to the project.
+# The showcase's logo, relative to the project: its project settings' and, in the dev project,
+# ConfigureInCode's too (the plugin's own Resources/logo.png is outside the dev project's folder,
+# and Configure() takes only a logo inside it).
 SHOWCASE_LOGO = "Content/Showcase/logo.png"
+# The showcase plugin's own logo, staged with a packaged game (ScfgShowcase.Build.cs).
+PLUGIN_LOGO = "ScfgShowcase/Resources/logo.png"
+# The third start: the dev project's settings without their wallet (their items stay), as a project
+# that has not set one; the command line overrides the Game ini's key (no comma may be in it).
+NO_WALLET_ARGS = ("-ini:Game:[/Script/Scfg.ScfgSettings]:Options=(bTestnet=True)",)
+# What the HUD and the log say then (UScfgShowcaseGameInstance::NO_WALLET).
+NO_WALLET = "No wallet is set, so SCFG is not configured and nothing can be paid."
+# The two warnings that start must log, and may: the plugin's (settings with items but no wallet
+# are not applied) and the showcase's refusal.
+NO_WALLET_WARNINGS = (
+    re.compile(r"\bLogScfg: Warning: scfg: the SCFG settings \(Project Settings > Plugins > SCFG\) "
+               r"have chains or items but no wallet, so they are not applied at start: "),
+    re.compile(r"\bLogScfgShowcase: Warning: showcase: " + re.escape(NO_WALLET)
+               + " Put your wallet "),
+)
 # What the readouts say before anything was paid.
 NOTHING_YET = ("Supported: yes", "Owned: nothing yet", "Tips: 0 USDC",
                "Payments still being watched: 0",
@@ -1374,7 +1400,8 @@ def showcase_tour(game: Game, saved: Path, shots: Path) -> dict:
 
 def configured_offline_with_the_logo(game: Game, from_settings: bool) -> dict:
     """The facade's configuration (from the settings or not) has the showcase's logo, found on
-    disk (in a packaged game: in the pak), and the plugin's HTTP transport posted nothing."""
+    disk (in a packaged game: in the pak, or staged beside it), and the plugin's HTTP transport
+    posted nothing."""
     config = game.call("configuration")
     expect(config["configured"] and config["from_settings"] == from_settings,
            f"the configuration should {'' if from_settings else 'not '}be the settings'", config)
@@ -1398,6 +1425,30 @@ def showcase_from_code(game: Game, tour: dict) -> None:
         expect(line in hud(snap), f"the HUD should show {line!r}", hud(snap))
     print(f"  {FROM_CODE}: the same {len(names)} buttons and readouts")
     configured_offline_with_the_logo(game, from_settings=False)
+
+
+def showcase_without_a_wallet(game: Game) -> None:
+    """The third start, the settings without a wallet: nothing configured, no shop, the HUD says
+    why, and nothing asked of a chain."""
+    def refused(s):
+        return (any(t.startswith(NO_WALLET) for t in hud(s))
+                and logged("Not configured: the shop is closed.")(s))
+
+    snap = wait_for(game, "the showcase's refusal", refused, 120)
+    buttons = [b["name"] for b in snap["game"]["buttons"]]
+    expect(buttons == [], f"without a wallet the HUD should have no button, not {buttons}", snap)
+    config = game.call("configuration")
+    expect(not config["configured"], "without a wallet nothing should be configured", config)
+    requests = game.call("http_requests")
+    expect(requests == 0, f"the showcase posted {requests} JSON-RPC request(s)", requests)
+    print(f"  the HUD says {NO_WALLET!r} and has no button; nothing configured, 0 JSON-RPC "
+          "requests")
+
+
+def no_wallet_warnings(output: str) -> list:
+    """The third start's log: each of NO_WALLET_WARNINGS once. Returns what is missing."""
+    lines = output.splitlines()
+    return [w.pattern for w in NO_WALLET_WARNINGS if sum(bool(w.search(x)) for x in lines) != 1]
 
 
 # The driver waits at most 40 s for both answers (ScfgE2EDriver.cpp, LIVE_PATIENCE).
@@ -1505,7 +1556,9 @@ def run_showcase(args, started: float) -> int:
             empty.write_bytes(b"")
             no_certs = no_certificates_args(empty)
             print("  --no-certificates: " + " ".join(no_certs))
-        for label, extra in (("settings", no_certs), ("code", [CODE_SWITCH, *no_certs])):
+        starts = (("settings", no_certs), ("code", [CODE_SWITCH, *no_certs]),
+                  ("nowallet", [*NO_WALLET_ARGS, *no_certs]))
+        for label, extra in starts:
             t = time.monotonic()
             game = Game(game_command(engine, config, user_dir, staged) + extra, env,
                         work / f"showcase_{label}.log", control, f"showcase ({label})")
@@ -1515,15 +1568,18 @@ def run_showcase(args, started: float) -> int:
             saved = Path(game.call("saved_dir"))
             if not saved.resolve().is_relative_to(work.resolve()):
                 raise E2EError(f"the game's saved data is not isolated: {saved}")
-            if tour is None:
+            if label == "settings":
                 print(f"1. configured from the project settings (started in {start:.1f} s)")
                 tour = showcase_tour(game, saved, shots)
-            else:
+            elif label == "code":
                 print(f"2. configured in code, {CODE_SWITCH} (started in {start:.1f} s)")
                 showcase_from_code(game, tour)
                 if args.live:
-                    print("3. live HTTPS through the plugin's transport (--live)")
+                    print("2b. live HTTPS through the plugin's transport (--live)")
                     tour["live"] = live_https(game, refused=args.no_certificates)
+            else:
+                print(f"3. no wallet in the project settings (started in {start:.1f} s)")
+                showcase_without_a_wallet(game)
             code = game.quit()
             output = game.output()
             tail = game.tail()  # before close(), which closes the log
@@ -1534,6 +1590,12 @@ def run_showcase(args, started: float) -> int:
                     print(f"  exit code {code}: the engine's crash after 'LogExit: Exiting.' "
                           "without root certificates (before_exit)")
                     code = 0
+            if label == "nowallet":
+                missing = no_wallet_warnings(output)
+                if missing:
+                    raise E2EError(f"without a wallet the game should log each of {missing} once")
+                output = "\n".join(line for line in output.splitlines()
+                                   if not any(w.search(line) for w in NO_WALLET_WARNINGS))
             outputs.append(output)
             if code != 0:
                 raise E2EError(f"the showcase exited with {code}:\n{tail}")
@@ -1702,8 +1764,12 @@ def build_packaged(engine: Path, work: Path) -> Path:
     web = sorted(archive.glob("Linux*/**/Scfg/Resources/Web/index.html"))
     if not web:
         raise E2EError(f"the staged game has no Scfg/Resources/Web (archive {archive})")
+    logo = sorted(archive.glob(f"Linux*/**/{PLUGIN_LOGO}"))
+    if not logo:
+        raise E2EError(f"the staged game has no {PLUGIN_LOGO} (archive {archive})")
     print(f"  staged: {game.relative_to(archive)}; page files at "
-          f"{web[0].parent.relative_to(archive)}")
+          f"{web[0].parent.relative_to(archive)}; the showcase's logo at "
+          f"{logo[0].relative_to(archive)}")
     return game
 
 

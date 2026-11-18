@@ -1,7 +1,8 @@
 """Build the drop-in release archives: dist/scfg-renpy-<version>.zip (default),
 dist/scfg-godot-<version>.zip (--engine godot), dist/scfg-rpgmaker-mz-<version>.zip
 (--engine rpgmaker), dist/scfg-unity-<version>.tgz (--engine unity) and the Unreal zips
-dist/scfg-unreal-<version>-ue<5.x>.zip (--engine unreal).
+dist/scfg-unreal-<version>-ue<5.x>.zip and dist/scfg-unreal-showcase-<version>.zip
+(--engine unreal).
 
 The Ren'Py zip mirrors a Ren'Py project, so developers unzip it straight into their
 project folder:
@@ -28,7 +29,9 @@ project root.
 
 The Unreal zips (--engine unreal, built by tools/package_unreal.py, whose docstring has the layout)
 are one per engine version, dist/scfg-unreal-<version>-ue<5.x>.zip, each holding the plugin folder
-Scfg/ (source only, without the test modules) for the developer's Plugins/ folder.
+Scfg/ (source only, without the test modules) for the developer's Plugins/ folder, and the optional
+showcase sample, dist/scfg-unreal-showcase-<version>.zip, holding the plugin folder ScfgShowcase/
+(source only) that goes next to Scfg/. The plugin zips hold Scfg/ alone, as Fab wants them.
 
 The RPG Maker MZ zip unzips into an MZ project folder:
 
@@ -47,10 +50,10 @@ tarball), the package folder unity/Packages/com.repulse.scfg/ under package/:
     package/Documentation~/scfg-unity-guide.md (Unity guide, joined from docs/developers/unity/)
     package/Third Party Notices.md     (notices of the third-party code the package ports)
 
-Tests/ ships too (testbed U6): Unity compiles a package's test assemblies only in a project that lists
-it under "testables" in Packages/manifest.json, so the package's own edit-mode and play-mode tests
-run there and nowhere else. The package's own LICENSE.md must be
-the repository's LICENSE, its .meta files complete and its checkout page copy current.
+Tests/ ships too (testbed U6): Unity compiles a package's test assemblies only in a project that
+lists it under "testables" in Packages/manifest.json, so the package's own edit-mode and play-mode
+tests run there and nowhere else. The package's own LICENSE.md must be the repository's LICENSE,
+its .meta files complete and its checkout page copy current.
 
 Usage: uv run python tools/package.py [--engine renpy|godot|rpgmaker|unity|unreal]
 """

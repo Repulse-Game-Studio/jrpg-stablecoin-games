@@ -1,7 +1,9 @@
 // Copyright 2026 Repulse
 // The showcase's end-to-end driver: tools/run_unreal_e2e.py plays the showcase through it the way a player does, as
 // godot/demo/e2e/e2e_driver.gd does for the Godot demo. Compiled only outside Shipping, and made only when the command
-// line has -scfg-e2e=<config.json>; without it the showcase runs as a player gets it.
+// line has -scfg-e2e=<config.json>; without it the showcase runs as a player gets it. The showcase (a plugin of its own,
+// unreal/Plugins/ScfgShowcase) does not know this class: it is the showcase's harness (IScfgShowcaseHarness), which the
+// dev module's start hands it (UScfgShowcaseGameInstance::SetHarnessFactory, ScfgDev.cpp).
 //
 // The config (JSON object, written by the runner):
 //   configure  {wallet?, solana_wallet?, testnet?, chains?, tokens?}: Configure()'s options (Python's keyword names)
@@ -81,6 +83,7 @@
 #include "Templates/Function.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
+#include "ScfgShowcase.h"
 #include "ScfgTypes.h"
 
 class FSocket;
@@ -91,21 +94,21 @@ struct FFocusEvent;
 class FWeakWidgetPath;
 class FWidgetPath;
 
-class FScfgE2EDriver : public TSharedFromThis<FScfgE2EDriver>
+class FScfgE2EDriver : public IScfgShowcaseHarness, public TSharedFromThis<FScfgE2EDriver>
 {
 public:
 	// The command line asks for the driver: OutPath is the config's path.
 	static bool Requested(FString& OutPath);
 	// Reads and checks the config and points the chain at the local node; null (logged) when the config is unusable.
 	static TSharedPtr<FScfgE2EDriver> Create(const FString& Path, UScfgShowcaseGameInstance* InGame);
-	~FScfgE2EDriver();
+	virtual ~FScfgE2EDriver() override;
 
-	const FScfgOptions& Options() const { return ConfigOptions; }
-	const TMap<FString, FScfgItem>& Items() const { return ConfigItems; }
+	virtual const FScfgOptions& Options() const override { return ConfigOptions; }
+	virtual const TMap<FString, FScfgItem>& Items() const override { return ConfigItems; }
 	// The config's own_config: the showcase configures itself (Options() and Items() are empty).
-	bool OwnConfig() const { return bOwnConfig; }
+	virtual bool OwnConfig() const override { return bOwnConfig; }
 	// Connects to the runner and serves it from the core ticker; false (logged) when it cannot connect.
-	bool Start();
+	virtual bool Start() override;
 
 private:
 	using FStep = TFunction<bool()>;  // true: done
