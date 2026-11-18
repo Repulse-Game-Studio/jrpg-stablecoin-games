@@ -534,5 +534,72 @@ namespace Scfg.Core.Tests
             Assert.That(f.Servers, Has.Count.EqualTo(2), "a new page for the new session");
             Assert.That(f.Servers[1].SessionInfo["chain_name"], Is.EqualTo("Base"));
         }
+
+        // --- the buy link (configure's onramp) ------------------------------------------------------
+
+        private static async Task<CheckoutFixture> OnMethodStepWith(JsonObject? onramp, JsonObject? methods = null)
+        {
+            var f = CheckoutFixture.Setup(methods: methods,
+                                          appearance: onramp == null ? null : new JsonObject { { "onramp", onramp } });
+            f.Ctl.ChooseNetwork("arbitrum");
+            await f.Submitter.Idle();
+            f.Ctl.Poll();
+            return f;
+        }
+
+        [Test]
+        public async Task TheMethodStepOffersTheBuyPageForTheChosenNetwork()
+        {
+            var f = Setup();
+            var ctl = f.Ctl;
+            Assert.That(ctl.OnrampUrl(), Is.Null, "no network yet");
+            Assert.That(ctl.ShowsOnramp, Is.False);
+            ctl.ChooseNetwork("arbitrum");
+            await f.Submitter.Idle();
+            ctl.Poll();
+            Assert.That(ctl.Step, Is.EqualTo("method"));
+            Assert.That(ctl.ShowsOnramp, Is.True);
+            var units = Ints.IntFrom(ctl.Session!["units"]);
+            Assert.That(units >= 4_990_000 && units < 5_000_000, Is.True, units.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Assert.That(ctl.OnrampUrl(), Is.EqualTo("https://thirdweb.com/bridge/buy-widget?chain=42161&tokenAddress=" + UsdcArb
+                                                   + "&amount=5.00&tokenEditable=false"));
+        }
+
+        [Test]
+        public async Task OnArcTheBuyAmountKeepsACentForTheFee()
+        {
+            var f = Setup(chains: L("base", "arc"));
+            f.Ctl.ChooseNetwork("arc");
+            await f.Submitter.Idle();
+            f.Ctl.Poll();
+            Assert.That(f.Ctl.OnrampUrl(), Does.EndWith("&amount=5.01&tokenEditable=false"));
+        }
+
+        [Test]
+        public async Task TheBuyLinkMovesToTheOnlyPaymentPage()
+        {
+            var ctl = (await OnMethodStep(methods: OnlyManual())).Ctl;
+            Assert.That(ctl.Step, Is.EqualTo("manual"));
+            Assert.That(ctl.ShowsOnramp, Is.True);
+            ctl = (await OnMethodStep()).Ctl;
+            ctl.ChooseMethod("qr");
+            Assert.That(ctl.Step, Is.EqualTo("qr"));
+            Assert.That(ctl.ShowsOnramp, Is.False, "the method step showed it");
+            ctl.MarkSent();
+            Assert.That(ctl.ShowsOnramp, Is.False);
+        }
+
+        [Test]
+        public async Task TheBuyLinkFollowsTheOnrampOption()
+        {
+            var ctl = (await OnMethodStepWith(new JsonObject { { "enabled", false } })).Ctl;
+            Assert.That(ctl.OnrampUrl(), Is.Null);
+            Assert.That(ctl.ShowsOnramp, Is.False);
+            ctl = (await OnMethodStepWith(new JsonObject { { "chains", L("base") } })).Ctl;
+            Assert.That(ctl.ChainKey, Is.EqualTo("arbitrum"));
+            Assert.That(ctl.OnrampUrl(), Is.Null);
+            ctl = (await OnMethodStepWith(new JsonObject { { "url", "https://buy.example/{chain}/{token}?a={amount}" } })).Ctl;
+            Assert.That(ctl.OnrampUrl(), Is.EqualTo("https://buy.example/arbitrum/USDC?a=5.00"));
+        }
     }
 }

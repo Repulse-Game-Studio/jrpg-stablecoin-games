@@ -233,6 +233,45 @@ namespace Scfg.Core
             return Paylinks.Eip681TransferUri(TokenAddress!, Chain!.ChainId, Recipient!, units);
         }
 
+        /// <summary>
+        /// The page where a player without the token buys some with a card, for the chosen network, with the payment
+        /// (plus a cent for the fee on Arc) suggested as the amount. Null when configure's onramp doesn't offer it on
+        /// this network.
+        /// </summary>
+        public string? OnrampUrl()
+        {
+            var opts = Config.Onramp;
+            var chain = Chain;
+            if (!opts.Enabled || chain == null || !opts.Chains.Contains(chain.Key)) return null;
+            var units = HasSession ? Ints.IntFrom(Py.Get(Session, "units")) : Amounts.DecimalToUnits(Amount);
+            return Paylinks.OnrampUrl(opts.Url, chain.Key, chain.ChainId, Spec.Token, TokenAddress!,
+                                      Paylinks.OnrampAmount(units, chain.NativeToken == Spec.Token));
+        }
+
+        /// <summary>
+        /// The step where the buy link (or its hint) goes: the method step, or the payment page the sheet opens on when
+        /// the method step is skipped (a single method).
+        /// </summary>
+        private bool OnrampStep() =>
+            Step == "method" || ((Step == "browser" || Step == "qr" || Step == "manual") && !StepPath().Contains("method"));
+
+        /// <summary>Whether this step offers the buy link.</summary>
+        public bool ShowsOnramp => OnrampStep() && OnrampUrl() != null;
+
+        /// <summary>
+        /// Whether this step points to the buy link instead ("Pick another network"), because the chosen network has none
+        /// (Solana) but another one the player can pick has it. Its button goes back to the network step (Back()).
+        /// </summary>
+        public bool ShowsOnrampHint
+        {
+            get
+            {
+                var opts = Config.Onramp;
+                if (!opts.Enabled || !OnrampStep() || OnrampUrl() != null || !CanGoBack) return false;
+                return ChainOptions().Any(o => opts.Chains.Contains(o.Key));
+            }
+        }
+
         public string? ExplorerUrl()
         {
             var tx = Result != null && Py.Truthy(Result.TxHash) ? Result.TxHash : HintTx;

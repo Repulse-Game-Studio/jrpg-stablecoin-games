@@ -271,5 +271,94 @@ namespace Scfg.Core.Tests
             Assert.That(r.Rig.Sol.Requests[1].Params[0], Is.EqualTo(Payer), "the player's SOL balance");
             Assert.That(r.Rig.Sol.Requests[3].Params[0], Is.EqualTo(new List<object?> { ctl.Session!["dest"] }));
         }
+
+        // --- the buy link's hint: Solana has no buy page, another network does -------------------------
+
+        private static Rigged SetupWith(JsonObject extra)
+        {
+            var kwargs = new JsonObject { { "wallet", DevEvm }, { "solana_wallet", Dev } };
+            foreach (var kv in extra) kwargs[kv.Key] = kv.Value;
+            var cfg = Config.BuildConfig(kwargs);
+            Config.AddItem(cfg, "chapter2", new JsonObject { { "code", 37L }, { "price", "4.99" }, { "token", "USDC" }, { "title", "Chapter 2" } });
+            var r = new Rigged { Rig = new CheckoutRig(cfg, 0) };
+            foreach (var chains in new[] { Chains.Mainnet, Chains.Testnet })
+                foreach (var token in chains["solana"].Tokens.Values)
+                    r.Rig.Sol.Accounts.Add(Pda.AssociatedTokenAddress(Dev, token.Address));
+            r.Submitter = new ImmediateSubmitter(r.Rig.Engine);
+            var spec = Payments.PreparePayment(cfg, "unlock", new JsonObject { { "item", "chapter2" } });
+            IReadOnlyCollection<(string Chain, string Token)> none = new List<(string, string)>().AsReadOnly();
+            r.Ctl = new CheckoutController(cfg, spec, r.Submitter.Submit, unready: () => none, gameName: "Ruby Dreams");
+            return r;
+        }
+
+        private static async Task<Rigged> OnMethod(string chain, JsonObject? extra = null)
+        {
+            var r = SetupWith(extra ?? new JsonObject());
+            r.Ctl.ChooseNetwork(chain);
+            await r.Submitter.Idle();
+            r.Ctl.Poll();
+            return r;
+        }
+
+        private static JsonObject OnlyManual() => new JsonObject
+        {
+            { "methods", new JsonObject
+                { { "browser", new JsonObject { { "enabled", false } } }, { "qr", new JsonObject { { "enabled", false } } } } },
+        };
+
+        [Test]
+        public async Task SolanaPointsToANetworkWithTheBuyLink()
+        {
+            var r = await OnMethod("solana");
+            var ctl = r.Ctl;
+            Assert.That(ctl.Step, Is.EqualTo("method"));
+            Assert.That(ctl.OnrampUrl(), Is.Null);
+            Assert.That(ctl.ShowsOnramp, Is.False);
+            Assert.That(ctl.ShowsOnrampHint, Is.True);
+            ctl.Back();
+            Assert.That(ctl.Step, Is.EqualTo("network"));
+            ctl.ChooseNetwork("base");
+            await r.Submitter.Idle();
+            ctl.Poll();
+            Assert.That(ctl.ShowsOnramp, Is.True);
+            Assert.That(ctl.ShowsOnrampHint, Is.False);
+        }
+
+        [Test]
+        public async Task TheHintNeedsANetworkWithTheLinkThatThePlayerCanPick()
+        {
+            var off = new JsonObject { { "onramp", new JsonObject { { "enabled", false } } } };
+            Assert.That((await OnMethod("solana", off)).Ctl.ShowsOnrampHint, Is.False);
+            Assert.That((await OnMethod("solana", new JsonObject { { "testnet", true } })).Ctl.ShowsOnrampHint, Is.False,
+                        "testnet: no network has the link");
+            var baseOnly = new JsonObject
+            {
+                { "onramp", new JsonObject { { "chains", new List<object?> { "base" } } } },
+                { "chains", new List<object?> { "solana", "base" } },
+            };
+            Assert.That((await OnMethod("solana", baseOnly)).Ctl.ShowsOnrampHint, Is.True);
+            var testnetBase = new JsonObject
+            {
+                { "testnet", true }, { "onramp", new JsonObject { { "chains", new List<object?> { "base" } } } },
+            };
+            Assert.That((await OnMethod("solana", testnetBase)).Ctl.ShowsOnrampHint, Is.True);
+        }
+
+        [Test]
+        public async Task TheHintShowsWhereTheLinkWouldAndNotOnceAPaymentIsSeen()
+        {
+            var ctl = (await OnMethod("solana", OnlyManual())).Ctl;
+            Assert.That(ctl.Step, Is.EqualTo("manual"));
+            Assert.That(ctl.ShowsOnrampHint, Is.True, "the only payment page");
+            ctl = (await OnMethod("solana")).Ctl;
+            ctl.ChooseMethod("qr");
+            Assert.That(ctl.ShowsOnrampHint, Is.False, "the method step had it");
+            var r = await OnMethod("solana", OnlyManual());
+            Assert.That(r.Ctl.SubmitHash(Sig), Is.True);
+            await r.Submitter.Idle();
+            r.Ctl.Poll();
+            Assert.That(r.Ctl.Step, Is.EqualTo("waiting"));
+            Assert.That(r.Ctl.ShowsOnrampHint, Is.False);
+        }
     }
 }

@@ -23,6 +23,29 @@ using Scfg.Core.Solana;
 namespace Scfg.Core
 {
     /// <summary>Python's <c>Config</c> dataclass (named apart from the static <see cref="Config"/> that builds it).</summary>
+    /// <summary>
+    /// configure's onramp, merged and checked: the "No USDC yet? Buy some with a card" link. Python's Config.onramp
+    /// dict {"enabled", "url", "chains"}.
+    /// </summary>
+    public sealed class OnrampOptions
+    {
+        public bool Enabled { get; }
+        /// <summary>The buy page template (Paylinks.OnrampUrl fills its placeholders).</summary>
+        public string Url { get; }
+        /// <summary>The chain keys the buy link is offered on, in order.</summary>
+        public IReadOnlyList<string> Chains { get; }
+
+        public OnrampOptions(bool enabled, string url, IReadOnlyList<string> chains)
+        {
+            Enabled = enabled;
+            Url = url;
+            Chains = chains;
+        }
+
+        /// <summary>Python's Config default (a Config made without build_config): off.</summary>
+        public static OnrampOptions Off() => new OnrampOptions(false, Paylinks.DefaultOnrampUrl, new string[0]);
+    }
+
     public sealed class ConfigData
     {
         /// <summary>EVM payout address; null for a Solana-only game.</summary>
@@ -45,12 +68,14 @@ namespace Scfg.Core
         public Dictionary<string, Chain> CustomChains { get; }
         /// <summary>add_item(), in the order added.</summary>
         public Dictionary<string, Item> Items { get; }
+        /// <summary>The buy link (configure's onramp).</summary>
+        public OnrampOptions Onramp { get; }
 
         public ConfigData(string? wallet, bool testnet, IReadOnlyList<string> chains, IReadOnlyList<string> tokens,
                           JsonObject methods, Dictionary<string, IReadOnlyList<string>> rpcUrls,
                           Dictionary<string, long> confirmations, IReadOnlyList<string> previousWallets,
                           string? solanaWallet, IReadOnlyList<string> previousSolanaWallets, string? logo,
-                          string accent, Dictionary<string, Chain> customChains)
+                          string accent, Dictionary<string, Chain> customChains, OnrampOptions? onramp = null)
         {
             Wallet = wallet;
             Testnet = testnet;
@@ -65,6 +90,7 @@ namespace Scfg.Core
             Logo = logo;
             Accent = accent;
             CustomChains = customChains;
+            Onramp = onramp ?? OnrampOptions.Off();
             Items = new Dictionary<string, Item>();
         }
 
@@ -120,6 +146,9 @@ namespace Scfg.Core
 
         public const string DefaultAccent = "#0e7c74";
         public const string Ink = "#17202e";
+
+        /// <summary>The longest onramp url template (config.py's ONRAMP_URL_LIMIT).</summary>
+        public const int OnrampUrlLimit = 2048;
 
         // rpc.py's MIN_LOG_RANGE, the smallest max_log_range a custom chain may declare.
         private const long MinLogRange = 10;
@@ -556,11 +585,104 @@ namespace Scfg.Core
             return merged;
         }
 
+        // ---- onramp -----------------------------------------------------------------------------------------
+
+        /// <summary>
+        /// An https:// URL of printable ASCII (no spaces) whose only braces are placeholders from
+        /// <see cref="Paylinks.OnrampFields"/>, like "{chain_id}".
+        /// </summary>
+        private static string OnrampUrlArg(object? value)
+        {
+            bool ok = value is string s && s.StartsWith("https://", StringComparison.Ordinal) && s.Length <= OnrampUrlLimit;
+            if (ok)
+                foreach (char ch in (string)value!)
+                    if (ch < '!' || ch > '~')
+                    {
+                        ok = false;
+                        break;
+                    }
+            if (!ok)
+                throw new ConfigError("onramp url must be an https:// URL without spaces, at most "
+                                      + OnrampUrlLimit.ToString(CultureInfo.InvariantCulture) + " characters: " + Py.Repr(value),
+                                      "onramp.bad_url");
+            var url = (string)value!;
+            var found = Paylinks.OnrampPlaceholders(url);
+            foreach (var p in found)
+                if (!Paylinks.OnrampFields.Contains(p.Name))
+                    throw new ConfigError("onramp url: unknown placeholder {" + p.Name + "} (use "
+                                          + string.Join(", ", Paylinks.OnrampFields.Select(f => "{" + f + "}")) + ")",
+                                          "onramp.unknown_placeholder");
+            var rest = new System.Text.StringBuilder();
+            int at = 0;
+            foreach (var p in found)
+            {
+                rest.Append(url, at, p.Start - at);
+                at = p.End;
+            }
+            rest.Append(url, at, url.Length - at);
+            var left = rest.ToString(); // culture-ok: StringBuilder.ToString copies the characters
+            if (left.IndexOf('{', StringComparison.Ordinal) >= 0 || left.IndexOf('}', StringComparison.Ordinal) >= 0)
+                throw new ConfigError("onramp url: unmatched brace in " + Py.Repr(url), "onramp.unmatched_brace");
+            return url;
+        }
+
+        private static OnrampOptions MergeOnramp(object? onramp, IReadOnlyList<string> chains,
+                                                 Dictionary<string, Chain> registry, bool testnet)
+        {
+            if (onramp != null && !(onramp is JsonObject))
+                throw new ConfigError("onramp must be a dict like {'enabled': False}", "onramp.not_a_dict");
+            object? enabled = true;
+            object? urlValue = Paylinks.DefaultOnrampUrl;
+            object? keysValue = null;
+            if (onramp is JsonObject given)
+            {
+                foreach (var entry in given)
+                {
+                    switch (entry.Key)
+                    {
+                        case "enabled": enabled = entry.Value; break;
+                        case "url": urlValue = entry.Value; break;
+                        case "chains": keysValue = entry.Value; break;
+                        default:
+                            throw new ConfigError("unknown option " + Py.Repr(entry.Key) + " for onramp", "onramp.unknown_option");
+                    }
+                }
+            }
+            if (!(enabled is bool on)) throw new ConfigError("onramp.enabled must be True or False", "onramp.enabled_not_bool");
+            var url = OnrampUrlArg(urlValue);
+            var keys = new List<string>();
+            if (keysValue == null)
+            {
+                if (!testnet)
+                {
+                    var builtin = Chains.GetChains(testnet);
+                    keys.AddRange(chains.Where(k => builtin.ContainsKey(k) && registry[k].Family == "evm"));
+                }
+            }
+            else
+            {
+                if (!(keysValue is IList list))
+                    throw new ConfigError("onramp.chains must be a list of chain keys", "onramp.chains_not_a_list");
+                foreach (var c in list)
+                {
+                    if (!(c is string key) || !chains.Contains(key))
+                        throw new ConfigError("onramp.chains contains disabled chain " + Py.Repr(c), "onramp.disabled_chain");
+                    if (registry[key].Family != "evm")
+                        throw new ConfigError("onramp.chains: " + Py.Repr(key) + " is not an EVM chain; the buy link is offered "
+                                              + "on EVM chains only", "onramp.not_evm");
+                    keys.Add(key);
+                }
+                if (new HashSet<string>(keys, StringComparer.Ordinal).Count != keys.Count)
+                    throw new ConfigError("duplicate chain in onramp.chains", "onramp.duplicate_chain");
+            }
+            return new OnrampOptions(on, url, keys);
+        }
+
         // ---- build_config -----------------------------------------------------------------------------------
 
         private static readonly string[] ConfigKeys = // static-ok: private keyword table, only read
             { "wallet", "testnet", "chains", "tokens", "methods", "rpc_urls", "confirmations", "previous_wallets",
-              "logo", "accent", "custom_chains", "solana_wallet" };
+              "logo", "accent", "custom_chains", "solana_wallet", "onramp" };
 
         private static Chain RegistryChain(Dictionary<string, Chain> registry, string key)
         {
@@ -577,7 +699,8 @@ namespace Scfg.Core
         /// <summary>
         /// build_config's keyword arguments: wallet, testnet, chains, tokens, methods, rpc_urls, confirmations,
         /// previous_wallets, logo, accent, custom_chains (a list of <see cref="Chain"/> from <see cref="BuildChain"/>;
-        /// those of the other network are ignored; any other entry is a ConfigError) and solana_wallet.
+        /// those of the other network are ignored; any other entry is a ConfigError), solana_wallet and onramp (a dict
+        /// of enabled, url and chains: the buy link).
         /// </summary>
         public static ConfigData BuildConfig(JsonObject kwargs)
         {
@@ -642,6 +765,7 @@ namespace Scfg.Core
             }
 
             var merged = MergeMethods(Opt(kwargs, "methods"), chains);
+            var buy = MergeOnramp(Opt(kwargs, "onramp"), chains, registry, testnet);
 
             var urls = new Dictionary<string, IReadOnlyList<string>>();
             var rpcUrlsArg = Opt(kwargs, "rpc_urls");
@@ -678,7 +802,7 @@ namespace Scfg.Core
             foreach (var kv in confs) confirmations[kv.Key] = Ints.ToLong(kv.Value, "confirmations");
 
             var cfg = new ConfigData(wallet, testnet, chains, tokens, merged, urls, confirmations, prev, sol, prevSol,
-                                     logo, accent, custom);
+                                     logo, accent, custom, buy);
             if (EnabledChains(cfg).Count == 0)
                 throw new ConfigError("no enabled chain supports any enabled token", "config.no_usable_token");
             return cfg;

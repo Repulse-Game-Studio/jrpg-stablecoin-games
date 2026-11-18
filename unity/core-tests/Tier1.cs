@@ -252,6 +252,8 @@ namespace Scfg.Core.Tests
                 { "confirmations", confirmations }, { "previous_wallets", Strs(c.PreviousWallets) },
                 { "solana_wallet", c.SolanaWallet }, { "previous_solana_wallets", Strs(c.PreviousSolanaWallets) },
                 { "logo", c.Logo }, { "accent", c.Accent }, { "custom_chains", ChainsJson(c.CustomChains) },
+                { "onramp", new JsonObject
+                    { { "enabled", c.Onramp.Enabled }, { "url", c.Onramp.Url }, { "chains", Strs(c.Onramp.Chains) } } },
                 { "items", items },
             };
         }
@@ -334,6 +336,10 @@ namespace Scfg.Core.Tests
         {
             Funcs["eip681_transfer_uri"] = i => Paylinks.Eip681TransferUri(Str(i, "token_address"), IntField(i, "chain_id"),
                 Str(i, "recipient"), Units(i["units"]));
+            Funcs["onramp_amount"] = i => Paylinks.OnrampAmount(Units(i["units"]),
+                i.Get("gas_is_token") is bool gas ? gas : throw new ValueError("vector input gas_is_token must be a bool"));
+            Funcs["onramp_url"] = i => Paylinks.OnrampUrl(Str(i, "template"), Str(i, "chain"), IntField(i, "chain_id"),
+                Str(i, "token"), Str(i, "token_address"), Str(i, "amount"));
             Funcs["solana_pay_uri"] = i => Solana.SolanaPaylinks.SolanaPayUri(Str(i, "recipient"), Units(i["units"]), Str(i, "mint"),
                 Str(i, "reference"), Str(i, "label"), Str(i, "message"));
             Funcs["qr_matrix"] = i =>
