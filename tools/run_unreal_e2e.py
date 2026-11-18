@@ -46,8 +46,16 @@ the game: after the second start's 0-request check, the driver's live_https make
 JSON-RPC call through FScfgHttpTransport per family, eth_blockNumber on Arbitrum Sepolia and
 getSlot on Solana Devnet, each to that chain's first built-in testnet RPC url (no wallet, key or
 item goes out), and each must answer a number above 0. With --packaged that is the cooked game,
-with the engine's certificate bundle as it is staged. The editor's twin is Scfg.Live.Https
-(SCFG_LIVE=1, unreal/README.md).
+with the engine's certificate bundle the plugin stages (Scfg.Build.cs), which the run checks is
+there. The editor's twin is Scfg.Live.Https (SCFG_LIVE=1, unreal/README.md).
+
+--showcase --packaged --live --no-certificates checks that the plugin fails closed (ruling
+R5-4): the game runs with its certificate bundle replaced by an empty file
+(-ini:Engine:[SSL]:OverrideCertificateBundlePath=<empty>, honoured outside Shipping) and the
+system's off (-ini:Engine:[SSL]:bUsePlatformProvidedCertificates=False), so the SSL module has no
+root certificate and libcurl could not verify a peer; each live call must then be refused with
+"TLS certificate verification unavailable" without being sent (the driver's `sent`). (Deleting
+the staged file is not enough: staging puts the bundle in the pak too.)
 
 --family evm (default) pays USDC on Anvil (the arbitrum entry pointed at a mock token); arc pays
 native USDC on Anvil dressed as Arc; solana pays USDC on solana-test-validator. They need `anvil`
@@ -93,7 +101,7 @@ touched). Screenshots of the sheet (one per run) go to --screenshots.
 
     uv run python tools/run_unreal_e2e.py --family solana [--packaged] [--screenshots DIR]
     uv run python tools/run_unreal_e2e.py --showcase [--packaged | --no-build] [--live]
-        [--screenshots DIR]
+        [--no-certificates] [--screenshots DIR]
 """
 
 from __future__ import annotations
@@ -1357,18 +1365,58 @@ def showcase_from_code(game: Game, tour: dict) -> None:
 
 # The driver waits at most 40 s for both answers (ScfgE2EDriver.cpp, LIVE_PATIENCE).
 LIVE_REPLY_TIMEOUT = 60.0
+# The transport's refusal when TLS peer verification is unavailable (ScfgHttpTransport.h).
+TLS_UNAVAILABLE = "TLS certificate verification unavailable"
+# The engine's root certificate bundle as the plugin stages it with a Linux game (Scfg.Build.cs).
+STAGED_BUNDLE = Path("Linux", "Engine", "Content", "Certificates", "ThirdParty", "cacert.pem")
+# --no-certificates: the bundle replaced by an empty file (SslCertificateManager.cpp:318-326, not in
+# Shipping) and the system's bundle off (UnixPlatformSslCertificateManager.cpp:18-22).
+def no_certificates_args(empty_bundle: Path) -> list:
+    return [f"-ini:Engine:[SSL]:OverrideCertificateBundlePath={empty_bundle}",
+            "-ini:Engine:[SSL]:bUsePlatformProvidedCertificates=False"]
+# --no-certificates: the transport's reason, logged once per transport (ScfgHttpTransport.cpp).
+REFUSAL_LINE = "LogScfg: Error: scfg: refusing https:// RPC requests: " + TLS_UNAVAILABLE
+# --no-certificates: the lines that run is meant to log.
+REFUSED_ALLOWED = (
+    re.compile(r"\bLogScfg: Error: scfg: refusing https:// RPC requests: "
+               + re.escape(TLS_UNAVAILABLE) + ": the engine found no root certificates"),
+    re.compile(r"\bLogSsl: Warning: Unable to find a cert bundle in any of known locations\."),
+)
 
 
-def live_https(game: Game) -> list:
+# The engine's last line before a clean process exit (LaunchEngineLoop's FEngineLoop::Exit).
+EXITING = re.compile(r"\bLogExit: Exiting\.$", re.MULTILINE)
+
+
+def before_exit(log: str) -> tuple[str, bool]:
+    """--no-certificates: a game whose SSL module holds no root certificate crashes after its last
+    log line, in the process's own teardown (measured: SIGSEGV or "free(): invalid size" after
+    "LogExit: Exiting.", with -ExecCmds=quit and no plugin call; one certificate is enough to
+    avoid it). The log up to that line, and whether it got there."""
+    found = EXITING.search(log)
+    return (log[:found.end()], True) if found else (log, False)
+
+
+def live_https(game: Game, refused: bool = False) -> list:
     """--live: the driver's live_https, one read-only call per family over real HTTPS through the
-    plugin's transport; each must be answered with a number above 0."""
+    plugin's transport; each must be answered with a number above 0 or, with `refused`
+    (--no-certificates), fail without being sent: the transport's TransportError(TLS_UNAVAILABLE)
+    reaches the caller as the RpcClient's RpcUnavailable, as for a payment, and the reason is the
+    log line REFUSAL_LINE (checked on the game's log by run_showcase)."""
     calls = game.call("live_https", timeout=LIVE_REPLY_TIMEOUT)
     expect(isinstance(calls, list) and len(calls) == 2, "live_https should answer two calls", calls)
     for call in calls:
         where = f"{call.get('method')} on {call.get('chain')} at {call.get('url')}"
+        if refused:
+            expect(not call.get("ok") and call.get("sent") is False
+                   and str(call.get("error")).startswith(("RpcUnavailable", "TransportError")),
+                   f"live {where} should be refused unsent ({TLS_UNAVAILABLE!r})", call)
+            print(f"  live {where}: refused, not sent ({call['error']})")
+            continue
         expect(call.get("ok") and call.get("url", "").startswith("https://"),
                f"live {where} failed after {call.get('ms')} ms: {call.get('error')}", call)
         expect(int(call["value"]) > 0, f"live {where} answered {call['value']}", call)
+        expect(call.get("sent") is not False, f"live {where} was answered but not sent", call)
         print(f"  live {where}: {call['value']} in {call['ms']} ms")
     return calls
 
@@ -1396,6 +1444,10 @@ def run_showcase(args, started: float) -> int:
                 raise E2EError("the staged game holds the plugin's editor module (ScfgEditor): "
                                + "; ".join(found))
             print("  the staged game holds nothing of ScfgEditor")
+            bundle = work / "archive" / STAGED_BUNDLE
+            if not bundle.is_file():
+                raise E2EError(f"the staged game has no certificate bundle at {STAGED_BUNDLE}")
+            print(f"  the staged game has the engine's certificate bundle, {STAGED_BUNDLE}")
         elif not args.no_build:
             build_editor(engine, work)
         times["build"] = time.monotonic() - t
@@ -1405,7 +1457,13 @@ def run_showcase(args, started: float) -> int:
         write_tour_config(config, control.port, control.token)
         outputs = []
         tour = None
-        for label, extra in (("settings", []), ("code", [CODE_SWITCH])):
+        no_certs = []
+        if args.no_certificates:
+            empty = work / "no-certificates.pem"
+            empty.write_bytes(b"")
+            no_certs = no_certificates_args(empty)
+            print("  --no-certificates: " + " ".join(no_certs))
+        for label, extra in (("settings", no_certs), ("code", [CODE_SWITCH, *no_certs])):
             t = time.monotonic()
             game = Game(game_command(engine, config, user_dir, staged) + extra, env,
                         work / f"showcase_{label}.log", control, f"showcase ({label})")
@@ -1423,14 +1481,26 @@ def run_showcase(args, started: float) -> int:
                 showcase_from_code(game, tour)
                 if args.live:
                     print("3. live HTTPS through the plugin's transport (--live)")
-                    tour["live"] = live_https(game)
+                    tour["live"] = live_https(game, refused=args.no_certificates)
             code = game.quit()
-            outputs.append(game.output())
+            output = game.output()
+            tail = game.tail()  # before close(), which closes the log
             game.close()
+            if args.no_certificates and code != 0:
+                output, exited = before_exit(output)
+                if exited:
+                    print(f"  exit code {code}: the engine's crash after 'LogExit: Exiting.' "
+                          "without root certificates (before_exit)")
+                    code = 0
+            outputs.append(output)
             if code != 0:
-                raise E2EError(f"the showcase exited with {code}:\n{game.tail()}")
+                raise E2EError(f"the showcase exited with {code}:\n{tail}")
+            if args.live and args.no_certificates and label == "code":
+                expect(REFUSAL_LINE in output, f"the game should log {REFUSAL_LINE!r}", tail)
+                print(f"  the game logged: {REFUSAL_LINE}: ...")
             times[label] = time.monotonic() - t
-        bad = [line for out in outputs for line in problems(out)]
+        bad = [line for out in outputs for line in problems(out)
+               if not (args.no_certificates and any(a.search(line) for a in REFUSED_ALLOWED))]
         if bad:
             raise E2EError("the game logged errors or warnings (not in ALLOWED), or crashed:\n"
                            + "\n".join(bad))
@@ -1691,9 +1761,10 @@ def run_inner(args) -> int:
             (work / "real_window.json").write_text(json.dumps(seen, indent=1))
             code = game.quit()
             outputs.append(game.output())
+            tail = game.tail()  # before close(), which closes the log
             game.close()
             if code != 0:
-                raise E2EError(f"the game exited with {code}:\n{game.tail()}")
+                raise E2EError(f"the game exited with {code}:\n{tail}")
             print("4. restart")
             t = time.monotonic()
             game = make_game(config, "game2")
@@ -1702,9 +1773,10 @@ def run_inner(args) -> int:
             still_owned_after_restart(game)
             code = game.quit()
             outputs.append(game.output())
+            tail = game.tail()  # before close(), which closes the log
             game.close()
             if code != 0:
-                raise E2EError(f"the restarted game exited with {code}:\n{game.tail()}")
+                raise E2EError(f"the restarted game exited with {code}:\n{tail}")
             times["restart"] = time.monotonic() - t
             browser.close()
         bad = [line for out in outputs for line in problems(out)]
@@ -1786,6 +1858,9 @@ def main(argv=None) -> int:
                     "configured from the project settings, then in code (no chain, no browser; "
                     "tests/unreal_showcase); --family does not apply; with --packaged, on the "
                     "cooked game")
+    ap.add_argument("--no-certificates", action="store_true",
+                    help="with --showcase --packaged --live: delete the staged certificate bundle "
+                    "and turn the system's off; the live calls must be refused unsent")
     ap.add_argument("--live", action="store_true",
                     help="with --showcase: also one read-only HTTPS JSON-RPC call per family "
                     "(Arbitrum Sepolia eth_blockNumber, Solana Devnet getSlot) through the "
@@ -1793,6 +1868,8 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     if args.live and not args.showcase:
         ap.error("--live goes with --showcase")
+    if args.no_certificates and not (args.live and args.packaged):
+        ap.error("--no-certificates goes with --showcase --packaged --live")
     if os.environ.get(INNER_ENV):
         return run_inner(args)
     return run_outer(argv)

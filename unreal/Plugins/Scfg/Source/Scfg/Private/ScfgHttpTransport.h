@@ -12,7 +12,11 @@
 // - no answer: TransportError with no status and a message as close to urllib's as the engine tells
 //   ("timed out", "<urlopen error connection failed>", ...; FailureMessage in the .cpp);
 // - a request the engine will not start (an empty URL): TransportError("<urlopen error cannot start the request to
-//   '<url>'>"), already complete when post_json returns.
+//   '<url>'>"), already complete when post_json returns;
+// - an https:// request when TLS peer verification is unavailable (TlsVerificationProblem() is not empty):
+//   TransportError("TLS certificate verification unavailable"), complete at once, nothing sent (ruling R5-4: a payment
+//   plugin fails closed). The reason is logged once per transport ("LogScfg: Error: scfg: refusing https:// RPC
+//   requests: TLS certificate verification unavailable: <why>").
 //
 // Shutdown() (also run by the destructor) unbinds each request's delegates first, so a late completion can never
 // reach this object, cancels the request, then drops its promise (CancelledError).
@@ -30,6 +34,7 @@
 
 #include "CoreMinimal.h"
 #include "Interfaces/IHttpRequest.h"
+#include "Templates/Function.h"
 
 #include "ScfgTransport.h"
 
@@ -52,9 +57,25 @@ public:
 	virtual scfg::Future<scfg::Json> post_json(std::string Url, scfg::Json Payload, double Timeout) override;
 	virtual void Shutdown() override;
 
-	// Requests posted so far (the tests count them), and those still waiting for an answer.
+	// Requests posted so far (the tests count them), those handed to the engine (ProcessRequest), and those still
+	// waiting for an answer.
 	int32 Posts() const { return NumPosts; }
+	int32 Started() const { return NumStarted; }
 	int32 InFlight() const { return Waiting.Num(); }
+
+	// The TransportError message of a refused https:// request.
+	static constexpr const char* TlsUnavailable = "TLS certificate verification unavailable";
+	// Why this process cannot verify the TLS peer of an https:// request, or "" when it can. On the engine's libcurl
+	// platforms (Linux, Windows, Android) libcurl verifies the peer only when the SSL module found root certificates,
+	// unless [/Script/Engine.NetworkSettings] n.VerifyPeer says otherwise (CurlHttpManager.cpp:277-289; the flag is
+	// private to the HTTP module and read once, when it starts, before this module), so this asks the same two
+	// sources: n.VerifyPeer=False, or no root certificate, is a problem. Apple platforms use NSURLSession, which
+	// verifies with the system's trust store: "" there.
+	static FString TlsVerificationProblem();
+#if !UE_BUILD_SHIPPING
+	// Tests only: replaces TlsVerificationProblem()'s answer while set (an empty function restores the real one).
+	static void SetTlsProbeForTests(TFunction<FString()> Probe);
+#endif
 #if !UE_BUILD_SHIPPING
 	// Requests every FScfgHttpTransport of this process posted (post_json calls), outside Shipping: the showcase tour
 	// asserts that it made none (the e2e driver's http_requests, tools/run_unreal_e2e.py --showcase).
@@ -76,5 +97,7 @@ private:
 	// The request inside ProcessRequest(), whose refusal the engine reports through OnComplete at once.
 	const IHttpRequest* Starting = nullptr;
 	int32 NumPosts = 0;
+	int32 NumStarted = 0;
 	bool bShutDown = false;
+	bool bLoggedTls = false;
 };

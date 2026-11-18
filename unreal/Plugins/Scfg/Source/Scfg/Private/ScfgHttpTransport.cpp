@@ -2,10 +2,16 @@
 // Twin of scfg_core/rpc.py's UrllibTransport (see ScfgHttpTransport.h).
 #include "ScfgHttpTransport.h"
 
+#include "ScfgLog.h"
 #include "ScfgString.h"
 
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
+#include "Misc/ConfigCacheIni.h"
+#if WITH_SSL
+#include "Interfaces/ISslCertificateManager.h"
+#include "SslModule.h"
+#endif
 
 #include "Scfg/Err.h"
 #include "Scfg/Result.h"
@@ -57,7 +63,31 @@ int32& ProcessPosts()
 	static int32 Count = 0;
 	return Count;
 }
+
+TFunction<FString()>& TlsProbe()
+{
+	static TFunction<FString()> Probe;
+	return Probe;
+}
 #endif
+
+bool IsHttps(const std::string& Url)
+{
+	constexpr std::string_view Scheme = "https://";
+	if (Url.size() < Scheme.size())
+	{
+		return false;
+	}
+	for (size_t I = 0; I < Scheme.size(); ++I)
+	{
+		const char C = Url[I];
+		if ((C >= 'A' && C <= 'Z' ? static_cast<char>(C - 'A' + 'a') : C) != Scheme[I])
+		{
+			return false;
+		}
+	}
+	return true;
+}
 
 }  // namespace ScfgHttpTransportDetail
 
@@ -78,6 +108,19 @@ scfg::Future<scfg::Json> FScfgHttpTransport::post_json(std::string Url, scfg::Js
 	{
 		return scfg::Future<scfg::Json>::completed(
 			scfg::Err::make("CancelledError", "the HTTP transport was shut down"));
+	}
+	if (ScfgHttpTransportDetail::IsHttps(Url))
+	{
+		const FString Problem = TlsVerificationProblem();
+		if (!Problem.IsEmpty())
+		{
+			if (!bLoggedTls)
+			{
+				bLoggedTls = true;
+				UE_LOG(LogScfg, Error, TEXT("scfg: refusing https:// RPC requests: %hs: %s"), TlsUnavailable, *Problem);
+			}
+			return scfg::Future<scfg::Json>::completed(scfg::Err::transport_error(TlsUnavailable, std::nullopt));
+		}
 	}
 	scfg::Result<std::string> Body = scfg::json::dumps(Payload);
 	if (!Body.ok())
@@ -107,6 +150,7 @@ scfg::Future<scfg::Json> FScfgHttpTransport::post_json(std::string Url, scfg::Js
 	// ProcessRequest, which then calls OnComplete at once on the game thread (HttpRequestCommon.cpp:180-201, :224-231):
 	// Starting tells OnComplete so.
 	Starting = &Request.Get();
+	++NumStarted;
 	const bool bStarted = Request->ProcessRequest();
 	Starting = nullptr;
 	if (!bStarted)
@@ -125,7 +169,39 @@ int32 FScfgHttpTransport::ProcessPosts()
 {
 	return ScfgHttpTransportDetail::ProcessPosts();
 }
+
+void FScfgHttpTransport::SetTlsProbeForTests(TFunction<FString()> Probe)
+{
+	ScfgHttpTransportDetail::TlsProbe() = MoveTemp(Probe);
+}
 #endif
+
+FString FScfgHttpTransport::TlsVerificationProblem()
+{
+#if !UE_BUILD_SHIPPING
+	if (const TFunction<FString()>& Probe = ScfgHttpTransportDetail::TlsProbe())
+	{
+		return Probe();
+	}
+#endif
+#if PLATFORM_APPLE
+	return FString();  // FAppleHttpRequest: NSURLSession verifies with the system's trust store
+#elif WITH_SSL
+	bool bVerifyPeer = true;
+	if (GConfig && GConfig->GetBool(TEXT("/Script/Engine.NetworkSettings"), TEXT("n.VerifyPeer"), bVerifyPeer, GEngineIni) &&
+		!bVerifyPeer)
+	{
+		return TEXT("[/Script/Engine.NetworkSettings] n.VerifyPeer is False in the engine ini");
+	}
+	if (!FSslModule::Get().GetCertificateManager().HasCertificatesAvailable())
+	{
+		return TEXT("the engine found no root certificates (no certificate bundle), so libcurl would not verify the peer");
+	}
+	return FString();
+#else
+	return TEXT("the engine has no SSL module on this platform");
+#endif
+}
 
 void FScfgHttpTransport::OnComplete(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bConnected)
 {

@@ -44,7 +44,7 @@
 //   live_https           opt-in, the runner's --live only: one read-only JSON-RPC call over real HTTPS through the
 //                        plugin's transport (an RpcClient over FScfgHttpTransport) per family, eth_blockNumber on Arbitrum
 //                        Sepolia and getSlot on Solana Devnet, each to its chain's first built-in RPC url; no wallet, key
-//                        or item goes out. Replies [{chain, url, method, ok, value | error, ms}] once both are answered
+//                        or item goes out. Replies [{chain, url, method, ok, value | error, ms, sent}] once both are answered
 //                        (at most 40 s). It adds to http_requests, so the runner calls it after the tour's 0 check
 //   configuration        the facade's {configured, from_settings, logo (its full path, "" for none), logo_exists}:
 //                        the packaged tour checks the settings' logo was found in the cooked game

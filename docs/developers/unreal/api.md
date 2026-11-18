@@ -528,6 +528,19 @@ The checkout page answers only requests for its own secret path with a `127.0.0.
 player's wallet extension in their browser and reports the transaction back to the game, which verifies it on the
 chain.
 
+**TLS is verified, or nothing is sent.** The plugin sends a JSON-RPC request over `https://` only when the engine
+will verify the server's certificate. The engine's HTTP client (libcurl on Linux, Windows and Android) verifies the
+peer only when it found root certificates, unless the engine ini says otherwise
+(`[/Script/Engine.NetworkSettings] n.VerifyPeer`). Without root certificates, it would send HTTPS requests
+unverified. So the plugin checks both sources before each request. If the engine found no root certificate, or
+`n.VerifyPeer=False`, the request fails at once with `TransportError: TLS certificate verification unavailable`, and
+nothing is sent. The RPC client then reports the chain as unavailable (`RpcUnavailable`), and the Output Log says
+why, once per transport (see [Troubleshooting](#troubleshooting)). A payment
+then stays pending rather than being trusted on an unverified answer. On Linux the plugin stages the engine's own
+bundle (`Engine/Content/Certificates/ThirdParty/cacert.pem`) with a packaged game, and the engine also reads the
+system's (`/etc/ssl/certs/ca-certificates.crt` and two other known paths). Windows and Android use their system
+stores, and macOS and iOS use the system's trust (NSURLSession); none of these four has been tested.
+
 Nothing is sent to us or to any server of ours, and there is no account, analytics or telemetry. The RPC providers
 see the player's IP address and the addresses and transactions the game asks about, as with any wallet. The payment
 itself is public on its blockchain, payer address included.
@@ -545,8 +558,10 @@ test chains (by manual transfer, and by the browser method in Chromium with mock
 uncooked game for all three chain families; the packaged game passed it too, at an earlier version of the showcase.
 The showcase's tour also runs on a packaged Development game, configured from the project settings in the staged ini
 with a logo staged as [described above](#the-logo-in-a-packaged-game).
-Not tested yet: play in the editor, a Shipping game run, a real desktop session with a window manager, and HTTPS RPC
-endpoints (the tests serve plain HTTP on loopback).
+HTTPS to real RPC endpoints is tested opt-in (`SCFG_LIVE=1`, and `--live` in the packaged game): one read-only call
+to Arbitrum Sepolia and one to Solana Devnet, with the certificate verified. With the certificate bundles removed,
+the packaged game refuses both calls without sending them.
+Not tested yet: play in the editor, a Shipping game run, and a real desktop session with a window manager.
 
 **Windows and macOS** are in the plugin's platform list but have never been built: they are unverified. **UE 5.6 and
 5.7** are unverified too: 5.6 is the minimum, and the release has a zip for each of 5.6, 5.7 and 5.8 (the same source,
@@ -576,6 +591,7 @@ of these headings:
 | `scfg: worker error: ...` | A command of the payment engine failed, most often on the network (every RPC endpoint of a chain failing or timing out) | If it persists, add your own endpoint in `RpcUrls`. Keys in a game build are visible to anyone: use a key restricted to read-only calls |
 | `scfg: cannot read the stored receipts: ...` | `state.json` cannot be read (a permission, a corrupt file that cannot be moved aside): no payments start | Fix the file's permissions, or move it away and use Restore |
 | `scfg: cannot save the payment state: ...` | A save failed; it is retried every 10 seconds | Check the disk and the `Saved/Scfg/` folder's permissions |
+| `scfg: refusing https:// RPC requests: TLS certificate verification unavailable: ...` | The engine found no root certificate (no bundle staged, and on Linux none at the system's paths), or `n.VerifyPeer` is `False` in your engine ini. No RPC request is sent, so no payment can be checked | Package with the plugin as it is: it stages the engine's `cacert.pem` on Linux. Do not set `n.VerifyPeer=False`. On a Linux system without a bundle, install the distribution's `ca-certificates` package |
 | `scfg: cannot start the checkout page: ...` | The page's files are missing, or it could not listen. The browser method says "Couldn't start the browser checkout. Use another method." and QR and manual remain | Check that `Plugins/Scfg/Resources/Web/` is staged with the game |
 | `scfg: cannot start the payment engine: ...` | The stored payments could not be loaded | Move `state.json` away and use Restore |
 | `scfg: cannot build the payment link: ...` | The QR code or wallet link for this payment could not be made | Report it, with the log |

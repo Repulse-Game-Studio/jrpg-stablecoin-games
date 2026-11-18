@@ -26,6 +26,9 @@ public class Scfg : ModuleRules
 		// controller's mobile flag), so only the page's files are left out there (below). Unverified: no Android or
 		// iOS SDK on the development machine (unreal/README.md, "Mobile").
 		PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "HTTP", "ImageWrapper", "InputCore", "Projects", "ScfgCore", "Slate", "Sockets" });
+		// SSL: the HTTP transport refuses an https:// request unless libcurl will verify the peer, which it does only
+		// when the SSL module found root certificates (FScfgHttpTransport::TlsVerificationProblem, ruling R5-4).
+		PrivateDependencyModuleNames.Add("SSL");
 		// bEnableExceptions and bUseRTTI keep their defaults (false).
 		// The checkout page's files the server serves (local_server::ASSETS; copies of plugin/game/scfg/web/, kept by
 		// tools/sync_web_page.py), staged with a packaged game as loose files at the plugin's own path, where
@@ -37,6 +40,16 @@ public class Scfg : ModuleRules
 			{
 				RuntimeDependencies.Add(Path.Combine(PluginDirectory, "Resources", "Web", Asset), StagedFileType.NonUFS);
 			}
+		}
+		// The engine's root certificate bundle, staged with a Linux game (ruling R5-4). A packaged game does not stage
+		// it by default (BaseGame.ini lists Content/Certificates only for the early-downloader pak), so its TLS would
+		// rest on the distro's bundle alone, and with none the engine turns libcurl's peer verification off
+		// (CurlHttpManager.cpp:277-289). The SSL module reads it from EngineContentDir()/Certificates/ThirdParty/
+		// (SslCertificateManager.cpp:331-337, through IFileManager, so a loose file works). Windows and Android load
+		// their system stores; Apple platforms use NSURLSession. Unverified there.
+		if (Target.Platform == UnrealTargetPlatform.Linux || Target.Platform == UnrealTargetPlatform.LinuxArm64)
+		{
+			RuntimeDependencies.Add("$(EngineDir)/Content/Certificates/ThirdParty/cacert.pem", StagedFileType.NonUFS);
 		}
 	}
 }

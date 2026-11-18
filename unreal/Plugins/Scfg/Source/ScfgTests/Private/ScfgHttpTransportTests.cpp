@@ -29,7 +29,8 @@
 //   test_parse_rpc_body_is_linear_on_many_long_digit_runs none: the time of GDScript's _has_overlong_int prefilter;
 //                                                        the core has no prefilter (its Json parser counts the digits as it
 //                                                        reads, CMake's JsonTests)
-// WhatCannotBeSentFailsAtOnce (a dumps Err, a request the engine refuses) is the Unreal transport's own.
+// WhatCannotBeSentFailsAtOnce (a dumps Err, a request the engine refuses), HttpsIsRefusedWithoutTlsVerification and
+// TlsVerificationIsAvailableInTheEditor (the fail-closed TLS guard, ruling R5-4) are the Unreal transport's own.
 #include "HAL/PlatformTLS.h"
 #include "HAL/PlatformTime.h"
 #include "HttpPath.h"
@@ -41,6 +42,7 @@
 #include "IHttpRouter.h"
 #include "Math/UnrealMathUtility.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/ScopeExit.h"
 
 #include "ScfgHttpTransport.h"
 #include "ScfgString.h"
@@ -609,6 +611,67 @@ bool FScfgHttpWorkerTest::RunTest(const FString& Parameters)
 		S->Worker.Reset();  // Jobs, Engine, then the transport's Shutdown, outside the ticker
 		return true;
 	}));
+	return true;
+}
+
+SCFG_HTTP_TEST(FScfgHttpTlsRefusedTest, "HttpsIsRefusedWithoutTlsVerification")
+
+// The fail-closed guard (ruling R5-4), with TlsVerificationProblem() answered by the test hook: while the process
+// cannot verify a TLS peer, an https:// request (any case of the scheme) is a TransportError("TLS certificate
+// verification unavailable") at once and is never handed to the engine, and the reason is logged once per transport;
+// a plain http:// request is not affected; with verification available, an https:// request is sent.
+bool FScfgHttpTlsRefusedTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgHttpTests;
+	ON_SCOPE_EXIT
+	{
+		FScfgHttpTransport::SetTlsProbeForTests(nullptr);
+	};
+	FScfgHttpTransport::SetTlsProbeForTests([]() { return FString(TEXT("no root certificates (the test's probe)")); });
+	AddExpectedErrorPlain(TEXT("scfg: refusing https:// RPC requests: TLS certificate verification unavailable: "
+		"no root certificates (the test's probe)"), EAutomationExpectedErrorFlags::Contains, 1);
+	// The two requests that are sent go to 127.0.0.1:1 and are cancelled in the same frame (Shutdown), before the engine
+	// logs anything about them.
+	FScfgHttpTransport Transport;
+	const Json Call = Json::dict({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "eth_blockNumber"}, {"params", Json::list()}});
+	for (const char* Url : {"https://127.0.0.1:1/rpc", "HTTPS://sepolia-rollup.arbitrum.io/rpc"})
+	{
+		scfg::Future<Json> Refused = Transport.post_json(Url, Call, 5.0);
+		TestTrue(TEXT("refused inside post_json"), Refused.done());
+		scfg::Job<Json> Job;
+		std::optional<Result<Json>> Got;
+		Job.start(Await(std::move(Refused)), [&Got](Result<Json> R) { Got.emplace(std::move(R)); });
+		if (TestTrue(TEXT("a TransportError"), Got && !Got->ok() && Got->err().kind == "TransportError"))
+		{
+			TestEqual(TEXT("its message"), ScfgString::FromUtf8(Got->err().message),
+				TEXT("TLS certificate verification unavailable"));
+			TestFalse(TEXT("with no status"), Got->err().status.has_value());
+		}
+	}
+	TestEqual(TEXT("two posts"), Transport.Posts(), 2);
+	TestEqual(TEXT("nothing handed to the engine"), Transport.Started(), 0);
+	TestEqual(TEXT("nothing in flight"), Transport.InFlight(), 0);
+
+	// Plain HTTP (a local node) is not TLS: sent as before, then cancelled.
+	scfg::Future<Json> Plain = Transport.post_json("http://127.0.0.1:1/", Call, 5.0);
+	TestEqual(TEXT("http:// is handed to the engine"), Transport.Started(), 1);
+
+	FScfgHttpTransport::SetTlsProbeForTests([]() { return FString(); });
+	scfg::Future<Json> Verified = Transport.post_json("https://127.0.0.1:1/rpc", Call, 5.0);
+	TestEqual(TEXT("with verification available https:// is handed to the engine"), Transport.Started(), 2);
+	Transport.Shutdown();
+	TestTrue(TEXT("both cancelled by Shutdown"), Plain.done() && Verified.done());
+	return true;
+}
+
+SCFG_HTTP_TEST(FScfgHttpTlsAvailableTest, "TlsVerificationIsAvailableInTheEditor")
+
+// The real probe in the editor: the SSL module found root certificates (the engine's bundle,
+// Engine/Content/Certificates/ThirdParty/cacert.pem, and on Linux the system's) and n.VerifyPeer is not False, so
+// libcurl verifies the peer and https:// requests are sent.
+bool FScfgHttpTlsAvailableTest::RunTest(const FString& Parameters)
+{
+	TestEqual(TEXT("TlsVerificationProblem()"), FScfgHttpTransport::TlsVerificationProblem(), FString());
 	return true;
 }
 

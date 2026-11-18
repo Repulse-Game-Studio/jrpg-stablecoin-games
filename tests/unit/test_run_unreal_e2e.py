@@ -505,3 +505,57 @@ def test_live_https_accepts_two_positive_answers_over_https(capsys):
 def test_live_https_refuses_a_failure_a_zero_plain_http_or_a_missing_call(calls, why):
     with pytest.raises(e2e.E2EError, match=why):
         e2e.live_https(LiveGame(calls))
+
+
+@pytest.mark.parametrize("argv", [["--showcase", "--no-certificates"],
+                                  ["--showcase", "--live", "--no-certificates"],
+                                  ["--showcase", "--packaged", "--no-certificates"]])
+def test_no_certificates_goes_with_a_packaged_live_showcase(argv, capsys):
+    with pytest.raises(SystemExit) as exit_info:
+        e2e.main(argv)
+    assert exit_info.value.code == 2
+    assert "--no-certificates goes with --showcase --packaged --live" in capsys.readouterr().err
+
+
+def refused(chain, url, method, sent=False):
+    return {"chain": chain, "url": url, "method": method, "ok": False, "ms": 0, "sent": sent,
+            "error": "RpcUnavailable: all endpoints failed for " + method}
+
+
+REFUSED = [refused("Arbitrum Sepolia", "https://sepolia-rollup.arbitrum.io/rpc", "eth_blockNumber"),
+           refused("Solana Devnet", "https://api.devnet.solana.com", "getSlot")]
+
+
+def test_live_https_refused_accepts_two_unsent_tls_refusals(capsys):
+    assert e2e.live_https(LiveGame(REFUSED), refused=True) == REFUSED
+    assert "getSlot on Solana Devnet at https://api.devnet.solana.com: refused, not sent" in (
+        capsys.readouterr().out)
+
+
+@pytest.mark.parametrize("calls", [
+    GOOD,                                                     # answered: not fail-closed
+    [REFUSED[0], {**REFUSED[1], "sent": True}],               # refused but sent
+    [REFUSED[0], {**REFUSED[1], "error": "ValueError: invalid"}],  # another error
+])
+def test_live_https_refused_refuses_an_answer_a_sent_request_or_another_error(calls):
+    with pytest.raises(e2e.E2EError, match="should be refused unsent"):
+        e2e.live_https(LiveGame(calls), refused=True)
+
+
+def test_the_refused_run_allows_only_the_two_lines_it_is_meant_to_log():
+    ours = ("[2026.11.18-01.00.00:000][  1]LogScfg: Error: scfg: refusing https:// RPC requests: "
+            "TLS certificate verification unavailable: the engine found no root certificates "
+            "(no certificate bundle), so libcurl would not verify the peer")
+    engine = ("[2026.11.18-01.00.00:000][  0]LogSsl: Warning: Unable to find a cert bundle in any "
+              "of known locations. TLS may not work.")
+    other = "[2026.11.18-01.00.00:000][  1]LogScfg: Error: scfg: something else"
+    assert all(any(a.search(line) for a in e2e.REFUSED_ALLOWED) for line in (ours, engine))
+    assert not any(a.search(other) for a in e2e.REFUSED_ALLOWED)
+    assert e2e.problems("\n".join([ours, engine])) == [ours, engine]  # not allowed in other runs
+
+
+def test_before_exit_cuts_the_log_at_the_engines_last_line():
+    log = "LogInit: start\nLogExit: Exiting.\nLogInit: Tearing down SDL.\nSignal 11 caught.\n"
+    assert e2e.before_exit(log) == ("LogInit: start\nLogExit: Exiting.", True)
+    assert e2e.before_exit("LogInit: start\nSignal 11 caught.\n") == (
+        "LogInit: start\nSignal 11 caught.\n", False)

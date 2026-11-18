@@ -383,6 +383,9 @@ struct FLiveCall
 			Out->SetStringField(TEXT("error"), Got ? Utf8(Got->err().str()) : FString(TEXT("no answer in time")));
 		}
 		Out->SetNumberField(TEXT("ms"), FMath::RoundToInt(Seconds * 1000.0));
+		// whether the transport handed the request to the engine (false: refused before sending, e.g. without TLS
+		// peer verification)
+		Out->SetBoolField(TEXT("sent"), Transport.Started() > 0);
 		return Out;
 	}
 };
@@ -1237,7 +1240,7 @@ void FScfgE2EDriver::Run(int64 Id, const TSharedRef<FJsonObject>& Command)
 	else if (Op == TEXT("live_https"))
 	{
 		// Opt-in (tools/run_unreal_e2e.py --showcase --live): one read-only call per family over real HTTPS, nothing of
-		// the user's in it. Replies [{chain, url, method, ok, value | error, ms}] once both answered or gave up.
+		// the user's in it. Replies [{chain, url, method, ok, value | error, ms, sent}] once both answered or gave up.
 		TArray<TSharedPtr<FLiveCall>> Calls = {MakeShared<FLiveCall>(), MakeShared<FLiveCall>()};
 		Calls[0]->Start("arbitrum");
 		Calls[1]->Start("solana");

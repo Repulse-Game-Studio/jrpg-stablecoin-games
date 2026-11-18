@@ -200,6 +200,15 @@ rules.
 7. Package the game and pay once from the packaged build. A Shipping game has not been run in this preview yet. If
    you set a logo, check that **Validate** gives no packaging warning (see
    [Logo](api.md#the-logo-in-a-packaged-game)).
+8. Check that the packaged game verifies TLS. The plugin refuses its RPC requests when the engine cannot verify
+   certificates (see [Network and privacy](api.md#network-and-privacy)). For a Linux game it stages the engine's
+   certificate bundle itself (`Engine/Content/Certificates/ThirdParty/cacert.pem`, in the staged game's
+   `Engine/Content/`): keep it there when you repackage or trim the staged files. Do not set
+   `[/Script/Engine.NetworkSettings] n.VerifyPeer=False`. Setting `n.VerifyPeer=True` in your `DefaultEngine.ini`
+   makes the rest of your game's HTTPS fail closed too. Windows and macOS use the system's certificate store
+   (untested in this preview). If the packaged game's Output Log says
+   `scfg: refusing https:// RPC requests: TLS certificate verification unavailable`, no payment can be checked
+   until this is fixed.
 
 ## What you get
 
