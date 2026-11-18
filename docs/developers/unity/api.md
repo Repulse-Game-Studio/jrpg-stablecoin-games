@@ -80,8 +80,8 @@ cents (plus a cent for the fee on Arc). The link carries only the network, the t
 a network it isn't offered on, like Solana, the sheet says **No USDC yet? Pick another network to buy some with a
 card** instead, which goes back to the network step, when another network the player can pick has the link.
 
-It is **on by default on mainnet**, also for a game that upgrades from 0.2.0. Turn it off, or change it, with
-`ScfgOptions.Onramp` (or the SCFG Settings asset's `onrampEnabled`, `onrampUrl` and `onrampChains`):
+It is **on by default on mainnet**. Turn it off, or change it, with `ScfgOptions.Onramp` (or the SCFG Settings
+asset's **Onramp Enabled**, **Onramp Url** and **Onramp Chains**):
 
 ```csharp
 SCFG.Configure(new ScfgOptions { Wallet = "0x...", Onramp = new ScfgOnramp { Enabled = false } });          // hide it
@@ -95,8 +95,9 @@ SCFG.Configure(new ScfgOptions { Wallet = "0x...", Onramp = new ScfgOnramp { Url
 | `Chains` | The networks it is offered on (enabled EVM networks only). Default: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens) |
 | `Url` | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused |
 
-A mistake is reported with a code such as `onramp.unknown_option`, `onramp.bad_url`, `onramp.unknown_placeholder`,
-`onramp.disabled_chain` or `onramp.not_evm`. A replacement sheet shows the link while the controller's
+A mistake is reported with its code: `onramp.bad_url` (also a url with no host after `https://`),
+`onramp.unknown_placeholder`, `onramp.unmatched_brace`, `onramp.disabled_chain`, `onramp.not_evm` or
+`onramp.duplicate_chain`. A replacement sheet shows the link while the controller's
 `Core.ShowsOnramp` is true and opens it with `OpenOnramp()`; while `Core.ShowsOnrampHint` is true it shows the "Pick
 another network" button there instead, which calls `Core.Back()`.
 

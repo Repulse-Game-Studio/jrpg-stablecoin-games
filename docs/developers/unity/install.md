@@ -106,6 +106,9 @@ it in:
 | **Tokens** | `USDC`, `USDT`. Empty: both |
 | **Accent** | The accent color of the sheet and the checkout page, `#rrggbb`. Empty: the default |
 | **Logo** | A sprite shown on the sheet and the checkout page |
+| **Onramp Enabled** | On by default: players with no stablecoin yet see **No USDC yet? Buy some with a card** on mainnet, which opens a third-party card seller (thirdweb) for the network they picked. Turn it off to hide the link (see [The buy link](api.md#the-buy-link-onramp)) |
+| **Onramp Url** | Optional, your own buy page (`https://`, with `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}`). Empty: thirdweb's page |
+| **Onramp Chains** | Optional, the EVM networks the link is offered on. Empty: the built-in EVM networks of a mainnet game (none on testnet) |
 | **Web Storage Id** | WebGL builds only, see [WebGL builds](api.md#webgl-builds). Set it once and never change it |
 | **Items** | One entry per unlock: **Id**, **Code** (1-99, different for each item, never changed after release), **Price** (`4.99`), **Token**, **Title** and an optional **Min Price** |
 

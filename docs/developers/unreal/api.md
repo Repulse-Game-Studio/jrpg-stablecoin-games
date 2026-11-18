@@ -102,8 +102,8 @@ link carries only the network, the token's contract and that amount. On a networ
 the sheet says **No USDC yet? Pick another network to buy some with a card** instead, which goes back to the network
 step, when another network the player can pick has the link.
 
-It is **on by default on mainnet**. Turn it off, or change it, with `FScfgOptions.Onramp` (the project settings have
-the same fields under Options > Onramp):
+It is **on by default on mainnet**. Turn it off, or change it, with `FScfgOptions.Onramp` (in the project settings,
+**Configure > Onramp**):
 
 | `FScfgOnramp` field | Meaning |
 |---|---|
@@ -111,9 +111,9 @@ the same fields under Options > Onramp):
 | `Chains` | The networks it is offered on (enabled EVM networks only). Empty: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens) |
 | `Url` | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused. Empty: thirdweb's page |
 
-A mistake is reported with a code such as `onramp.unknown_option`, `onramp.bad_url`, `onramp.unknown_placeholder`,
-`onramp.disabled_chain` or `onramp.not_evm`. A replacement sheet shows the link while the controller's
-`ShowsOnramp()` is true and opens it with `OpenOnramp()`; while `ShowsOnrampHint()` is true it shows the "Pick another
+A mistake is reported with its code: `onramp.bad_url` (also a url with no host after `https://`),
+`onramp.unknown_placeholder`, `onramp.unmatched_brace`, `onramp.disabled_chain`, `onramp.not_evm` or
+`onramp.duplicate_chain`. A replacement sheet shows the link while the controller's `ShowsOnramp()` is true and opens it with `OpenOnramp()`; while `ShowsOnrampHint()` is true it shows the "Pick another
 network" button there instead, which calls `Back()`.
 
 ### AddItem

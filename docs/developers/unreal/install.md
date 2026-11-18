@@ -161,6 +161,7 @@ The panel has three sections. **Configure** holds the options of `Configure`:
 | **Chains**, **Tokens**, **Methods**, **Rpc Urls**, **Confirmations**, **Previous Wallets** | As the fields of `FScfgOptions` (see [Configure](api.md#configure)). Empty: the defaults |
 | **Logo** | An image file in a folder under `Content/`, relative to the project folder (`Content/Scfg/logo.png`): png, jpg or webp. Add that folder (`Scfg`) to **Project Settings > Packaging > Additional Non-Asset Directories to Package**, or a packaged game cannot find the logo and its `Configure` fails (see [The logo in a packaged game](api.md#the-logo-in-a-packaged-game)) |
 | **Accent** | The accent color of the sheet and the checkout page, `#rrggbb`. Empty: the default |
+| **Onramp** | The buy link, on by default on mainnet: players with no stablecoin yet see **No USDC yet? Buy some with a card**, which opens a third-party card seller (thirdweb) for the network they picked. Turn **Enabled** off to hide it; **Url** (your own page) and **Chains** (the EVM networks it is offered on) are optional (see [The buy link](api.md#the-buy-link-onramp)) |
 
 **Chains** lists your own EVM chains, each a **Key** and the fields of an `FScfgChain` (see
 [AddChain](api.md#addchain)). **Items** has one row per unlock: **Id**, **Code** (1-99, different for each item,
