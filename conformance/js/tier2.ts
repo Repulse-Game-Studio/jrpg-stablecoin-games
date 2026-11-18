@@ -275,17 +275,25 @@ interface RecordedCall {
   params: unknown;
   response_text?: string;
   transport_error?: { message: string; status: number | null };
+  elapsed?: number;
 }
 
 /**
  * Answers each request from the current step's recorded calls, as a multiset: any order, each
  * recorded call used once, identical requests take their copies in recorded order. The JSON-RPC
- * id is ignored; params match by JSON equality (`true` is not `1`).
+ * id is ignored; params match by JSON equality (`true` is not `1`). A call with `elapsed` (a
+ * request that hung) must have been made with that timeout, and moves the clock by it (`wait`)
+ * before its transport_error is raised.
  */
 export class ReplayTransport implements Transport {
   private calls: RecordedCall[] = [];
   private used: boolean[] = [];
   problems: string[] = [];
+  private readonly wait: (seconds: number) => void;
+
+  constructor(wait: (seconds: number) => void = () => {}) {
+    this.wait = wait;
+  }
 
   load(calls: RecordedCall[]): void {
     this.calls = [...calls];
@@ -293,11 +301,15 @@ export class ReplayTransport implements Transport {
     this.problems = [];
   }
 
-  async postJson(url: string, payload: any, _timeout: number): Promise<unknown> {
+  async postJson(url: string, payload: any, timeout: number): Promise<unknown> {
     for (let i = 0; i < this.calls.length; i++) {
       const c = this.calls[i]!;
       if (!this.used[i] && c.url === url && c.method === payload.method && jsonEqual(c.params, payload.params)) {
         this.used[i] = true;
+        if (c.elapsed !== undefined) {
+          if (timeout !== c.elapsed) this.problems.push(`${url} ${payload.method}: timeout ${timeout}, recorded ${c.elapsed}`);
+          this.wait(c.elapsed);
+        }
         if (c.transport_error !== undefined) throw new TransportError(c.transport_error.message, c.transport_error.status);
         return JSON.parse(c.response_text!);
       }
@@ -324,7 +336,7 @@ export async function replay(vector: any): Promise<void> {
   const setup = vector.setup;
   let now: number = setup.clock;
   let errors = 0;
-  const transport = new ReplayTransport();
+  const transport = new ReplayTransport((seconds) => { now += seconds; });
   const entropy = new StepEntropy();
   const engine = buildEngine(setup, {
     transport, clock: () => now, on_error: () => { errors += 1; }, entropy,
