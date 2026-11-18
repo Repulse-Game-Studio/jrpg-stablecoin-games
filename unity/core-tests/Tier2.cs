@@ -88,7 +88,9 @@ namespace Scfg.Core.Tests
     /// Answers each request from the current step's recorded calls, as a multiset keyed by (url, method, params):
     /// any order, each recorded call used once, identical requests take their copies in recorded order. The JSON-RPC
     /// id is ignored; params match by JSON equality (<see cref="JsonEq"/>: key order ignored, 1 equals 1.0, true is
-    /// not 1). A recorded transport_error is the transport's failure (a TransportError).
+    /// not 1). A recorded transport_error is the transport's failure (a TransportError). A call with <c>elapsed</c> (a
+    /// request that hung) must have been made with that timeout, and moves the clock by it (<see cref="Wait"/>) before
+    /// its transport_error is raised.
     /// </summary>
     public sealed class ReplayTransport : ITransport
     {
@@ -105,6 +107,13 @@ namespace Scfg.Core.Tests
         /// completed task.
         /// </summary>
         public Func<Func<object?>, Task<object?>>? Deliver { get; set; }
+
+        /// <summary>
+        /// Moves the runner's clock forward by a hung call's <c>elapsed</c> seconds (replay.py's <c>wait</c>);
+        /// <see cref="Tier2.Replay(JsonObject, ReplayTransport, Action{string})"/> sets it to the clock the Engine and
+        /// every RpcClient read.
+        /// </summary>
+        public Action<long>? Wait { get; set; }
 
         public void Load(IEnumerable<object?> calls)
         {
@@ -130,6 +139,15 @@ namespace Scfg.Core.Tests
                 if (_used[i] || !(c.Get("url") is string u) || u != url || !Equals(c.Get("method"), method)
                     || !JsonEq.Equal(c.Get("params"), prms)) continue;
                 _used[i] = true;
+                if (c.ContainsKey("elapsed"))
+                {
+                    if (!(c.Get("elapsed") is long elapsed))
+                        return Task.FromException<object?>(new ReplayError("a recorded call's elapsed is not an int"));
+                    if (timeout != elapsed)
+                        Problems.Add(url + " " + Coio.Str(method) + ": timeout " + timeout.ToString("R", CultureInfo.InvariantCulture)
+                                     + ", recorded " + elapsed.ToString(CultureInfo.InvariantCulture));
+                    Wait?.Invoke(elapsed);
+                }
                 Func<object?> answer = () =>
                 {
                     if (c.Get("transport_error") is JsonObject err)
@@ -642,6 +660,7 @@ namespace Scfg.Core.Tests
             string? unexpected = null; // a BCL exception escaped the core: a port bug
             string? runnerError = null; // a ReplayError escaped: reported after the transport's own problems
             var entropy = new StepEntropy();
+            transport.Wait = seconds => now += seconds;
             var engine = BuildEngine(setup, transport, () => now, e =>
             {
                 errors++;

@@ -279,8 +279,8 @@ namespace Scfg.Tests
             Assert.That(transport.InFlight, Is.EqualTo(0));
         }
 
-        // The same for a name that cannot be looked up, through the RPC client: every endpoint ends at its 10 s, so the
-        // network error comes after about 10 s per endpoint (two here), not the resolver's own timeout each.
+        // The same for a name that cannot be looked up, through the RPC client: the first endpoint ends at its 10 s and the
+        // second at the 5 s left of the call's 15 s budget (Rpc.CallBudget), not at the resolver's own timeout each.
         [UnityTest]
         public IEnumerator AnUnresolvableRpcIsANetworkErrorAfterItsTimeoutPerEndpoint()
         {

@@ -3,7 +3,8 @@
 //
 // Public RPC endpoints are free but unreliable: they rate-limit, go down, and cap eth_getLogs block ranges. The
 // client tries endpoints in order on every call, skipping ones in cooldown (30 s doubling to 10 min, on the
-// injected Clock), and remembers per endpoint the largest eth_getLogs range it accepts. Every network method is
+// injected Clock), within a total budget of Rpc.CallBudget seconds per call (each attempt waits at most what is left
+// of it, so a chain with four dead endpoints says so after 15 s, not 40), and remembers per endpoint the largest eth_getLogs range it accepts. Every network method is
 // async and awaits the injected ITransport where Python's generator yields a Request. Response ids are never
 // checked against request ids, as in Python.
 //
@@ -85,6 +86,15 @@ namespace Scfg.Core
     {
         public const double CooldownStart = 30.0;
         public const double CooldownMax = 600.0;
+
+        /// <summary>
+        /// Python <c>CALL_BUDGET</c>: the most seconds one Call spends across a chain's endpoints. The first attempt
+        /// gets the full per-request timeout (10 s), each later one min(timeout, what is left); once nothing is left
+        /// the endpoints not tried yet are skipped (not cooled down) and the call is RpcUnavailable. Measured on the
+        /// RpcClient's Clock, so a session start on a chain whose endpoints all hang fails after 15 s whatever the
+        /// number of urls.
+        /// </summary>
+        public const double CallBudget = 15.0;
 
         /// <summary>The smallest eth_getLogs block range a chain may be configured with.</summary>
         public const long MinLogRange = 10;
@@ -297,6 +307,9 @@ namespace Scfg.Core
         /// <summary>Seconds each request may take, passed to the transport.</summary>
         public double Timeout { get; set; }
 
+        /// <summary>The most seconds one Call spends across the endpoints (<see cref="Rpc.CallBudget"/> by default).</summary>
+        public double Budget { get; set; }
+
         public ITransport Transport { get; }
 
         private readonly Dictionary<string, long> _ranges = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -304,7 +317,7 @@ namespace Scfg.Core
         private long _nextId = 1;
 
         public RpcClient(IReadOnlyList<string> urls, ITransport transport, long logRange = 1000, Func<long>? clock = null,
-            double timeout = 10.0)
+            double timeout = 10.0, double budget = Rpc.CallBudget)
         {
             if (urls == null || urls.Count == 0) throw new ValueError("at least one RPC url required");
             var copy = new List<string>(urls);
@@ -317,6 +330,7 @@ namespace Scfg.Core
             Transport = transport;
             Clock = clock ?? Rpc.MonotonicSeconds;
             Timeout = timeout;
+            Budget = budget;
         }
 
         private void Fail(string url, long now)
@@ -366,14 +380,17 @@ namespace Scfg.Core
 
         public async Task<object?> Call(string method, List<object?> prms) => (await CallWithUrl(method, prms)).Value;
 
-        /// <summary>Python <c>_attempt</c>: an RpcAttempt, or null when the endpoint failed (and now cools down).</summary>
-        private async Task<RpcAttempt?> Attempt(string url, string method, List<object?> prms, long now)
+        /// <summary>
+        /// Python <c>_attempt</c>: an RpcAttempt, or null when the endpoint failed (and now cools down). The request
+        /// waits <paramref name="timeout"/> seconds, <see cref="Timeout"/> when null.
+        /// </summary>
+        private async Task<RpcAttempt?> Attempt(string url, string method, List<object?> prms, long now, double? timeout = null)
         {
             var payload = new JsonObject { { "jsonrpc", "2.0" }, { "id", _nextId++ }, { "method", method }, { "params", prms } };
             object? resp;
             try
             {
-                resp = await Transport.PostJson(url, payload, Timeout);
+                resp = await Transport.PostJson(url, payload, timeout ?? Timeout);
             }
             catch (TransportError)
             {
@@ -407,10 +424,13 @@ namespace Scfg.Core
         private async Task<(object? Value, string Url)> CallWithUrl(string method, List<object?> prms)
         {
             long now = Clock();
+            double deadline = now + Budget;
             foreach (var url in Urls)
             {
                 if (_state[url].Until > now) continue;
-                var res = await Attempt(url, method, prms, now);
+                double left = deadline - Clock();
+                if (left <= 0) break; // CallBudget spent: the rest are not tried (nor cooled down)
+                var res = await Attempt(url, method, prms, now, Math.Min(Timeout, left));
                 if (res == null) continue;
                 if (res.IsError) throw res.Error!;
                 return (res.ResultValue, url);

@@ -214,6 +214,58 @@ namespace Scfg.Core.Tests
             Assert.That(e.Message, Is.EqualTo("all endpoints failed for eth_blockNumber"));
         }
 
+        /// <summary>
+        /// Python's TimedTransport: each url takes <c>costs[url]</c> seconds of the clock (absent: its whole timeout, a
+        /// hang) and then fails, or answers when it is in <c>answers</c>. Records (url, timeout).
+        /// </summary>
+        private sealed class TimedTransport : ITransport
+        {
+            public readonly List<(string Url, double Timeout)> Calls = new List<(string, double)>();
+            private readonly Clock _clock;
+            private readonly Dictionary<string, long> _costs;
+            private readonly HashSet<string> _answers;
+
+            public TimedTransport(Clock clock, Dictionary<string, long> costs, params string[] answers)
+            {
+                _clock = clock;
+                _costs = costs;
+                _answers = new HashSet<string>(answers);
+            }
+
+            public Task<object?> PostJson(string url, JsonObject payload, double timeout)
+            {
+                Calls.Add((url, timeout));
+                _clock.Now += _costs.TryGetValue(url, out var cost) ? (long)Math.Min(cost, timeout) : (long)timeout;
+                if (_answers.Contains(url)) return Task.FromResult<object?>(Fakes.Ok("0x7"));
+                return Task.FromException<object?>(new TransportError("timed out after " + timeout.ToString(System.Globalization.CultureInfo.InvariantCulture) + "s"));
+            }
+        }
+
+        [Test]
+        public void ACallSpendsAtMostItsBudgetAcrossEndpoints()
+        {
+            const string C = "https://c.rpc", D = "https://d.rpc";
+            var clock = new Clock();
+            var t = new TimedTransport(clock, new Dictionary<string, long>()); // every endpoint hangs
+            var rpc = new RpcClient(new[] { A, B, C, D }, t, clock: clock.Call);
+            Assert.That(Rpc.CallBudget, Is.EqualTo(15.0));
+            Assert.ThrowsAsync<RpcUnavailable>(() => rpc.BlockNumber());
+            // the rest of the 15 s, then nothing is left for C, D
+            Assert.That(t.Calls, Is.EqualTo(new List<(string, double)> { (A, 10.0), (B, 5.0) }));
+            Assert.That(clock.Now, Is.EqualTo(1000 + (long)Rpc.CallBudget));
+            Assert.That(rpc.LiveUrls(), Is.EqualTo(new[] { C, D })); // skipped, not cooled down: the next call asks C
+        }
+
+        [Test]
+        public async Task EachAttemptWaitsAtMostWhatIsLeftOfTheBudget()
+        {
+            const string C = "https://c.rpc";
+            var clock = new Clock();
+            var t = new TimedTransport(clock, new Dictionary<string, long> { { A, 3 }, { B, 10 }, { C, 1 } }, C);
+            Assert.That(await new RpcClient(new[] { A, B, C }, t, clock: clock.Call).BlockNumber(), Is.EqualTo(7));
+            Assert.That(t.Calls, Is.EqualTo(new List<(string, double)> { (A, 10.0), (B, 10.0), (C, 2.0) }));
+        }
+
         [Test]
         public void TheClockIsSettableAndReadOnEveryCall()
         {

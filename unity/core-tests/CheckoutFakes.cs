@@ -204,7 +204,8 @@ namespace Scfg.Core.Tests
     /// The engine of a checkout test over fake nodes, one per chain (the TS setup's <c>fakes</c> map): a chain's node is
     /// made on first use, by the test or by the Engine's RPC factory, so a test can take a node down before the Engine
     /// first asks it. The RpcClients read a clock that jumps an hour on every read, so an outage leaves no cooldown
-    /// behind for the next call (the TS FakeChain is the RPC object and has none).
+    /// behind for the next call (the TS FakeChain is the RPC object and has none). On that clock every call's
+    /// CallBudget would be spent before its first attempt, so these RpcClients have none (an infinite budget).
     /// </summary>
     public sealed class CheckoutRig
     {
@@ -231,8 +232,9 @@ namespace Scfg.Core.Tests
         private long RpcClock() => _rpcNow += 3600;
 
         private object MakeRpc(Chain chain) => chain.Family == "solana"
-            ? new SolanaRpc(new RpcClient(chain.Rpc, Sol, clock: RpcClock))
-            : (object)new RpcClient(chain.Rpc, Evm(chain.Key), logRange: chain.MaxLogRange, clock: RpcClock);
+            ? new SolanaRpc(new RpcClient(chain.Rpc, Sol, clock: RpcClock, budget: double.PositiveInfinity))
+            : (object)new RpcClient(chain.Rpc, Evm(chain.Key), logRange: chain.MaxLogRange, clock: RpcClock,
+                                    budget: double.PositiveInfinity);
 
         /// <summary>One tick, every outcome handed to the controller (checkout_steps.test.ts's deliver).</summary>
         public async Task Deliver(CheckoutController ctl)
