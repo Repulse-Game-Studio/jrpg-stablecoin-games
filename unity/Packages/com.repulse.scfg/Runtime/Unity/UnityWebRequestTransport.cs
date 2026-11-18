@@ -9,7 +9,10 @@
 // ReceiveData does not stop the browser's fetch: the request would end only once the whole body is in. So Pump(),
 // once per frame from the facade, aborts every request whose download passed the cap (the browser's fetch is
 // aborted with it), giving the same "response too large" a frame or so later. UnityWebRequest.timeout is whole
-// seconds: the timeout is rounded up. Off the web the User-Agent is urllib's "scfg/0.1"; a browser keeps its own.
+// seconds and does not bound the name lookup: with a DNS server that never answers, a request waited for the
+// resolver's own timeout (about 20 s measured in the testbed), past the 10 s each RPC request is given. So Pump() also
+// fails every request older than its timeout ("timed out after Ns"), the lookup included, as Godot's HTTPRequest
+// timeout does. Off the web the User-Agent is urllib's "scfg/0.1"; a browser keeps its own.
 //
 // Close() (the game quitting, or the facade reset with domain reload off) aborts every request in flight; their
 // callers resume with HostGone, which is not a TransportError, so an RPC client does not cool down a healthy endpoint.
@@ -22,6 +25,7 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using Scfg.Core;
+using UnityEngine;
 using UnityEngine.Networking;
 
 namespace Scfg
@@ -43,6 +47,9 @@ namespace Scfg
 
         /// <summary>The largest response body accepted, in bytes.</summary>
         public int BodySizeLimit { get; set; } = Coio.MaxResponseBytes;
+
+        /// <summary>Seconds, for the requests' deadlines (Pump); unscaled real time. Test hook.</summary>
+        internal Func<double> Clock { get; set; } = () => Time.realtimeSinceStartupAsDouble;
 
         /// <summary>How many posts were started (the integration driver's transport_stats).</summary>
         public int Posts { get; private set; }
@@ -86,7 +93,7 @@ namespace Scfg
                 tcs.SetException(new TransportError("cannot start the request to " + url + ": " + e.Message));
                 return tcs.Task;
             }
-            var pending = new Pending(this, url, request, download, tcs);
+            var pending = new Pending(this, url, request, download, tcs, Clock() + Math.Max(0, timeout), timeout);
             _inFlight.Add(pending);
             UnityWebRequestAsyncOperation op;
             try
@@ -105,12 +112,18 @@ namespace Scfg
 
         /// <summary>
         /// Once per frame: a request whose download passed <see cref="BodySizeLimit"/> is aborted and fails with
-        /// "response too large" (on WebGL a refused chunk does not stop the browser's download; see the file header).
+        /// "response too large" (on WebGL a refused chunk does not stop the browser's download), and one older than its
+        /// timeout fails with "timed out" (UnityWebRequest's own timeout leaves the name lookup out; see the file header).
         /// </summary>
         public void Pump()
         {
             if (_inFlight.Count == 0) return;
-            foreach (var p in new List<Pending>(_inFlight)) p.AbortIfTooLarge();
+            double now = Clock();
+            foreach (var p in new List<Pending>(_inFlight))
+            {
+                p.AbortIfTooLarge();
+                p.AbortIfLate(now);
+            }
         }
 
         /// <summary>Ends every request in flight with <see cref="HostGone"/> and refuses later ones.</summary>
@@ -134,6 +147,8 @@ namespace Scfg
             private readonly UnityWebRequest _request;
             private readonly CappedDownload _download;
             private readonly TaskCompletionSource<object?> _tcs;
+            private readonly double _deadline;
+            private readonly double _timeout;
             private bool _done;
 
             public string Url { get; }
@@ -154,13 +169,22 @@ namespace Scfg
             }
 
             public Pending(UnityWebRequestTransport owner, string url, UnityWebRequest request, CappedDownload download,
-                           TaskCompletionSource<object?> tcs)
+                           TaskCompletionSource<object?> tcs, double deadline, double timeout)
             {
                 _owner = owner;
                 Url = url;
                 _request = request;
                 _download = download;
                 _tcs = tcs;
+                _deadline = deadline;
+                _timeout = timeout;
+            }
+
+            /// <summary>Fails the request once it is older than its timeout, however far it got (the lookup included).</summary>
+            public void AbortIfLate(double now)
+            {
+                if (_done || _timeout <= 0 || now < _deadline) return;
+                Fail(new TransportError("timed out after " + _timeout.ToString("0.###", CultureInfo.InvariantCulture) + "s"));
             }
 
             public void Fail(Exception error)

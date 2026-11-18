@@ -253,6 +253,53 @@ namespace Scfg.Tests
             Assert.That(Error(t)!.Message, Does.Contain("timed out"));
         }
 
+        // U12 of the Unity testbed: UnityWebRequest's timeout leaves the name lookup out, so a DNS server that never
+        // answered held a request about 20 s. The transport's own deadline (Pump) ends it at its timeout whatever it
+        // waits on: here an address that never resolves nor connects, with the deadline's clock moved past 10 s.
+        [UnityTest]
+        public IEnumerator ThePumpEndsARequestAtItsTimeoutWhateverItWaitsOn()
+        {
+            double now = 1000;
+            var transport = new UnityWebRequestTransport { Clock = () => now };
+            using var server = new CannedServer { Silent = true }; // accepts, never answers: no UnityWebRequest timeout yet
+            var t = transport.PostJson(server.Url, Payload, 10);
+            yield return null;
+            transport.Pump();
+            Assert.That(t.IsCompleted, Is.False, "before its deadline");
+            now += 9.9;
+            transport.Pump();
+            Assert.That(t.IsCompleted, Is.False);
+            var real = DateTime.UtcNow;
+            now += 0.2;
+            transport.Pump();
+            Assert.That(t.IsCompleted, Is.True, "at its deadline, at once");
+            Assert.That((DateTime.UtcNow - real).TotalSeconds, Is.LessThan(1));
+            Assert.That(Error(t), Is.TypeOf<TransportError>(), Error(t)?.ToString());
+            Assert.That(Error(t)!.Message, Is.EqualTo("timed out after 10s"));
+            Assert.That(transport.InFlight, Is.EqualTo(0));
+        }
+
+        // The same for a name that cannot be looked up, through the RPC client: every endpoint ends at its 10 s, so the
+        // network error comes after about 10 s per endpoint (two here), not the resolver's own timeout each.
+        [UnityTest]
+        public IEnumerator AnUnresolvableRpcIsANetworkErrorAfterItsTimeoutPerEndpoint()
+        {
+            double now = 1000;
+            var transport = new UnityWebRequestTransport { Clock = () => now };
+            var rpc = new RpcClient(new List<string> { "https://scfg-never-resolves.invalid/a", "https://scfg-never-resolves.invalid/b" },
+                                    transport, clock: () => (long)now);
+            var call = rpc.Call("eth_blockNumber", new List<object?>());
+            for (int endpoint = 0; endpoint < 2 && !call.IsCompleted; endpoint++)
+            {
+                yield return null;
+                now += 10.1;
+                transport.Pump();
+                yield return null;
+            }
+            yield return Wait(call, 5);
+            Assert.That(Error(call), Is.TypeOf<RpcUnavailable>(), Error(call)?.ToString());
+        }
+
         [UnityTest]
         public IEnumerator ARefusedConnectionIsATransportError()
         {
