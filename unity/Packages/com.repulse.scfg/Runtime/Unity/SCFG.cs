@@ -222,6 +222,25 @@ namespace Scfg
 
         private static bool IsMisuse(Exception e) => e is ValueError || e is TypeError || e is KeyError;
 
+        /// <summary>
+        /// The error's message, with Unity's names where the core's names Python's keywords (wallet.missing:
+        /// "configure() needs wallet= ...", chain.needs_evm_wallet): ScfgOptions' Wallet / SolanaWallet and the SCFG
+        /// Settings asset's fields. What Configure and the asset's Validate report.
+        /// </summary>
+        internal static string Spelled(Exception e)
+        {
+            switch (ErrCode(e))
+            {
+                case "wallet.missing":
+                    return "SCFG.Configure() needs ScfgOptions.Wallet (an EVM 0x address) and/or ScfgOptions.SolanaWallet"
+                           + " (on the SCFG Settings asset: Wallet / Solana Wallet)";
+                case "chain.needs_evm_wallet":
+                    return e.Message.Replace("needs wallet= (an EVM 0x address)", "needs ScfgOptions.Wallet (an EVM 0x address)");
+                default:
+                    return e.Message;
+            }
+        }
+
         // --- configuration -------------------------------------------------------------------------------
 
         /// <summary>
@@ -328,7 +347,7 @@ namespace Scfg
 
         private static string Misuse(Exception e)
         {
-            Report(e.Message);
+            Report(Spelled(e));
             return ErrCode(e);
         }
 
