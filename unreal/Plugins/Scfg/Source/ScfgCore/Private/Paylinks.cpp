@@ -2,6 +2,7 @@
 // Twin of scfg_core/paylinks.py (see Paylinks.h).
 #include "Scfg/Paylinks.h"
 
+#include "Scfg/Err.h"
 #include "Scfg/Py.h"
 #include "Scfg/QrCodeGen.h"
 
@@ -17,6 +18,67 @@ Result<std::string> eip681_transfer_uri(std::string_view token_address, const Bi
     uri += recipient;
     uri += "&uint256=" + amount;
     return uri;
+}
+
+std::vector<OnrampPlaceholder> onramp_placeholders(std::string_view tmpl) {
+    std::vector<OnrampPlaceholder> found;
+    size_t i = 0;
+    while (i < tmpl.size()) {
+        if (tmpl[i] != '{') {
+            ++i;
+            continue;
+        }
+        size_t j = i + 1;
+        while (j < tmpl.size() && tmpl[j] != '{' && tmpl[j] != '}') ++j;
+        if (j < tmpl.size() && tmpl[j] == '}') {
+            found.push_back({i, j + 1, std::string(tmpl.substr(i + 1, j - i - 1))});
+            i = j + 1;
+        } else {
+            i = j;  // no match at i; the next try is the next brace (nothing between can start one)
+        }
+    }
+    return found;
+}
+
+Result<std::string> onramp_amount(const BigInt& units, bool gas_is_token) {
+    const BigInt total = units + BigInt(gas_is_token ? ONRAMP_GAS_UNITS : 0);
+    SCFG_TRY(BigInt down, (-total).floordiv(BigInt(10'000)));  // -(-total // 10_000): the ceiling
+    const BigInt cents = -down;
+    SCFG_TRY(BigInt whole, cents.floordiv(BigInt(100)));
+    SCFG_TRY(BigInt rest, cents.mod(BigInt(100)));
+    SCFG_TRY(std::string head, py::int_str(whole));
+    SCFG_TRY(int64_t r, rest.to_int64());
+    std::string out = head + ".";
+    out += static_cast<char>('0' + r / 10);
+    out += static_cast<char>('0' + r % 10);
+    return out;
+}
+
+Result<std::string> onramp_url(std::string_view tmpl, std::string_view chain, const BigInt& chain_id,
+                               std::string_view token, std::string_view token_address, std::string_view amount) {
+    SCFG_TRY(std::string id, py::int_str(chain_id));
+    std::string out;
+    out.reserve(tmpl.size() + 64);
+    size_t at = 0;
+    for (const OnrampPlaceholder& p : onramp_placeholders(tmpl)) {
+        out += tmpl.substr(at, p.start - at);
+        if (p.name == "amount") {
+            out += amount;
+        } else if (p.name == "chain") {
+            out += chain;
+        } else if (p.name == "chain_id") {
+            out += id;
+        } else if (p.name == "token") {
+            out += token;
+        } else if (p.name == "token_address") {
+            out += token_address;
+        } else {
+            return Err::key_error(py::repr_str(p.name));
+        }
+        at = p.end;
+    }
+    out += tmpl.substr(at);
+    return out;
 }
 
 Result<std::vector<std::vector<bool>>> qr_matrix(std::string_view text) {

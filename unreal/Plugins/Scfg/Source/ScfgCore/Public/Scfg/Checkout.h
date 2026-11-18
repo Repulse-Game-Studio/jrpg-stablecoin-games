@@ -117,6 +117,29 @@ struct ChainOption {
     friend bool operator==(const ChainOption&, const ChainOption&) = default;
 };
 
+// The buy link's state on a checkout step (Python's checkout.onramp_view).
+struct OnrampView {
+    std::optional<std::string> url;
+    bool shows_onramp = false;
+    bool shows_onramp_hint = false;
+
+    friend bool operator==(const OnrampView&, const OnrampView&) = default;
+};
+
+// The buy link's state on a checkout step, as the controller and every port decide it (Python's
+// checkout.onramp_view, pinned by the tier1 vectors). url: configure's onramp page for the chosen network when it is
+// offered there, else None; the suggested amount is the session's exact `units`, or before a session (nullopt) the
+// payment `amount` plus the most the item code and nonce add (paylinks::ONRAMP_EXACT_UNITS); plus a cent where the
+// token is the network's gas coin (Arc); rounded up to whole cents. The link goes on the method step, or on the
+// payment page the sheet opens on when `path` has no method step; the hint shows there instead, without a url, while
+// the player can go back and another network in `option_keys` has the link. Errors: enabled_chains' and
+// decimal_to_units'.
+SCFGCORE_API Result<OnrampView> onramp_view(const config::Config& config, std::string_view token,
+                                            const std::optional<std::string>& chain_key,
+                                            const std::optional<BigInt>& units, const Dec& amount,
+                                            std::string_view step, const std::vector<std::string>& path,
+                                            bool can_go_back, const std::vector<std::string>& option_keys);
+
 // The routes the developer cannot receive on, as (chain key, token) pairs (the worker snapshot's unready).
 using Routes = std::vector<std::pair<std::string, std::string>>;
 
@@ -227,6 +250,16 @@ public:
     // The payment request a wallet scans or opens (EIP-681 or Solana Pay), or None before a session starts.
     Result<std::optional<std::string>> payment_uri() const;
     Result<std::optional<std::string>> explorer_url() const;
+    // The buy link on this step (onramp_view of the controller's state).
+    Result<OnrampView> onramp() const;
+    // The page where a player without the token buys some with a card, for the chosen network, with the payment (plus
+    // a cent for the fee on Arc) suggested as the amount. None when configure's onramp doesn't offer it here.
+    Result<std::optional<std::string>> onramp_url() const;
+    // Whether this step offers the buy link (false on an error).
+    bool shows_onramp() const;
+    // Whether this step points to the buy link instead ("Pick another network"): the chosen network has none (Solana)
+    // but another one the player can pick has it. Its button goes back to the network step (back()).
+    bool shows_onramp_hint() const;
     std::optional<std::string> message() const;
     // Shown in DEV MODE only: setup problems the developer must fix.
     std::vector<std::string> dev_warnings() const;

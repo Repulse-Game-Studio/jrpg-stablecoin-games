@@ -35,14 +35,22 @@
 //   test_web_offers_browser_wallet_only_when_the_page_has_one              -> the same name
 //   test_web_browser_wallet_ignores_the_mobile_flag                        -> the same name
 //   test_the_controller_pumps_and_reopens_an_overlay_page                  -> the same name
+//   test_the_method_step_offers_the_buy_page_for_the_chosen_network        -> the same name
+//   test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee                    -> the same name
+//   test_the_buy_link_moves_to_the_only_payment_page                       -> the same name
+//   test_the_buy_link_follows_the_onramp_option                            -> the same name
+//   test_before_a_session_the_buy_link_suggests_the_most_the_payment_can_be -> the same name
 // Python's FakeServer has no pump() or reopen() and PageWithPump adds them; the one FakeServer here has both (a
 // server without them is the Server base's no-ops, which nothing can observe). ctl._server is the test's own
 // record of the server it made (support/CheckoutFakes.h, ServerLog).
 #include "support/CheckoutFakes.h"
 #include "support/Test.h"
 
+#include "Scfg/BigInt.h"
 #include "Scfg/Chains.h"
 #include "Scfg/Checkout.h"
+#include "Scfg/Config.h"
+#include "Scfg/Dec.h"
 #include "Scfg/Json.h"
 #include "Scfg/Result.h"
 #include "Scfg/Watcher.h"
@@ -79,6 +87,7 @@ struct Opts {
     Json chains{};
     Json methods{};
     std::function<bool(const scfg::chains::Chain&)> browser_wallet{};
+    Json onramp{};
 };
 
 // setup(kind="unlock", chains=None, methods=None, browser_wallet=None): (ctl, engine, fakes, clock).
@@ -88,6 +97,7 @@ std::optional<Setup> setup(Ctx& t, const Opts& o = {}) {
     r.config = Json::dict({{"wallet", DEV}});
     if (!o.chains.is_null()) r.config.as_dict().set("chains", o.chains);
     if (!o.methods.is_null()) r.config.as_dict().set("methods", o.methods);
+    if (!o.onramp.is_null()) r.config.as_dict().set("onramp", o.onramp);
     r.browser_wallet = o.browser_wallet;
     Result<Setup> rig = fakes::make_rig(std::move(r));
     if (!t.check(rig.ok(), rig.ok() ? "" : "setup: " + rig.err().str())) return std::nullopt;
@@ -511,4 +521,76 @@ SCFG_TEST(CheckoutStepsTests, test_the_controller_pumps_and_reopens_an_overlay_p
     SCFG_CHECK_EQ(t, s->servers->front()->pumps, 1);
     (void)ctl.open_browser();
     SCFG_CHECK_EQ(t, s->servers->front()->reopens, 1);
+}
+
+// --- the buy link (configure's onramp) ------------------------------------------------------------------------------
+
+SCFG_TEST(CheckoutStepsTests, test_the_method_step_offers_the_buy_page_for_the_chosen_network) {
+    std::optional<Setup> s = setup(t);
+    if (!s) return;
+    CheckoutController& ctl = *s->ctl;
+    SCFG_CHECK(t, ctl.onramp_url().ok() && !ctl.onramp_url().value() && !ctl.shows_onramp());  // no network yet
+    SCFG_CHECK(t, ctl.choose_network("arbitrum").ok());
+    ctl.poll();
+    SCFG_CHECK(t, ctl.step() == "method" && ctl.shows_onramp());
+    const scfg::BigInt units = ctl.session().as_dict().get("units").as_bigint();
+    SCFG_CHECK(t, scfg::BigInt(4'990'000) <= units && units < scfg::BigInt(5'000'000));
+    SCFG_CHECK_EQ(t, show(ctl.onramp_url().value()),
+                  "https://thirdweb.com/bridge/buy-widget?chain=42161&tokenAddress=" + usdc_arb() +
+                      "&amount=5.00&tokenEditable=false&paymentMethods=card");
+}
+
+SCFG_TEST(CheckoutStepsTests, test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee) {
+    std::optional<Setup> s = setup(t, {.chains = Json::list({"base", "arc"})});
+    if (!s) return;
+    CheckoutController& ctl = *s->ctl;
+    SCFG_CHECK(t, ctl.choose_network("arc").ok());
+    ctl.poll();
+    const std::string url = show(ctl.onramp_url().value());
+    SCFG_CHECK(t, url.ends_with("&amount=5.01&tokenEditable=false&paymentMethods=card"));
+}
+
+SCFG_TEST(CheckoutStepsTests, test_the_buy_link_moves_to_the_only_payment_page) {
+    std::optional<Setup> s = on_method_step(t, {.methods = only_manual()});
+    if (!s) return;
+    SCFG_CHECK(t, s->ctl->step() == "manual" && s->ctl->shows_onramp());
+    s.reset();
+    s = on_method_step(t);
+    if (!s) return;
+    CheckoutController& ctl = *s->ctl;
+    ctl.choose_method("qr");
+    SCFG_CHECK(t, ctl.step() == "qr" && !ctl.shows_onramp());  // the method step showed it
+    ctl.mark_sent();
+    SCFG_CHECK(t, !ctl.shows_onramp());
+}
+
+SCFG_TEST(CheckoutStepsTests, test_the_buy_link_follows_the_onramp_option) {
+    std::optional<Setup> s = on_method_step(t, {.onramp = Json::dict({{"enabled", false}})});
+    if (!s) return;
+    SCFG_CHECK(t, !s->ctl->onramp_url().value() && !s->ctl->shows_onramp());
+    s.reset();
+    s = on_method_step(t, {.onramp = Json::dict({{"chains", Json::list({"base"})}})});
+    if (!s) return;
+    SCFG_CHECK(t, show(s->ctl->chain_key()) == "arbitrum" && !s->ctl->onramp_url().value());
+    s.reset();
+    s = on_method_step(t, {.onramp = Json::dict({{"url", "https://buy.example/{chain}/{token}?a={amount}"}})});
+    if (!s) return;
+    SCFG_CHECK_EQ(t, show(s->ctl->onramp_url().value()), "https://buy.example/arbitrum/USDC?a=5.00");
+}
+
+SCFG_TEST(CheckoutStepsTests, test_before_a_session_the_buy_link_suggests_the_most_the_payment_can_be) {
+    Result<scfg::config::Config> cfg =
+        scfg::config::build_config(Json::dict({{"wallet", DEV}, {"chains", Json::list({"arbitrum", "arc"})}}));
+    if (!t.check(cfg.ok(), "build_config")) return;
+    const scfg::Dec price = *scfg::Dec::parse("4.99").value();
+    const std::vector<std::string> path = {"network", "method", "browser", "waiting"};
+    const std::vector<std::string> keys = {"arbitrum", "arc"};
+    auto view = [&](std::optional<std::string> key) {
+        return scfg::checkout::onramp_view(cfg.value(), "USDC", key, std::nullopt, price, "method", path, true, keys);
+    };
+    // 4.99 plus at most 0.009999 of item code and nonce: the session's 4.993742 also gives 5.00
+    SCFG_CHECK(t, show(view("arbitrum").value().url).find("&amount=5.00&") != std::string::npos);
+    SCFG_CHECK(t, show(view("arc").value().url).find("&amount=5.01&") != std::string::npos);
+    const scfg::checkout::OnrampView none = view(std::nullopt).value();
+    SCFG_CHECK(t, !none.url && !none.shows_onramp && none.shows_onramp_hint);
 }

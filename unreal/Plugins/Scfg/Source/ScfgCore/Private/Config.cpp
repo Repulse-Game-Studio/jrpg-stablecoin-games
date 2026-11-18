@@ -7,6 +7,7 @@
 #include "Scfg/Dec.h"
 #include "Scfg/Err.h"
 #include "Scfg/Evm.h"
+#include "Scfg/Paylinks.h"
 #include "Scfg/Py.h"
 #include "Scfg/Rpc.h"
 #include "Scfg/SolanaBase58.h"
@@ -408,12 +409,124 @@ Result<Json> merge_methods(const Json& methods, const std::vector<std::string>& 
     return merged;
 }
 
+// ---- onramp ----
+
+// An https:// URL of printable ASCII (no spaces) with a host after https:// (its first character is not a brace, '/',
+// '?' or '#') whose only braces are placeholders from ONRAMP_FIELDS, like "{chain_id}". The text is UTF-8: a non-ASCII
+// character fails the printable check whatever its byte length, so counting bytes against ONRAMP_URL_LIMIT decides
+// as Python's code points do.
+Result<std::string> onramp_url_arg(const Json& value) {
+    bool ok = value.is_str();
+    if (ok) {
+        const std::string& s = value.as_str();
+        ok = s.starts_with("https://") && s.size() <= ONRAMP_URL_LIMIT && s.size() > 8 &&
+             std::string_view("{}/?#").find(s[8]) == std::string_view::npos;
+        for (size_t i = 0; ok && i < s.size(); ++i) {
+            const auto ch = static_cast<unsigned char>(s[i]);
+            ok = ch >= 0x21 && ch <= 0x7e;
+        }
+    }
+    if (!ok) {
+        SCFG_TRY(std::string shown, py::repr(value));
+        return Err::config_error("onramp.bad_url",
+                                 "onramp url must be an https:// URL with a host, without spaces, at most 2048 "
+                                 "characters: " + shown);
+    }
+    const std::string& url = value.as_str();
+    const std::vector<paylinks::OnrampPlaceholder> found = paylinks::onramp_placeholders(url);
+    for (const paylinks::OnrampPlaceholder& p : found) {
+        bool known = false;
+        for (std::string_view f : paylinks::ONRAMP_FIELDS) known = known || f == p.name;
+        if (!known) {
+            std::string names;
+            for (std::string_view f : paylinks::ONRAMP_FIELDS) {
+                if (!names.empty()) names += ", ";
+                names += "{" + std::string(f) + "}";
+            }
+            return Err::config_error("onramp.unknown_placeholder",
+                                     "onramp url: unknown placeholder {" + p.name + "} (use " + names + ")");
+        }
+    }
+    std::string rest;
+    size_t at = 0;
+    for (const paylinks::OnrampPlaceholder& p : found) {
+        rest += url.substr(at, p.start - at);
+        at = p.end;
+    }
+    rest += url.substr(at);
+    if (rest.find_first_of("{}") != std::string::npos) {
+        return Err::config_error("onramp.unmatched_brace", "onramp url: unmatched brace in " + py::repr_str(url));
+    }
+    return url;
+}
+
+Result<Onramp> merge_onramp(const Json& onramp, const std::vector<std::string>& chain_keys,
+                            const OrderedMap<chains::Chain>& registry, bool testnet) {
+    if (!onramp.is_null() && !onramp.is_dict()) {
+        return Err::config_error("onramp.not_a_dict", "onramp must be a dict like {'enabled': False}");
+    }
+    Json enabled = true;
+    Json url_value = std::string(paylinks::ONRAMP_URL);
+    Json keys_value;  // None: the default
+    if (onramp.is_dict()) {
+        for (const auto& [key, value] : onramp.as_dict()) {
+            if (key == "enabled") {
+                enabled = value;
+            } else if (key == "url") {
+                url_value = value;
+            } else if (key == "chains") {
+                keys_value = value;
+            } else {
+                return Err::config_error("onramp.unknown_option", "unknown option " + py::repr_str(key) + " for onramp");
+            }
+        }
+    }
+    if (!enabled.is_bool()) {
+        return Err::config_error("onramp.enabled_not_bool", "onramp.enabled must be True or False");
+    }
+    Onramp out;
+    out.enabled = enabled.as_bool();
+    SCFG_TRY(out.url, onramp_url_arg(url_value));
+    if (keys_value.is_null()) {
+        if (!testnet) {
+            const OrderedMap<chains::Chain> builtin = chains::get_chains(testnet);
+            for (const std::string& k : chain_keys) {
+                if (builtin.find(k) != nullptr && registry.find(k)->family == "evm") out.chains.push_back(k);
+            }
+        }
+        return out;
+    }
+    if (!keys_value.is_list()) {
+        return Err::config_error("onramp.chains_not_a_list", "onramp.chains must be a list of chain keys");
+    }
+    for (const Json& c : keys_value.as_list()) {
+        if (!(c.is_str() && contains(chain_keys, c.as_str()))) {
+            SCFG_TRY(std::string shown, py::repr(c));
+            return Err::config_error("onramp.disabled_chain", "onramp.chains contains disabled chain " + shown);
+        }
+        if (registry.find(c.as_str())->family != "evm") {
+            return Err::config_error("onramp.not_evm", "onramp.chains: " + py::repr_str(c.as_str()) +
+                                                           " is not an EVM chain; the buy link is offered on EVM "
+                                                           "chains only");
+        }
+        out.chains.push_back(c.as_str());
+    }
+    for (size_t i = 0; i < out.chains.size(); ++i) {
+        for (size_t j = i + 1; j < out.chains.size(); ++j) {
+            if (out.chains[i] == out.chains[j]) {
+                return Err::config_error("onramp.duplicate_chain", "duplicate chain in onramp.chains");
+            }
+        }
+    }
+    return out;
+}
+
 // ---- build_config ----
 
 constexpr Param kConfigParams[] = {
     {"wallet", false, true},        {"testnet"},  {"chains"}, {"tokens"}, {"methods"},
     {"rpc_urls"},                   {"confirmations"}, {"previous_wallets"}, {"logo"}, {"accent"},
-    {"custom_chains"},              {"solana_wallet"},
+    {"custom_chains"},              {"solana_wallet"}, {"onramp"},
 };
 
 Result<Config> build(const Json& kwargs, const std::vector<CustomChain>* typed) {
@@ -530,6 +643,7 @@ Result<Config> build(const Json& kwargs, const std::vector<CustomChain>* typed) 
     }
 
     SCFG_TRY(Json merged, merge_methods(arg(*kw, "methods"), chain_keys));
+    SCFG_TRY(Onramp buy, merge_onramp(arg(*kw, "onramp"), chain_keys, registry, testnet));
 
     OrderedMap<std::vector<std::string>> urls;
     SCFG_TRY(const Json::Dict* rpc_arg, items_or_empty(arg(*kw, "rpc_urls")));
@@ -578,6 +692,7 @@ Result<Config> build(const Json& kwargs, const std::vector<CustomChain>* typed) 
     SCFG_TRY(cfg.logo, logo(arg(*kw, "logo")));
     SCFG_TRY(cfg.accent, accent(arg(*kw, "accent")));
     cfg.custom_chains = std::move(custom.mine);
+    cfg.onramp = std::move(buy);
     SCFG_TRY(OrderedMap<chains::Chain> usable, enabled_chains(cfg));
     if (usable.empty()) {
         return Err::config_error("config.no_usable_token", "no enabled chain supports any enabled token");

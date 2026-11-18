@@ -217,6 +217,66 @@ Result<std::optional<std::string>> CheckoutController::payment_uri() const {
     return std::optional<std::string>(std::move(uri));
 }
 
+Result<OnrampView> onramp_view(const config::Config& config, std::string_view token,
+                               const std::optional<std::string>& chain_key, const std::optional<BigInt>& units,
+                               const Dec& amount, std::string_view step, const std::vector<std::string>& path,
+                               bool can_go_back, const std::vector<std::string>& option_keys) {
+    const config::Onramp& opts = config.onramp;
+    auto offered = [&](std::string_view key) {
+        return std::find(opts.chains.begin(), opts.chains.end(), key) != opts.chains.end();
+    };
+    OnrampView view;
+    if (chain_key && !chain_key->empty()) {
+        SCFG_TRY(OrderedMap<chains::Chain> enabled, config::enabled_chains(config));
+        const chains::Chain* c = enabled.find(*chain_key);
+        if (opts.enabled && c != nullptr && offered(c->key)) {
+            BigInt exact;
+            if (units) {
+                exact = *units;
+            } else {
+                SCFG_TRY(BigInt plain, amounts::decimal_to_units(amount));
+                exact = plain + BigInt(paylinks::ONRAMP_EXACT_UNITS);
+            }
+            const chains::Token* t = c->tokens.find(std::string(token));
+            if (t == nullptr) return Err::key_error(py::repr_str(token));
+            SCFG_TRY(std::string suggested, paylinks::onramp_amount(exact, c->native_token == token));
+            SCFG_TRY(std::string url, paylinks::onramp_url(opts.url, c->key, c->chain_id, token, t->address, suggested));
+            view.url = std::move(url);
+        }
+    }
+    const bool here = step == "method" ||
+                      ((step == "browser" || step == "qr" || step == "manual") &&
+                       std::find(path.begin(), path.end(), "method") == path.end());
+    view.shows_onramp = here && view.url.has_value();
+    if (opts.enabled && here && !view.url && can_go_back) {
+        for (const std::string& k : option_keys) view.shows_onramp_hint = view.shows_onramp_hint || offered(k);
+    }
+    return view;
+}
+
+Result<OnrampView> CheckoutController::onramp() const {
+    std::optional<BigInt> units;
+    if (session_.is_dict()) units = session_.as_dict().get("units").as_bigint();
+    std::vector<std::string> keys;
+    for (const ChainOption& o : chain_options()) keys.push_back(o.key);
+    return onramp_view(config_, spec_.token, chain_key_, units, amount_, step_, step_path(), can_go_back(), keys);
+}
+
+Result<std::optional<std::string>> CheckoutController::onramp_url() const {
+    SCFG_TRY(OnrampView view, onramp());
+    return view.url;
+}
+
+bool CheckoutController::shows_onramp() const {
+    Result<OnrampView> view = onramp();
+    return view.ok() && view.value().shows_onramp;
+}
+
+bool CheckoutController::shows_onramp_hint() const {
+    Result<OnrampView> view = onramp();
+    return view.ok() && view.value().shows_onramp_hint;
+}
+
 Result<std::optional<std::string>> CheckoutController::explorer_url() const {
     Json tx = detail::opt_json(hint_tx);
     if (result_ && py::truthy(result_->tx_hash)) tx = result_->tx_hash;

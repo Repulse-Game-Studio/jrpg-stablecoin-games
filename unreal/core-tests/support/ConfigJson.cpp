@@ -94,6 +94,9 @@ Json config_json(const config::Config& c) {
                        {"logo", detail::optional_str(c.logo)},
                        {"accent", c.accent},
                        {"custom_chains", chains_json(c.custom_chains)},
+                       {"onramp", Json::dict({{"enabled", c.onramp.enabled},
+                                              {"url", c.onramp.url},
+                                              {"chains", detail::strings(c.onramp.chains)}})},
                        {"items", items}});
 }
 
