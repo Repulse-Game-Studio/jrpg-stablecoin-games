@@ -32,18 +32,18 @@ namespace ScfgShowcaseDetail
 // There is no wallet here: the payments go to yours, from the command line or the project settings (FindWallets).
 
 // The command-line switches that give the payout wallets (an EVM 0x address, a Solana address).
-const TCHAR* const WALLET_SWITCH = TEXT("scfg-showcase-wallet=");
-const TCHAR* const SOLANA_WALLET_SWITCH = TEXT("scfg-showcase-solana-wallet=");
+const TCHAR* const WalletSwitch = TEXT("scfg-showcase-wallet=");
+const TCHAR* const SolanaWalletSwitch = TEXT("scfg-showcase-solana-wallet=");
 // The accent color of the payment sheet, as "#rrggbb".
-const TCHAR* const ACCENT = TEXT("#7c5cff");
+const TCHAR* const DefaultAccent = TEXT("#7c5cff");
 // The logo on the payment sheet and the checkout page, a path inside the project folder (Configure() takes no other):
 // this plugin's Resources/logo.png when the plugin is in the project's Plugins folder (a loose file, which
 // ScfgShowcase.Build.cs stages with a packaged game at the plugin's own path), else Content/Showcase/logo.png when the
 // project has one (the repository's dev project, which loads the plugin from outside its folder, keeps a copy there
 // and stages its folder: its Config/DefaultGame.ini). Neither found, the showcase configures without a logo.
-const TCHAR* const PLUGIN_NAME = TEXT("ScfgShowcase");
-const TCHAR* const LOGO_FILE = TEXT("Resources/logo.png");
-const TCHAR* const PROJECT_LOGO = TEXT("Content/Showcase/logo.png");
+const TCHAR* const PluginName = TEXT("ScfgShowcase");
+const TCHAR* const PluginLogo = TEXT("Resources/logo.png");
+const TCHAR* const ProjectLogo = TEXT("Content/Showcase/logo.png");
 
 // The paid items, passed to AddItem(). Code (1-99) identifies the item in the payment amount: never change it after
 // release. Pay may charge another amount than the price: anything above it (pay what you want), or down to an optional
@@ -55,35 +55,35 @@ struct FCodeItem
 	const TCHAR* Price;
 	const TCHAR* Title;
 };
-const FCodeItem ITEMS[] = {
+const FCodeItem CodeItems[] = {
 	{TEXT("chapter2"), 1, TEXT("1.00"), TEXT("Chapter 2: The Fall")},
 	{TEXT("soundtrack"), 2, TEXT("0.50"), TEXT("Original soundtrack")},
 	{TEXT("supporter"), 3, TEXT("2.00"), TEXT("Supporter pack")},
 };
-const TCHAR* const TOKEN = TEXT("USDC");
+const TCHAR* const ShopToken = TEXT("USDC");
 
 // The supporter pack also offers a bigger, pay-what-you-want amount.
-const TCHAR* const GENEROUS_ITEM = TEXT("supporter");
-const TCHAR* const GENEROUS_AMOUNT = TEXT("5.00");
+const TCHAR* const GenerousItem = TEXT("supporter");
+const TCHAR* const GenerousAmount = TEXT("5.00");
 
 // The tip jar's suggested amounts (the player can change the amount in the sheet).
-const TCHAR* const TIP_AMOUNTS[] = {TEXT("0.50"), TEXT("1.00"), TEXT("3.00")};
+const TCHAR* const TipAmounts[] = {TEXT("0.50"), TEXT("1.00"), TEXT("3.00")};
 
 // The command-line switch that configures in code even when the project has settings.
-const TCHAR* const CODE_SWITCH = TEXT("scfg-showcase-code");
+const TCHAR* const CodeSwitch = TEXT("scfg-showcase-code");
 
-const TCHAR* const FROM_SETTINGS = TEXT("the project settings (Config/DefaultGame.ini)");
-const TCHAR* const FROM_SETTINGS_WALLET = TEXT("the project settings, with the wallet from the command line");
-const TCHAR* const FROM_CODE = TEXT("code (ConfigureInCode)");
-const TCHAR* const FROM_HARNESS = TEXT("a harness hook (SetHarnessFactory)");
+const TCHAR* const FromSettings = TEXT("the project settings (Config/DefaultGame.ini)");
+const TCHAR* const FromSettingsWallet = TEXT("the project settings, with the wallet from the command line");
+const TCHAR* const FromCode = TEXT("code (ConfigureInCode)");
+const TCHAR* const FromHarness = TEXT("a harness hook (SetHarnessFactory)");
 
 // The logo, relative to the project folder, or "" when neither file is there.
 FString LogoPath()
 {
 	const FString Project = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
-	if (const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(PLUGIN_NAME); Plugin.IsValid())
+	if (const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(PluginName); Plugin.IsValid())
 	{
-		const FString Full = FPaths::ConvertRelativePathToFull(Plugin->GetBaseDir() / LOGO_FILE);
+		const FString Full = FPaths::ConvertRelativePathToFull(Plugin->GetBaseDir() / PluginLogo);
 		FString Relative = Full;
 		if (IFileManager::Get().FileExists(*Full) && FPaths::MakePathRelativeTo(Relative, *Project)
 			&& !Relative.StartsWith(TEXT("..")) && FPaths::IsRelative(Relative))
@@ -91,7 +91,7 @@ FString LogoPath()
 			return Relative;
 		}
 	}
-	return IFileManager::Get().FileExists(*(Project / PROJECT_LOGO)) ? FString(PROJECT_LOGO) : FString();
+	return IFileManager::Get().FileExists(*(Project / ProjectLogo)) ? FString(ProjectLogo) : FString();
 }
 
 // The harness factory (UScfgShowcaseGameInstance::SetHarnessFactory): empty in a game.
@@ -142,7 +142,7 @@ FString Short(const FString& Hash)
 FString BuildKind()
 {
 #if PLATFORM_ANDROID || PLATFORM_IOS
-	return TEXT("mobile (best effort, unverified)");
+	return TEXT("mobile (expected to work, not yet built or tested)");
 #else
 	return TEXT("desktop (the checkout opens in your browser)");
 #endif
@@ -311,9 +311,9 @@ void SScfgShowcaseHud::SetStatus(const FString& Text)
 void SScfgShowcaseHud::Log(const FString& Line)
 {
 	LogLines.Add(Line);
-	if (LogLines.Num() > LOG_LINES)
+	if (LogLines.Num() > MaxLogLines)
 	{
-		LogLines.RemoveAt(0, LogLines.Num() - LOG_LINES);
+		LogLines.RemoveAt(0, LogLines.Num() - MaxLogLines);
 	}
 	LogText->SetText(FText::FromString(FString::Join(LogLines, TEXT("\n"))));
 }
@@ -402,9 +402,11 @@ AScfgShowcasePlayerController* UScfgShowcaseGameInstance::PlayerController() con
 	return Cast<AScfgShowcasePlayerController>(GetFirstLocalPlayerController());
 }
 
-const TCHAR* const UScfgShowcaseGameInstance::NO_WALLET = TEXT("No wallet is set, so SCFG is not configured and nothing "
-	"can be paid. Put your wallet address in Project Settings > Plugins > SCFG > Wallet (with Testnet on), or start the "
-	"game with -scfg-showcase-wallet=0x...");
+const TCHAR* const UScfgShowcaseGameInstance::NoWalletMessage = TEXT("No wallet is set, so SCFG is not configured "
+	"and nothing can be paid. Put your wallet address in Project Settings > Plugins > SCFG > Wallet (with Testnet on), or "
+	"start the game with -scfg-showcase-wallet=0x...");
+const TCHAR* const UScfgShowcaseGameInstance::TestnetOffMessage = TEXT("The SCFG project settings have Testnet off, and "
+	"the showcase runs on testnets only: turn Testnet on in Project Settings > Plugins > SCFG.");
 
 void UScfgShowcaseGameInstance::SetHarnessFactory(FHarnessFactory Factory)
 {
@@ -417,8 +419,8 @@ FScfgShowcaseWallets UScfgShowcaseGameInstance::FindWallets(const TCHAR* Command
 	FScfgShowcaseWallets Out;
 	FString Wallet;
 	FString SolanaWallet;
-	const bool bWallet = FParse::Value(CommandLine, WALLET_SWITCH, Wallet);
-	const bool bSolanaWallet = FParse::Value(CommandLine, SOLANA_WALLET_SWITCH, SolanaWallet);
+	const bool bWallet = FParse::Value(CommandLine, WalletSwitch, Wallet);
+	const bool bSolanaWallet = FParse::Value(CommandLine, SolanaWalletSwitch, SolanaWallet);
 	if (bWallet || bSolanaWallet)
 	{
 		Out.Wallet = Wallet.TrimStartAndEnd();
@@ -431,6 +433,33 @@ FScfgShowcaseWallets UScfgShowcaseGameInstance::FindWallets(const TCHAR* Command
 		Out.SolanaWallet = Settings.Options.SolanaWallet.TrimStartAndEnd();
 	}
 	return Out;
+}
+
+EScfgShowcaseSetup UScfgShowcaseGameInstance::ChooseSetup(const TCHAR* CommandLine, const UScfgSettings& Settings,
+	FScfgShowcaseWallets& OutWallets, FString& OutRefusal)
+{
+	using namespace ScfgShowcaseDetail;
+	OutRefusal.Reset();
+	// The wallet first: never a placeholder's.
+	OutWallets = FindWallets(CommandLine, Settings);
+	if (OutWallets.IsEmpty())
+	{
+		OutRefusal = NoWalletMessage;
+		return EScfgShowcaseSetup::Refused;
+	}
+	// Before the code path too: ConfigureInCode starts from the settings' options and chain rows, and a chain key
+	// names both networks ("base" is Base and Base Sepolia), so a mainnet's RPC urls, tokens or chains would reach
+	// the testnet configuration.
+	if (!Settings.Options.bTestnet)
+	{
+		OutRefusal = TestnetOffMessage;
+		return EScfgShowcaseSetup::Refused;
+	}
+	if (FParse::Param(CommandLine, CodeSwitch) || Settings.Items.IsEmpty())
+	{
+		return EScfgShowcaseSetup::Code;
+	}
+	return OutWallets.bFromCommandLine ? EScfgShowcaseSetup::SettingsWithWallet : EScfgShowcaseSetup::Settings;
 }
 
 void UScfgShowcaseGameInstance::Init()
@@ -478,7 +507,7 @@ bool UScfgShowcaseGameInstance::ConfigureScfg()
 	S->SetNotify(true);  // show a "Payment confirmed" toast for payments that confirm in the background
 	if (Harness.IsValid() && !Harness->OwnConfig())
 	{
-		ConfiguredFrom = FROM_HARNESS;
+		ConfiguredFrom = FromHarness;
 		// Configure and AddItem return "" or the error they logged ("LogScfg: Error: scfg: ...").
 		if (!S->Configure(Harness->Options()).IsEmpty())
 		{
@@ -490,28 +519,24 @@ bool UScfgShowcaseGameInstance::ConfigureScfg()
 		}
 		return AddItems();
 	}
-	// The wallet first: never a placeholder's.
 	const UScfgSettings* Settings = GetDefault<UScfgSettings>();
-	const FScfgShowcaseWallets Wallets = FindWallets(FCommandLine::Get(), *Settings);
-	if (Wallets.IsEmpty())
+	FScfgShowcaseWallets Wallets;
+	FString Refusal;
+	const EScfgShowcaseSetup Setup = ChooseSetup(FCommandLine::Get(), *Settings, Wallets, Refusal);
+	if (Setup == EScfgShowcaseSetup::Refused)
 	{
-		bNoWallet = true;
-		return Refuse(NO_WALLET);
+		bNoWallet = Wallets.IsEmpty();
+		return Refuse(Refusal);
 	}
-	if (FParse::Param(FCommandLine::Get(), CODE_SWITCH) || Settings->Items.IsEmpty())
+	if (Setup == EScfgShowcaseSetup::Code)
 	{
-		ConfiguredFrom = FROM_CODE;
+		ConfiguredFrom = FromCode;
 		return ConfigureInCode(Wallets);
 	}
-	if (!Settings->Options.bTestnet)
-	{
-		return Refuse(TEXT("The SCFG project settings have Testnet off, and the showcase runs on testnets only: turn "
-			"Testnet on in Project Settings > Plugins > SCFG."));
-	}
-	if (Wallets.bFromCommandLine)
+	if (Setup == EScfgShowcaseSetup::SettingsWithWallet)
 	{
 		// The settings were not applied at start (they have no wallet), or had other wallets: these replace them.
-		ConfiguredFrom = FROM_SETTINGS_WALLET;
+		ConfiguredFrom = FromSettingsWallet;
 		if (!S->ConfigureWithSettings(Wallets.Wallet, Wallets.SolanaWallet).IsEmpty())
 		{
 			return false;
@@ -521,7 +546,7 @@ bool UScfgShowcaseGameInstance::ConfigureScfg()
 	{
 		// The subsystem applied the project settings when the game instance started (Super::Init()); a setting it
 		// refused was logged then. Validate() runs the same checks, without touching the subsystem.
-		ConfiguredFrom = FROM_SETTINGS;
+		ConfiguredFrom = FromSettings;
 		if (const TArray<FScfgSettingsProblem> Problems = Settings->Validate(); !Problems.IsEmpty())
 		{
 			UE_LOG(LogScfgShowcase, Error, TEXT("showcase: the SCFG project settings were not applied (%d problem(s), the "
@@ -545,13 +570,14 @@ bool UScfgShowcaseGameInstance::Refuse(const FString& Why)
 }
 
 // Configures the plugin and declares the items, as a game does in its game instance's Init(). After the project
-// settings were applied, this Configure() replaces them (options, chains and items).
+// settings were applied, this Configure() replaces them (options, chains and items). The settings are on testnet here
+// (ChooseSetup refuses them otherwise).
 bool UScfgShowcaseGameInstance::ConfigureInCode(const FScfgShowcaseWallets& Wallets)
 {
 	using namespace ScfgShowcaseDetail;
 	// The project settings' options are the starting point (their networks, tokens, RPC urls, accent, logo, buy link
-	// ...), so what is set there shows here too (testbed U17); the showcase adds only its wallets, testnet and items,
-	// and its accent and logo where the settings have none. Their chain rows come first, so the options may name them.
+	// ...), so what is set there shows here too; the showcase adds only its wallets, testnet and items, and its accent
+	// and logo where the settings have none. Their chain rows come first, so the options may name them.
 	const UScfgSettings* Settings = GetDefault<UScfgSettings>();
 	for (const FScfgSettingsChain& Row : Settings->Chains)
 	{
@@ -566,7 +592,7 @@ bool UScfgShowcaseGameInstance::ConfigureInCode(const FScfgShowcaseWallets& Wall
 	Options.bTestnet = true;  // Sepolia, Arbitrum Sepolia, Amoy, Base Sepolia, Arc Testnet (Solana Devnet)
 	if (Options.Accent.IsEmpty())
 	{
-		Options.Accent = ACCENT;
+		Options.Accent = DefaultAccent;
 	}
 	if (Options.Logo.IsEmpty())
 	{
@@ -579,12 +605,12 @@ bool UScfgShowcaseGameInstance::ConfigureInCode(const FScfgShowcaseWallets& Wall
 	{
 		return false;
 	}
-	for (const FCodeItem& Code : ITEMS)
+	for (const FCodeItem& Code : CodeItems)
 	{
 		FScfgItem Item;
 		Item.Code = Code.Code;
 		Item.Price = Code.Price;
-		Item.Token = TOKEN;
+		Item.Token = ShopToken;
 		Item.Title = Code.Title;
 		Items.Add({Code.Id, Item});
 	}
@@ -673,17 +699,17 @@ void UScfgShowcaseGameInstance::BuildShop()
 		TArray<SScfgShowcaseHud::FButtonSpec> Buy;
 		Buy.Add({TEXT("Unlock.") + Id, FString::Printf(TEXT("Unlock: %s %s"), *Shop.Item.Price, *Shop.Item.Token),
 			Call([Id](UScfgShowcaseGameInstance& G) { G.Unlock(Id); })});
-		if (Id == GENEROUS_ITEM)
+		if (Id == GenerousItem)
 		{
-			Buy.Add({TEXT("Pay.") + Id, FString::Printf(TEXT("Pay %s %s"), GENEROUS_AMOUNT, *Shop.Item.Token),
-				Call([Id](UScfgShowcaseGameInstance& G) { G.Unlock(Id, GENEROUS_AMOUNT); })});
+			Buy.Add({TEXT("Pay.") + Id, FString::Printf(TEXT("Pay %s %s"), GenerousAmount, *Shop.Item.Token),
+				Call([Id](UScfgShowcaseGameInstance& G) { G.Unlock(Id, GenerousAmount); })});
 		}
 		Hud->AddItem(Id, Shop.Item.Title.IsEmpty() ? Id : Shop.Item.Title, MoveTemp(Buy));
 	}
-	for (const TCHAR* Amount : TIP_AMOUNTS)
+	for (const TCHAR* Amount : TipAmounts)
 	{
 		const FString A = Amount;
-		Hud->AddTip({TEXT("Tip.") + A, FString::Printf(TEXT("%s %s"), *A, TOKEN),
+		Hud->AddTip({TEXT("Tip.") + A, FString::Printf(TEXT("%s %s"), *A, ShopToken),
 			Call([A](UScfgShowcaseGameInstance& G) { G.Tip(A); })});
 	}
 	Hud->AddTool({TEXT("Restore"), TEXT("Restore purchases"), Call([](UScfgShowcaseGameInstance& G) { G.Restore(); })});
@@ -747,7 +773,7 @@ void UScfgShowcaseGameInstance::Tip(const FString& Amount)
 {
 	FScfgPayRequest Request;
 	Request.Amount = Amount;
-	Request.Token = ScfgShowcaseDetail::TOKEN;
+	Request.Token = ScfgShowcaseDetail::ShopToken;
 	Log(FString::Printf(TEXT("PayAsync(Tip, Amount %s, Token %s)"), *Amount, *Request.Token));
 	BeginSheet();
 	TWeakObjectPtr<UScfgShowcaseGameInstance> Weak(this);
@@ -880,7 +906,7 @@ void UScfgShowcaseGameInstance::Refresh()
 			Owned.Add(TitleOf(Shop.Id));
 		}
 	}
-	const FString Tips = FString::Printf(TEXT("Tips: %s %s%s"), *S->TipTotal(), ScfgShowcaseDetail::TOKEN,
+	const FString Tips = FString::Printf(TEXT("Tips: %s %s%s"), *S->TipTotal(), ScfgShowcaseDetail::ShopToken,
 		S->HasTipped() ? TEXT(" (thank you!)") : TEXT(""));
 	Hud->SetSummary({
 		FString::Printf(TEXT("Configured from: %s"), *ConfiguredFrom),
@@ -893,7 +919,7 @@ void UScfgShowcaseGameInstance::Refresh()
 	for (const TPair<FString, FScfgReceipt>& Pair : S->Receipts())
 	{
 		const FScfgReceipt& R = Pair.Value;
-		const FString What = R.Kind == TEXT("unlock") ? TitleOf(R.Item) : FString(TEXT("Tip"));
+		const FString What = R.Kind == EScfgPayKind::Unlock ? TitleOf(R.Item) : FString(TEXT("Tip"));
 		Lines.Add(FString::Printf(TEXT("%s: %s %s on %s, tx %s"), *What, *R.Amount, *R.Token, *R.Chain,
 			*ScfgShowcaseDetail::Short(R.TxHash)));
 	}

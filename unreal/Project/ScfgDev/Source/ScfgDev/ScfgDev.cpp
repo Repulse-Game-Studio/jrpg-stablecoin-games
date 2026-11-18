@@ -97,7 +97,8 @@ bool FScfgDevNoTelemetryTest::RunTest(const FString& Parameters)
 // The showcase's configuration without code (Config/DefaultGame.ini, [/Script/Scfg.ScfgSettings]) is what the plugin
 // applies at start: valid as Validate() checks it, with a wallet (so it is applied), on testnet, with the item the e2e
 // unlocks, and a logo a packaged game has too (no Validate warning). tests/unreal_showcase plays it. The wallet is the
-// dev project's own (the EIP-55 example address): the showcase plugin has none, and never pays a placeholder.
+// EIP-55 example address, a placeholder for the tests: the showcase plugin has none of its own and refuses to run
+// without one.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FScfgDevShowcaseSettingsTest, "ScfgDev.ShowcaseSettings",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -117,7 +118,7 @@ bool FScfgDevShowcaseSettingsTest::RunTest(const FString& Parameters)
 		Ids.Add(Item.Id);
 	}
 	TestEqual(TEXT("the showcase's three items"), FString::Join(Ids, TEXT(",")), FString(TEXT("chapter2,soundtrack,supporter")));
-	TestTrue(TEXT("the e2e's item among them"), Ids.Contains(UScfgShowcaseGameInstance::ITEM));
+	TestTrue(TEXT("the e2e's item among them"), Ids.Contains(UScfgShowcaseGameInstance::HarnessItem));
 	TestEqual(TEXT("a logo"), Settings->Options.Logo, FString(TEXT("Content/Showcase/logo.png")));
 	TestTrue(TEXT("whose folder the packaging settings stage (Additional Non-Asset Directories to Package)"),
 		UScfgSettings::StagedDirectories().Contains(TEXT("Showcase")));
@@ -148,7 +149,7 @@ bool FScfgDevShowcaseWalletsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("an empty switch is no wallet"),
 		UScfgShowcaseGameInstance::FindWallets(TEXT("-game -scfg-showcase-wallet="), *Settings).IsEmpty());
 	TestTrue(TEXT("a blank one neither"),
-		UScfgShowcaseGameInstance::FindWallets(TEXT("-game -scfg-showcase-wallet="  ""), *Settings).IsEmpty());
+		UScfgShowcaseGameInstance::FindWallets(TEXT("-game -scfg-showcase-wallet=\"  \""), *Settings).IsEmpty());
 
 	W = UScfgShowcaseGameInstance::FindWallets(*FString::Printf(TEXT("-game -scfg-showcase-wallet=%s"), *Evm), *Settings);
 	TestEqual(TEXT("the command line's wallet"), W.Wallet, Evm);
@@ -171,7 +172,53 @@ bool FScfgDevShowcaseWalletsTest::RunTest(const FString& Parameters)
 	W = UScfgShowcaseGameInstance::FindWallets(TEXT("-game"), *Settings);
 	TestTrue(TEXT("the settings' Solana wallet alone is a wallet"), !W.IsEmpty() && W.SolanaWallet == Sol);
 	TestTrue(TEXT("the refusal names where a wallet goes"),
-		FString(UScfgShowcaseGameInstance::NO_WALLET).Contains(TEXT("Project Settings > Plugins > SCFG")));
+		FString(UScfgShowcaseGameInstance::NoWalletMessage).Contains(TEXT("Project Settings > Plugins > SCFG")));
+	return true;
+}
+
+// How the showcase configures itself without a harness (UScfgShowcaseGameInstance::ChooseSetup, ScfgShowcase.h,
+// CONFIGURATION): no wallet and settings with Testnet off are refused on every path, the code path included (it
+// starts from the settings' options, whose chain keys name a mainnet's chains then); -scfg-showcase-code or settings
+// without items configure in code; else the settings, with the command line's wallet when it gives one.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FScfgDevShowcaseSetupTest, "ScfgDev.ShowcaseSetup",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FScfgDevShowcaseSetupTest::RunTest(const FString& Parameters)
+{
+	using G = UScfgShowcaseGameInstance;
+	const FString Evm = TEXT("0x52908400098527886E0F7030069857D2E4169EE7");
+	UScfgSettings* Settings = NewObject<UScfgSettings>(GetTransientPackage());
+	Settings->Options = UScfgSettings::NewOptions();
+	Settings->Chains.Reset();
+	Settings->Items.Reset();
+	FScfgShowcaseWallets W;
+	FString Refusal;
+	auto Setup = [&](const TCHAR* CommandLine) { return G::ChooseSetup(CommandLine, *Settings, W, Refusal); };
+
+	TestTrue(TEXT("no wallet: refused"), Setup(TEXT("-game")) == EScfgShowcaseSetup::Refused && W.IsEmpty());
+	TestEqual(TEXT("with the no-wallet message"), Refusal, FString(G::NoWalletMessage));
+
+	Settings->Options.Wallet = Evm;
+	Settings->Options.bTestnet = false;
+	TestTrue(TEXT("Testnet off, no items: refused, not configured in code"),
+		Setup(TEXT("-game")) == EScfgShowcaseSetup::Refused);
+	TestEqual(TEXT("with the testnet message"), Refusal, FString(G::TestnetOffMessage));
+	TestTrue(TEXT("Testnet off with -scfg-showcase-code: refused"),
+		Setup(TEXT("-game -scfg-showcase-code")) == EScfgShowcaseSetup::Refused && !W.IsEmpty());
+	FScfgSettingsItem Item;
+	Item.Id = TEXT("chapter2");
+	Item.Price = TEXT("1.00");
+	Settings->Items.Add(Item);
+	TestTrue(TEXT("Testnet off with items: refused"), Setup(TEXT("-game")) == EScfgShowcaseSetup::Refused);
+
+	Settings->Options.bTestnet = true;
+	TestTrue(TEXT("testnet with items: the settings"), Setup(TEXT("-game")) == EScfgShowcaseSetup::Settings);
+	TestTrue(TEXT("and no refusal"), Refusal.IsEmpty());
+	TestTrue(TEXT("a command-line wallet: the settings with it"),
+		Setup(*FString::Printf(TEXT("-game -scfg-showcase-wallet=%s"), *Evm)) == EScfgShowcaseSetup::SettingsWithWallet);
+	TestTrue(TEXT("-scfg-showcase-code: in code"), Setup(TEXT("-game -scfg-showcase-code")) == EScfgShowcaseSetup::Code);
+	Settings->Items.Reset();
+	TestTrue(TEXT("testnet without items: in code"), Setup(TEXT("-game")) == EScfgShowcaseSetup::Code);
 	return true;
 }
 
