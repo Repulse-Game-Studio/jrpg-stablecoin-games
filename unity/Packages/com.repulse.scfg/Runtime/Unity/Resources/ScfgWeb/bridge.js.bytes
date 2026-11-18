@@ -298,7 +298,7 @@
   }
 
   function openUrl(url) {
-    window.open(url, "_blank", "noopener");
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   // Ren'Py's run_script* is a bare eval: an exception here would unwind through the game's

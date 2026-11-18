@@ -1170,7 +1170,7 @@ export class Scfg {
     if (typeof url === "string" && url !== "") this._openUrl(url);
   }
 
-  /** Open `url` outside the game: NW.js's shell on desktop; on the web the page's window.open (noopener). */
+  /** Open `url` outside the game: NW.js's shell on desktop; on the web the page's window.open (noopener,noreferrer). */
   _openUrl(url: string): void {
     const page = this._webPage();
     if (page !== null && page.available) {

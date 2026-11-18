@@ -286,7 +286,8 @@ def is_local(url: str) -> bool:
 
 
 def explorer_link_opens_without_opener(game: WebGame, tx: str) -> str:
-    """The done step's explorer link: ScfgWebPage.OpenUrl, window.open(url, "_blank", "noopener"),
+    """The done step's explorer link: ScfgWebPage.OpenUrl, window.open(url, "_blank",
+    "noopener,noreferrer"), so the tab has no opener and no referrer,
     a frame after the click. The explorer itself is answered locally (no internet)."""
     page = game.page
     context = page.context
@@ -305,6 +306,7 @@ def explorer_link_opens_without_opener(game: WebGame, tx: str) -> str:
         tab.wait_for_load_state()
         url = tab.url
         opener = tab.evaluate("() => window.opener")
+        referrer = tab.evaluate("() => document.referrer")
         tab.close()
     finally:
         context.unroute(external, offline)
@@ -313,6 +315,8 @@ def explorer_link_opens_without_opener(game: WebGame, tx: str) -> str:
         raise E2EError(f"the explorer link opened {url!r}, not the transaction {tx}")
     if opener is not None:
         raise E2EError(f"the explorer tab has a window.opener: {opener!r}")
+    if referrer:
+        raise E2EError(f"the explorer tab was told the game's page: document.referrer {referrer!r}")
     return url
 
 

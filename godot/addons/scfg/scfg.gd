@@ -1107,7 +1107,7 @@ func open_explorer(url: Variant) -> void:
 
 func _open_url(url: String) -> void:
 	if _platform.is_web():
-		_web_page().open_url(url)  # window.open with noopener (the engine's shell_open omits noopener)
+		_web_page().open_url(url)  # window.open with noopener,noreferrer (the engine's shell_open omits noopener)
 	else:
 		_platform.shell_open(url)
 

@@ -287,7 +287,7 @@ namespace Scfg
 
         /// <summary>
         /// The sheet's "No USDC yet? Buy some with a card": open configure's onramp page for the chosen network (a new tab
-        /// with noopener on WebGL, as every link the sheet opens).
+        /// with noopener,noreferrer on WebGL, as every link the sheet opens).
         /// </summary>
         internal static void OpenOnramp(ScfgCheckoutController ctl)
         {
@@ -315,7 +315,7 @@ namespace Scfg
             try
             {
                 var page = S.Platform.IsWeb ? WebPage() : null;
-                if (page != null) page.OpenUrl(url); // window.open with noopener (Application.OpenURL keeps the opener)
+                if (page != null) page.OpenUrl(url); // window.open with noopener,noreferrer (Application.OpenURL keeps the opener)
                 else S.Platform.OpenUrl(url);
             }
             catch (Exception e)

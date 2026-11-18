@@ -462,7 +462,7 @@ test("aPageWithoutTheBridgeFallsBackToTheBrowsersOwnApis", async () => {
   await tick();
   assert.equal(ctl.tx_input, "0xnav", "paste: navigator.clipboard");
   s.openExplorer("https://arbiscan.io/tx/1");
-  assert.deepEqual(env.opened, [["window", "https://arbiscan.io/tx/1", "_blank", "noopener"]], "links: window.open");
+  assert.deepEqual(env.opened, [["window", "https://arbiscan.io/tx/1", "_blank", "noopener,noreferrer"]], "links: window.open");
   assert.deepEqual(host.notes, []);
 });
 

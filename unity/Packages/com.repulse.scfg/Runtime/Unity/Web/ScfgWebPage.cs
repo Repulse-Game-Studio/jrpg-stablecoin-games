@@ -166,7 +166,7 @@ namespace Scfg
         /// <summary>True once after a Copy the browser refused; false otherwise.</summary>
         public bool TakeCopyFailed() => Truthy(Parse(CallRaw("takeCopyFailed")));
 
-        /// <summary>window.open with noopener (Application.OpenURL keeps an opener).</summary>
+        /// <summary>window.open with noopener,noreferrer (Application.OpenURL keeps an opener).</summary>
         public void OpenUrl(string url) => CallRaw("openUrl", url);
 
         // --- values ----------------------------------------------------------------------------------------

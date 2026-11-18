@@ -3,7 +3,7 @@
 // THE PAGE. The game already runs in a browser and wallet extensions inject into its page, so the browser checkout is
 // the shared checkout page shown over the game (an OverlayCheckout over ScfgWebPage), never a localhost server, and
 // "Browser wallet" is offered only when the page has a wallet for the chain (ScfgWebPage.HasWallet). Links open with
-// window.open (noopener), Copy writes the browser's clipboard (a refusal within CopyWatchS shows the copy_failed
+// window.open (noopener,noreferrer), Copy writes the browser's clipboard (a refusal within CopyWatchS shows the copy_failed
 // toast), and Paste asks the browser, whose answer arrives on a later frame (PumpPage): an empty answer from the
 // browser is a refusal and sets the screen's paste_blocked error.
 //
