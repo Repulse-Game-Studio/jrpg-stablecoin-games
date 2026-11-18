@@ -34,7 +34,8 @@ export function declaredLength(value: unknown): number | null {
 }
 
 /**
- * Thrown into a job the caller abandoned (worker.ts Job.abandon), at its next RPC request. Not a
+ * Thrown into a job whose requests are refused (worker.ts: the caller abandoned it, or it is a
+ * tick yielding to a command), at its next RPC request or at once for the one in flight. Not a
  * TransportError, so no endpoint cools down (worker.py's Abandoned).
  */
 export class Abandoned extends Error {
@@ -44,8 +45,55 @@ export class Abandoned extends Error {
   }
 }
 
+/**
+ * A request's cancellation, the optional fourth argument of `postJson`: it fires once nobody waits
+ * for the answer any more (engine.ts refuseInFlight: the job was abandoned, or the tick yields to
+ * a command). A transport that can stop the exchange then does (FetchTransport aborts its fetch,
+ * NodeHttpsTransport destroys its request); one that ignores it is simply not waited for, and its
+ * late answer is dropped.
+ */
+export interface Cancel {
+  readonly cancelled: boolean;
+  /** `fn` runs once, when the request is cancelled (at once if it is already). */
+  onCancel(fn: () => void): void;
+}
+
+/** The side of a Cancel that fires it (the Engine's, one per request in flight). */
+export class CancelSource implements Cancel {
+  private _cancelled = false;
+  private _fns: (() => void)[] = [];
+
+  get cancelled(): boolean {
+    return this._cancelled;
+  }
+
+  onCancel(fn: () => void): void {
+    if (this._cancelled) fn();
+    else this._fns.push(fn);
+  }
+
+  /**
+   * Runs the callbacks, in the order they were added. One that throws (a broken transport) is
+   * handed to `onError` and never stops the others.
+   */
+  cancel(onError: (e: unknown) => void = () => {}): void {
+    if (this._cancelled) return;
+    this._cancelled = true;
+    const fns = this._fns;
+    this._fns = [];
+    for (const fn of fns) {
+      try {
+        fn();
+      } catch (e) {
+        onError(e);
+      }
+    }
+  }
+}
+
 export interface Transport {
-  postJson(url: string, payload: object, timeout: number): Promise<unknown>;
+  /** `cancel`, when given, may end the exchange early (see Cancel); its answer is then unread. */
+  postJson(url: string, payload: object, timeout: number, cancel?: Cancel): Promise<unknown>;
 }
 
 interface MinimalReader {
@@ -135,11 +183,14 @@ export class FetchTransport implements Transport {
     this.maxResponseBytes = maxResponseBytes;
   }
 
-  async postJson(url: string, payload: object, timeout: number): Promise<unknown> {
+  async postJson(url: string, payload: object, timeout: number, cancel?: Cancel): Promise<unknown> {
     const g = globalThis as unknown as FetchGlobals;
     if (typeof g.fetch !== "function") throw new TransportError("fetch is not available");
+    if (cancel?.cancelled) throw new TransportError("cancelled");
     const controller = typeof g.AbortController === "function" ? new g.AbortController() : null;
     const timer = controller ? g.setTimeout(() => controller.abort(), timeout * 1000) : null;
+    // nobody waits for the answer any more: the fetch is aborted (its failure goes unread)
+    if (controller && cancel) cancel.onCancel(() => controller.abort());
     let status: number;
     let ok: boolean;
     let raw: string;

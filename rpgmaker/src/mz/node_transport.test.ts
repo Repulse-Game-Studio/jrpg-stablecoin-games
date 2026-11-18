@@ -9,6 +9,7 @@ import http from "node:http";
 import https from "node:https";
 import type { AddressInfo } from "node:net";
 import { TransportError } from "../core/index.ts";
+import { CancelSource } from "../core/coio.ts";
 import { NodeHttpsTransport } from "./node_transport.ts";
 
 interface Seen { method: string; url: string; headers: http.IncomingHttpHeaders; body: string }
@@ -503,4 +504,35 @@ test("aKeptAliveSocketStopsTheLookupTimer", async () => {
   } finally {
     agent.destroy();
   }
+});
+
+// Testbed U15: a request nobody waits for any more (the job was abandoned, or the tick yields to a
+// command) is destroyed at once, never retried through the fallback; one cancelled before it
+// starts never reaches the server.
+test("aCancelledRequestIsDestroyedAtOnceAndNeverRetried", async () => {
+  let closed!: () => void;
+  const serverSawClose = new Promise<void>((r) => { closed = r; });
+  const { url, seen } = await serve((req) => {
+    req.socket.on("close", () => closed()); // never answers
+  });
+  const asked: string[] = [];
+  const fallback = {
+    postJson(u: string) {
+      asked.push(u);
+      return Promise.resolve({ jsonrpc: "2.0", id: 1, result: "0x1" });
+    },
+  };
+  const t = new NodeHttpsTransport({ https, http, fallback });
+  const cancel = new CancelSource();
+  const answer = t.postJson(url, { jsonrpc: "2.0", id: 1, method: "eth_blockNumber", params: [] }, 10, cancel);
+  for (let i = 0; i < 100 && seen.length === 0; i++) await new Promise((r) => setTimeout(r, 10));
+  assert.equal(seen.length, 1, "the request reached the server");
+  const t0 = performance.now();
+  cancel.cancel();
+  await assert.rejects(within(answer, 3000), isTransportError(null, /^cancelled$/));
+  assert.ok(performance.now() - t0 < 1000, "at once");
+  await within(serverSawClose, 3000);
+  assert.deepEqual(asked, [], "a cancelled request never goes through the fallback");
+  await assert.rejects(within(t.postJson(url, {}, 10, cancel), 3000), isTransportError(null, /^cancelled$/));
+  assert.equal(seen.length, 1, "one cancelled already is never sent");
 });

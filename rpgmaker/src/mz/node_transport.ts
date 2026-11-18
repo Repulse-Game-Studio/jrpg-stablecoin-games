@@ -25,6 +25,9 @@
  * An answer of more than MAX_RESPONSE_BYTES (coio.ts; urllib has no cap) is
  * TransportError("response too large"): refused on its Content-Length, else when the bytes
  * received pass the limit, and the request is destroyed either way.
+ * A request whose `cancel` (coio.ts Cancel) fires is destroyed at once, and fails with
+ * TransportError("cancelled"), which nobody reads (the Engine stopped waiting for it); a cancelled
+ * request never goes through the fallback.
  * One deviation: a redirect is not followed (urllib turns a 301-303 to a POST into a GET, which
  * no JSON-RPC endpoint answers); it is TransportError("HTTP 30x"). A failure's Node error code
  * (`ECONNREFUSED`, `CERT_HAS_EXPIRED`, ...) is kept as the TransportError's `code`.
@@ -43,7 +46,7 @@
  * URL, TextEncoder and TextDecoder come from NW.js's Chromium.
  */
 import { TransportError, type Transport } from "../core/index.ts";
-import { MAX_RESPONSE_BYTES, RESPONSE_TOO_LARGE, declaredLength } from "../core/coio.ts";
+import { MAX_RESPONSE_BYTES, RESPONSE_TOO_LARGE, declaredLength, type Cancel } from "../core/coio.ts";
 import { jsonLoads, pyTruthy } from "../core/pystr.ts";
 
 /** Node's `http` / `https` module, as far as the transport uses it. */
@@ -128,22 +131,26 @@ export class NodeHttpsTransport implements Transport {
     this.fallback = opts.fallback && typeof opts.fallback.postJson === "function" ? opts.fallback : null;
   }
 
-  postJson(url: string, payload: object, timeout: number): Promise<unknown> {
-    const direct = this._exchange(url, payload, timeout).then(([status, raw]) => decode(status, raw));
+  postJson(url: string, payload: object, timeout: number, cancel?: Cancel): Promise<unknown> {
+    const direct = this._exchange(url, payload, timeout, cancel).then(([status, raw]) => decode(status, raw));
     const fallback = this.fallback;
     if (fallback === null) return direct;
     return direct.catch((e: unknown) => {
-      if (!trustOrProxyFailure(e)) throw e;
+      if (!trustOrProxyFailure(e) || cancel?.cancelled) throw e;
       // once; its answer or failure is the request's, a failure naming why Node's went first
-      return fallback.postJson(url, payload, timeout).catch((f: unknown) => {
+      return fallback.postJson(url, payload, timeout, cancel).catch((f: unknown) => {
         throw afterNode(f, e as TransportError);
       });
     });
   }
 
   /** [status, body bytes] of one POST, or a TransportError. */
-  private _exchange(url: string, payload: object, timeout: number): Promise<[number, Uint8Array]> {
+  private _exchange(url: string, payload: object, timeout: number, cancel?: Cancel): Promise<[number, Uint8Array]> {
     return new Promise((resolve, reject) => {
+      if (cancel?.cancelled) {
+        reject(new TransportError("cancelled"));
+        return;
+      }
       let target: URL;
       try {
         target = new URL(url);
@@ -252,6 +259,11 @@ export class NodeHttpsTransport implements Transport {
           req.destroy();
         });
         req.end(text);
+        // nobody waits for the answer any more (coio.ts Cancel): the request is destroyed
+        cancel?.onCancel(() => {
+          fail("cancelled");
+          destroyQuietly();
+        });
       } catch (e) {
         fail(messageOf(e));
         destroyQuietly();

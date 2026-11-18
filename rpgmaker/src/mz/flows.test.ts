@@ -334,6 +334,43 @@ test("aRunningStartThePlayerLeftIsRefusedItsNextRequest", async () => {
   assert.equal(box.result, undefined, "the payment is still open");
 });
 
+// Testbed U15 on the plugin's own rpc_factory: the left start's request in flight is never
+// answered (a host that hangs), yet the new pick starts at once; the transport is told to stop it.
+test("aRunningStartThePlayerLeftStopsWaitingForItsRequestInFlight", async () => {
+  const asked: string[] = [];
+  const cancels: { cancelled: boolean }[] = [];
+  const transport = {
+    postJson(url: string, payload: any, _timeout: number, cancel?: { cancelled: boolean }) {
+      asked.push(url);
+      if (/arb/.test(url)) {
+        if (cancel) cancels.push(cancel);
+        return new Promise(() => {}); // never answers
+      }
+      return Promise.resolve({ jsonrpc: "2.0", id: payload.id, result: "0x3e8" });
+    },
+  };
+  const clock = new FakeClock();
+  const env = await make({ hooks: { transport, engine_opts: { clock: clock.call } } });
+  const box = pay(env.s, "unlock", { item: "chapter2" });
+  env.shim.frame();
+  const ctl = env.host.last.ctl;
+  ctl.chooseNetwork("arbitrum");
+  const running = env.s._worker!.runOnce();
+  for (let i = 0; i < 20 && cancels.length === 0; i++) await tick();
+  assert.equal(cancels.length, 1, "the start asked Arbitrum's first endpoint");
+  ctl.chooseNetwork("base"); // the player moves on while the Arbitrum request hangs
+  assert.ok(cancels[0]!.cancelled, "the request in flight was cancelled at once");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([running, new Promise((_r, reject) => {
+    timer = setTimeout(() => reject(new Error(`the left start kept waiting: ${asked.join(", ")}`)), 3000);
+  })]).finally(() => clearTimeout(timer));
+  await pass(env);
+  ctl.poll();
+  assert.equal(asked.filter((u) => /arb/.test(u)).length, 1, "no other Arbitrum endpoint was asked");
+  assert.ok(ctl.state === "waiting" && ctl.chain_key === "base", `the new pick started (${ctl.state})`);
+  assert.equal(box.result, undefined, "the payment is still open");
+});
+
 test("payAlreadyOwnedShortCircuits", async () => {
   const env = await make();
   const { s, host } = env;
