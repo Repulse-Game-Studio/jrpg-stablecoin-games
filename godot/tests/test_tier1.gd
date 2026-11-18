@@ -37,7 +37,7 @@ func test_every_topic_implemented() -> bool:
 	var total := 0
 	for topic: String in topics:
 		total += (topics[topic] as Array).size()
-	T.eq(total, 1281, "1,281 Tier 1 cases")
+	T.eq(total, 1336, "1,336 Tier 1 cases")
 	var missing: Array[String] = []
 	for topic: String in topics:
 		for c: Variant in topics[topic]:

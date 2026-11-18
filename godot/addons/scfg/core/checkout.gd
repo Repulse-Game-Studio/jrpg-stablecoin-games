@@ -149,7 +149,9 @@ var can_go_back: bool:
 var shows_onramp: bool:
 	get:
 		var view: Variant = _onramp()
-		return view is Dictionary and view["shows_onramp"]
+		if view is ScfgErr:
+			return false
+		return view["shows_onramp"]
 
 ## Whether this step points to the buy link instead ("Pick another network"), because the chosen
 ## network has none (Solana) but another one the player can pick has it. Its button goes back to
@@ -157,7 +159,9 @@ var shows_onramp: bool:
 var shows_onramp_hint: bool:
 	get:
 		var view: Variant = _onramp()
-		return view is Dictionary and view["shows_onramp_hint"]
+		if view is ScfgErr:
+			return false
+		return view["shows_onramp_hint"]
 
 
 func _init(opts: Dictionary) -> void:
