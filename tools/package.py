@@ -25,6 +25,10 @@ addons/ is the only top-level entry, Godot 4.3 to 4.6 strip it as well and insta
 res://scfg/. The license, guide and notices sit inside addons/scfg/ so nothing lands in the
 project root.
 
+The Unreal zips (--engine unreal, built by tools/package_unreal.py, whose docstring has the layout)
+are one per engine version, dist/scfg-unreal-<version>-ue<5.x>.zip, each holding the plugin folder
+Scfg/ (source only, without the test modules) for the developer's Plugins/ folder.
+
 The RPG Maker MZ zip unzips into an MZ project folder:
 
     js/plugins/SCFG.js                 (the whole plugin, built by `npm run build` in rpgmaker/)
@@ -77,6 +81,7 @@ GODOT_ADDON = ROOT / "godot" / "addons" / "scfg"
 GODOT_SKIP_PARTS = {"__pycache__", ".godot", "tests", "demo", "e2e"}
 GODOT_SKIP_SUFFIXES = {".uid", ".pyc"}
 RPGMAKER_PAGES = "developers/rpgmaker/"
+UNREAL_PAGES = "developers/unreal/"
 RPGMAKER_GUIDE_TITLE = "# Stablecoin for Games: RPG Maker MZ Developer Guide"
 RPGMAKER_DIR = ROOT / "rpgmaker"
 RPGMAKER_VERSION_SOURCE = RPGMAKER_DIR / "src" / "mz" / "version.ts"
@@ -130,6 +135,9 @@ def developer_guide(
     page outside the joined ones fails. With `intro`, the first page is the guide's intro
     (its title line is replaced by `title`); without, every page is a section under `title`.
     """
+    # The Unreal pages are a guide of their own: a guide that would take them in skips them.
+    if not prefix.startswith(UNREAL_PAGES):
+        skip = (*skip, UNREAL_PAGES)
     sidebar = json.loads(SIDEBARS.read_text(encoding="utf-8"))["docs"]
     depth = {
         p: level
@@ -475,9 +483,13 @@ def build_renpy_zip(dist):
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Build a release archive into dist/.")
     parser.add_argument(
-        "--engine", choices=("renpy", "godot", "rpgmaker", "unity"), default="renpy"
+        "--engine", choices=("renpy", "godot", "rpgmaker", "unity", "unreal"), default="renpy"
     )
     args = parser.parse_args(argv)
+    if args.engine == "unreal":
+        import package_unreal
+
+        return package_unreal.main(ROOT / "dist")
     dist = ROOT / "dist"
     builders = {
         "renpy": build_renpy_zip,

@@ -129,6 +129,10 @@ def sync(src: Path, target: Path) -> list:
     return []
 
 
+# The Unreal plugin's localhost checkout page (Scfg.Build.cs stages it as RuntimeDependencies).
+TARGETS.append(ROOT / "unreal" / "Plugins" / "Scfg" / "Resources" / "Web")
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true",

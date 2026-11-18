@@ -19,6 +19,11 @@ Config keys (all optional):
                   or {"mode": "never"} (the job never finishes)
     build_timeout_s   BUILD_TIMEOUT_S for this server
 
+Beside those three, the C++ one (the Unreal core's): CppDriver runs unreal/core-driver's
+scfg_server_driver (built once per session by tests/integration/cpp_driver.py) with the driver
+protocol below; each CppServer is a fresh scfg::local_server::CheckoutServer of the Unreal core
+(Plugins/Scfg/Source/ScfgCore, LocalServer.h) on POSIX sockets.
+
 PythonServer runs scfg_core.local_server.CheckoutServer in-process. GodotDriver runs
 godot/tests/integration/server_driver.gd in one headless Godot per test session; each
 GodotServer is a fresh ScfgCheckoutServer in it (the driver stops the previous one first).
@@ -37,6 +42,7 @@ import re
 import select
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -49,6 +55,12 @@ import pytest
 from scfg_core import local_server
 
 ROOT = Path(__file__).resolve().parents[2]
+# tests/integration/cpp_driver.py builds the C++ drivers; importing it by its module name (as the
+# integration tests do) shares its once-per-session build.
+if str(ROOT / "tests" / "integration") not in sys.path:
+    sys.path.insert(0, str(ROOT / "tests" / "integration"))
+import cpp_driver  # noqa: E402
+
 PROJECT = ROOT / "godot"
 DRIVER = "res://tests/integration/server_driver.gd"
 RPGMAKER = ROOT / "rpgmaker"
@@ -318,6 +330,20 @@ def _b64(data):
     return base64.b64encode(data).decode("ascii")
 
 
+def cpp_server_binary():
+    """The C++ server driver (scfg_server_driver), built once per session. Skip when cmake (3.25 or
+    newer), a C++20 compiler or a build tool is missing; with SCFG_REQUIRE_CPP=1 (CI) fail instead.
+    A configure or compile failure always fails. (The same rule as tests/integration/cpp_driver.py.)"""
+    return cpp_driver.skip_unless_available(cpp_driver.SERVER_TARGET)
+
+
+class CppDriver(LineDriver):
+    """One scfg_server_driver process (unreal/core-driver/ServerMain.cpp)."""
+
+    def __init__(self, binary):
+        super().__init__([binary], ROOT)
+
+
 class DriverServer:
     """A server in a driver process (the GDScript, the Node or the C# one)."""
 
@@ -356,6 +382,10 @@ class DriverServer:
 
 class GodotServer(DriverServer):
     """addons/scfg/local_server.gd in the Godot driver."""
+
+
+class CppServer(DriverServer):
+    """The Unreal core's scfg::local_server::CheckoutServer in the C++ driver."""
 
 
 class NodeServer(DriverServer):

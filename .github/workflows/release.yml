@@ -8,6 +8,9 @@ name: release
 # suites and e2e need a Unity license and run in unity.yml (on main), not here.
 # PyPI and npm use trusted publishing: no token is stored here. Each registry's stablecoin-games-renpy
 # package trusts this repository, this workflow file and its environment ("pypi", "npm").
+# The Unreal plugin ships as three zips, dist/scfg-unreal-<version>-ue5.6.zip, -ue5.7.zip and -ue5.8.zip (one per
+# engine version); tools/package.py refuses a Scfg.uplugin VersionName that differs from scfg_core.__version__. Its
+# editor builds, automation tests and e2e need Unreal Engine and run in unreal.yml (on a self-hosted runner), not here.
 
 on:
   push:
@@ -36,6 +39,19 @@ jobs:
       - name: TypeScript core and RPG Maker glue tests (test.yml does not run on tags)
         run: npm test
         working-directory: rpgmaker
+      - name: Install Ninja and the locales the C++ core's LocaleTests rerun both tiers under
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build locales
+          sudo locale-gen tr_TR.UTF-8 de_DE.UTF-8
+      - name: C++ core (Unreal) tests against the conformance vectors (test.yml does not run on tags)
+        working-directory: unreal
+        env:
+          SCFG_REQUIRE_LOCALES: "1"   # LocaleTests fails, rather than falls back to another locale, without them
+        run: |
+          cmake --preset release
+          cmake --build --preset release
+          ctest --preset release
       - name: Download Godot (the supported floor)
         run: uv run --no-project python tools/fetch_godot.py --version 4.3-stable --dest /tmp/godot
       - name: Import the Godot project (registers the class_name globals)
@@ -56,6 +72,8 @@ jobs:
             exit 1
           fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Build the Unreal zips (one per engine version, 5.6, 5.7 and 5.8)
+        run: uv run python tools/package.py --engine unreal
 
       - name: Build the release archives
         run: |
@@ -77,6 +95,7 @@ jobs:
 
           - \`scfg-renpy-$VERSION.zip\`: Ren'Py 8.2+ (or run \`uvx stablecoin-games-renpy install .\` in the project)
           - \`scfg-godot-$VERSION.zip\`: Godot 4.3+ (preview). Install it from the editor's AssetLib tab with Import..., or copy the \`addons\` folder inside it into your project
+          - \`scfg-unreal-$VERSION-ue5.x.zip\`: Unreal Engine 5.6+ (preview, tested on UE 5.8.4, Linux desktop). Pick the zip for your engine version (\`-ue5.6\`, \`-ue5.7\` or \`-ue5.8\`) and unzip it into your project's \`Plugins/\` folder
           - \`scfg-rpgmaker-mz-$VERSION.zip\`: RPG Maker MZ (preview, not yet tested in real RPG Maker MZ)
           - \`scfg-unity-$VERSION.tgz\`: Unity 6.3 LTS+ (preview). In the Package Manager: + > Add package from tarball, or + > Add package from git URL with \`https://github.com/$GITHUB_REPOSITORY.git?path=unity/Packages/com.repulse.scfg#$GITHUB_REF_NAME\`
 
@@ -85,6 +104,9 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             "dist/scfg-renpy-$VERSION.zip" \
             "dist/scfg-godot-$VERSION.zip" \
+            "dist/scfg-unreal-$VERSION-ue5.6.zip" \
+            "dist/scfg-unreal-$VERSION-ue5.7.zip" \
+            "dist/scfg-unreal-$VERSION-ue5.8.zip" \
             "dist/scfg-rpgmaker-mz-$VERSION.zip" \
             "dist/scfg-unity-$VERSION.tgz" \
             --title "Stablecoin for Games $VERSION" \

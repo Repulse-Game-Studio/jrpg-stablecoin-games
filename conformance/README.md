@@ -2,6 +2,7 @@
 
 Language-neutral JSON recorded from the Python reference core (`scfg_core`). The JS and GDScript
 cores replay these files and must agree with them. Vectors are generated, never hand-written.
+The C# and C++ cores replay them too.
 
 ## Regenerate / check
 
@@ -38,6 +39,7 @@ Generation is deterministic: running twice yields byte-identical files.
 Config, item and payment validation is compared by **error code, never message text**. A port calls its own
 function for `fn` with `in` and compares the result to `out`. The TypeScript runner
 (`conformance/js/tier1.test.ts`) and the GDScript runner (`godot/tests/test_tier1.gd`) replay every topic.
+So do the C# runner (`unity/core-tests/Tier1.cs`) and the C++ runner (`unreal/core-tests/support/Tier1.cpp`).
 
 Encodings: see "Integer encodings" and "Error encodings" below.
 
@@ -133,6 +135,7 @@ and is not written to the vector.
   reuses: the same Engine runs against Anvil and solana-test-validator through that driver (`tests/integration/test_gd_core.py`,
   `SCFG_GODOT=<binary>`). The wrapper fails a run without a `<n> passed, 0 failed` summary (n > 0), since Godot can exit 0 when
   the runner does not compile.
+- **C++:** `cmake --preset release && cmake --build --preset release && ctest --preset release` in `unreal/` (CMake 3.25+, Ninja, a C++20 compiler; the `asan` preset runs the same under AddressSanitizer and UBSan) runs `unreal/core-tests/`, one ctest test per group. `core-tests/support/Tier1.cpp` replays Tier 1 (ctest group `Tier1`): each topic's adapters live in `core-tests/tier1/<Topic>.cpp`, and every topic runs: an `fn` with no adapter fails its case. A case expecting `"invalid"` passes only if the adapter returns an `Err` that is a `ValueError` or `TypeError` (not a `ConfigError`). `support/JsonEq.cpp` is the JSON equality used for outputs and call params (key order ignored, `true` is not `1`). `support/Tier2.cpp` replays every Tier 2 vector (group `Tier2`; `ReplayTransport`, `ScriptedEntropy`, `replay`) and exports the `encode_returns` / `snapshot_json` encoders that `unreal/core-driver` reuses: the same Engine also runs against Anvil and solana-test-validator through that driver (`tests/integration/test_cpp_core.py`). `LocaleTests` replays both tiers again under `tr_TR.UTF-8` and `de_DE.UTF-8`, and `Tier2Deferred` replays every vector again with each request completed later, from the runner's pump loop, so every networked step must suspend and resume. See `unreal/README.md`.
 - **JavaScript:** `cd rpgmaker && npm test` runs `conformance/js/` under `node --test` (Node 22.18 or newer; the TypeScript runs directly, no build). `tier1.ts` replays Tier 1: `FUNCS` maps each Python `fn` to a JS adapter, and a topic only counts once it is listed in `IMPLEMENTED`; cases of other topics are reported as skipped, never as passed. A case expecting `"invalid"` passes only if the adapter throws `ValueError` or `TypeError`, and any other throw fails it. `json.ts` is the JSON equality used for outputs and call params (key order ignored, `true` is not `1`). `tier2.ts` replays every Tier 2 vector (`ReplayTransport`, `ScriptedEntropy`, `replay`) and exports the `returns` / `snapshot` encoders that `rpgmaker/test/integration/engine_driver.ts` reuses. The same Engine also runs against Anvil and solana-test-validator through that driver (`tests/integration/test_js_core.py`, see `rpgmaker/README.md`).
 - **C#:** `dotnet test unity/Scfg.sln -c Release` (.NET 8 SDK) runs `unity/core-tests/`. `Tier1.cs` replays Tier 1: `Funcs` maps each Python `fn` to a C# adapter, and every topic runs: an `fn` with no adapter fails its case. A case expecting `"invalid"` passes only if the adapter throws `ValueError` or `TypeError` (not a `ConfigError`). `JsonEq.cs` is the JSON equality used for outputs and call params (key order ignored, `true` is not `1`). `Tier2.cs` replays every Tier 2 vector (`ReplayTransport`, `ScriptedEntropy`, `Replay`) and exports the `EncodeReturns` / `SnapshotJson` encoders that `unity/core-driver` reuses: the same Engine also runs against Anvil and solana-test-validator through that driver (`tests/integration/test_cs_core.py`). `CultureTests` replays both tiers again under `tr-TR` and `de-DE`, and `Tier2SingleThreadTest` runs Tier 2 on one thread with incomplete transport tasks. The runner also checks the Engine's stores against `schema/state.json` after every step (`StateFile.Check` and a strict `Parse(Serialize(...))` round trip), and `StateFileTests` checks that the C# schema table equals `schema/state.json`. See `unity/README.md`.
 

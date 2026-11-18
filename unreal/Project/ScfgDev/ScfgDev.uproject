@@ -1,0 +1,30 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.8",
+	"Category": "",
+	"Description": "Development project for the Scfg plugin (unreal/Plugins/Scfg): builds it and runs its automation tests.",
+	"Modules": [
+		{
+			"Name": "ScfgDev",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "Scfg",
+			"Enabled": true
+		},
+		{
+			"Name": "AndroidFileServer",
+			"Enabled": false
+		},
+		{
+			"Name": "UdpMessaging",
+			"Enabled": false
+		}
+	],
+	"AdditionalPluginDirectories": [
+		"../../Plugins"
+	]
+}

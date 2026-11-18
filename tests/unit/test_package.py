@@ -110,6 +110,28 @@ def test_renpy_developer_guide_does_not_include_the_godot_pages():
     assert "res://" not in guide
 
 
+def test_renpy_developer_guide_does_not_include_the_unreal_pages():
+    guide = package.developer_guide()
+    assert "UScfgSubsystem" not in guide
+    assert "For Unreal developers" not in guide and "Install (Unreal)" not in guide
+
+
+def test_unreal_pages_join_into_a_guide_whose_links_resolve():
+    guide = package.developer_guide(package.UNREAL_PAGES, (), "# Unreal guide", intro=True)
+    lines = guide.splitlines()
+    assert lines[0] == "# Unreal guide"
+    tops = [h for h in headings(guide) if h.startswith("## ")]
+    assert tops[:2] == ["## Install (Unreal)", "## API reference (Unreal)"], tops
+    anchors = {package.slug(h) for h in headings(guide)}
+    links = re.findall(r"\]\(([^)\s]+)\)", guide)
+    assert links
+    for target in links:
+        if target.startswith(("http://", "https://")):
+            continue  # the showcase's README and the release page are on GitHub
+        assert not target.endswith(".md") and ".md#" not in target, target
+        assert target.startswith("#") and target[1:] in anchors, target
+
+
 def test_build_godot_zip_writes_the_versioned_archive(tmp_path):
     target = package.build_godot_zip(tmp_path)
     assert target.name == f"scfg-godot-{package.__version__}.zip"

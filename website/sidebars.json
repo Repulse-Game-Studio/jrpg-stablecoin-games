@@ -58,6 +58,13 @@
       "collapsed": false,
       "link": {"type": "doc", "id": "developers/rpgmaker/README"},
       "items": ["developers/rpgmaker/install", "developers/rpgmaker/api"]
+    },
+    {
+      "type": "category",
+      "label": "For Unreal developers",
+      "collapsed": false,
+      "link": {"type": "doc", "id": "developers/unreal/README"},
+      "items": ["developers/unreal/install", "developers/unreal/api"]
     }
   ]
 }

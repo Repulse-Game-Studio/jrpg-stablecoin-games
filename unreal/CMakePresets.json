@@ -1,0 +1,65 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}"
+    },
+    {
+      "name": "release",
+      "inherits": "base",
+      "displayName": "Optimised (-O2), assertions kept",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O2"
+      }
+    },
+    {
+      "name": "asan",
+      "inherits": "base",
+      "displayName": "AddressSanitizer + UBSan, unsigned char (as Android/Linux ARM)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_FLAGS_DEBUG": "-O0 -g",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-sanitize=vptr -funsigned-char",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined -fno-sanitize=vptr"
+      }
+    },
+    {
+      "name": "clang-libcxx",
+      "inherits": "release",
+      "displayName": "Clang and libc++ (as Unreal's Linux, Mac and Android toolchains), optimised (-O2), assertions kept",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_CXX_FLAGS": "-stdlib=libc++",
+        "CMAKE_EXE_LINKER_FLAGS": "-stdlib=libc++"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "release", "configurePreset": "release" },
+    { "name": "asan", "configurePreset": "asan" },
+    { "name": "clang-libcxx", "configurePreset": "clang-libcxx" }
+  ],
+  "testPresets": [
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan",
+      "output": { "outputOnFailure": true },
+      "environment": { "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1" }
+    },
+    {
+      "name": "clang-libcxx",
+      "configurePreset": "clang-libcxx",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

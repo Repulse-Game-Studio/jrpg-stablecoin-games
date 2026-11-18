@@ -2,6 +2,7 @@
 """Check the RPG Maker plugin's player-facing text ids (rpgmaker/src/mz/texts.ts).
 
     uv run python tools/check_text_ids.py --check    # exit 1 and list the problems, else 0
+    uv run python tools/check_text_ids.py --check --engine unreal   # the Unreal ids only, no Node
 
 The RM default texts are read as JSON from `node rpgmaker/src/mz/texts_dump.ts` (the module's own
 DEFAULT_TEXTS), never parsed out of TypeScript. Checked:
@@ -22,6 +23,23 @@ DEFAULT_TEXTS), never parsed out of TypeScript. Checked:
     Unity code passes to `ScfgUiTexts.Get("...")` / `ScfgUiTexts.Format("...")` (string
     literals in the call, comparisons such as `== "solana"` aside) exists.
 `%d` and `%s` count as the same.
+
+THE UNREAL BRANCH (`--engine unreal`) reads the table between `SCFG-TEXTS-BEGIN` and
+`SCFG-TEXTS-END` in ScfgTexts.cpp (one `{TEXT("id"), TEXT("English")},` per line) and needs no
+Node. The ids are RPG Maker's id scheme (texts.ts). Checked:
+  - every messages.json id is there with the same English;
+  - every restore message of Godot's restore_flow.gd is there as `restore_<code>`, word for word;
+  - every id the Unreal code asks for through `ScfgTexts::Get(TEXT("..."))` or
+    `ScfgTexts::Format(TEXT("..."), ...)` (the .cpp/.h files of the Scfg module) exists;
+  - BY VALUE, every other text (the `dev_` developer lines aside: Godot does not translate those)
+    is a string of the Godot template (scfg.pot), so the engines show the same words;
+  - when Node is installed, BY ID: every id is an RM id with the same English. Without Node (or
+    with one that cannot run texts_dump.ts) this part is skipped, with the reason printed.
+
+Both branches run by default (`--engine all`, Node 22.6+ needed: it strips the .ts file's types,
+no node_modules); without Node, or with one too old to run the .ts file, the RPG Maker branch fails
+with that reason (one line, no traceback). `--engine rpgmaker` runs the RPG Maker branch alone, and
+fails the same way. Each run starts Node once.
 """
 
 from __future__ import annotations
@@ -29,6 +47,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -57,9 +76,43 @@ BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
 LINE_COMMENT = re.compile(r"^\s*//.*$", re.M)
 PO_LINE = re.compile(r'^(msgid|msgstr)?\s*"((?:[^"\\]|\\.)*)"\s*$')
 PO_ESCAPES = {"n": "\n", "t": "\t", '"': '"', "\\": "\\"}
+UNREAL_MODULE = ROOT / "unreal" / "Plugins" / "Scfg" / "Source" / "Scfg"
+UNREAL_TEXTS = UNREAL_MODULE / "Private" / "UI" / "ScfgTexts.cpp"
+# the developer lines (test play only): no Godot string to compare with by value
+UNREAL_DEV_PREFIX = "dev_"
+NO_NODE = "node is not installed"
+_CSTR = r'"((?:[^"\\\n]|\\.)*)"'
+UNREAL_ENTRY = re.compile(r"^\s*\{\s*TEXT\(" + _CSTR + r"\)\s*,\s*TEXT\(" + _CSTR + r"\)\s*\}\s*,\s*(?://.*)?$")
+UNREAL_ENTRY_START = re.compile(r"\{\s*TEXT\(")
+UNREAL_CALL = re.compile(r'\bScfgTexts::(?:Get|Format)\(\s*TEXT\("([^"\\\n]+)"\)')
+UNREAL_BEGIN = "SCFG-TEXTS-BEGIN"
+UNREAL_END = "SCFG-TEXTS-END"
+C_ESCAPES = {"n": "\n", "t": "\t", '"': '"', "\\": "\\", "'": "'"}
+
+
+class TextTableError(Exception):
+    """ScfgTexts.cpp's table cannot be read completely."""
+
+
+class NodeMissing(Exception):
+    """The RPG Maker texts need Node."""
+
+
+def node_available() -> bool:
+    return shutil.which("node") is not None
+
+
+# The RM texts main() already read through Node, which the next default_texts() call returns (once)
+# instead of running Node again: problems() reads the real table through default_texts() itself.
+_HANDED_OVER: list[dict[str, str]] = []
 
 
 def default_texts() -> dict[str, str]:
+    if _HANDED_OVER:
+        return _HANDED_OVER.pop()
+    if not node_available():
+        raise NodeMissing(
+            f"{NO_NODE}: the RPG Maker texts come from `node {DUMP.relative_to(ROOT)}`")
     out = subprocess.run(
         ["node", str(DUMP)], cwd=DUMP.parent, check=True,
         capture_output=True, text=True, encoding="utf-8")
@@ -168,6 +221,16 @@ def _norm(s: str) -> str:
     return s.replace("%d", "%s")
 
 
+def _vectors() -> dict[str, str]:
+    return json.loads(MESSAGES_JSON.read_text(encoding="utf-8"))["messages"]
+
+
+def _restore() -> list:
+    if not RESTORE_FLOW.exists():
+        return []
+    return restore_messages(RESTORE_FLOW.read_text(encoding="utf-8"), RESTORE_FLOW.name)
+
+
 def problems(texts: dict[str, str] | None = None, src: Path = RM_SRC) -> list[str]:
     """Every problem. Given `texts` (a test's stand-in for the RM table), the Unity table is not
     compared: it is checked against the real RM table only (unity_problems)."""
@@ -205,10 +268,155 @@ def problems(texts: dict[str, str] | None = None, src: Path = RM_SRC) -> list[st
     return found
 
 
+# --- the Unreal branch -------------------------------------------------------------------------
+
+
+def _c_unescape(s: str) -> str:
+    return re.sub(r"\\(.)", lambda e: C_ESCAPES.get(e.group(1), "\\" + e.group(1)), s)
+
+
+def unreal_texts(path: Path = UNREAL_TEXTS) -> dict[str, str]:
+    """Id -> English of ScfgTexts.cpp's table. Raises TextTableError when the markers are missing,
+    an entry is not on a line of its own (counted by its `{TEXT(`), or an id repeats, so none is
+    dropped silently."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    begin = [i for i, line in enumerate(lines) if line.strip() == f"// {UNREAL_BEGIN}"]
+    end = [i for i, line in enumerate(lines) if line.strip() == f"// {UNREAL_END}"]
+    if len(begin) != 1 or len(end) != 1 or end[0] < begin[0]:
+        raise TextTableError(f"{path.name}: needs one `// {UNREAL_BEGIN}` line and, after it, one "
+                             f"`// {UNREAL_END}` line around the table")
+    out: dict[str, str] = {}
+    starts = 0
+    for line in lines[begin[0] + 1:end[0]]:
+        code = line.split("//", 1)[0] if line.lstrip().startswith("//") else line
+        starts += len(UNREAL_ENTRY_START.findall(code))
+        m = UNREAL_ENTRY.match(line)
+        if not m:
+            continue
+        tid, english = _c_unescape(m.group(1)), _c_unescape(m.group(2))
+        if tid in out:
+            raise TextTableError(f"{path.name}: the text id {tid!r} is defined twice")
+        out[tid] = english
+    if starts != len(out):
+        raise TextTableError(f"{path.name}: read {len(out)} of the {starts} table entries; write "
+                             'each as `{TEXT("id"), TEXT("English")},` on one line (one literal '
+                             "each)")
+    return out
+
+
+def unreal_used_ids(src: Path = UNREAL_MODULE) -> dict[str, str]:
+    """Id -> a file that asks for it, from the .cpp/.h sources under `src`."""
+    found: dict[str, str] = {}
+    for path in sorted([*src.rglob("*.cpp"), *src.rglob("*.h")]):
+        code = LINE_COMMENT.sub("", BLOCK_COMMENT.sub("", path.read_text(encoding="utf-8")))
+        for m in UNREAL_CALL.finditer(code):
+            found.setdefault(m.group(1), path.name)
+    return found
+
+
+def unreal_problems(rm_texts: dict[str, str] | None, unreal: dict[str, str] | None = None,
+                    src: Path = UNREAL_MODULE) -> list[str]:
+    """The Unreal branch (see the module docstring). `rm_texts` None: the by-id comparison with RPG
+    Maker is skipped (no Node)."""
+    try:
+        unreal = unreal_texts() if unreal is None else unreal
+    except TextTableError as e:
+        return [str(e)]
+    found: list[str] = []
+    vectors = _vectors()
+    for mid, english in sorted(vectors.items()):
+        if mid not in unreal:
+            found.append(f"messages.json id {mid!r} has no Unreal text")
+        elif unreal[mid] != english:
+            found.append(f"Unreal text {mid!r} is {unreal[mid]!r}, messages.json says {english!r}")
+    keyed = set(vectors)
+    for code, english in _restore():
+        rid = RESTORE_PREFIX + code
+        keyed.add(rid)
+        if rid not in unreal:
+            found.append(f"Godot restore message {code!r} has no Unreal text {rid!r}")
+        elif _norm(unreal[rid]) != _norm(english):
+            found.append(f"Unreal text {rid!r} is {unreal[rid]!r}, "
+                         f"Godot's restore message {code!r} says {english!r}")
+    for tid, where in sorted(unreal_used_ids(src).items()):
+        if tid not in unreal:
+            found.append(f"{where} asks for text id {tid!r}, which has no Unreal text")
+    pot = {_norm(m) for m in pot_msgids()} if POT.exists() else set()
+    for tid, english in sorted(unreal.items()):
+        if tid in keyed or tid.startswith(UNREAL_DEV_PREFIX):
+            continue
+        if _norm(english) not in pot:
+            found.append(f"Unreal text {tid!r} ({english!r}) is not a Godot string "
+                         "(compared by value with scfg.pot)")
+    if rm_texts is not None:
+        for tid, english in sorted(unreal.items()):
+            if tid not in rm_texts:
+                found.append(f"Unreal text id {tid!r} is not an RM text id")
+            elif _norm(rm_texts[tid]) != _norm(english):
+                found.append(f"Unreal text {tid!r} is {english!r}, RM's says {rm_texts[tid]!r}")
+    return found
+
+
+def _why(e: Exception) -> str:
+    """Why the RPG Maker texts could not be read, in one line."""
+    if isinstance(e, subprocess.CalledProcessError):
+        detail = (e.stderr or "").strip().splitlines()
+        tail = f": {detail[-1]}" if detail else ""
+        return (f"`node {DUMP.relative_to(ROOT)}` exited with {e.returncode} "
+                f"(Node 22.6+ runs a .ts file){tail}")
+    if isinstance(e, ValueError):
+        return f"`node {DUMP.relative_to(ROOT)}` printed no JSON ({e})"
+    return str(e)
+
+
+RM_UNREADABLE = (NodeMissing, subprocess.CalledProcessError, OSError, ValueError)
+
+
+def _hand_over(texts: dict[str, str]) -> None:
+    """The next default_texts() call (problems()'s own) returns `texts`: Node runs once per run."""
+    _HANDED_OVER.clear()
+    _HANDED_OVER.append(dict(texts))
+
+
+def _main_with_unreal(engine: str) -> int:
+    """main() for `--engine all` and `--engine unreal`: the RPG Maker branch (with `all`) through
+    problems() on the real RM table, and the Unreal branch, with the RM texts when Node gives
+    them."""
+    found: list[str] = []
+    rm_texts: dict[str, str] | None = None
+    try:
+        rm_texts = default_texts()
+    except RM_UNREADABLE as e:
+        reason = _why(e)
+        if engine == "all":
+            found.append(f"the RPG Maker branch cannot run: {reason}")
+        else:
+            print(f"Unreal ids not compared with RPG Maker's (skipped: {reason})")
+    if rm_texts is not None and engine == "all":
+        _hand_over(rm_texts)
+        found.extend(problems())
+    found.extend(unreal_problems(rm_texts))
+    for line in found:
+        print(line, file=sys.stderr)
+    if found:
+        return 1
+    print(f"{'RM and Unreal' if engine == 'all' else 'Unreal'} text ids are consistent")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="exit 1 on problems (the default)")
-    parser.parse_args(argv)
+    parser.add_argument("--engine", choices=["all", "rpgmaker", "unreal"], default="all",
+                        help="which branch to run (default: both; see the module docstring)")
+    engine = parser.parse_args(argv).engine
+    if engine != "rpgmaker":
+        return _main_with_unreal(engine)
+    try:
+        _hand_over(default_texts())
+    except RM_UNREADABLE as e:
+        print(f"the RPG Maker branch cannot run: {_why(e)}", file=sys.stderr)
+        return 1
     found = problems()
     for line in found:
         print(line, file=sys.stderr)
@@ -216,7 +424,6 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print("RM and Unity text ids are consistent")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

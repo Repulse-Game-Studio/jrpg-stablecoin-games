@@ -1,0 +1,74 @@
+// Copyright 2026 Repulse
+// Twin of scfg_core/receipts.py (and of unity/.../Core/Receipts.cs, rpgmaker/src/core/receipts.ts).
+// Receipts: verified on-chain transfers to the developer, stored in `persistent`.
+//
+// There is deliberately no "owned" flag anywhere. Ownership is always recomputed from receipts, and receipts are
+// re-checked against the chain at every launch. A store is a Json dict (Python's MutableMapping) and a receipt a
+// Json dict shaped as the frozen receipt schema (conformance/schema/state.json).
+//
+// Stored receipts are loosely typed, as in Python: a field read back from storage can hold any JSON value.
+// A stored log_index is formatted as Python's f-string formats it, whatever its type, and a chain's transfer carries
+// its log index unbounded (a BigInt, or the Json a Solana node sent), so a receipt is never narrowed. An int of more
+// than 4300 decimal digits is CPython's ValueError (py::int_str, refused from its bit length before any conversion):
+// an EVM node's logIndex is int(x, 16) of any length, so a hostile one reaches a key, and Python's restore_lookup
+// raises there while its watcher contains the error.
+#pragma once
+
+#include "Scfg/BigInt.h"
+#include "Scfg/Dec.h"
+#include "Scfg/Evm.h"
+#include "Scfg/Export.h"
+#include "Scfg/Json.h"
+#include "Scfg/Models.h"
+#include "Scfg/OrderedMap.h"
+#include "Scfg/Result.h"
+#include "Scfg/Transfers.h"
+
+#include <cstdint>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace scfg::receipts {
+
+// f"{chain}:{tx}:{log_index}", where tx is tx_hash lowercased when it starts with "0x" (EVM hashes are hex and
+// case-insensitive) and kept as it is otherwise (Solana signatures are base58: case matters; "0X..." is kept too).
+// A log index of more than 4300 digits is str()'s ValueError ("Exceeds the limit (4300) for integer string
+// conversion; ..."); an int64_t one always formats.
+SCFGCORE_API Result<std::string> receipt_key(std::string_view chain, std::string_view tx_hash, const BigInt& log_index);
+SCFGCORE_API std::string receipt_key(std::string_view chain, std::string_view tx_hash, int64_t log_index);
+// The same for values read back from storage: chain and log_index are formatted with str() whatever their type (an
+// int with str()'s 4300-digit limit), and a tx_hash that is not a str is the AttributeError of its startswith.
+SCFGCORE_API Result<std::string> receipt_key(const Json& chain, const Json& tx_hash, const Json& log_index);
+
+// make_receipt(chain=, transfer=, kind=, item=, token=, source=): the receipt dict, in the schema's key order (chain,
+// tx_hash, log_index, block, kind, item, amount, token, payer, recipient, source). kind must be "unlock" or "tip" and
+// source "payment" or "restore", else ValueError("invalid kind <repr>") / ("invalid source <repr>"). The amount is
+// str(units_to_decimal(value)); payer is the sender. A Transfer's carried values (its sender, tx_hash and log_index)
+// are stored as they are, whatever their type, as Python's dict holds them.
+SCFGCORE_API Result<Json> make_receipt(const Json& chain, const transfers::Transfer& transfer, const Json& kind,
+                                       const Json& item, const Json& token, const Json& source);
+SCFGCORE_API Result<Json> make_receipt(const Json& chain, const evm::TransferLog& transfer, const Json& kind,
+                                       const Json& item, const Json& token, const Json& source);
+
+// Stores the receipt under its key unless that key is already there; returns whether it was added (the first
+// receipt for a key stays). A receipt that is not a dict, or misses chain, tx_hash or log_index, is the TypeError
+// or KeyError of Python's receipt["..."]; a non-str tx_hash its AttributeError.
+SCFGCORE_API Result<bool> add_receipt(Json::Dict& store, const Json& receipt);
+
+// store.pop(key, None).
+SCFGCORE_API void remove_receipt(Json::Dict& store, std::string_view key);
+
+// Python's (owned, tips) tuple.
+struct Ownership {
+    std::vector<std::string> owned;  // the owned item ids, sorted by code point (Python returns a set)
+    Dec tip_total;                   // the Decimal sum of the tips: the most fraction digits, never quantized; "0"
+};
+
+// (owned item ids, total tipped). Malformed entries are skipped, never fatal: a value that is not a dict, a missing
+// kind or amount, an amount amounts::stored_amount refuses (so the total stays finite), and an unlock whose item is a
+// list or a dict (unhashable: items.get raises TypeError). An unlock owns its item when the item is in `items` and the
+// amount is at least its min_price. The sum fails only with Decimal's Overflow, which bounded amounts cannot reach.
+SCFGCORE_API Result<Ownership> compute_ownership(const Json::Dict& store, const OrderedMap<models::Item>& items);
+
+}  // namespace scfg::receipts
