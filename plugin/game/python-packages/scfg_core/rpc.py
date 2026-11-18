@@ -4,7 +4,8 @@ Public RPC endpoints are free but unreliable: they rate-limit, go down, and cap
 eth_getLogs block ranges. The client therefore:
   * tries endpoints in order on every call, skipping ones in cooldown, within a total budget
     of CALL_BUDGET seconds per call (each attempt waits at most what is left of it, so a chain
-    with four dead endpoints says so after 15 s, not 40),
+    with four dead endpoints says so after 15 s, not 40; an endpoint is not asked with less
+    than MIN_ATTEMPT seconds left),
   * puts a failing endpoint in cooldown (30 s, doubling to 10 min),
   * remembers, per endpoint, the largest eth_getLogs range it accepts (public
     providers allow anything from 50 to 2000+ blocks), shrinking it when a
@@ -42,6 +43,10 @@ COOLDOWN_MAX = 600.0
 # on the RpcClient's clock, so a session start on a chain whose endpoints all hang fails after
 # 15 s whatever the number of urls.
 CALL_BUDGET = 15.0
+# The least of the budget an endpoint is asked with: under it the endpoints left are skipped (not
+# cooled down) and the call is RpcUnavailable, so no endpoint is cooled down for failing a
+# request it was given a sliver of time for.
+MIN_ATTEMPT = 2.0
 MIN_LOG_RANGE = 10
 _RATE_HINTS = ("rate limit", "too many requests", "rate-limit")
 # Phrases providers use for "your eth_getLogs block range is too wide". Some say "archive"
@@ -120,7 +125,8 @@ def _proxied(url: str, host: str) -> bool:
     setting): the proxy resolves the name, and this machine may well not be able to."""
     scheme = urllib.parse.urlsplit(url).scheme
     try:
-        return bool(urllib.request.getproxies().get(scheme)) and not urllib.request.proxy_bypass(host)
+        proxy = urllib.request.getproxies().get(scheme)
+        return bool(proxy) and not urllib.request.proxy_bypass(host)
     except Exception:
         return False  # an unreadable proxy setting: urllib's own handler decides
 
@@ -283,7 +289,7 @@ class RpcClient:
             if self._state[url].until > now:
                 continue
             left = deadline - self.clock()
-            if left <= 0:
+            if left < MIN_ATTEMPT:
                 break  # CALL_BUDGET spent: the rest are not tried (nor cooled down)
             res = yield from self._attempt(url, method, params, now, min(self.timeout, left))
             if res is None:

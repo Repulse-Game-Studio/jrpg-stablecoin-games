@@ -99,6 +99,30 @@ def _call_budget(s):
     assert _urls(s) == [C] and rec["start_block"] == 995
 
 
+@scenario("rpc/an_endpoint_is_not_asked_with_less_than_the_floor_left", covers=covers(
+    "rpc_client", "an_endpoint_is_not_asked_with_less_than_the_floor_left"))
+def _call_floor(s):
+    """A hangs (its 10 s), B takes 4 s to say it is rate limited: 1 s of the 15 s budget is
+    left, under the 2 s floor, so C is not asked with it, nor cooled down. The next start asks
+    C first (A and B cool down). The replaying port moves its clock by each call's `elapsed`
+    and `took`."""
+    s.config(wallet=DEV_EVM, chains=["avalanche"])
+    s.custom_chain(**dict(AVALANCHE, rpc=[A, B, C]))
+    s.item(**CHAPTER2)
+    node = s.evm("avalanche")
+    node.endpoint(A).hangs = True
+    node.endpoint(B).slow = 4
+    node.endpoint(B).rate_limited = True
+    started = s.now
+    s.expect("other").start_session("unlock", "avalanche", item="chapter2")
+    calls = s.steps[-1]["calls"]
+    timing = [(c["url"], c.get("elapsed"), c.get("took")) for c in calls]
+    assert timing == [(A, 10, None), (B, None, 4)]
+    assert s.now == started + 14
+    rec = s.start_session("unlock", "avalanche", item="chapter2")
+    assert _urls(s) == [C] and rec["start_block"] == 995
+
+
 @scenario("rpc/receipt_and_block_hash_requests", covers=covers(
     "rpc_client", "receipt_and_block_hash", "block_hash_none_for_unknown_block"))
 def _block_hash(s):

@@ -5,6 +5,7 @@ from scfg_core.rpc import (
     CALL_BUDGET,
     COOLDOWN_MAX,
     COOLDOWN_START,
+    MIN_ATTEMPT,
     MIN_LOG_RANGE,
     RpcClient,
     RpcError,
@@ -136,6 +137,20 @@ def test_each_attempt_waits_at_most_what_is_left_of_the_budget():
     t = TimedTransport(clock, {A: 3, B: 10, C: 1}, answers=[C])
     assert Sync(RpcClient([A, B, C], clock=clock), t).block_number() == 7
     assert t.calls == [(A, 10.0), (B, 10.0), (C, 2.0)]
+
+
+def test_an_endpoint_is_not_asked_with_less_than_the_floor_left():
+    """Review T5: A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not
+    asked with a sliver of time, nor cooled down for failing it."""
+    C = "https://c.rpc"
+    clock = FakeClock()
+    t = TimedTransport(clock, {B: 4})
+    rpc = RpcClient([A, B, C], clock=clock)
+    assert MIN_ATTEMPT == 2.0
+    with pytest.raises(RpcUnavailable):
+        Sync(rpc, t).block_number()
+    assert t.calls == [(A, 10.0), (B, 5.0)]
+    assert rpc.live_urls() == [C]
 
 
 @pytest.mark.parametrize("bad", ["not a dict", {"jsonrpc": "2.0", "id": 1}])

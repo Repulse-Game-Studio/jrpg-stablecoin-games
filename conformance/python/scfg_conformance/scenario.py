@@ -66,7 +66,8 @@ class RecordingTransport:
     Parses the response text like rpc.UrllibTransport: unparseable text is
     TransportError("invalid JSON response"). A hanging endpoint (simnode.Endpoint.hangs) takes
     the request's whole timeout: `wait(seconds)` moves the scenario clock, and the call records
-    it as `elapsed` (whole seconds)."""
+    it as `elapsed` (whole seconds). A slow one (Endpoint.slow, under the timeout) moves it by
+    its seconds before it answers, recorded as `took`."""
 
     def __init__(self, world: World, wait: Callable[[int], None] = lambda seconds: None):
         self.world = world
@@ -76,7 +77,13 @@ class RecordingTransport:
     def post_json(self, url: str, payload: dict, timeout: float):
         entry = {"url": url, "method": payload["method"],
                  "params": json.loads(json.dumps(payload["params"]))}
+        slow = self.world.slowness(url)
         try:
+            if slow >= timeout > 0:
+                raise Hung("slower than the timeout")
+            if slow:
+                entry["took"] = slow
+                self.wait(slow)
             text = self.world.handle(url, payload)
         except Hung:
             if timeout != int(timeout):

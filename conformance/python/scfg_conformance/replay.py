@@ -226,7 +226,8 @@ class ReplayTransport:
     """Answers each request from the current step's recorded calls, as a multiset: any order,
     each recorded call used once, a repeated request needs as many recorded copies. A call with
     `elapsed` (a request that hung) must have been made with that timeout, and moves the clock
-    by it (`wait`) before its transport_error is raised."""
+    by it (`wait`) before its transport_error is raised. A call with `took` (a slow answer)
+    moves the clock by it before it is answered, and its timeout must be over it."""
 
     def __init__(self, wait: Callable[[int], None] = lambda seconds: None):
         self.wait = wait
@@ -242,6 +243,12 @@ class ReplayTransport:
         for i, call in enumerate(self._calls):
             if not self._used[i] and call_key(call["url"], call["method"], call["params"]) == key:
                 self._used[i] = True
+                if "took" in call:
+                    if timeout <= call["took"]:
+                        self.problems.append(
+                            f"{url} {payload['method']}: timeout {timeout:g} is not over the "
+                            f"{call['took']} s the answer took")
+                    self.wait(call["took"])
                 if "elapsed" in call:
                     if timeout != call["elapsed"]:
                         self.problems.append(f"{url} {payload['method']}: timeout {timeout:g}, "

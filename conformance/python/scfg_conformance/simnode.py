@@ -52,6 +52,9 @@ class Endpoint:
     - hangs: never answers (a name lookup or a host that hangs): the request times out after its
       whole timeout, which the scenario clock moves by (scenario.RecordingTransport records it
       as the call's `elapsed`)
+    - slow: whole seconds this URL takes before it answers (as it would, faults included), which
+      the scenario clock moves by (the call's `took`); one at or past the request's timeout
+      hangs instead
     - http_status: e.g. 429 -> TransportError("HTTP 429", status=429)
     - invalid_json: the body is not JSON (the transport raises "invalid JSON response")
     - rate_limited: JSON-RPC error -32005 "rate limit exceeded"
@@ -77,6 +80,7 @@ class Endpoint:
         self.url = url
         self.down = False
         self.hangs = False
+        self.slow = 0
         self.http_status: int | None = None
         self.invalid_json = False
         self.rate_limited = False
@@ -158,6 +162,11 @@ class World:
         for url in node.urls:
             self._routes[url] = node
         return node
+
+    def slowness(self, url: str) -> int:
+        """The seconds `url` takes before it answers (Endpoint.slow), 0 for a URL no node serves."""
+        node = self._routes.get(url)
+        return node.endpoint(url).slow if node is not None else 0
 
     def handle(self, url: str, payload: dict) -> str:
         node = self._routes.get(url)
