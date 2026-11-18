@@ -57,9 +57,23 @@ To run one, select **Stablecoin for Games (SCFG)** in the Package Manager, open 
 next to it. Unity copies it to `Assets/Samples/Stablecoin for Games (SCFG)/<version>/`. Open its scene
 (`Showcase.unity` or `Demo.unity`) and press **Play**.
 
-Both run on testnets, so no real money moves. Put your own testnet wallet in `Wallet` at the top of
-`ScfgShowcase.cs`, and you can watch a real test payment arrive. Get test USDC from
-[Circle's faucet](https://faucet.circle.com/).
+Both run on testnets, so no real money moves, and both pay **your** wallet. Set it on the sample's component in its
+scene (**SCFG Showcase** or **SCFG Demo**: **Wallet** for an EVM `0x` address, **Solana Wallet** to take Solana on
+Devnet too), or in your project's [SCFG Settings asset](#without-code-the-scfg-settings-asset), which the samples
+use when both component fields are blank. With neither, a sample configures nothing and says so on screen: it never
+pays a placeholder.
+
+To watch a real test payment arrive you need test money in a second wallet (the player's):
+
+- testnet USDC from [Circle's faucet](https://faucet.circle.com/) (Sepolia, Arbitrum Sepolia, Base Sepolia, Polygon
+  Amoy, Arc Testnet and Solana Devnet);
+- a little of the network's coin for the fee: Sepolia ETH (for example
+  [Google's faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia), which also sends to Arbitrum
+  Sepolia and Base Sepolia), POL on Amoy from [Polygon's faucet](https://faucet.polygon.technology/), and Devnet SOL
+  from [Solana's faucet](https://faucet.solana.com/). Arc Testnet pays its fee in USDC.
+
+On Solana, Devnet included, your receiving wallet must have received each token once before the sheet offers it
+(see [Before you go live](#before-you-go-live)).
 
 ## Your first payment
 
@@ -100,7 +114,7 @@ it in:
 | Field | Meaning |
 |---|---|
 | **Wallet** | Your EVM payout address (`0x...`). It receives the payments on Ethereum, Arbitrum, Polygon, Base and Arc |
-| **Solana Wallet** | Optional, your Solana payout address. At least one of the two wallets is required |
+| **Solana Wallet** | Optional, your Solana payout address. Without either wallet the asset is not applied (configure from code, or call `settings.Apply(wallet)` with a wallet supplied at runtime, see [ScfgSettings](api.md#scfgsettings)) |
 | **Testnet** | On by default. Leave it on while you test; turn it off for the release. The inspector warns while it is on |
 | **Chains** | The networks offered, in order. Empty: every network your wallets can receive on |
 | **Tokens** | `USDC`, `USDT`. Empty: both |
@@ -108,12 +122,13 @@ it in:
 | **Logo** | A sprite shown on the sheet and the checkout page |
 | **Onramp Enabled** | On by default: players with no stablecoin yet see **No USDC yet? Buy some with a card** on mainnet, which opens a third-party card seller (thirdweb) for the network they picked. Turn it off to hide the link (see [The buy link](api.md#the-buy-link-onramp)) |
 | **Onramp Url** | Optional, your own buy page (`https://`, with `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}`). Empty: thirdweb's page |
-| **Onramp Chains** | Optional, the EVM networks the link is offered on. Empty: the built-in EVM networks of a mainnet game (none on testnet) |
+| **Onramp Chains** | Optional, the EVM networks the link is offered on. Empty: the built-in EVM networks of a mainnet game (none on testnet; name testnet networks here to try the link before mainnet) |
 | **Web Storage Id** | WebGL builds only, see [WebGL builds](api.md#webgl-builds). Set it once and never change it |
 | **Items** | One entry per unlock: **Id**, **Code** (1-99, different for each item, never changed after release), **Price** (`4.99`), **Token**, **Title** and an optional **Min Price** |
 
 Click **Validate** at the bottom of the inspector: it runs the same checks as `SCFG.Configure` and `SCFG.AddItem`
-and shows the first error's code and message, or how many items passed.
+and shows the first error's code and message, or how many items passed (and, without a wallet, that the asset is
+not applied at startup). In code the fields are lowerCamel: `wallet`, `solanaWallet`, `onrampEnabled`, `items`, ...
 
 The asset is applied before the first scene loads, through `SCFG.Configure` and `SCFG.AddItem`, so
 `SCFG.Owns("chapter2")` and `SCFG.Pay(...)` work from your first `Awake`. A build puts the asset in the player by
@@ -134,16 +149,21 @@ own, a cell of a sprite sheet or a sprite in a Sprite Atlas, with or without Rea
 ## Before you go live
 
 1. Pay once with each method you enabled (browser wallet, phone wallet by QR, manual transfer) on a testnet, to
-   **your own wallet**, from a second wallet of yours. Get test USDC from
-   [Circle's faucet](https://faucet.circle.com/).
+   **your own wallet**, from a second wallet of yours. Get test USDC and the fee coin from the faucets in
+   [Try the samples first](#try-the-samples-first).
 2. Quit the game in the middle of a payment, start it again and check that the purchase still completes.
 3. Call `SCFG.ClearLocalData()`, then use **Restore** with the transaction hash.
 4. In a development build (and in the editor) the sheet shows **DEV MODE: paying to** and the start and end of
    the payout address. Check that they match yours. The Manual transfer step shows the full address.
 5. Set `Testnet = false` (or untick **Testnet** on the asset).
 6. If you take Solana payments, receive any amount of each token on your mainnet Solana wallet once first. Until
-   then a development build warns in the Console and players are not offered that token.
-7. For a WebGL release, read [WebGL builds](api.md#webgl-builds) and pay once from the build at its real address.
+   then a development build warns in the Console and players are not offered that token. The same rule applies on
+   Devnet while you test: send your Devnet wallet a little Devnet USDC first.
+7. Check the buy link (**No USDC yet? Buy some with a card**) and, on Solana, its **Pick another network** hint.
+   On testnet the link is off by default (cards don't buy test tokens); to see both before mainnet, name your
+   enabled testnet EVM networks in `Onramp.Chains` (the asset's **Onramp Chains**), for example `base` and
+   `arbitrum`, then remove them again. See [The buy link](api.md#the-buy-link-onramp).
+8. For a WebGL release, read [WebGL builds](api.md#webgl-builds) and pay once from the build at its real address.
 
 ## What you get
 

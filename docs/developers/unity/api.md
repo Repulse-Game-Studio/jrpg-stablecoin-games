@@ -92,7 +92,7 @@ SCFG.Configure(new ScfgOptions { Wallet = "0x...", Onramp = new ScfgOnramp { Url
 | `ScfgOnramp` field | Meaning (a `null` field keeps the default) |
 |---|---|
 | `Enabled` | `true` (default) or `false` |
-| `Chains` | The networks it is offered on (enabled EVM networks only). Default: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens) |
+| `Chains` | The networks it is offered on (enabled EVM networks only). Default: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens). Name testnet networks here (for example `base`, `arbitrum`) to see the link and the Solana hint before mainnet |
 | `Url` | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused |
 
 A mistake is reported with its code: `onramp.bad_url` (also a url with no host after `https://`),
@@ -138,18 +138,27 @@ asset's configuration in place, as a failing `Configure` does.
 
 ### ScfgSettings
 
-The **SCFG Settings** asset (**Assets > Create > SCFG Settings**) configures the package without code. Its fields are
-`ScfgOptions`' `Wallet`, `SolanaWallet`, `Testnet` (on by default), `Chains`, `Tokens`, `Accent`, a `Logo` sprite and
-`WebStorageId`, the buy link's `onrampEnabled`, `onrampUrl` and `onrampChains` (`ScfgOptions.Onramp`), plus a list of
-items (`id`, `code`, `price`, `token`, `title`, `minPrice`). Blank fields keep the defaults. The [install page](install.md#without-code-the-scfg-settings-asset) walks through them.
+The **SCFG Settings** asset (**Assets > Create > SCFG Settings**) configures the package without code. Its serialized
+fields are lowerCamel, as code that reads the asset names them: `wallet`, `solanaWallet`, `testnet` (on by default),
+`chains`, `tokens`, `accent`, a `logo` sprite and `webStorageId` (`ScfgOptions`' `Wallet`, `SolanaWallet`, ...), the
+buy link's `onrampEnabled`, `onrampUrl` and `onrampChains` (`ScfgOptions.Onramp`), plus a list of `items` (`id`,
+`code`, `price`, `token`, `title`, `minPrice`). Blank fields keep the defaults. The [install page](install.md#without-code-the-scfg-settings-asset) walks through them.
 
 - It is applied before the first scene loads, with `SCFG.Configure` and then `SCFG.AddItem` for each item. A build
   adds the asset to the player's preloaded assets for that build only (and takes it out again after a build that
   failed or was cancelled); in the editor's play mode the asset database finds it. Keep one per project: with
   several, none is applied (reported in play mode and in the player) and a build fails.
+- An asset with neither wallet is **not applied** at startup: that is the opt-out for a game that configures from
+  code, not an error. `settings.HasWallet` says which.
+- A wallet supplied at runtime (one per build, or read from a file) can still use the asset's options and items:
+  `settings.Apply(wallet, solanaWallet)` (either may be `null`) applies the asset with those wallets instead of its
+  own and returns the first error code, or `null`. Call it before payments start, as any `Configure`:
+  `ScfgSettings.Find()?.Apply(walletFromMyConfig);` in the first scene's `Awake`.
 - A `SCFG.Configure` from your code after it replaces it, items included (until payments have started).
 - The inspector's **Validate** button runs the same checks without touching `SCFG` and shows the first error's code
   and message. From code, `settings.Validate()` returns that `ScfgSettings.Problem` (`Code`, `Message`), or `null`.
+  An asset without a wallet is checked with stand-in wallets: the missing wallet is not a problem, and the verdict
+  says the asset is not applied at startup.
 - `settings.Apply()` applies it again by hand and returns the first error code, or `null`. `settings.ToOptions()`
   gives it as `ScfgOptions`. `ScfgSettings.Find()` returns the asset the startup uses, or `null`.
 - The `Logo` sprite may be a cell of a sheet or a Sprite Atlas entry, readable or not: the asset cuts it out into a
