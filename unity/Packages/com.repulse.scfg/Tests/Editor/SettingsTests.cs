@@ -58,7 +58,6 @@ namespace Scfg.Tests
             Assert.That(_rig.Reported, Is.Empty, "nor report anything");
         }
 
-        [TestCase("wallet", "", "wallet.missing")]
         [TestCase("wallet", "0x123", "address.invalid")]
         [TestCase("accent", "red", "accent.invalid")]
         [TestCase("chains", "nowhere", "chains.unknown")]
@@ -170,6 +169,44 @@ namespace Scfg.Tests
                 ScfgSettings.FindOverride = null;
             }
             Assert.That(SCFG.Current.Config, Is.Null, "no asset: nothing is configured");
+        }
+
+        // Testbed U2/E5: no wallet is the opt-out (the game configures from code), not a problem; the rest is still checked.
+        [Test]
+        public void AnAssetWithoutAWalletIsValidAndNotAppliedAtStartup()
+        {
+            var s = Make(a => a.wallet = "");
+            Assert.That(s.HasWallet, Is.False);
+            Assert.That(s.Validate(), Is.Null, "the missing wallet is not a problem");
+            var (text, type) = ScfgSettingsEditor.Verdict(s);
+            Assert.That(type, Is.EqualTo(MessageType.Info));
+            Assert.That(text, Does.Contain("not applied at startup"));
+            Assert.That(Make(a => { a.wallet = ""; a.accent = "red"; }).Validate()!.Code, Is.EqualTo("accent.invalid"),
+                        "the rest is still checked");
+            ScfgSettings.FindOverride = () => s;
+            try
+            {
+                ScfgSettings.ApplyAtStartup();
+            }
+            finally
+            {
+                ScfgSettings.FindOverride = null;
+            }
+            Assert.That(SCFG.Current.Config, Is.Null, "not applied");
+            Assert.That(_rig.Reported, Is.Empty, "and not reported as an error");
+        }
+
+        // Testbed E6: a wallet supplied at runtime, with the asset's options and items.
+        [Test]
+        public void ApplyWithAWalletUsesThatWalletAndTheAssetsItems()
+        {
+            const string Runtime = "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359";
+            var s = Make(a => a.wallet = "");
+            Assert.That(s.Apply(Runtime), Is.Null);
+            Assert.That(SCFG.Current.Config!.Wallet, Is.EqualTo(Runtime));
+            Assert.That(SCFG.ItemTitle("chapter2"), Is.EqualTo("Chapter 2"));
+            _rig.Restart();
+            Assert.That(s.Apply(" "), Is.EqualTo("wallet.missing"), "a blank wallet is no wallet");
         }
 
         [Test]

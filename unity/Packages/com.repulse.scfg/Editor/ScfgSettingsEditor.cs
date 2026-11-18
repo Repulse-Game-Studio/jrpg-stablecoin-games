@@ -60,8 +60,12 @@ namespace Scfg.Editor
             var problem = settings.Validate();
             if (problem != null) return (problem.Code + ": " + problem.Message, MessageType.Error);
             int items = settings.items?.Count(i => i != null) ?? 0;
-            return ("Valid: the configuration and " + items + (items == 1 ? " item" : " items") + " pass the checks SCFG runs at startup.",
-                MessageType.Info);
+            var valid = "Valid: the configuration and " + items + (items == 1 ? " item" : " items")
+                        + " pass the checks SCFG runs at startup.";
+            if (!settings.HasWallet)
+                valid += " No wallet is set, so the asset is not applied at startup: the game configures SCFG from code"
+                         + " (settings.Apply(wallet) applies it with a wallet supplied at runtime).";
+            return (valid, MessageType.Info);
         }
     }
 

@@ -15,8 +15,14 @@
 // sprite (reused by every Apply and ToOptions), destroys it when it makes another or is unloaded, and every play
 // session starts by dropping the last session's copies.
 //
+// No wallet: an asset with neither wallet is not applied at startup (opt-out: the game configures from code), and its
+// items, chains and options can still be applied with a wallet the game supplies at runtime, Apply(wallet,
+// solanaWallet) (a wallet per build, or read from a file). It is never an error.
+//
 // Validate() runs the core's validation on the asset without touching SCFG (the inspector's Validate button): the first
 // ConfigError's code and message, or null when the configuration and every item are valid. It does not need the logo.
+// An asset without a wallet is validated with stand-in wallets, so the rest is checked and the missing wallet is not a
+// problem (HasWallet says it is not applied at startup).
 #nullable enable
 using System;
 using System.Collections.Generic;
@@ -84,6 +90,9 @@ namespace Scfg
         /// until the asset makes another or is unloaded.
         /// </summary>
         public ScfgOptions ToOptions() => ToOptions(true);
+
+        /// <summary>A wallet is set (EVM or Solana): the asset is applied at startup. Without one it is not (opt-out).</summary>
+        public bool HasWallet => Blank(wallet) != null || Blank(solanaWallet) != null;
 
         internal ScfgOptions ToOptions(bool withLogo) => new ScfgOptions
         {
@@ -299,9 +308,25 @@ namespace Scfg
         /// Apply the asset: SCFG.Configure, then SCFG.AddItem for each item. Returns the first error code (reported, as
         /// every SCFG misuse, with Debug.LogError), or null.
         /// </summary>
-        public string? Apply()
+        public string? Apply() => ApplyOptions(ToOptions());
+
+        /// <summary>
+        /// Apply the asset with the payout wallets given here instead of its own (a wallet supplied at runtime: per build,
+        /// or read from a file): its options, then its items, as <see cref="Apply()"/>. A null or blank wallet is not
+        /// set; at least one is required (wallet.missing otherwise). Call it before payments start (the first scene's
+        /// Awake), as any Configure.
+        /// </summary>
+        public string? Apply(string? wallet, string? solanaWallet = null)
         {
-            var err = SCFG.Configure(ToOptions());
+            var options = ToOptions();
+            options.Wallet = Blank(wallet);
+            options.SolanaWallet = Blank(solanaWallet);
+            return ApplyOptions(options);
+        }
+
+        private string? ApplyOptions(ScfgOptions options)
+        {
+            var err = SCFG.Configure(options);
             if (err != null)
             {
                 SCFG.Report("the SCFG Settings asset \"" + name + "\" was not applied (" + err + "). Press Validate in its inspector.");
@@ -333,19 +358,30 @@ namespace Scfg
             }
         }
 
+        // Validate's stand-ins for an asset without a wallet (the EIP-55 spec's example address, an on-curve example key).
+        private const string StandInWallet = "0x52908400098527886E0F7030069857D2E4169EE7";
+        private const string StandInSolanaWallet = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
+
         /// <summary>The core's validation of the asset, without touching SCFG: the first problem, or null.</summary>
         public Problem? Validate()
         {
             ConfigData cfg;
             try
             {
-                var kw = ToOptions(false).ToKwargs();
+                var options = ToOptions(false);
+                if (!HasWallet)
+                {
+                    // not applied at startup (opt-out), not a problem: check the rest with stand-ins, never applied
+                    options.Wallet = StandInWallet;
+                    options.SolanaWallet = StandInSolanaWallet;
+                }
+                var kw = options.ToKwargs();
                 kw["custom_chains"] = new List<object?>();
                 cfg = Scfg.Core.Config.BuildConfig(kw);
             }
             catch (Exception e) when (e is ValueError || e is TypeError || e is KeyError)
             {
-                return new Problem(SCFG.ErrCode(e), e.Message);
+                return new Problem(SCFG.ErrCode(e), SCFG.Spelled(e));
             }
             foreach (var item in items ?? new List<Item>())
             {
@@ -425,7 +461,16 @@ namespace Scfg
             try
             {
                 var settings = FindOverride != null ? FindOverride() : Find();
-                if (settings != null) settings.Apply();
+                if (settings == null) return;
+                if (!settings.HasWallet)
+                {
+                    // opt-out: the game configures from code, maybe with this asset and a runtime wallet
+                    if ((settings.items?.Count ?? 0) > 0)
+                        Debug.Log("scfg: the SCFG Settings asset \"" + settings.name + "\" has no wallet, so it is not "
+                                  + "applied at startup: set one there, or call settings.Apply(wallet) from code.");
+                    return;
+                }
+                settings.Apply();
             }
             catch (Exception e)
             {
