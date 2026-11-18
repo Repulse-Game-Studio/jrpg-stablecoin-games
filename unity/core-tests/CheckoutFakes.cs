@@ -214,7 +214,7 @@ namespace Scfg.Core.Tests
         public readonly Engine Engine;
         public readonly Dictionary<string, FakeEvmNode> EvmNodes = new Dictionary<string, FakeEvmNode>(StringComparer.Ordinal);
         public readonly FakeSolanaNode Sol = new FakeSolanaNode(1000);
-        private long _rpcNow;
+        private double _rpcNow;
 
         public CheckoutRig(ConfigData config, long now = 100)
         {
@@ -229,7 +229,7 @@ namespace Scfg.Core.Tests
             return node;
         }
 
-        private long RpcClock() => _rpcNow += 3600;
+        private double RpcClock() => _rpcNow += 3600;
 
         private object MakeRpc(Chain chain) => chain.Family == "solana"
             ? new SolanaRpc(new RpcClient(chain.Rpc, Sol, clock: RpcClock, budget: double.PositiveInfinity))

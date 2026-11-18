@@ -262,7 +262,7 @@ namespace Scfg.Core.Tests
             {
                 var rpc = Backends.BackendFor(chain).MakeRpc(chain, transport);
                 var client = rpc is Solana.SolanaRpc s ? s.Client : (RpcClient)rpc; // SolanaRpc wraps its RpcClient
-                client.Clock = clock;
+                client.Clock = () => clock(); // the vectors' clock is whole seconds, the RpcClient's fractional
                 return rpc;
             }
             return new Engine(BuildConfigFrom(setup), transport, DeepCopy.Of(setup["pending"]) as JsonObject,

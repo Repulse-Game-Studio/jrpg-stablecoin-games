@@ -13,7 +13,6 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
@@ -290,9 +289,6 @@ namespace Scfg.Core
             ulong magnitude = (ulong)(-(n + 1)) + 1;
             return "-0x" + magnitude.ToString("x", CultureInfo.InvariantCulture);
         }
-
-        /// <summary>A monotonic clock in whole seconds (Python's <c>time.monotonic</c> default); tests and Tier 2 inject their own.</summary>
-        internal static long MonotonicSeconds() => Stopwatch.GetTimestamp() / Stopwatch.Frequency;
     }
 
     /// <summary>
@@ -309,8 +305,11 @@ namespace Scfg.Core
 
         public IReadOnlyList<string> Urls { get; }
 
-        /// <summary>The clock cooldowns run on, in seconds (Python's settable <c>rpc.clock</c>).</summary>
-        public Func<long> Clock { get; set; }
+        /// <summary>
+        /// The clock cooldowns and the call budget run on, in fractional seconds (Python's settable <c>rpc.clock</c>,
+        /// <c>time.monotonic</c> by default); tests and Tier 2 inject their own.
+        /// </summary>
+        public Func<double> Clock { get; set; }
 
         /// <summary>Seconds each request may take, passed to the transport.</summary>
         public double Timeout { get; set; }
@@ -324,7 +323,7 @@ namespace Scfg.Core
         private readonly Dictionary<string, EndpointState> _state = new Dictionary<string, EndpointState>(StringComparer.Ordinal);
         private long _nextId = 1;
 
-        public RpcClient(IReadOnlyList<string> urls, ITransport transport, long logRange = 1000, Func<long>? clock = null,
+        public RpcClient(IReadOnlyList<string> urls, ITransport transport, long logRange = 1000, Func<double>? clock = null,
             double timeout = 10.0, double budget = Rpc.CallBudget)
         {
             if (urls == null || urls.Count == 0) throw new ValueError("at least one RPC url required");
@@ -336,12 +335,12 @@ namespace Scfg.Core
                 _state[u] = new EndpointState();
             }
             Transport = transport;
-            Clock = clock ?? Rpc.MonotonicSeconds;
+            Clock = clock ?? Py.MonotonicSeconds;
             Timeout = timeout;
             Budget = budget;
         }
 
-        private void Fail(string url, long now)
+        private void Fail(string url, double now)
         {
             var st = _state[url];
             st.Delay = st.Delay == 0 ? Rpc.CooldownStart : Math.Min(Rpc.CooldownMax, st.Delay * 2);
@@ -358,7 +357,7 @@ namespace Scfg.Core
         /// <summary>The endpoint the next call will try first.</summary>
         private string Preferred()
         {
-            long now = Clock();
+            double now = Clock();
             foreach (var url in Urls)
                 if (_state[url].Until <= now) return url;
             return Urls[0];
@@ -379,7 +378,7 @@ namespace Scfg.Core
         /// <summary>Endpoints not cooling down right now, in preference order.</summary>
         public List<string> LiveUrls()
         {
-            long now = Clock();
+            double now = Clock();
             var live = new List<string>();
             foreach (var u in Urls)
                 if (_state[u].Until <= now) live.Add(u);
@@ -392,7 +391,7 @@ namespace Scfg.Core
         /// Python <c>_attempt</c>: an RpcAttempt, or null when the endpoint failed (and now cools down). The request
         /// waits <paramref name="timeout"/> seconds, <see cref="Timeout"/> when null.
         /// </summary>
-        private async Task<RpcAttempt?> Attempt(string url, string method, List<object?> prms, long now, double? timeout = null)
+        private async Task<RpcAttempt?> Attempt(string url, string method, List<object?> prms, double now, double? timeout = null)
         {
             var payload = new JsonObject { { "jsonrpc", "2.0" }, { "id", _nextId++ }, { "method", method }, { "params", prms } };
             object? resp;
@@ -431,7 +430,7 @@ namespace Scfg.Core
         /// <summary>Python <c>_call</c>: like Call, but also returns which endpoint answered.</summary>
         private async Task<(object? Value, string Url)> CallWithUrl(string method, List<object?> prms)
         {
-            long now = Clock();
+            double now = Clock();
             double deadline = now + Budget;
             foreach (var url in Urls)
             {

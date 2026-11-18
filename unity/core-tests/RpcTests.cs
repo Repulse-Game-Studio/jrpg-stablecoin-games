@@ -91,8 +91,8 @@ namespace Scfg.Core.Tests
 
         private sealed class Clock
         {
-            public long Now = 1000;
-            public long Call() => Now;
+            public double Now = 1000;
+            public double Call() => Now;
         }
 
         private static (RpcClient c, FakeTransport t, Clock clock) Client(Dictionary<string, Handler> handlers, long logRange = 1000)
@@ -161,7 +161,7 @@ namespace Scfg.Core.Tests
             Assert.That(await c.BlockNumber(), Is.EqualTo(0xbL));
             Assert.That(Urls(t), Is.EqualTo(new[] { B }));
             aUp = true;
-            clock.Now += (long)Rpc.CooldownStart;
+            clock.Now += Rpc.CooldownStart;
             Assert.That(await c.BlockNumber(), Is.EqualTo(0xaL));
         }
 
@@ -175,7 +175,7 @@ namespace Scfg.Core.Tests
                 Assert.ThrowsAsync<RpcUnavailable>(() => c.Call("eth_blockNumber", Fakes.L()));
                 double d = c.CooldownOf(A);
                 delays.Add(d);
-                clock.Now += (long)d;
+                clock.Now += d;
             }
             Assert.That(delays, Is.EqualTo(new[] { 30.0, 60.0, 120.0, 240.0, 480.0, 600.0, 600.0, 600.0 }));
             Assert.That(delays.Max(), Is.EqualTo(Rpc.CooldownMax));
@@ -222,10 +222,10 @@ namespace Scfg.Core.Tests
         {
             public readonly List<(string Url, double Timeout)> Calls = new List<(string, double)>();
             private readonly Clock _clock;
-            private readonly Dictionary<string, long> _costs;
+            private readonly Dictionary<string, double> _costs;
             private readonly HashSet<string> _answers;
 
-            public TimedTransport(Clock clock, Dictionary<string, long> costs, params string[] answers)
+            public TimedTransport(Clock clock, Dictionary<string, double> costs, params string[] answers)
             {
                 _clock = clock;
                 _costs = costs;
@@ -235,7 +235,7 @@ namespace Scfg.Core.Tests
             public Task<object?> PostJson(string url, JsonObject payload, double timeout)
             {
                 Calls.Add((url, timeout));
-                _clock.Now += _costs.TryGetValue(url, out var cost) ? (long)Math.Min(cost, timeout) : (long)timeout;
+                _clock.Now += _costs.TryGetValue(url, out var cost) ? Math.Min(cost, timeout) : timeout;
                 if (_answers.Contains(url)) return Task.FromResult<object?>(Fakes.Ok("0x7"));
                 return Task.FromException<object?>(new TransportError("timed out after " + timeout.ToString(System.Globalization.CultureInfo.InvariantCulture) + "s"));
             }
@@ -246,13 +246,13 @@ namespace Scfg.Core.Tests
         {
             const string C = "https://c.rpc", D = "https://d.rpc";
             var clock = new Clock();
-            var t = new TimedTransport(clock, new Dictionary<string, long>()); // every endpoint hangs
+            var t = new TimedTransport(clock, new Dictionary<string, double>()); // every endpoint hangs
             var rpc = new RpcClient(new[] { A, B, C, D }, t, clock: clock.Call);
             Assert.That(Rpc.CallBudget, Is.EqualTo(15.0));
             Assert.ThrowsAsync<RpcUnavailable>(() => rpc.BlockNumber());
             // the rest of the 15 s, then nothing is left for C, D
             Assert.That(t.Calls, Is.EqualTo(new List<(string, double)> { (A, 10.0), (B, 5.0) }));
-            Assert.That(clock.Now, Is.EqualTo(1000 + (long)Rpc.CallBudget));
+            Assert.That(clock.Now, Is.EqualTo(1000 + Rpc.CallBudget));
             Assert.That(rpc.LiveUrls(), Is.EqualTo(new[] { C, D })); // skipped, not cooled down: the next call asks C
         }
 
@@ -261,7 +261,7 @@ namespace Scfg.Core.Tests
         {
             const string C = "https://c.rpc";
             var clock = new Clock();
-            var t = new TimedTransport(clock, new Dictionary<string, long> { { A, 3 }, { B, 10 }, { C, 1 } }, C);
+            var t = new TimedTransport(clock, new Dictionary<string, double> { { A, 3 }, { B, 10 }, { C, 1 } }, C);
             Assert.That(await new RpcClient(new[] { A, B, C }, t, clock: clock.Call).BlockNumber(), Is.EqualTo(7));
             Assert.That(t.Calls, Is.EqualTo(new List<(string, double)> { (A, 10.0), (B, 10.0), (C, 2.0) }));
         }
@@ -269,11 +269,11 @@ namespace Scfg.Core.Tests
         [Test]
         public void AnEndpointIsNotAskedWithLessThanTheFloorLeft()
         {
-            // Review T5: A hangs (10 s), B fails after 4 s: 1 s is left, under MinAttempt, so C is not asked with a
+            // A hangs (10 s), B fails after 4 s: 1 s is left, under MinAttempt, so C is not asked with a
             // sliver of time, nor cooled down for failing it.
             const string C = "https://c.rpc";
             var clock = new Clock();
-            var t = new TimedTransport(clock, new Dictionary<string, long> { { B, 4 } });
+            var t = new TimedTransport(clock, new Dictionary<string, double> { { B, 4 } });
             var rpc = new RpcClient(new[] { A, B, C }, t, clock: clock.Call);
             Assert.That(Rpc.MinAttempt, Is.EqualTo(2.0));
             Assert.ThrowsAsync<RpcUnavailable>(() => rpc.BlockNumber());
@@ -281,16 +281,15 @@ namespace Scfg.Core.Tests
             Assert.That(rpc.LiveUrls(), Is.EqualTo(new[] { C }));
         }
 
-        [TestCase(3L, true)]
-        [TestCase(4L, false)]
-        public void TheFloorIsAskedAtExactlyMinAttemptLeft(long bTakes, bool asked)
+        [TestCase(3.0, true)]
+        [TestCase(3.1, false)]
+        public void TheFloorIsAskedAtExactlyMinAttemptLeft(double bTakes, bool asked)
         {
-            // Review V5 (test_the_floor_is_asked_at_exactly_min_attempt_left), the floor's boundary: with exactly
-            // MinAttempt left C is asked, with that timeout; with less it is not, and stays live. The RpcClient's clock
-            // counts whole seconds, so the side just under is 1 s left here (Python's is 1.9 s: B takes 3.1 s).
+            // test_the_floor_is_asked_at_exactly_min_attempt_left, the floor's boundary: with exactly MinAttempt left
+            // C is asked, with that timeout; with less (1.9 s: B takes 3.1 s) it is not, and stays live.
             const string C = "https://c.rpc";
             var clock = new Clock();
-            var t = new TimedTransport(clock, new Dictionary<string, long> { { B, bTakes } });
+            var t = new TimedTransport(clock, new Dictionary<string, double> { { B, bTakes } });
             var rpc = new RpcClient(new[] { A, B, C }, t, clock: clock.Call);
             Assert.ThrowsAsync<RpcUnavailable>(() => rpc.BlockNumber());
             var expected = new List<(string, double)> { (A, 10.0), (B, 5.0) };
@@ -310,6 +309,17 @@ namespace Scfg.Core.Tests
             Assert.That(c.LiveUrls(), Is.Empty);
             now = 35;
             Assert.That(c.LiveUrls(), Is.EqualTo(new[] { A }));
+        }
+
+        [Test]
+        public void TheDefaultClockCountsFractionsOfASecond()
+        {
+            // time.monotonic's resolution: a clock of whole seconds would let a call run past its budget, an endpoint
+            // with 1.01 s really left being asked with 2 s. The first tick after a read comes long before a second.
+            var c = new RpcClient(new[] { A }, new FakeTransport(new Dictionary<string, Handler>()));
+            double first = c.Clock(), next;
+            do next = c.Clock(); while (next == first);
+            Assert.That(next - first, Is.LessThan(0.5));
         }
 
         [Test]

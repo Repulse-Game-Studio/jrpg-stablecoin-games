@@ -4,7 +4,9 @@
 // of Trim(), char.IsWhiteSpace, char.IsDigit or \d / \s in a Regex: .NET's Unicode tables differ.
 #nullable enable
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
@@ -13,9 +15,6 @@ namespace Scfg.Core
 {
     public static class Py
     {
-        /// <summary>CPython's default <c>sys.get_int_max_str_digits()</c>.</summary>
-        public const int IntMaxStrDigits = 4300;
-
         /// <summary>
         /// Python's <c>str.isspace()</c> set, what <c>str.strip()</c> removes: \t \n \v \f \r, the separators
         /// \x1c-\x1f, space, \x85, \xa0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000.
@@ -115,6 +114,34 @@ namespace Scfg.Core
             return aDone == bDone ? 0 : aDone ? -1 : 1;
         }
 
+        /// <summary>Python's ordering of (chain, token) tuples: by chain, then by token, each by code point.</summary>
+        internal static int CompareRoutes((string Chain, string Token) a, (string Chain, string Token) b)
+        {
+            int c = CompareCodePoints(a.Chain, b.Chain);
+            return c != 0 ? c : CompareCodePoints(a.Token, b.Token);
+        }
+
+        /// <summary>An ASCII hex digit, either case.</summary>
+        internal static bool IsAsciiHex(char c) => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+
+        /// <summary>A lowercased ASCII letter; every other character as it is.</summary>
+        public static char AsciiLower(char c) => c >= 'A' && c <= 'Z' ? (char)(c - 'A' + 'a') : c;
+
+        /// <summary>
+        /// The ASCII letters of <paramref name="s"/> lowercased, every other character kept: Python's
+        /// <c>str.lower()</c> for text whose non-ASCII characters cannot matter (see <c>Rpc.PyLowerForAscii</c> for
+        /// text where they can).
+        /// </summary>
+        public static string AsciiLower(string s)
+        {
+            var chars = s.ToCharArray();
+            for (int i = 0; i < chars.Length; i++) chars[i] = AsciiLower(chars[i]);
+            return new string(chars);
+        }
+
+        /// <summary>A monotonic clock in fractional seconds (Python's <c>time.monotonic</c>).</summary>
+        public static double MonotonicSeconds() => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
+
         /// <summary>
         /// Python <c>int(x)</c> for a JSON-like value:
         /// bool is 0/1, an int as it is, a finite float truncated toward zero (<c>int(1.9) == 1</c>), a str as
@@ -142,7 +169,7 @@ namespace Scfg.Core
         /// <summary>
         /// Python <c>int(s)</c>: surrounding whitespace (int()'s set: str.strip()'s minus \x1c-\x1f), an optional
         /// sign, then decimal digits of any script with single underscores between digits. More than
-        /// <see cref="IntMaxStrDigits"/> digits is a ValueError (CPython 3.9.25's limit), as is any malformed
+        /// <see cref="Ints.IntMaxStrDigits"/> digits is a ValueError (CPython 3.9.25's limit), as is any malformed
         /// text. Linear in the length of <paramref name="s"/>.
         /// </summary>
         public static BigInteger Int(string s)
@@ -176,9 +203,9 @@ namespace Scfg.Core
                 needDigit = false;
             }
             if (needDigit) throw InvalidLiteral(s);
-            if (digits.Length > IntMaxStrDigits)
+            if (digits.Length > Ints.IntMaxStrDigits)
             {
-                throw new ValueError("Exceeds the limit (" + IntMaxStrDigits.ToString(CultureInfo.InvariantCulture)
+                throw new ValueError("Exceeds the limit (" + Ints.IntMaxStrDigits.ToString(CultureInfo.InvariantCulture)
                                      + ") for integer string conversion: value has "
                                      + digits.Length.ToString(CultureInfo.InvariantCulture)
                                      + " digits; use sys.set_int_max_str_digits() to increase the limit");
@@ -231,6 +258,16 @@ namespace Scfg.Core
                 case byte[] _: return "bytes";
                 default: return v.GetType().Name;
             }
+        }
+
+        /// <summary>
+        /// Python's <c>hash(v)</c> check for a JSON value used as a dict key or set member: a dict or a list is a
+        /// TypeError ("unhashable type: 'dict'" or "'list'"), anything else passes.
+        /// </summary>
+        internal static void CheckHashable(object? v)
+        {
+            if (v is JsonObject) throw new TypeError("unhashable type: 'dict'");
+            if (v is IList) throw new TypeError("unhashable type: 'list'");
         }
 
         /// <summary>Python truthiness of a JSON value: None, False, 0, 0.0, "", [] and {} are falsy.</summary>
