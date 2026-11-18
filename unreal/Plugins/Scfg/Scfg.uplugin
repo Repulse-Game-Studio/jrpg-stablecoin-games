@@ -6,10 +6,12 @@
 	"Description": "USDC/USDT tips and unlock purchases paid straight to your wallet. No server, no accounts.",
 	"Category": "Monetization",
 	"CreatedBy": "Repulse",
+	"CreatedByURL": "https://github.com/Repulse-Game-Studio",
 	"DocsURL": "https://jrpg.com/stablecoinforgames/docs/developers/unreal/",
 	"SupportURL": "https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/issues",
 	"EngineVersion": "5.8.0",
 	"CanContainContent": false,
+	"IsBetaVersion": false,
 	"Installed": false,
 	"Modules": [
 		{

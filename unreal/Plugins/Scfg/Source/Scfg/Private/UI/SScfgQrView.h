@@ -1,6 +1,6 @@
 // Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/qr_view.gd: a QR code drawn from the core's module runs (scfg::paylinks::qr_rects, the
-// same geometry as Ren'Py's scfg.QR): black runs on white, with a quiet zone of BORDER modules around them, as solid
+// same geometry as Ren'Py's scfg.QR): black runs on white, with a quiet zone of BorderModules modules around them, as solid
 // boxes at the largest integer scale (at least 1) that fits both the target size and the space the layout gives it,
 // so every module is a whole number of Slate units, stays sharp, and the code shrinks with a narrow sheet.
 //
@@ -14,7 +14,8 @@
 class SCFG_API SScfgQrView : public SLeafWidget
 {
 public:
-	static constexpr int32 BORDER = 2;
+	// The quiet zone around the code, in modules.
+	static constexpr int32 BorderModules = 2;
 
 	SLATE_BEGIN_ARGS(SScfgQrView) : _TargetSize(176.f) {}
 		SLATE_ARGUMENT(FString, Text)

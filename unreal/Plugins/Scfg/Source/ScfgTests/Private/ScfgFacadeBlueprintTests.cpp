@@ -15,6 +15,7 @@
 #include "UObject/UObjectGlobals.h"
 
 #include "ScfgBlueprintLibrary.h"
+#include "ScfgBlueprintLibraryAccess.h"
 #include "ScfgFacade.h"
 #include "ScfgFacadeTestKit.h"
 #include "ScfgPayAsyncAction.h"
@@ -42,7 +43,7 @@ namespace ScfgFacadeBlueprintTests
 
 using namespace ScfgFacadeTests;
 
-// A game instance (never initialised) holding a subsystem whose facade has the world's hooks; FWorld's helpers then
+// A game instance (never initialized) holding a subsystem whose facade has the world's hooks; FWorld's helpers then
 // drive that facade.
 struct FGame
 {
@@ -58,7 +59,7 @@ struct FGame
 		FScfgFacadeOptions Options = W.Options();
 		Options.bQuiet = bQuiet;
 		Options.bPumpOnTicker = bPumpOnTicker;
-		FScfgSubsystemTestAccess::Start(*Scfg, Options);
+		FScfgSubsystemAccess::StartFacade(*Scfg, Options);
 		W.Facade = FScfgSubsystemAccess::Facade(*Scfg)->AsShared();
 		Scfg->SetSheetHost(W.Host);
 	}
@@ -116,7 +117,7 @@ bool FScfgBlueprintSubsystemTest::RunTest(const FString& Parameters)
 		{
 			TestTrue(TEXT("its fields"), Each.Value.Chain == TEXT("arbitrum") &&
 				Each.Value.TxHash == ScfgString::FromUtf8(kTx) && Each.Value.LogIndex == 3 && Each.Value.Block == 990 &&
-				Each.Value.Kind == TEXT("unlock") && Each.Value.Item == TEXT("chapter2") &&
+				Each.Value.Kind == EScfgPayKind::Unlock && Each.Value.Item == TEXT("chapter2") &&
 				Each.Value.Amount == TEXT("4.99") && Each.Value.Source == TEXT("payment"));
 		}
 		W.StartSession();
@@ -124,7 +125,7 @@ bool FScfgBlueprintSubsystemTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("one pending payment"), Pending.Num(), 1);
 		for (const TPair<FString, FScfgPendingPayment>& Each : Pending)
 		{
-			TestTrue(TEXT("its fields"), Each.Key == Each.Value.Id && Each.Value.Kind == TEXT("unlock") &&
+			TestTrue(TEXT("its fields"), Each.Key == Each.Value.SessionId && Each.Value.Kind == EScfgPayKind::Unlock &&
 				Each.Value.Item == TEXT("chapter2") && Each.Value.Chain == TEXT("arbitrum") &&
 				Each.Value.State == TEXT("awaiting") && Each.Value.UiStatus == TEXT("open") &&
 				Each.Value.CreatedAt == 1000.0 && Each.Value.Cursor > 0);
@@ -140,7 +141,7 @@ bool FScfgBlueprintSubsystemTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("and forgets them"), S.Receipts().Num(), 0);
 	}
 	// Without a game instance the library's nodes answer their neutral value and log once per node kind.
-	UScfgBlueprintLibrary::ResetLogOnceForTests();
+	FScfgBlueprintLibraryAccess::ResetLogOnce();
 	AddExpectedMessagePlain(TEXT("scfg: Owns: no SCFG subsystem here"), ELogVerbosity::Error,
 		EAutomationExpectedMessageFlags::Contains, 1);
 	AddExpectedMessagePlain(TEXT("scfg: TipTotal: no SCFG subsystem here"), ELogVerbosity::Error,
@@ -360,7 +361,7 @@ bool FScfgBlueprintWorldContextTest::RunTest(const FString& Parameters)
 	if (Scfg && World)
 	{
 		TestTrue(TEXT("the library finds it from the world"), UScfgBlueprintLibrary::GetSubsystem(World) == Scfg);
-		FScfgSubsystemTestAccess::Start(*Scfg, W.Options());  // the fakes from here on
+		FScfgSubsystemAccess::StartFacade(*Scfg, W.Options());  // the fakes from here on
 		W.Facade = FScfgSubsystemAccess::Facade(*Scfg)->AsShared();
 		Scfg->SetSheetHost(W.Host);
 		FScfgOptions Options;
@@ -476,11 +477,11 @@ bool FScfgBlueprintBeginDestroyTest::RunTest(const FString& Parameters)
 
 SCFG_FACADE_BP_TEST(FScfgBlueprintCppTeardownTest, "TheCppAsyncCallbacksAreDroppedAtTeardown")
 
-// The C++ PayAsync / RestoreAsync with their screens open when the game instance goes (final review F1), once by
+// The C++ PayAsync / RestoreAsync with their screens open when the game instance goes, once by
 // Deinitialize and once by BeginDestroy without it: the game's OnResolved (and RestoreAsync's Callback) are dropped as
 // the nodes' pins are, so game code that would make a UObject there (a widget for the result) never runs, and the
 // teardown itself creates none. Before the teardown the same callbacks are called. After it the subsystem stays
-// stopped (final re-review N3): a PayAsync or RestoreAsync made then drops its OnResolved as well, where Pay's and
+// stopped: a PayAsync or RestoreAsync made then drops its OnResolved as well, where Pay's and
 // Restore's callbacks get Failed; each call site logs "not running" once per subsystem (one per loop below).
 bool FScfgBlueprintCppTeardownTest::RunTest(const FString& Parameters)
 {
@@ -552,7 +553,7 @@ bool FScfgBlueprintCppTeardownTest::RunTest(const FString& Parameters)
 		G.Scfg->Pay(EScfgPayKind::Unlock, Unlock(), [&Failed](const FScfgPaymentResult& Result) { Failed = Result; });
 		TestTrue(How + TEXT("where Pay's callback gets Failed RuntimeError"), Failed.IsSet() &&
 			Failed->Status == EScfgPaymentStatus::Failed && Failed->Error == TEXT("RuntimeError"));
-		// Restore too (phase 3 review P3-6): its bound callback gets Failed RuntimeError.
+		// Restore too: its bound callback gets Failed RuntimeError.
 		FOnScfgRestored Restored;
 		Restored.BindUFunction(G.Receiver.Get(), GET_FUNCTION_NAME_CHECKED(UScfgTestReceiver, OnRestored));
 		G.Scfg->Restore(Restored);
@@ -564,7 +565,7 @@ bool FScfgBlueprintCppTeardownTest::RunTest(const FString& Parameters)
 
 SCFG_FACADE_BP_TEST(FScfgBlueprintDedicatedServerTest, "NoSubsystemOnADedicatedServer")
 
-// ShouldCreateSubsystem (final review F8): a game instance gets one, a dedicated server instance (here a
+// ShouldCreateSubsystem: a game instance gets one, a dedicated server instance (here a
 // play-in-editor one, its world context's RunAsDedicated) does not.
 bool FScfgBlueprintDedicatedServerTest::RunTest(const FString& Parameters)
 {
@@ -586,11 +587,11 @@ bool FScfgBlueprintDedicatedServerTest::RunTest(const FString& Parameters)
 		AddError(TEXT("InitializeStandalone made no world context"));
 	}
 	Instance->Shutdown();
-	// Carried N2 of phase 2: the nodes say why there is no subsystem on a server. (After Shutdown the instance has no
+	// The nodes say why there is no subsystem on a server. (After Shutdown the instance has no
 	// subsystem; the engine still has the world's context, here a dedicated server's.)
 	if (FWorldContext* Context = World ? GEngine->GetWorldContextFromWorld(World) : nullptr)
 	{
-		UScfgBlueprintLibrary::ResetLogOnceForTests();
+		FScfgBlueprintLibraryAccess::ResetLogOnce();
 		TestFalse(TEXT("a client is not a server"), UScfgBlueprintLibrary::OnDedicatedServer(World));
 		Context->RunAsDedicated = true;
 		TestTrue(TEXT("a dedicated server's world"), UScfgBlueprintLibrary::OnDedicatedServer(World));
@@ -604,7 +605,7 @@ bool FScfgBlueprintDedicatedServerTest::RunTest(const FString& Parameters)
 			UScfgPayAsyncAction::Pay(World, EScfgPayKind::Unlock, ScfgFacadeTests::Unlock()));
 		Node->Activate();
 		Context->RunAsDedicated = false;
-		UScfgBlueprintLibrary::ResetLogOnceForTests();
+		FScfgBlueprintLibraryAccess::ResetLogOnce();
 	}
 	if (World)
 	{
@@ -648,7 +649,7 @@ bool FScfgBlueprintOffThreadTest::RunTest(const FString& Parameters)
 	OnPaid.BindDynamic(S->G->Receiver.Get(), &UScfgTestReceiver::OnPaid);
 	FOnScfgRestored OnRestored;
 	OnRestored.BindDynamic(S->G->Receiver.Get(), &UScfgTestReceiver::OnRestored);
-	S->RefusedBefore = UScfgSubsystem::NumOffThreadCalls();
+	S->RefusedBefore = FScfgSubsystemAccess::NumOffThreadCalls();
 	std::thread Other([S, Scfg, OnPaid, OnRestored]()
 	{
 		// thread_local: an ensure of this thread is skipped (no callstack, no crash report)
@@ -675,7 +676,7 @@ bool FScfgBlueprintOffThreadTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("nothing of the subsystem changed"), !Scfg->GetNotify() && Scfg->GetSheetHost() == Host &&
 		S->W.F().NumCheckouts() == 0 && S->W.F().NumRestores() == 0);
 	// (the ensure itself fires once per process, so a second run of this test in the same editor would not see it)
-	TestEqual(TEXT("each of the six calls was refused"), UScfgSubsystem::NumOffThreadCalls() - S->RefusedBefore, 6);
+	TestEqual(TEXT("each of the six calls was refused"), FScfgSubsystemAccess::NumOffThreadCalls() - S->RefusedBefore, 6);
 	S->Started = FPlatformTime::Seconds();
 	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand([this, S]()
 	{

@@ -29,7 +29,7 @@ bool FScfgEnginePlatform::DefaultIsMobile()
 void FScfgEnginePlatform::OpenUrl(const FString& Url)
 {
 	// Android: an ACTION_VIEW intent (CATEGORY_BROWSABLE) to the app registered for the scheme; iOS: UIApplication
-	// openURL. A link nothing handles is logged by the engine (engine-facts.md, "Mobile").
+	// openURL. A link nothing handles is logged by the engine.
 	FString Error;
 	FPlatformProcess::LaunchURL(*Url, nullptr, &Error);
 	if (!Error.IsEmpty())

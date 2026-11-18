@@ -1,7 +1,7 @@
 // Copyright 2026 Repulse
 // Twin of godot/addons/scfg/ui/toast.gd: a short notification ("Payment confirmed: ...") at the top right of the
 // screen, shown by FScfgDefaultSheetHost::Notify when the subsystem's Notify is on (Ren'Py's renpy.notify). It fades
-// out after SECONDS of real time (Slate's tick: a paused game or a time dilation of 0 does not hold it) and then asks
+// out after ShowSeconds of real time (Slate's tick: a paused game or a time dilation of 0 does not hold it) and then asks
 // its host to remove it (OnFinished). It never takes the focus or the mouse. The text is already worded.
 #pragma once
 
@@ -13,8 +13,9 @@
 class SCFG_API SScfgToast : public SCompoundWidget
 {
 public:
-	static constexpr float SECONDS = 3.f;
-	static constexpr float FADE_SECONDS = 0.3f;
+	// Seconds shown before it fades, and the fade's.
+	static constexpr float ShowSeconds = 3.f;
+	static constexpr float FadeSeconds = 0.3f;
 
 	SLATE_BEGIN_ARGS(SScfgToast) {}
 		SLATE_ARGUMENT(FString, Text)

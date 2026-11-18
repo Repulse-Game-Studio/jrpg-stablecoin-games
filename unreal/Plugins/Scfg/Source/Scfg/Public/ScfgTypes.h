@@ -3,23 +3,30 @@
 // configure() / add_chain() / add_item() / pay() option dictionaries and of its ScfgPaymentResult and ScfgRestoreResult
 // (godot/addons/scfg/payment_result.gd, restore_result.gd), and of Unity's ScfgOptions, ScfgItem, ScfgPayRequest.
 //
-// The option structs convert to the core's keyword arguments (a Json dict, Private/ScfgConvert.h), so the core's own
+// The option structs convert to the core's keyword arguments (a Json dict, plugin-internal), so the core's own
 // validation runs on them and its ConfigError codes come back unchanged. A text field left empty is None (Python's
 // default) where the core has a default; an empty list or map is "not given". Prices and amounts are strings ("4.99"),
 // never floats.
 //
-// A result field that the core leaves None is an empty string here (or 0).
+// A result field that the core leaves None is an empty string here (or 0). The option structs are what a game fills
+// in (Blueprint can make and set them); the result and record structs (FScfgPaymentResult, FScfgReceipt,
+// FScfgRestoreResult, FScfgPendingPayment) are what the plugin gives back, read-only in Blueprint and in the editor.
+//
+// The field names follow the core's keyword arguments: Methods.Browser is configure()'s methods.browser,
+// Methods.Browser.TimeoutMinutes its timeout_min, Onramp its onramp, FScfgChain build_chain's arguments.
 #pragma once
 
 #include "CoreMinimal.h"
 
 #include "ScfgTypes.generated.h"
 
-// pay()'s kind.
+// Whether a payment is an unlock (a paid item) or a tip.
 UENUM(BlueprintType)
 enum class EScfgPayKind : uint8
 {
+	// A paid item: Pay needs the item's id.
 	Unlock,
+	// A tip: Pay needs the amount and the token.
 	Tip,
 };
 
@@ -48,7 +55,9 @@ enum class EScfgPaymentStatus : uint8
 UENUM(BlueprintType)
 enum class EScfgRestoreStatus : uint8
 {
+	// The restore added receipts (Restored lists them).
 	Restored,
+	// The transaction holds no payment to this game that is not already stored.
 	NothingFound,
 	// Closed before a restore finished.
 	Cancelled,
@@ -62,67 +71,75 @@ struct FScfgRpcUrls
 {
 	GENERATED_BODY()
 
+	// The https:// urls, tried in order.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	TArray<FString> Urls;
 };
 
-// methods.browser: the checkout page in the player's browser (desktop).
+// The checkout page in the player's browser, where a browser wallet pays (desktop only).
 USTRUCT(BlueprintType)
 struct FScfgBrowserMethod
 {
 	GENERATED_BODY()
 
+	// Offer the checkout page on the payment sheet.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	bool bEnabled = true;
 	// Minutes the page keeps answering a payment the player kept playing through.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
-	int32 TimeoutMin = 30;
+	int32 TimeoutMinutes = 30;
 };
 
-// methods.qr: a QR code for a phone wallet.
+// A QR code the player scans with a phone wallet.
 USTRUCT(BlueprintType)
 struct FScfgQrMethod
 {
 	GENERATED_BODY()
 
+	// Offer the QR code on the payment sheet.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	bool bEnabled = true;
+	// On a phone, an "Open wallet app" button below the code, which opens the payment in a wallet on the same device.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	bool bWalletButton = true;
-	// The chains that offer it; empty: every chain (None).
+	// The chains that offer the QR code; empty means every chain.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	TArray<FString> Chains;
 };
 
-// methods.manual: the address and amount to send by hand, and a field for the transaction hash.
+// The address and amount for the player to send by hand, and a field to paste the transaction hash.
 USTRUCT(BlueprintType)
 struct FScfgManualMethod
 {
 	GENERATED_BODY()
 
+	// Offer the manual transfer on the payment sheet.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	bool bEnabled = true;
+	// Let the player paste the hash of the transaction they sent, so it is checked at once.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	bool bAllowTxPaste = true;
 };
 
-// configure()'s methods; the defaults are the core's DEFAULT_METHODS.
+// The ways the player can pay on the payment sheet; all three are on by default.
 USTRUCT(BlueprintType)
 struct FScfgMethods
 {
 	GENERATED_BODY()
 
+	// The checkout page in the player's browser (desktop only).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FScfgBrowserMethod Browser;
+	// A QR code for a phone wallet.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FScfgQrMethod Qr;
+	// The address and amount to send by hand.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FScfgManualMethod Manual;
 };
 
-// configure()'s onramp: the "No USDC yet? Buy some with a card" link on the payment sheet. The defaults are the core's:
-// on, thirdweb's buy page, on the built-in EVM networks of a mainnet game (none on testnet, where cards buy no test
-// tokens).
+// The "No USDC yet? Buy some with a card" link on the payment sheet. By default it is on, opens thirdweb's buy page,
+// and is offered on the built-in EVM networks of a mainnet game (none on testnet, where cards buy no test tokens).
 USTRUCT(BlueprintType)
 struct FScfgOnramp
 {
@@ -140,8 +157,8 @@ struct FScfgOnramp
 	TArray<FString> Chains;
 };
 
-// Configure()'s options: the payout wallet and the rest of build_config's keyword arguments (custom chains come from
-// AddChain()).
+// Configure()'s options: the payout wallets, the network and tokens, the payment methods and the sheet's look (custom
+// chains come from AddChain()).
 USTRUCT(BlueprintType)
 struct FScfgOptions
 {
@@ -153,6 +170,7 @@ struct FScfgOptions
 	// The Solana payout address; empty: none.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FString SolanaWallet;
+	// Use the test networks (Sepolia, Base Sepolia, Solana Devnet, ...), where no real money moves; off: the mainnets.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	bool bTestnet = false;
 	// The chain keys players may pay on; empty: every chain of the network.
@@ -161,9 +179,10 @@ struct FScfgOptions
 	// "USDC" and/or "USDT"; empty: both.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	TArray<FString> Tokens;
+	// The ways the player can pay (browser page, QR code, manual transfer).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FScfgMethods Methods;
-	// The "No USDC yet? Buy some with a card" link (configure's onramp).
+	// The "No USDC yet? Buy some with a card" link.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FScfgOnramp Onramp;
 	// Your own RPC urls per chain key, tried before the public ones.
@@ -183,14 +202,16 @@ struct FScfgOptions
 	FString Accent;
 };
 
-// AddChain()'s options: an EVM chain that isn't built in (build_chain's keyword arguments).
+// AddChain()'s options: an EVM chain that isn't built in.
 USTRUCT(BlueprintType)
 struct FScfgChain
 {
 	GENERATED_BODY()
 
+	// The name the payment sheet shows ("My L2").
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FString Name;
+	// The chain's EIP-155 id, which wallets check before they send.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	int64 ChainId = 0;
 	// https urls.
@@ -199,18 +220,22 @@ struct FScfgChain
 	// Token symbol -> contract address ("USDC" -> "0x..."); 6-decimal tokens only.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	TMap<FString, FString> Tokens;
+	// The blocks a payment waits for before it counts (1 or more: it must be set).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	int32 Confirmations = 0;
 	// An https url with "{}" where the transaction hash goes.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FString ExplorerTx;
+	// The chain's gas token, which the sheet tells the player to hold for the fee.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FString NativeSymbol = TEXT("ETH");
 	// "lowest", "low" or "high".
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FString FeeHint = TEXT("low");
+	// The most blocks one eth_getLogs request may span on the chain's RPC endpoints.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	int64 MaxLogRange = 1000;
+	// A test network: offered only when Configure()'s bTestnet is on (and a mainnet only when it is off).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	bool bTestnet = false;
 };
@@ -230,6 +255,7 @@ struct FScfgItem
 	// "USDC" or "USDT".
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FString Token;
+	// What the player sees on the payment sheet; empty: the item's id.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FString Title;
 	// The least a payment must be to unlock it (a discount you may give later); empty: the price.
@@ -244,10 +270,14 @@ struct FScfgPayRequest
 {
 	GENERATED_BODY()
 
+	// The item's id, for an unlock.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FString Item;
+	// The amount as a decimal string ("4.99"): a tip's suggested amount, or an unlock's when it differs from the price
+	// (pay what you want); empty: the item's price.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FString Amount;
+	// "USDC" or "USDT"; empty: the item's token.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FString Token;
 };
@@ -258,28 +288,36 @@ struct FScfgPaymentResult
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// How the payment ended.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	EScfgPaymentStatus Status = EScfgPaymentStatus::Failed;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// An unlock or a tip, as Pay was asked.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	EScfgPayKind Kind = EScfgPayKind::Unlock;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The unlocked item's id; empty for a tip.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Item;
 	// The amount actually paid ("4.993742"); empty when nothing was matched on chain.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Amount;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// "USDC" or "USDT".
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Token;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The key of the chain the payment was made on ("base"); empty when none was chosen.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Chain;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The payment's transaction hash; empty when nothing was matched on chain.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString TxHash;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The address the payment came from; empty when nothing was matched on chain.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Payer;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The payment session's id (the key of Pending() while it is watched); empty when no session started.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString SessionId;
 	// Empty, a ConfigError code for a misused call ("item.unknown"), an Err kind ("RuntimeError"), or the core's
 	// reason for a failed payment.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Error;
 };
 
@@ -289,29 +327,39 @@ struct FScfgReceipt
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The key of the chain the payment was made on ("base").
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Chain;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The payment's transaction hash.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString TxHash;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// Which transfer of the transaction it is (the EVM log index, the Solana token account's index): Chain, TxHash
+	// and LogIndex identify the receipt.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	int64 LogIndex = 0;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The block (EVM) or slot (Solana) the transaction is in.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	int64 Block = 0;
-	// "unlock" or "tip".
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
-	FString Kind;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// An unlock or a tip.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
+	EScfgPayKind Kind = EScfgPayKind::Unlock;
+	// The unlocked item's id; empty for a tip.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Item;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The amount paid, as a decimal string ("4.993742").
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Amount;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// "USDC" or "USDT".
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Token;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The address the payment came from.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Payer;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The wallet it was paid to (the configured wallet, or one of PreviousWallets).
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Recipient;
 	// "payment" or "restore".
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Source;
 };
 
@@ -321,13 +369,14 @@ struct FScfgRestoreResult
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// How the restore ended.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	EScfgRestoreStatus Status = EScfgRestoreStatus::Cancelled;
 	// The receipts the restore added.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	TArray<FScfgReceipt> Restored;
 	// Empty, the core's code for a lookup that failed ("tx_not_found"), or a ConfigError code for a misused call.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Error;
 };
 
@@ -337,34 +386,41 @@ struct FScfgPendingPayment
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
-	FString Id;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
-	FString Kind;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The payment session's id (its key in Pending(), and FScfgPaymentResult::SessionId).
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
+	FString SessionId;
+	// An unlock or a tip.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
+	EScfgPayKind Kind = EScfgPayKind::Unlock;
+	// The item's id; empty for a tip.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Item;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The title the payment sheet showed.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Title;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// "USDC" or "USDT".
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Token;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The key of the chain it is watched on ("base").
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Chain;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	// The amount asked, as a decimal string, before the item code and nonce are added to it.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString Price;
 	// "awaiting" or "confirming".
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString State;
 	// "open", "pending", "cancelled" or "expired".
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString UiStatus;
 	// The transaction the player reported for it, if any.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	FString HintTx;
 	// Unix seconds.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	double CreatedAt = 0;
 	// The last block scanned.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SCFG")
 	int64 Cursor = 0;
 };
 

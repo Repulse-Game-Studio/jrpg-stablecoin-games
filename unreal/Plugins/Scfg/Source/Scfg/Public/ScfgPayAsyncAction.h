@@ -20,6 +20,7 @@
 
 class UScfgSubsystem;
 
+// The Pay (SCFG) async node: shows the payment sheet and fires OnResolved once, when the player closes it.
 UCLASS()
 class SCFG_API UScfgPayAsyncAction : public UBlueprintAsyncActionBase
 {
@@ -33,6 +34,7 @@ public:
 	// The same on a given subsystem (C++ and the tests; Pay finds it from the world context's game instance).
 	static UScfgPayAsyncAction* PayWith(UScfgSubsystem* Subsystem, EScfgPayKind Kind, const FScfgPayRequest& Request);
 
+	// The call's result, once: when the sheet closes, or at once (AlreadyOwned, Failed).
 	UPROPERTY(BlueprintAssignable, Category = "SCFG")
 	FOnScfgPaymentResolved OnResolved;
 
@@ -51,6 +53,7 @@ private:
 	FScfgPayRequest Request;
 };
 
+// The Restore (SCFG) async node: shows the restore screen and fires OnResolved once, when the player closes it.
 UCLASS()
 class SCFG_API UScfgRestoreAsyncAction : public UBlueprintAsyncActionBase
 {
@@ -62,8 +65,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "SCFG",
 		meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject", DisplayName = "Restore (SCFG)"))
 	static UScfgRestoreAsyncAction* Restore(UObject* WorldContextObject);
+	// The same on a given subsystem (C++ and the tests; Restore finds it from the world context's game instance).
 	static UScfgRestoreAsyncAction* RestoreWith(UScfgSubsystem* Subsystem);
 
+	// The call's result, once, when the restore screen closes (or at once: Failed).
 	UPROPERTY(BlueprintAssignable, Category = "SCFG")
 	FOnScfgRestoreResolved OnResolved;
 

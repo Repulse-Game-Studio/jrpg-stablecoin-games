@@ -10,8 +10,8 @@ class SCFG_API IScfgPlatform
 {
 public:
 	virtual ~IScfgPlatform() = default;
-	// Ren'Py's renpy.mobile: a phone or tablet. The checkout then offers no browser method (no localhost page: see
-	// unreal/README.md, "Mobile") and the QR step offers "Open wallet app".
+	// Ren'Py's renpy.mobile: a phone or tablet. The checkout then offers no browser method (a phone has no localhost
+	// page) and the QR step offers "Open wallet app".
 	virtual bool IsMobile() const = 0;
 	virtual void OpenUrl(const FString& Url) = 0;
 	virtual void ClipboardSet(const FString& Text) = 0;

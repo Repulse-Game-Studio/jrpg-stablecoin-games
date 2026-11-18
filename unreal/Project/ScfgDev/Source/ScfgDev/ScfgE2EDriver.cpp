@@ -63,6 +63,9 @@ namespace ScfgE2EDriverDetail
 constexpr int32 MAX_WHEEL_NOTCHES = 40;
 // Frames a screenshot or a window activation may take.
 constexpr int32 MAX_WAIT_FRAMES = 600;
+// Frames the activation cycle lets pass before it reads the input state (the sheet's Tick runs on every painted
+// frame).
+constexpr int32 SETTLE_FRAMES = 5;
 
 FString Utf8(const std::string& S)
 {
@@ -616,7 +619,7 @@ void FScfgE2EDriver::ReadCommands()
 		int32 Read = 0;
 		if (!Socket->Recv(Buffer, sizeof(Buffer), Read))
 		{
-			// the runner closed the connection (Recv is false when the peer closed: engine-facts.md, task 6)
+			// the runner closed the connection (Recv returns false when the peer closed)
 			UE_LOG(LogScfgDev, Log, TEXT("e2e driver: the runner closed the control connection, quitting"));
 			bQuitting = true;
 			FPlatformMisc::RequestExit(false, TEXT("ScfgE2EDriver"));
@@ -818,7 +821,7 @@ TSharedRef<FJsonObject> FScfgE2EDriver::Snapshot()
 		const TSharedPtr<IScfgSheetHost> Host = FScfgSubsystemAccess::Facade(*S)->DefaultSheetHost;
 		if (Host.IsValid() && FScfgSubsystemAccess::Facade(*S)->ActiveSheetHost() == Host)
 		{
-			Toasts = StaticCastSharedPtr<FScfgDefaultSheetHost>(Host)->ToastTexts();
+			Toasts = FScfgDefaultSheetHostAccess::ToastTexts(*StaticCastSharedPtr<FScfgDefaultSheetHost>(Host));
 		}
 	}
 	Out->SetField(TEXT("toasts"), Strings(Toasts));
@@ -937,8 +940,8 @@ bool FScfgE2EDriver::Click(int64 Id, const FString& Name, const FString& Where)
 		}
 		const FSlateRect View = DesktopRect(*Scroll);
 		const FSlateRect R = DesktopRect(*T);
-		const FVector2D Centre = FVector2D(R.GetCenter());
-		if (Centre.Y >= View.Top && Centre.Y <= View.Bottom)
+		const FVector2D Center = FVector2D(R.GetCenter());
+		if (Center.Y >= View.Top && Center.Y <= View.Bottom)
 		{
 			return true;
 		}
@@ -950,7 +953,7 @@ bool FScfgE2EDriver::Click(int64 Id, const FString& Name, const FString& Where)
 		}
 		const FVector2D Over = FVector2D(View.GetCenter());
 		MoveCursor(Over);
-		FSlateApplication::Get().OnMouseWheel(Centre.Y > Over.Y ? -1.f : 1.f, Over);
+		FSlateApplication::Get().OnMouseWheel(Center.Y > Over.Y ? -1.f : 1.f, Over);
 		++*Notches;
 		return false;
 	});
@@ -1150,8 +1153,8 @@ void FScfgE2EDriver::ActivationCycle(int64 Id)
 		C->bReactivated = G.IsValid() && G->IsActive();
 		return C->bReactivated || ++C->Frames > MAX_WAIT_FRAMES;
 	});
-	// 4. five frames later (the sheet's Tick runs on every painted frame)
-	Steps.Add([C]() { return ++C->Frames > 5; });
+	// 4. SETTLE_FRAMES frames later
+	Steps.Add([C]() { return ++C->Frames > SETTLE_FRAMES; });
 	Steps.Add([this, Id, C]()
 	{
 		bRecordFocus = false;
@@ -1299,11 +1302,11 @@ void FScfgE2EDriver::Run(int64 Id, const TSharedRef<FJsonObject>& Command)
 		Command->TryGetStringField(TEXT("what"), What);
 		if (What == TEXT("unlock"))
 		{
-			G->Unlock(UScfgShowcaseGameInstance::ITEM);
+			G->Unlock(UScfgShowcaseGameInstance::HarnessItem);
 		}
 		else if (What == TEXT("tip"))
 		{
-			G->Tip(UScfgShowcaseGameInstance::TIP_AMOUNT);
+			G->Tip(UScfgShowcaseGameInstance::HarnessTipAmount);
 		}
 		else if (What == TEXT("restore"))
 		{
@@ -1319,7 +1322,7 @@ void FScfgE2EDriver::Run(int64 Id, const TSharedRef<FJsonObject>& Command)
 	else if (Op == TEXT("sheet_visibility"))
 	{
 		// The game hides (or shows again) the newest open screen without closing its flow, as a game that collapses
-		// it does: a supported state, which must leave the game's input alone (ruling R2-18).
+		// it does: a supported state, which must leave the game's input alone.
 		bool bShown = true;
 		Command->TryGetBoolField(TEXT("shown"), bShown);
 		const TArray<TSharedRef<SScfgScreen>> Open = SScfgScreen::OpenScreens();

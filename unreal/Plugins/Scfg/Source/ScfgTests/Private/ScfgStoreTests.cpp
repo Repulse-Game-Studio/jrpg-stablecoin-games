@@ -9,6 +9,7 @@
 #include "Misc/Guid.h"
 #include "Misc/Paths.h"
 
+#include "ScfgCoreTestKit.h"
 #include "ScfgStore.h"
 #include "ScfgString.h"
 #include "ScfgTransport.h"
@@ -53,9 +54,12 @@ namespace ScfgStoreTests
 
 using scfg::Json;
 using scfg::Result;
+using ScfgCoreTestKit::BaseConfig;
+using ScfgCoreTestKit::kNow;
+using ScfgCoreTestKit::kWallet;
+using ScfgCoreTestKit::Same;
+using ScfgCoreTestKit::Text;
 
-constexpr const char* kWallet = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
-constexpr int64_t kNow = 1700000100;
 const char* const kTx = "0x135de9b0d45e605167347488c624be20bda97481b0bbabbc6e1d97bb816d2d1a";
 
 // A pending EVM session as the Engine stores it (every field of the schema): godot's _pending() has only a few, which
@@ -79,22 +83,6 @@ Json StoredReceipts()
 	return Json::dict({{Key, Json::dict({{"amount", "4.99"}, {"block", 1234}, {"chain", "base"}, {"item", "chapter2"},
 		{"kind", "unlock"}, {"log_index", 3}, {"payer", Json()}, {"recipient", kWallet}, {"source", "payment"},
 		{"token", "USDC"}, {"tx_hash", kTx}})}});
-}
-
-// Two JSON values print the same with sorted keys (the conformance rule: key order ignored, true is not 1).
-bool Same(const Json& A, const Json& B)
-{
-	scfg::json::DumpOptions Sorted;
-	Sorted.sort_keys = true;
-	Result<std::string> X = scfg::json::dumps(A, Sorted);
-	Result<std::string> Y = scfg::json::dumps(B, Sorted);
-	return X.ok() && Y.ok() && X.value() == Y.value();
-}
-
-FString Text(const Json& V)
-{
-	Result<std::string> Got = scfg::json::dumps(V);
-	return Got.ok() ? ScfgString::FromUtf8(Got.value()) : FString(TEXT("<dumps failed>"));
 }
 
 std::optional<std::string> ReadAll(const FString& P)
@@ -175,17 +163,6 @@ FScfgStore::FOptions Options(const FString& Dir, FTSTicker& Ticker, FReports& Re
 	}
 	Out.OnError = [&Reports](const scfg::Err& E) { Reports.Errors.Add(ScfgString::FromUtf8(E.str())); };
 	Out.OnWarning = [&Reports](const FString& W) { Reports.Warnings.Add(W); };
-	return Out;
-}
-
-scfg::config::Config BaseConfig()
-{
-	Result<scfg::config::Config> Built = scfg::config::build_config(
-		Json::dict({{"wallet", kWallet}, {"chains", Json::list({"base"})}, {"testnet", true}}));
-	scfg::config::Config Out = Built.take();
-	Result<scfg::models::Item> Item = scfg::config::add_item(
-		Out, "chapter2", Json::dict({{"code", 37}, {"price", "4.99"}, {"token", "USDC"}, {"title", "Chapter 2"}}));
-	(void)Item.take();
 	return Out;
 }
 
@@ -588,7 +565,7 @@ bool FScfgStoreStuckTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("at the rename over the existing file"),
 			Reports.Errors.Num() == 1 && Reports.Errors[0].Contains(TEXT("cannot replace")));
 		TestTrue(TEXT("and is owed"), Store.IsSaveOwed());
-		Ticker.Tick(FScfgStore::RETRY_INTERVAL);
+		Ticker.Tick(FScfgStore::RetryInterval);
 		TestTrue(TEXT("still owed after a retry"), Store.IsSaveOwed());
 		TestEqual(TEXT("reported once"), Reports.Errors.Num(), 1);
 	}
@@ -706,9 +683,9 @@ bool FScfgStoreOnErrorDestroysTest::RunTest(const FString& Parameters)
 	Clock += 1;
 	TestTrue(TEXT("scan progress is owed"), Store->Save(Moved, StoredReceipts()) && Store->IsSaveOwed());
 	IFileManager::Get().MakeDirectory(*(Path + TEXT(".tmp")), true);
-	Ticker.Tick(FScfgStore::RETRY_INTERVAL);
+	Ticker.Tick(FScfgStore::RetryInterval);
 	TestTrue(TEXT("destroyed from OnError during the retry"), !Store.IsValid() && Calls == 2);
-	Ticker.Tick(FScfgStore::RETRY_INTERVAL);
+	Ticker.Tick(FScfgStore::RetryInterval);
 	TestEqual(TEXT("nothing ran after"), Calls, 2);
 	IFileManager::Get().DeleteDirectory(*(Path + TEXT(".tmp")), false, true);
 	return true;
@@ -717,7 +694,7 @@ bool FScfgStoreOnErrorDestroysTest::RunTest(const FString& Parameters)
 SCFG_STORE_TEST(FScfgStoreThrottleTest, "ScanProgressIsSavedAtMostEveryTenSeconds")
 
 // Godot's _sync rule: the receipts, the set of sessions, a session's state or hint_tx changing is written at once;
-// a change to anything else in pending (a cursor) at most every PENDING_SAVE_INTERVAL seconds, by the ticker or by
+// a change to anything else in pending (a cursor) at most every PendingSaveInterval seconds, by the ticker or by
 // the next save that may write; what is owed is written when the store is destroyed.
 bool FScfgStoreThrottleTest::RunTest(const FString& Parameters)
 {
@@ -747,7 +724,7 @@ bool FScfgStoreThrottleTest::RunTest(const FString& Parameters)
 		Clock = 1002;
 		Store.Save(At(902), StoredReceipts());
 		TestEqual(TEXT("not written yet"), Store.NumWrites(), 1);
-		Ticker.Tick(FScfgStore::RETRY_INTERVAL - 1.0f);
+		Ticker.Tick(FScfgStore::RetryInterval - 1.0f);
 		TestEqual(TEXT("not before the interval"), Store.NumWrites(), 1);
 		Ticker.Tick(1.0f);
 		TestTrue(TEXT("the ticker wrote the newest"), Store.NumWrites() == 2 && Cursor() == 902 && !Store.IsSaveOwed());
@@ -977,8 +954,8 @@ bool FScfgStoreWorkerRoundTripTest::RunTest(const FString& Parameters)
 		const FScfgStoreLoad Saved = FScfgStore::Load(Path);
 		TestTrue(TEXT("saved at once with its session"), Saved.Pending.as_dict().contains(Sid) &&
 			Saved.Warnings.Num() == 0);
-		Clock += FScfgStore::PENDING_SAVE_INTERVAL;
-		Ticker.Tick(FScfgStore::RETRY_INTERVAL);  // the scan progress of the ticks after it (the worker's next is later)
+		Clock += FScfgStore::PendingSaveInterval;
+		Ticker.Tick(FScfgStore::RetryInterval);  // the scan progress of the ticks after it (the worker's next is later)
 		TestTrue(TEXT("then as the snapshot has it"), Same(FScfgStore::Load(Path).Pending, Worker->GetSnapshot().pending));
 		TestFalse(TEXT("nothing owed"), Store->IsSaveOwed());
 		const int32 Written = Store->NumWrites();
@@ -1020,7 +997,7 @@ bool FScfgStoreWorkerRoundTripTest::RunTest(const FString& Parameters)
 
 SCFG_STORE_TEST(FScfgStoreRetryTest, "AFailedSaveIsRetriedEveryTenSeconds")
 
-// A save that fails keeps the old file, is reported once (not at each retry), and is retried every RETRY_INTERVAL
+// A save that fails keeps the old file, is reported once (not at each retry), and is retried every RetryInterval
 // seconds until it succeeds; a later failure is reported again; a state equal to the file's owes nothing.
 bool FScfgStoreRetryTest::RunTest(const FString& Parameters)
 {
@@ -1037,20 +1014,20 @@ bool FScfgStoreRetryTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("the save fails"), Store.Save(Two, StoredReceipts()));
 	TestTrue(TEXT("one error, naming the step"), Reports.Errors.Num() == 1 && Reports.Errors[0].Contains(TEXT("cannot write")));
 	TestTrue(TEXT("owed"), Store.IsSaveOwed());
-	Ticker.Tick(FScfgStore::RETRY_INTERVAL - 1.0f);
+	Ticker.Tick(FScfgStore::RetryInterval - 1.0f);
 	Ticker.Tick(1.0f);  // the first retry, at 10 s: fails again
-	Ticker.Tick(FScfgStore::RETRY_INTERVAL);  // and the second
+	Ticker.Tick(FScfgStore::RetryInterval);  // and the second
 	TestTrue(TEXT("still owed"), Store.IsSaveOwed());
 	TestEqual(TEXT("reported once, not at each retry"), Reports.Errors.Num(), 1);
 	TestTrue(TEXT("the old file is kept"), Same(FScfgStore::Load(Path).Pending, Pending()));
 	IFileManager::Get().DeleteDirectory(*Tmp, false, true);
-	Ticker.Tick(FScfgStore::RETRY_INTERVAL - 1.0f);
+	Ticker.Tick(FScfgStore::RetryInterval - 1.0f);
 	TestTrue(TEXT("not before the interval"), Store.IsSaveOwed());
 	Ticker.Tick(1.0f);
 	TestFalse(TEXT("the retry succeeded"), Store.IsSaveOwed());
 	TestTrue(TEXT("the owed state is on disk"), Same(FScfgStore::Load(Path).Pending, Two));
 	TestEqual(TEXT("two writes"), Store.NumWrites(), 2);
-	Ticker.Tick(FScfgStore::RETRY_INTERVAL * 3);
+	Ticker.Tick(FScfgStore::RetryInterval * 3);
 	TestEqual(TEXT("no retry after a success"), Store.NumWrites(), 2);
 
 	IFileManager::Get().MakeDirectory(*Tmp, true);
@@ -1058,7 +1035,7 @@ bool FScfgStoreRetryTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("is reported again"), Reports.Errors.Num(), 2);
 	TestTrue(TEXT("back to what the file holds: nothing is owed"), Store.Save(Two, StoredReceipts()));
 	TestFalse(TEXT("not owed"), Store.IsSaveOwed());
-	Ticker.Tick(FScfgStore::RETRY_INTERVAL * 2);
+	Ticker.Tick(FScfgStore::RetryInterval * 2);
 	TestEqual(TEXT("and nothing more was written"), Store.NumWrites(), 2);
 	IFileManager::Get().DeleteDirectory(*Tmp, false, true);
 	return true;
@@ -1090,7 +1067,7 @@ bool FScfgStoreDumpsErrTest::RunTest(const FString& Parameters)
 		AddInfo(Reports.Errors[0].Left(200));
 	}
 	TestTrue(TEXT("owed"), Store.IsSaveOwed());
-	Ticker.Tick(FScfgStore::RETRY_INTERVAL);
+	Ticker.Tick(FScfgStore::RetryInterval);
 	TestEqual(TEXT("its retry fails quietly"), Reports.Errors.Num(), 1);
 	TestTrue(TEXT("the old file is kept"), ReadAll(Path) == Before);
 	TestFalse(TEXT("no .tmp was written"), FileExists(Path + TEXT(".tmp")));

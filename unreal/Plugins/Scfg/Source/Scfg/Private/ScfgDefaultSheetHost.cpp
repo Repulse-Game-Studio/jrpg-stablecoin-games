@@ -121,7 +121,7 @@ TSharedPtr<FScfgScreen> FScfgDefaultSheetHost::Show(const TSharedRef<SScfgScreen
 	// the viewport locks the cursor with its capture unless its lock mode says not to: given back so on close
 	Widget->SetMouseLockHint(Client->LockDuringCapture());
 	Widget->SetMouseWish(MouseWishOverride ? MouseWishOverride : ScfgDefaultSheetHostDetail::WishOf(Client, GameInstance));
-	Client->AddViewportWidgetContent(Widget, ZORDER);
+	Client->AddViewportWidgetContent(Widget, ZOrder);
 	Shown.Add(FShown{Handle, Widget, Client});
 	Widget->OnShown();
 	EnsureTicking();
@@ -166,7 +166,7 @@ void FScfgDefaultSheetHost::Notify(const FString& Text)
 		FScfgStyle::Create(ScfgString::FromUtf8(scfg::config::DEFAULT_ACCENT), FString(), StyleOverride);
 	// removed by Tick once it has faded, not from inside its own tick (a paint pass)
 	const TSharedRef<SScfgToast> Toast = SNew(SScfgToast, Style).Text(Text);
-	Client->AddViewportWidgetContent(Toast, ZORDER + 1);
+	Client->AddViewportWidgetContent(Toast, ZOrder + 1);
 	Toasts.Add(FToast{Toast, Client});
 	EnsureTicking();
 }
@@ -218,24 +218,4 @@ void FScfgDefaultSheetHost::RemoveFinishedToasts()
 			Detach(Going.Widget, Going.Viewport);
 		}
 	}
-}
-
-TArray<TSharedRef<SScfgScreen>> FScfgDefaultSheetHost::Screens() const
-{
-	TArray<TSharedRef<SScfgScreen>> Out;
-	for (const FShown& S : Shown)
-	{
-		Out.Add(S.Widget);
-	}
-	return Out;
-}
-
-TArray<FString> FScfgDefaultSheetHost::ToastTexts() const
-{
-	TArray<FString> Out;
-	for (const FToast& T : Toasts)
-	{
-		Out.Add(T.Widget->GetText());
-	}
-	return Out;
 }

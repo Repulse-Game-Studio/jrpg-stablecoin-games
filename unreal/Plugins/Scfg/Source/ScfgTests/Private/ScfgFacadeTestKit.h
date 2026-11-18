@@ -18,6 +18,7 @@
 
 #include "IScfgSheetHost.h"
 #include "ScfgControllers.h"
+#include "ScfgCoreTestKit.h"
 #include "ScfgFacade.h"
 #include "ScfgPlatform.h"
 #include "ScfgTransport.h"
@@ -56,9 +57,9 @@ Json ReceiptFor(const std::string& Tx);
 // fakes.gd's transfer_log(token, sender, recipient, value, {block, tx_hash}).
 Json TransferLog(const std::string& Token, const std::string& Sender, const std::string& Recipient, int64_t Value,
 	int64_t Block, const std::string& TxHash);
-// Two JSON values print the same with sorted keys (key order ignored, true is not 1).
-bool Same(const Json& A, const Json& B);
-FString Text(const Json& V);
+// Two JSON values print the same with sorted keys (key order ignored, true is not 1); a value as json.dumps prints it.
+using ScfgCoreTestKit::Same;
+using ScfgCoreTestKit::Text;
 
 // fakes.gd's FakeChain: an EVM node (head, logs, receipts), or, for the Solana chain, a node whose slot is Head,
 // where every account exists and no address has a signature (the mobile tests' Solana Pay link). bHold keeps every request until

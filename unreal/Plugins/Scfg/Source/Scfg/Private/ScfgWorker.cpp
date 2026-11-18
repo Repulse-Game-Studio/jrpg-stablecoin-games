@@ -580,7 +580,7 @@ bool FScfgWorker::OnTicker(float DeltaTime)
 void FScfgWorker::EndTick(const scfg::Result<FOutcomes>& Result, TArray<TOnDone<FOutcomes>>& Waiters)
 {
 	const TSharedRef<bool> StillAlive = Alive;
-	SecondsToTick = Options.Interval ? Options.Interval() : POLL_INTERVAL;
+	SecondsToTick = Options.Interval ? Options.Interval() : PollIntervalSeconds;
 	if (Result.ok())
 	{
 		for (const scfg::watcher::StepOutcome& Each : Result.value())

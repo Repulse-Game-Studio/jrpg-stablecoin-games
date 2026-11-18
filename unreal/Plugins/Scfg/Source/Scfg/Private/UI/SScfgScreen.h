@@ -11,11 +11,11 @@
 // stick), Tab and Shift+Tab move along that list (the ends stay put for up and down, Tab wraps), left and right move
 // within a row of buttons (not in a text field, where they move the caret), so the focus never leaves the screen for
 // the game behind it; Slate's own navigation (an input preprocessor's, the stick where the engine turns it into
-// navigation) asks OnNavigation and follows the same order. Enter, Space and the gamepad's confirm (face button bottom) press the focused button or submit
-// the focused field; Escape and the gamepad's back (face button right) call OnBack(). Letters always go to a focused
-// field, even when the game binds them to navigation. The screen draws its own focus ring (the accent). Slate's user
-// focus is the source of truth where the screen is in a window (a click moves it too); a screen outside any window
-// (a test) keeps its own.
+// navigation) asks OnNavigation and follows the same order. Enter, Space and the gamepad's confirm (face button bottom)
+// press the focused button or submit the focused field; Escape and the gamepad's back (face button right) call
+// OnBack(). Letters always go to a focused field, even when the game binds them to navigation. The screen draws its own
+// focus ring (the accent). Slate's user focus is the source of truth where the screen is in a window (a click moves it
+// too); a screen outside any window (a test) keeps its own.
 //
 // INPUT. While the screen is open the game gets no keys, characters, gamepad buttons or sticks, mouse buttons, wheel
 // or moves that reach it: they are consumed here (the confirm and back keys first of all), the engine's own viewport

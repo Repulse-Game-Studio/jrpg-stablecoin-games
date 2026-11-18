@@ -12,10 +12,12 @@
 namespace ScfgGuard
 {
 
+#if !UE_BUILD_SHIPPING
 namespace
 {
 std::atomic<int32> OffThreadCalls{0};
 }  // namespace
+#endif
 
 bool OffGameThread(const TCHAR* What)
 {
@@ -23,16 +25,20 @@ bool OffGameThread(const TCHAR* What)
 	{
 		return false;
 	}
+#if !UE_BUILD_SHIPPING
 	OffThreadCalls.fetch_add(1);
+#endif
 	UE_LOG(LogScfg, Error, TEXT("scfg: %s must be called on the game thread"), What);
 	ensureMsgf(false, TEXT("scfg: %s must be called on the game thread"), What);
 	return true;
 }
 
+#if !UE_BUILD_SHIPPING
 int32 NumOffThreadCalls()
 {
 	return OffThreadCalls.load();
 }
+#endif
 
 void OnGameThread(TFunction<void()> Fn)
 {
@@ -79,7 +85,7 @@ FScfgPaymentResult PaymentNotRunning(EScfgPayKind Kind, const FString& Item, con
 	R.Kind = Kind;
 	R.Item = Item;
 	R.Token = Token;
-	R.Error = TEXT("RuntimeError");
+	R.Error = NotRunningCode;
 	return R;
 }
 
@@ -87,7 +93,7 @@ FScfgRestoreResult RestoreNotRunning()
 {
 	FScfgRestoreResult R;
 	R.Status = EScfgRestoreStatus::Failed;
-	R.Error = TEXT("RuntimeError");
+	R.Error = NotRunningCode;
 	return R;
 }
 

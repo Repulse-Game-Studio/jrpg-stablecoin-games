@@ -48,7 +48,7 @@ static FScfgReceiptLine Line(const scfg::Json& Record)
 {
 	const FScfgReceipt R = ScfgConvert::Receipt(Record);
 	FScfgReceiptLine Out;
-	Out.Kind = R.Kind;
+	Out.Kind = R.Kind == EScfgPayKind::Tip ? TEXT("tip") : TEXT("unlock");
 	Out.Item = R.Item;
 	Out.Amount = R.Amount;
 	Out.Token = R.Token;

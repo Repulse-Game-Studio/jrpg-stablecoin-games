@@ -1,11 +1,11 @@
 // Copyright 2026 Repulse
-// No Python twin: FScfgWorker's behaviour, the twin of tests/unit/test_worker.py and godot/tests/test_worker.gd
+// No Python twin: FScfgWorker's behavior, the twin of tests/unit/test_worker.py and godot/tests/test_worker.gd
 // (their non-thread, non-frame-pump parts), with the real Engine over a fake transport that answers each JSON-RPC
 // request on a later frame, and a private FTSTicker that each test ticks by hand (one "frame": the fake's answers due
 // now, then the worker's ticker).
 //
 // THE MAPPING, every test of the two twins (Godot's test_worker.gd, then Python's test_worker.py), to the test here
-// that has its behaviour (the tests also name their twins above them), or why there is none:
+// that has its behavior (the tests also name their twins above them), or why there is none:
 //   test_initial_snapshot_taken_at_construction                    TheFirstSnapshotIsTakenAtCreation
 //   test_run_once_reverifies_only_first_time_and_publishes_snapshot TheFirstTickReverifiesOnlyOnce
 //   test_waiting_outcomes_without_error_are_not_published          OnlyNewsIsPublishedAsAnOutcome
@@ -79,6 +79,7 @@
 #include "Containers/Ticker.h"
 #include "Misc/AutomationTest.h"
 
+#include "ScfgCoreTestKit.h"
 #include "ScfgString.h"
 #include "ScfgTransport.h"
 #include "ScfgWorker.h"
@@ -106,21 +107,11 @@ namespace ScfgWorkerTests
 
 using scfg::Json;
 using scfg::Result;
+using ScfgCoreTestKit::BaseConfig;
+using ScfgCoreTestKit::kNow;
+using ScfgCoreTestKit::kWallet;
 
-constexpr const char* kWallet = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
-constexpr int64_t kNow = 1700000100;
 const char* const kTx = "0x135de9b0d45e605167347488c624be20bda97481b0bbabbc6e1d97bb816d2d1a";
-
-scfg::config::Config BaseConfig()
-{
-	Result<scfg::config::Config> Built = scfg::config::build_config(
-		Json::dict({{"wallet", kWallet}, {"chains", Json::list({"base"})}, {"testnet", true}}));
-	scfg::config::Config Out = Built.take();
-	Result<scfg::models::Item> Item = scfg::config::add_item(
-		Out, "chapter2", Json::dict({{"code", 37}, {"price", "4.99"}, {"token", "USDC"}, {"title", "Chapter 2"}}));
-	(void)Item.take();
-	return Out;
-}
 
 // An awaiting EVM session on base (EngineTests' awaiting()): each tick steps it with eth_blockNumber + eth_getLogs.
 Json Awaiting(const char* Id, int64_t CreatedAt)
@@ -276,7 +267,7 @@ struct FWorld
 	FFakeTransport* Fake = nullptr;  // owned by Worker
 	TUniquePtr<FScfgWorker> Worker;
 	TSharedRef<int64_t> Now = MakeShared<int64_t>(kNow);
-	TSharedRef<double> Interval = MakeShared<double>(FScfgWorker::POLL_INTERVAL);
+	TSharedRef<double> Interval = MakeShared<double>(FScfgWorker::PollIntervalSeconds);
 	TSharedRef<TArray<FString>> Errors = MakeShared<TArray<FString>>();
 
 	FWorld() = default;
@@ -603,12 +594,12 @@ bool FScfgWorkerCommandFromCallbackTest::RunTest(const FString& Parameters)
 
 SCFG_WORKER_TEST(FScfgWorkerNoInterleavingTest, "CommandsNeverInterleaveWithATick")
 
-// test_commands_never_interleave_with_a_tick, test_pump_a_command_submitted_mid_tick_makes_the_tick_yield (testbed
-// U15), test_pump_a_submit_landing_mid_run_gets_its_follow_up_at_once: a command submitted while the tick waits for the
+// test_commands_never_interleave_with_a_tick, test_pump_a_command_submitted_mid_tick_makes_the_tick_yield,
+// test_pump_a_submit_landing_mid_run_gets_its_follow_up_at_once: a command submitted while the tick waits for the
 // network makes the tick yield: on the next frame the tick's request in flight ends (cancelled at the transport), the
 // tick ends with the outcomes it has (none: it was stepping its first session), not an error, and the command runs
-// then, never while the Engine runs; its own follow-up tick runs at once (not an interval later) and steps the
-// session again.
+// then, never while the Engine runs; its own follow-up tick runs at once (not an interval later) and steps the session
+// again.
 bool FScfgWorkerNoInterleavingTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgWorkerTests;
@@ -705,7 +696,7 @@ bool FScfgWorkerReverifyDoesNotYieldTest::RunTest(const FString& Parameters)
 
 SCFG_WORKER_TEST(FScfgWorkerStartBeforeWatchingTest, "AStartDoesNotWaitBehindTheWatchingOfPendingPayments")
 
-// test_a_start_does_not_wait_behind_the_watching_of_pending_payments (testbed U15): three pending tips on base testnet
+// test_a_start_does_not_wait_behind_the_watching_of_pending_payments: three pending tips on base testnet
 // whose watching hangs (a host that never answers); a start submitted while that tick runs makes it yield at once,
 // its request in flight included, and starts within a few frames; the pending payments are untouched, and nothing is
 // reported.
@@ -721,7 +712,7 @@ bool FScfgWorkerStartBeforeWatchingTest::RunTest(const FString& Parameters)
 	W.Worker->Start();
 	W.Frames(3);
 	TArray<TSharedRef<TGot<Json>>> Tips;
-	for (int32 I = 0; I < 3; ++I)  // three pending tips, as in the testbed
+	for (int32 I = 0; I < 3; ++I)  // three pending tips
 	{
 		Tips.Add(MakeShared<TGot<Json>>());
 		W.Worker->StartSession("tip", "base", Json::dict({{"amount", "1.00"}, {"token", "USDC"}}), Tips.Last()->Callback());
@@ -771,7 +762,7 @@ bool FScfgWorkerStartBeforeWatchingTest::RunTest(const FString& Parameters)
 
 SCFG_WORKER_TEST(FScfgWorkerHintVerdictBeforeYieldTest, "AHintVerdictReachedBeforeTheTickYieldsIsReported")
 
-// test_a_hint_verdict_reached_before_the_tick_yields_is_reported (review V1): one session on base testnet with a hint
+// test_a_hint_verdict_reached_before_the_tick_yields_is_reported: one session on base testnet with a hint
 // whose receipt has status 0x0. The tick judges the hint (reverted) and clears it, then waits on its next request (a
 // host that never answers); a command makes it yield. The verdict is still reported, not lost with the step.
 bool FScfgWorkerHintVerdictBeforeYieldTest::RunTest(const FString& Parameters)
@@ -826,7 +817,7 @@ bool FScfgWorkerHintVerdictBeforeYieldTest::RunTest(const FString& Parameters)
 
 SCFG_WORKER_TEST(FScfgWorkerAbandonedInFlightTest, "AnAbandonedStartStopsWaitingForItsRequestInFlight")
 
-// test_an_abandoned_job_stops_waiting_for_its_request_in_flight (testbed U15): a superseded start whose request is in
+// test_an_abandoned_job_stops_waiting_for_its_request_in_flight: a superseded start whose request is in
 // flight (a host that never answers) ends with Abandoned on the next frame, not at the request's timeout; the request
 // is cancelled at the transport, nothing is logged, and the next start goes out at once.
 bool FScfgWorkerAbandonedInFlightTest::RunTest(const FString& Parameters)
@@ -1048,7 +1039,7 @@ SCFG_WORKER_TEST(FScfgWorkerStopSnapshotTest, "StopTakesAFreshSnapshot")
 
 // No Python or Godot twin (their worker lets the pass finish): an answer that arrived since the last frame has
 // written its session into the Engine, and the command was not finished by the ticker yet; Stop() takes the snapshot
-// from the Engine, so GetSnapshot() (what the facade's Shutdown saves) has the session (final review F4).
+// from the Engine, so GetSnapshot() (what the facade's Shutdown saves) has the session.
 bool FScfgWorkerStopSnapshotTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgWorkerTests;
@@ -1076,7 +1067,7 @@ bool FScfgWorkerStopSnapshotTest::RunTest(const FString& Parameters)
 
 SCFG_WORKER_TEST(FScfgWorkerStateChangedTest, "OnStateChangedComesBeforeTheCallback")
 
-// The store (task 4) saves from OnStateChanged: after every command the Snapshot is refreshed, then OnStateChanged
+// The store saves from OnStateChanged: after every command the Snapshot is refreshed, then OnStateChanged
 // fires, then the command's callback; a command cancelled before it started changes nothing.
 bool FScfgWorkerStateChangedTest::RunTest(const FString& Parameters)
 {

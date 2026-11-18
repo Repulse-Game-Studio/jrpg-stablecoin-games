@@ -16,8 +16,8 @@
 // the facade) exists; every other text is, by value, a string of Godot's template (scfg.pot), so the engines show
 // the same words; and, when Node is installed, every id is RPG Maker's id with the same English.
 //
-// English only for now (spec: "English only, keyed by messages.json ids"): no override layer yet. An id nobody
-// defines shows as itself (RPG Maker's rule), which the checker makes unreachable.
+// English only: there is no override layer. An id nobody defines shows as itself (RPG Maker's rule), which the checker
+// makes unreachable.
 #pragma once
 
 #include "CoreMinimal.h"

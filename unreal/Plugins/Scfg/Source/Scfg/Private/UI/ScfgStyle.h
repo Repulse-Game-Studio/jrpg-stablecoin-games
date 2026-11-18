@@ -49,7 +49,7 @@ public:
 
 	// Godot's sheet_width(): 520 docked on the right, or the whole width on a portrait or narrow screen.
 	static float SheetWidthFor(const FVector2D& Size);
-	// "#rrggbb" as a linear colour (sRGB decoded); Fallback for anything else.
+	// "#rrggbb" as a linear color (sRGB decoded); Fallback for anything else.
 	static FLinearColor ParseHex(const FString& Hex, const FLinearColor& Fallback);
 
 	FLinearColor Accent() const { return AccentColor; }

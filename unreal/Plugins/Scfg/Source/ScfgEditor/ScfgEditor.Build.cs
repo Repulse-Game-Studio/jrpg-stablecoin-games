@@ -1,9 +1,10 @@
 // Copyright 2026 Repulse
-// The plugin's editor module (Type "Editor": the editor only, never a game): the SCFG project settings' panel
-// (Project Settings > Plugins > SCFG) gets a Validate button, which runs UScfgSettings::Validate() and shows the result
-// as a notification and on the "SCFG" page of the Message Log (Private/ScfgSettingsDetails.cpp, Public/ScfgSettingsValidation.h).
-// A UFUNCTION(CallInEditor) on the settings would not do: Project Settings edits the class default object, and the
-// details panel drops CallInEditor buttons for an archetype (ObjectDetails.cpp, AddCallInEditorMethods).
+// The plugin's editor module (Type "Editor": the editor only, never a game): the SCFG project settings' panel (Project
+// Settings > Plugins > SCFG) gets a Validate button, which runs UScfgSettings::Validate() and shows the result as a
+// notification and on the "SCFG" page of the Message Log (Private/ScfgSettingsDetails.cpp,
+// Public/ScfgSettingsValidation.h). A UFUNCTION(CallInEditor) on the settings would not do: Project Settings edits the
+// class default object, and the details panel drops CallInEditor buttons for an archetype (ObjectDetails.cpp,
+// AddCallInEditorMethods).
 using UnrealBuildTool;
 
 public class ScfgEditor : ModuleRules

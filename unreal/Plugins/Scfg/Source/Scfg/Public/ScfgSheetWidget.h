@@ -8,7 +8,7 @@
 //     {
 //         UScfgSheetWidget* Made = CreateWidget<UScfgSheetWidget>(PlayerController);
 //         TSharedRef<FScfgScreen> Screen = Made->BindPayment(Checkout);
-//         Made->AddToViewport(10000);           // or into the game's own UMG tree
+//         Made->AddToViewport(FScfgDefaultSheetHost::ZOrder);   // or into the game's own UMG tree
 //         Widget = Made;
 //         return Screen;
 //     }
@@ -20,10 +20,10 @@
 //
 // Bind once, before the widget is shown; it can then be removed and added again (moved between containers, a widget
 // stack): the same screen comes back, its flow still waiting (it shows itself when painted again; a core-ticker check
-// notices when it left every window). The screen takes the focus and the mouse when it is
-// constructed (NativeConstruct) and gives them back when it is destructed (NativeDestruct, also on removal; not while
-// garbage is being collected or this widget or its game instance is being collected). Closing it creates no UObject.
-// Without a binding it shows nothing.
+// notices when it left every window). The screen takes the focus and the mouse when it is constructed (NativeConstruct)
+// and gives them back when it is destructed (NativeDestruct, also on removal; not while garbage is being collected or
+// this widget or its game instance is being collected). Closing it creates no UObject. Without a binding it shows
+// nothing.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -39,6 +39,8 @@ class FScfgCheckout;
 class FScfgRestore;
 class SScfgScreen;
 
+// The plugin's payment sheet or restore screen as a UUserWidget, for a sheet host that shows its UI through UMG: bind
+// it to the flow's controller, then show it like any widget (see the file header).
 UCLASS(NotBlueprintable)
 class SCFG_API UScfgSheetWidget : public UUserWidget
 {

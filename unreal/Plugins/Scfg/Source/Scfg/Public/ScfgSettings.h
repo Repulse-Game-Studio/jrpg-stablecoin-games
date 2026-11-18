@@ -51,6 +51,7 @@ struct FScfgSettingsChain
 	// The chain's key, as Configure's Chains, RpcUrls and Confirmations name it ("myl2").
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FString Key;
+	// The chain's options, as AddChain() takes them.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FScfgChain Chain;
 };
@@ -92,6 +93,9 @@ struct FScfgSettingsProblem
 	FString Message;
 };
 
+// The SCFG project settings (Project Settings > Plugins > SCFG, saved to Config/DefaultGame.ini): the wallet, options,
+// chains and items the plugin applies when a game instance starts, so a game can sell without code. A Configure() from
+// code replaces them (see the file header).
 UCLASS(Config = Game, DefaultConfig, meta = (DisplayName = "SCFG"))
 class SCFG_API UScfgSettings : public UDeveloperSettings
 {

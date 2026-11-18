@@ -22,6 +22,11 @@
 namespace ScfgSettingsDetail
 {
 
+// The stand-in wallets Validate() checks settings without a wallet with (no wallet is the opt-out, not a problem):
+// the EIP-55 specification's example address and an on-curve example key. They are never applied.
+const TCHAR* const StandInEvmWallet = TEXT("0x52908400098527886E0F7030069857D2E4169EE7");
+const TCHAR* const StandInSolanaWallet = TEXT("7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU");
+
 FScfgSettingsProblem Problem(const scfg::Err& Error, const FString& Row)
 {
 	FScfgSettingsProblem P;
@@ -50,8 +55,7 @@ FScfgItem FScfgSettingsItem::ToItem() const
 
 UScfgSettings::UScfgSettings()
 {
-	CategoryName = TEXT("Plugins");
-	SectionName = TEXT("SCFG");
+	// (The container, category and section are the Get*Name() overrides below.)
 	Options = NewOptions();
 }
 
@@ -83,13 +87,12 @@ TArray<FScfgSettingsProblem> UScfgSettings::Validate(const FString& ProjectDir) 
 		}
 		Built.emplace_back(Chain.take());
 	}
-	// No wallet is the opt-out (not applied at start), not a problem: the rest is checked with stand-in wallets (the
-	// EIP-55 spec's example address, an on-curve example key), which are never applied.
+	// No wallet is the opt-out (not applied at start), not a problem: the rest is checked with the stand-in wallets.
 	FScfgOptions Checked = Options;
 	if (IsEmpty())
 	{
-		Checked.Wallet = TEXT("0x52908400098527886E0F7030069857D2E4169EE7");
-		Checked.SolanaWallet = TEXT("7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU");
+		Checked.Wallet = StandInEvmWallet;
+		Checked.SolanaWallet = StandInSolanaWallet;
 	}
 	scfg::Result<scfg::config::Config> Config = scfg::config::build_config(ScfgConvert::ConfigKwargs(Checked), std::move(Built));
 	if (!Config.ok())

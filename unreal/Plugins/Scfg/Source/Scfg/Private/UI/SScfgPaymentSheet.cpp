@@ -507,7 +507,7 @@ void SScfgPaymentSheet::StepManual(SVerticalBox& Body)
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().FillWidth(1).Padding(0, 0, 8, 0)
 			[
-				Field(TEXT("tx_input"), C.TxInput(), FScfgFacade::TX_MAX_LENGTH, FScfgFacade::TxChars(),
+				Field(TEXT("tx_input"), C.TxInput(), FScfgFacade::TxMaxLength, FScfgFacade::TxChars(),
 					[C, Weak](const FString& Text) mutable
 					{
 						C.SetTxInput(Text);

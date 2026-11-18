@@ -41,7 +41,7 @@
 //   test_the_snapshot_is_read_before_the_outcomes_are_drained -> same name (DrainForTests plays RacingWorker)
 // C++ only:
 //   TheBrowserMethodSendsAHintToTheEngine                    -> the default page server (the localhost checkout
-//       server, task 6) on a real socket: the page served, no /build on EVM, the page's POST /tx reaching the Engine as
+//       server) on a real socket: the page served, no /build on EVM, the page's POST /tx reaching the Engine as
 //       the session's hint, the page stopped with the sheet
 //   TheDesktopPathWorksWhenThePageCannotStart                -> a page that cannot listen: reported by the page, the
 //       browser method shows "browser_unavailable" and drops out; the QR link and the manual hash work

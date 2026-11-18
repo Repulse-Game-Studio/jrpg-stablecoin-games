@@ -8,7 +8,7 @@
 //       only (a dictionary of options).
 //   test_add_chain_after_configure_is_an_error              -> same name
 //   test_logo_res_path                                      -> same name: the logo is a path relative to the project
-//       directory (Godot's res://). Godot only: the res:// prefix and _logo_file()'s bytes (the page's logo is task 6)
+//       directory (Godot's res://). Godot only: the res:// prefix and _logo_file()'s bytes (the page's logo is the page server's)
 //   test_owns_after_receipt                                 -> same name
 //   test_state_survives_restart                             -> same name
 //   test_new_session_is_saved_at_once                       -> same name
@@ -334,7 +334,7 @@ bool FScfgFacadeRestartTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("one session"), Has(Pending, Session));
 	W.Drop();
 	FScfgFacade& B = W.Configured(*this);
-	// (by JSON value: the reloaded state is normalised)
+	// (by JSON value: the reloaded state is normalized)
 	TestTrue(TEXT("the same receipts after a restart"), Same(B.Receipts(), Receipts));
 	TestTrue(TEXT("the same pending sessions"), Same(B.Pending(), Pending));
 	TestTrue(TEXT("owned before the worker starts"), B.Owns(TEXT("chapter2")));
@@ -668,10 +668,15 @@ bool FScfgFacadeResultFromCoreTest::RunTest(const FString& Parameters)
 		Bare.Amount.IsEmpty() && Bare.SessionId.IsEmpty());
 	scfg::models::RestoreResult RestoreCore;
 	RestoreCore.status = "restored";
-	RestoreCore.restored = {Json::dict({{"item", "chapter2"}})};
+	RestoreCore.restored = {Json::dict({{"item", "chapter2"}, {"kind", "unlock"}}), Json::dict({{"kind", "tip"}})};
 	const FScfgRestoreResult RR = ScfgConvert::RestoreResult(RestoreCore);
-	TestTrue(TEXT("a restore result"), RR.Status == EScfgRestoreStatus::Restored && RR.Restored.Num() == 1 &&
+	TestTrue(TEXT("a restore result"), RR.Status == EScfgRestoreStatus::Restored && RR.Restored.Num() == 2 &&
 		RR.Restored[0].Item == TEXT("chapter2") && RR.Error.IsEmpty());
+	TestTrue(TEXT("a receipt's kind is the enum"),
+		RR.Restored[0].Kind == EScfgPayKind::Unlock && RR.Restored[1].Kind == EScfgPayKind::Tip);
+	const FScfgPendingPayment Pending = ScfgConvert::PendingPayment(Json::dict({{"id", "ps_2"}, {"kind", "tip"}}));
+	TestTrue(TEXT("a pending payment's session id and kind"),
+		Pending.SessionId == TEXT("ps_2") && Pending.Kind == EScfgPayKind::Tip);
 	return true;
 }
 

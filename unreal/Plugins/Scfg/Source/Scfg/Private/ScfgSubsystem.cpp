@@ -145,11 +145,6 @@ void UScfgSubsystem::StopFacade()
 	Facade.Reset();
 }
 
-int32 UScfgSubsystem::NumOffThreadCalls()
-{
-	return ScfgGuard::NumOffThreadCalls();
-}
-
 bool UScfgSubsystem::IsShuttingDown() const
 {
 	if (ScfgGuard::OffGameThread(TEXT("IsShuttingDown()")))
@@ -181,19 +176,19 @@ FScfgFacade* UScfgSubsystem::Live(const TCHAR* What) const
 FString UScfgSubsystem::AddChain(const FString& Key, const FScfgChain& Chain)
 {
 	FScfgFacade* F = Live(TEXT("AddChain()"));
-	return F ? ScfgGuard::ErrCode(F->AddChain(Key, Chain)) : FString(TEXT("RuntimeError"));
+	return F ? ScfgGuard::ErrCode(F->AddChain(Key, Chain)) : FString(ScfgGuard::NotRunningCode);
 }
 
 FString UScfgSubsystem::Configure(const FScfgOptions& Options)
 {
 	FScfgFacade* F = Live(TEXT("Configure()"));
-	return F ? ScfgGuard::ErrCode(F->Configure(Options)) : FString(TEXT("RuntimeError"));
+	return F ? ScfgGuard::ErrCode(F->Configure(Options)) : FString(ScfgGuard::NotRunningCode);
 }
 
 FString UScfgSubsystem::AddItem(const FString& ItemId, const FScfgItem& Item)
 {
 	FScfgFacade* F = Live(TEXT("AddItem()"));
-	return F ? ScfgGuard::ErrCode(F->AddItem(ItemId, Item)) : FString(TEXT("RuntimeError"));
+	return F ? ScfgGuard::ErrCode(F->AddItem(ItemId, Item)) : FString(ScfgGuard::NotRunningCode);
 }
 
 FString UScfgSubsystem::ConfigureWithSettings(const FString& Wallet, const FString& SolanaWallet)
@@ -206,7 +201,7 @@ FString UScfgSubsystem::ApplySettingsWith(const UScfgSettings& Settings, const F
 	FScfgFacade* F = Live(TEXT("ConfigureWithSettings()"));
 	if (!F)
 	{
-		return FString(TEXT("RuntimeError"));
+		return FString(ScfgGuard::NotRunningCode);
 	}
 	FScfgOptions Options = Settings.Options;
 	Options.Wallet = Wallet.TrimStartAndEnd();
@@ -404,8 +399,8 @@ TMap<FString, FScfgPendingPayment> UScfgSubsystem::Pending()
 
 bool UScfgSubsystem::Supported() const
 {
-	// FScfgFacade::Supported(): every platform the plugin builds for; no facade read, so no thread check either.
-	return true;
+	// Every platform the plugin builds for; no facade read, so no thread check either.
+	return FScfgFacade::Supported();
 }
 
 FString UScfgSubsystem::ExportReceipts(const FString& Path)

@@ -2,8 +2,7 @@
 // No Python twin: the rig of the Slate screen tests (Scfg.Glue.Sheet.*), the twin of godot/tests/ui_env.gd. The
 // editor runs them under -nullrhi: FSlateApplication is up with the null renderer (real fonts, no GPU), so widgets are
 // built, laid out, painted (which ticks them) and receive input through FSlateApplication::ProcessKeyDownEvent /
-// ProcessKeyCharEvent / ProcessAnalogInputEvent, exactly the routing a game gets (engine-facts.md, "Slate under
-// -nullrhi").
+// ProcessKeyCharEvent / ProcessAnalogInputEvent, exactly the routing a game gets.
 //
 // FSheetRig: an SVirtualWindow (registered with FSlateApplication, never a native window) holding the overlay a game
 // viewport draws its widgets in; a UGameViewportClient of the tests whose overlay is that one, set as the game

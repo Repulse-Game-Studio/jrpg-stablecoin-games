@@ -41,7 +41,7 @@ namespace ScfgStoreDetail
 using scfg::Json;
 
 // A copy of conformance/schema/state.json (Scfg.Glue.Store.TheSchemaIsTheConformanceSchema compares the two).
-constexpr const char* kSchema = R"SCHEMA({"match": {"block": "int", "log_index": "int", "payer": "str|null", )SCHEMA"
+constexpr const char* SchemaText = R"SCHEMA({"match": {"block": "int", "log_index": "int", "payer": "str|null", )SCHEMA"
 	R"SCHEMA("recipient": "str", "tx_hash": "str", "value": "int"}, "match_optional": {"block_hash": "str"}, )SCHEMA"
 	R"SCHEMA("pending": {"chain": "str", "code": "int", "created_at": "number", "cursor": "int", )SCHEMA"
 	R"SCHEMA("hint_at": "number|null", "hint_tx": "str|null", "id": "str", "item": "str|null", )SCHEMA"
@@ -339,7 +339,8 @@ FString LastErrorText()
 	return FString::Printf(TEXT("error %u (%s)"), Code, Buffer);
 }
 
-// What is at P (here a failure to look is a missing file: unverified, no such platform builds here).
+// What is at P (here a failure to look counts as a missing file; this branch, for the platforms other than Linux and
+// Mac, is expected to work, not yet built or tested).
 scfg::Result<EKind> Stat(const FString& P)
 {
 	if (IFileManager::Get().DirectoryExists(*P))
@@ -399,7 +400,7 @@ bool Rename(const FString& From, const FString& To, bool bReplace, FString& Why)
 {
 #if PLATFORM_WINDOWS
 	// IPlatformFile has no replacing move (MoveFileW refuses an existing target, and IFileManager::Move deletes it
-	// first). Unverified: no Win64 build here.
+	// first). Expected to work, not yet built or tested.
 	const DWORD Flags = MOVEFILE_WRITE_THROUGH | (bReplace ? MOVEFILE_REPLACE_EXISTING : 0);
 	if (::MoveFileExW(*From, *To, Flags))
 	{
@@ -418,20 +419,24 @@ bool Rename(const FString& From, const FString& To, bool bReplace, FString& Why)
 
 #endif  // SCFG_STORE_POSIX
 
+#if !UE_BUILD_SHIPPING
 // FScfgStore::ReplaceHookForTests(): empty in a game.
 TFunction<scfg::Status(const FString&, const FString&)>& ReplaceHook()
 {
 	static TFunction<scfg::Status(const FString&, const FString&)> Hook;
 	return Hook;
 }
+#endif
 
-// The final step of a save: the test hook, else Rename.
+// The final step of a save: the test hook (outside Shipping), else Rename.
 scfg::Status Replace(const FString& From, const FString& To)
 {
+#if !UE_BUILD_SHIPPING
 	if (const TFunction<scfg::Status(const FString&, const FString&)>& Hook = ReplaceHook(); Hook)
 	{
 		return Hook(From, To);
 	}
+#endif
 	FString Why;
 	if (!Rename(From, To, /*bReplace=*/true, Why))
 	{
@@ -451,7 +456,7 @@ scfg::Status WriteText(const FString& Target, const std::string& Text)
 
 Json MakeDoc(const Json& Pending, const Json& Receipts)
 {
-	return Json::dict({{"version", FScfgStore::VERSION}, {"pending", Pending}, {"receipts", Receipts}});
+	return Json::dict({{"version", FScfgStore::FileVersion}, {"pending", Pending}, {"receipts", Receipts}});
 }
 
 // Godot's _pending_key: what must reach the disk at once (which sessions exist, their state and hint_tx).
@@ -491,6 +496,100 @@ FString AsideName(const FString& Target)
 	}
 }
 
+// Load's first stage: the file to read (Target, else the complete .tmp of a save that stopped before its rename)
+// into OutSource, and its bytes into OutRaw. False when there is none (Out stays empty) or it cannot be read
+// (Out.Error).
+bool ReadState(const FString& Target, FString& OutSource, std::string& OutRaw, FScfgStoreLoad& Out)
+{
+	OutSource = Target;
+	scfg::Result<EKind> Kind = Stat(Target);
+	if (!Kind.ok())
+	{
+		Out.Error = Kind.err();
+		return false;
+	}
+	if (Kind.value() == EKind::Missing)
+	{
+		// A save stopped before its rename: the complete .tmp is the newest state.
+		const FString Tmp = Target + TEXT(".tmp");
+		scfg::Result<EKind> TmpKind = Stat(Tmp);
+		if (!TmpKind.ok())
+		{
+			Out.Error = TmpKind.err();
+			return false;
+		}
+		if (TmpKind.value() == EKind::Missing)
+		{
+			return false;
+		}
+		OutSource = Tmp;
+		Kind = TmpKind;
+	}
+	if (Kind.value() == EKind::Directory)
+	{
+		Out.Error = RuntimeError(FString::Printf(TEXT("cannot read %s: it is a directory"), *OutSource));
+		return false;
+	}
+	scfg::Result<std::string> Raw = ReadBytes(OutSource);
+	if (!Raw.ok())
+	{
+		Out.Error = Raw.err();
+		return false;
+	}
+	OutRaw = Raw.take();
+	return true;
+}
+
+// Load's second stage: Raw parsed into OutDoc, and "" when it is the document, else what it is not ("is not valid
+// JSON", "is not a JSON object", "has an unknown version 2", "has no pending/receipts objects").
+FString ParseState(const std::string& Raw, Json& OutDoc)
+{
+	scfg::Result<Json> Parsed = scfg::json::loads(Raw);
+	if (!Parsed.ok())
+	{
+		return TEXT("is not valid JSON");
+	}
+	OutDoc = Parsed.take();
+	if (!OutDoc.is_dict())
+	{
+		return TEXT("is not a JSON object");
+	}
+	const Json Version = OutDoc.as_dict().get("version");
+	if (!(Version.is_int64() && Version.as_int64() == FScfgStore::FileVersion))
+	{
+		return TEXT("has an unknown version ") + ScfgString::FromUtf8(Repr(Version));
+	}
+	if (!(OutDoc.as_dict().get("pending").is_dict() && OutDoc.as_dict().get("receipts").is_dict()))
+	{
+		return TEXT("has no pending/receipts objects");
+	}
+	return FString();
+}
+
+// Load's last stage: the pending records that pass FScfgStore::CheckPending; each one that fails adds a line to
+// OutDropped (its quoted key and its problems).
+Json CheckedPending(const Json& InPending, TArray<FString>& OutDropped)
+{
+	Json Pending = Json::dict();
+	for (const auto& [Sid, Record] : InPending.as_dict())
+	{
+		const std::vector<std::string> Problems = FScfgStore::CheckPending(Sid, Record);
+		if (Problems.empty())
+		{
+			Pending.as_dict().set(Sid, Record);
+			continue;
+		}
+		std::string Joined;
+		for (const std::string& Each : Problems)
+		{
+			Joined += (Joined.empty() ? "" : "; ") + Each;
+		}
+		OutDropped.Add(FString::Printf(TEXT("%s (%s)"), *ScfgString::FromUtf8(QuotedKey(Sid)),
+			*ScfgString::FromUtf8(Joined)));
+	}
+	return Pending;
+}
+
 }  // namespace ScfgStoreDetail
 
 FString FScfgStore::DefaultPath()
@@ -502,19 +601,19 @@ const scfg::Json& FScfgStore::Schema()
 {
 	static const scfg::Json Parsed = []()
 	{
-		scfg::Result<scfg::Json> Got = scfg::json::loads(ScfgStoreDetail::kSchema);
+		scfg::Result<scfg::Json> Got = scfg::json::loads(ScfgStoreDetail::SchemaText);
 		check(Got.ok() && Got.value().is_dict());
 		return Got.take();
 	}();
 	return Parsed;
 }
 
+#if !UE_BUILD_SHIPPING
 TFunction<scfg::Status(const FString& From, const FString& To)>& FScfgStore::ReplaceHookForTests()
 {
 	return ScfgStoreDetail::ReplaceHook();
 }
 
-#if !UE_BUILD_SHIPPING
 TFunction<bool(const FString& Path)>& FScfgStore::DefaultPathHookForTests()
 {
 	static TFunction<bool(const FString&)> Hook;
@@ -540,66 +639,14 @@ FScfgStoreLoad FScfgStore::Load(const FString& Target)
 {
 	using namespace ScfgStoreDetail;
 	FScfgStoreLoad Out;
-	FString Source = Target;
-	scfg::Result<EKind> Kind = Stat(Target);
-	if (!Kind.ok())
+	FString Source;
+	std::string Raw;
+	if (!ReadState(Target, Source, Raw, Out))
 	{
-		Out.Error = Kind.err();
 		return Out;
 	}
-	if (Kind.value() == EKind::Missing)
-	{
-		// A save stopped before its rename: the complete .tmp is the newest state.
-		const FString Tmp = Target + TEXT(".tmp");
-		scfg::Result<EKind> TmpKind = Stat(Tmp);
-		if (!TmpKind.ok())
-		{
-			Out.Error = TmpKind.err();
-			return Out;
-		}
-		if (TmpKind.value() == EKind::Missing)
-		{
-			return Out;
-		}
-		Source = Tmp;
-		Kind = TmpKind;
-	}
-	if (Kind.value() == EKind::Directory)
-	{
-		Out.Error = RuntimeError(FString::Printf(TEXT("cannot read %s: it is a directory"), *Source));
-		return Out;
-	}
-	scfg::Result<std::string> Raw = ReadBytes(Source);
-	if (!Raw.ok())
-	{
-		Out.Error = Raw.err();
-		return Out;
-	}
-	FString Why;
 	Json Doc;
-	scfg::Result<Json> Parsed = scfg::json::loads(Raw.value());
-	if (!Parsed.ok())
-	{
-		Why = TEXT("is not valid JSON");
-	}
-	else
-	{
-		Doc = Parsed.take();
-		const Json Version = Doc.is_dict() ? Doc.as_dict().get("version") : Json();
-		if (!Doc.is_dict())
-		{
-			Why = TEXT("is not a JSON object");
-		}
-		else if (!(Version.is_int64() && Version.as_int64() == VERSION))
-		{
-			Why = TEXT("has an unknown version ") + ScfgString::FromUtf8(Repr(Version));
-		}
-		else if (!(Doc.as_dict().get("pending").is_dict() && Doc.as_dict().get("receipts").is_dict()))
-		{
-			Why = TEXT("has no pending/receipts objects");
-		}
-	}
-	if (!Why.IsEmpty())
+	if (const FString Why = ParseState(Raw, Doc); !Why.IsEmpty())
 	{
 		const FString Aside = AsideName(Target);
 		FString Stuck;
@@ -629,28 +676,12 @@ FScfgStoreLoad FScfgStore::Load(const FString& Target)
 	}
 
 	// Record by record: a malformed pending session is dropped (the whole file copied aside first).
-	Json Pending = Json::dict();
 	TArray<FString> Dropped;
-	for (const auto& [Sid, Record] : Doc.as_dict().get("pending").as_dict())
-	{
-		const std::vector<std::string> Problems = CheckPending(Sid, Record);
-		if (Problems.empty())
-		{
-			Pending.as_dict().set(Sid, Record);
-			continue;
-		}
-		std::string Joined;
-		for (const std::string& Each : Problems)
-		{
-			Joined += (Joined.empty() ? "" : "; ") + Each;
-		}
-		Dropped.Add(FString::Printf(TEXT("%s (%s)"), *ScfgString::FromUtf8(QuotedKey(Sid)),
-			*ScfgString::FromUtf8(Joined)));
-	}
+	Json Pending = CheckedPending(Doc.as_dict().get("pending"), Dropped);
 	if (Dropped.Num() > 0)
 	{
 		const FString Aside = AsideName(Target);
-		const scfg::Status Copied = WriteBytes(Aside, Raw.value());
+		const scfg::Status Copied = WriteBytes(Aside, Raw);
 		if (!Copied.ok())
 		{
 			Out.Error = RuntimeError(FString::Printf(
@@ -811,9 +842,9 @@ bool FScfgStore::Save(const scfg::Json& InPending, const scfg::Json& InReceipts)
 		return true;
 	}
 	const double Time = Now();
-	if (Text.ok() && !IsUrgent(InPending, InReceipts) && Time - LastAttempt < PENDING_SAVE_INTERVAL)
+	if (Text.ok() && !IsUrgent(InPending, InReceipts) && Time - LastAttempt < PendingSaveInterval)
 	{
-		Owed = scfg::deep_copy(Doc);  // scan progress only: the ticker writes it within RETRY_INTERVAL
+		Owed = scfg::deep_copy(Doc);  // scan progress only: the ticker writes it within RetryInterval
 		ArmRetry();
 		return true;
 	}
@@ -869,7 +900,7 @@ bool FScfgStore::Retry(float DeltaTime)
 		const TSharedRef<bool> StillAlive = Alive;
 		if (!TrySave(*Owed))
 		{
-			// Again in RETRY_INTERVAL seconds, unless OnError destroyed the store (its destructor removed this ticker).
+			// Again in RetryInterval seconds, unless OnError destroyed the store (its destructor removed this ticker).
 			return *StillAlive;
 		}
 	}
@@ -883,7 +914,7 @@ void FScfgStore::ArmRetry()
 	if (!RetryHandle.IsValid())
 	{
 		FTSTicker& Ticker = Options.Ticker ? *Options.Ticker : FTSTicker::GetCoreTicker();
-		RetryHandle = Ticker.AddTicker(TEXT("ScfgStoreRetry"), RETRY_INTERVAL,
+		RetryHandle = Ticker.AddTicker(TEXT("ScfgStoreRetry"), RetryInterval,
 			[this](float DeltaTime) { return Retry(DeltaTime); });
 	}
 }

@@ -59,7 +59,7 @@ scfg::Json ScfgConvert::ConfigKwargs(const FScfgOptions& Options)
 	D.set("methods",
 		scfg::Json::dict({
 			{"browser", scfg::Json::dict({{"enabled", scfg::Json(M.Browser.bEnabled)},
-							{"timeout_min", scfg::Json(static_cast<int64_t>(M.Browser.TimeoutMin))}})},
+							{"timeout_min", scfg::Json(static_cast<int64_t>(M.Browser.TimeoutMinutes))}})},
 			{"qr", scfg::Json::dict({{"enabled", scfg::Json(M.Qr.bEnabled)},
 					   {"wallet_button", scfg::Json(M.Qr.bWalletButton)},
 					   {"chains", M.Qr.Chains.Num() > 0 ? List(M.Qr.Chains) : scfg::Json()}})},
@@ -180,6 +180,11 @@ FString ScfgConvert::Str(const scfg::Json& Value)
 	return Value.is_str() ? ScfgString::FromUtf8(Value.as_str()) : FString();
 }
 
+EScfgPayKind ScfgConvert::PayKind(const scfg::Json& Kind)
+{
+	return Kind.is_str() && Kind.as_str() == "tip" ? EScfgPayKind::Tip : EScfgPayKind::Unlock;
+}
+
 int64 ScfgConvert::Int(const scfg::Json& Value)
 {
 	return Value.is_int64() ? Value.as_int64() : 0;
@@ -235,7 +240,7 @@ FScfgPaymentResult ScfgConvert::PaymentResult(const scfg::models::PaymentResult&
 {
 	FScfgPaymentResult Out;
 	Out.Status = PaymentStatus(Core.status);
-	Out.Kind = Core.kind.is_str() && Core.kind.as_str() == "tip" ? EScfgPayKind::Tip : EScfgPayKind::Unlock;
+	Out.Kind = PayKind(Core.kind);
 	Out.Item = Str(Core.item);
 	Out.Amount = Core.amount ? ScfgString::FromUtf8(Core.amount->str()) : FString();
 	Out.Token = Str(Core.token);
@@ -271,7 +276,7 @@ FScfgReceipt ScfgConvert::Receipt(const scfg::Json& Record)
 	Out.TxHash = Str(R.get("tx_hash"));
 	Out.LogIndex = Int(R.get("log_index"));
 	Out.Block = Int(R.get("block"));
-	Out.Kind = Str(R.get("kind"));
+	Out.Kind = PayKind(R.get("kind"));
 	Out.Item = Str(R.get("item"));
 	Out.Amount = Str(R.get("amount"));
 	Out.Token = Str(R.get("token"));
@@ -289,8 +294,8 @@ FScfgPendingPayment ScfgConvert::PendingPayment(const scfg::Json& Record)
 		return Out;
 	}
 	const scfg::Json::Dict& R = Record.as_dict();
-	Out.Id = Str(R.get("id"));
-	Out.Kind = Str(R.get("kind"));
+	Out.SessionId = Str(R.get("id"));
+	Out.Kind = PayKind(R.get("kind"));
 	Out.Item = Str(R.get("item"));
 	Out.Title = Str(R.get("title"));
 	Out.Token = Str(R.get("token"));

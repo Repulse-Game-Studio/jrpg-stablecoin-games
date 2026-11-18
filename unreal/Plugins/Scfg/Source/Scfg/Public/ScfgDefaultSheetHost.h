@@ -2,7 +2,7 @@
 // Twin of godot/addons/scfg/ui/default_sheet_host.gd: the sheet host UScfgSubsystem uses when the game set none
 // (SetSheetHost). It shows the plugin's own Slate payment sheet and restore screen (SScfgPaymentSheet,
 // SScfgRestoreScreen), each as its own widget on the game instance's game viewport
-// (UGameViewportClient::AddViewportWidgetContent) at ZORDER, above the game's own widgets, which it never touches;
+// (UGameViewportClient::AddViewportWidgetContent) at ZOrder, above the game's own widgets, which it never touches;
 // in the editor that is the PIE viewport. Notifications are short toasts (SScfgToast) one Z-order above.
 //
 // No viewport (a game instance without one: a dedicated server, a commandlet, the editor outside PIE): nothing is
@@ -28,10 +28,8 @@
 
 #include "IScfgSheetHost.h"
 
-// The plugin's private types, forward-declared only: SScfgScreen and SScfgToast are its Slate widgets
-// (Private/UI/), FScfgMouseWish what a screen asks of the game viewport's mouse (Private/UI/SScfgScreen.h). A game
-// can count or hold a screen Screens() returns, not use it; the plugin's tests and the development project's e2e
-// driver read them through Private/ (ScfgDefaultSheetHostAccess.h has the mouse-wish hooks).
+// The plugin's private types, forward-declared only: SScfgScreen and SScfgToast are its Slate widgets, FScfgMouseWish
+// what a screen asks of the game viewport's mouse (all plugin-internal).
 class SScfgScreen;
 class SScfgToast;
 class SWidget;
@@ -40,11 +38,12 @@ class UGameViewportClient;
 
 struct FScfgMouseWish;
 
+// The plugin's own sheet host: its Slate payment sheet, restore screen and toasts on the game viewport (see above).
 class SCFG_API FScfgDefaultSheetHost : public IScfgSheetHost, public TSharedFromThis<FScfgDefaultSheetHost>
 {
 public:
 	// The viewport Z-order of the screens (the toasts: one above).
-	static constexpr int32 ZORDER = 10000;
+	static constexpr int32 ZOrder = 10000;
 
 	explicit FScfgDefaultSheetHost(UGameInstance* InGameInstance);
 	// Removes what is still shown (no UObject created, see above).
@@ -55,13 +54,10 @@ public:
 	virtual void Close(const TSharedRef<FScfgScreen>& Screen) override;
 	virtual void Notify(const FString& Text) override;
 
+	// An ISlateStyle whose widget styles and brushes win by name over the screens' own (null: none); screens opened
+	// afterwards use it.
 	void SetStyleOverride(TSharedPtr<const ISlateStyle> InOverride) { StyleOverride = MoveTemp(InOverride); }
 
-	// The screens shown, oldest first, and their widgets (SScfgPaymentSheet / SScfgRestoreScreen): what tests and the
-	// e2e driver read.
-	TArray<TSharedRef<SScfgScreen>> Screens() const;
-	int32 NumToasts() const { return Toasts.Num(); }
-	TArray<FString> ToastTexts() const;
 	// Every core-ticker frame while something is shown: a screen that left the viewport by another hand (it has no
 	// parent widget any more) is released, so its flow resolves as "cancel" and its focus and mouse go back; faded
 	// toasts are removed.

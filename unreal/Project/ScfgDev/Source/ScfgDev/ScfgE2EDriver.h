@@ -56,13 +56,15 @@
 //   input_mode {mode}    the game's input mode: "ui" (the cursor shown, game and UI: the showcase's own), "game"
 //                        (game only: the cursor hidden, the mouse captured permanently), "lock_always" (the cursor
 //                        shown and locked to the window)
-//   open {what}          the showcase's Unlock (of UScfgShowcaseGameInstance::ITEM) / Tip (of TIP_AMOUNT) / Restore
+//   open {what}          the showcase's Unlock (of UScfgShowcaseGameInstance::HarnessItem) / Tip (of
+//                        HarnessTipAmount) / Restore
 //                        action (for the input modes whose cursor cannot click the HUD)
 //   sheet_visibility {shown}  the newest open screen hidden (Collapsed) or shown again, its flow left waiting, as a
 //                        game that collapses it does; replies the input state a frame later
 //   activation_cycle     a real native window opens over the game (the game window is deactivated), then closes (the
 //                        engine activates the game window again: FSceneViewport::OnViewportActivated); replies what
-//                        happened and the focus changes the engine made meanwhile, and the input state 5 frames later
+//                        happened and the focus changes the engine made meanwhile, and the input state SETTLE_FRAMES
+//                        frames later
 //   wish                 the sheet's mouse wish (ScfgDefaultSheetHostDetail::WishOf) and whether its viewport is the
 //                        game window's real SViewport
 //   screenshot {path}    a screenshot with the UI (FScreenshotRequest), replied once the file is written

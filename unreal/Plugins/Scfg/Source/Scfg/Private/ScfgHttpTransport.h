@@ -14,9 +14,9 @@
 // - a request the engine will not start (an empty URL): TransportError("<urlopen error cannot start the request to
 //   '<url>'>"), already complete when post_json returns;
 // - an https:// request when TLS peer verification is unavailable (TlsVerificationProblem() is not empty):
-//   TransportError("TLS certificate verification unavailable"), complete at once, nothing sent (ruling R5-4: a payment
-//   plugin fails closed). The reason is logged once per transport ("LogScfg: Error: scfg: refusing https:// RPC
-//   requests: TLS certificate verification unavailable: <why>").
+//   TransportError("TLS certificate verification unavailable"), complete at once, nothing sent (a payment plugin fails
+//   closed). The reason is logged once per transport ("LogScfg: Error: scfg: refusing https:// RPC requests: TLS
+//   certificate verification unavailable: <why>").
 //
 // Shutdown() (also run by the destructor) unbinds each request's delegates first, so a late completion can never
 // reach this object, cancels the request, then drops its promise (CancelledError).
@@ -25,7 +25,7 @@
 // command) does the same for each request nobody awaits any more (Promise::orphaned): taken out of the map, its
 // delegate unbound, CancelRequest(), its promise dropped, which resumes nothing. Every other request is untouched.
 //
-// Port limits (unreal/README.md, "Known divergences"):
+// Port limits (the divergences from Python's urllib):
 // - Timeouts. urllib's timeout bounds each socket operation; SetTimeout bounds the whole request, so an answer that
 //   trickles in for longer than timeout succeeds in Python and is "timed out" here. A timeout <= 0 sets no total
 //   timeout here (the engine's default, none), where Python fails at once (no caller passes one: the core's is 10 s).
@@ -81,10 +81,8 @@ public:
 #if !UE_BUILD_SHIPPING
 	// Tests only: replaces TlsVerificationProblem()'s answer while set (an empty function restores the real one).
 	static void SetTlsProbeForTests(TFunction<FString()> Probe);
-#endif
-#if !UE_BUILD_SHIPPING
-	// Requests every FScfgHttpTransport of this process posted (post_json calls), outside Shipping: the showcase tour
-	// asserts that it made none (the e2e driver's http_requests, tools/run_unreal_e2e.py --showcase).
+	// Requests every FScfgHttpTransport of this process posted (post_json calls), outside Shipping: a tour of the
+	// showcase asserts that it made none.
 	static int32 ProcessPosts();
 #endif
 

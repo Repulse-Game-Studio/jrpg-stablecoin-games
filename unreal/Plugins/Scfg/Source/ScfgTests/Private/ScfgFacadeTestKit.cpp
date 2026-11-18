@@ -104,21 +104,6 @@ Json TransferLog(const std::string& Token, const std::string& Sender, const std:
 		{"blockNumber", scfg::py::hex(scfg::BigInt(Block))}, {"blockHash", "0x" + Hex64(scfg::BigInt(Block))}});
 }
 
-bool Same(const Json& A, const Json& B)
-{
-	scfg::json::DumpOptions Sorted;
-	Sorted.sort_keys = true;
-	scfg::Result<std::string> X = scfg::json::dumps(A, Sorted);
-	scfg::Result<std::string> Y = scfg::json::dumps(B, Sorted);
-	return X.ok() && Y.ok() && X.value() == Y.value();
-}
-
-FString Text(const Json& V)
-{
-	scfg::Result<std::string> Got = scfg::json::dumps(V);
-	return Got.ok() ? ScfgString::FromUtf8(Got.value()) : FString(TEXT("<dumps failed>"));
-}
-
 // --- the fake nodes ---------------------------------------------------------------------------------------------
 
 scfg::Result<Json> FFakeNodeTransport::Answer(const std::string& Url, const Json& Payload)

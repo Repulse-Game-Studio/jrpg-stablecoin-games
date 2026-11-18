@@ -1,6 +1,6 @@
 // Copyright 2026 Repulse
 // Twin of godot/addons/scfg/scfg.gd (the Scfg autoload) and of Unity's SCFG facade, itself the twin of Ren'Py's
-// scfg_api.rpy: where this file is silent, scfg.gd's behaviour is the reference. UScfgSubsystem (ScfgSubsystem.h) is
+// scfg_api.rpy: where this file is silent, scfg.gd's behavior is the reference. UScfgSubsystem (ScfgSubsystem.h) is
 // the Blueprint and C++ face of it; this is the engine-object-free part, so the tests drive it directly.
 //
 // DEVELOPER ERRORS. A misused call reports "scfg: <message>" once (LogScfg Error) and returns the Err (Configure,
@@ -156,10 +156,10 @@ class SCFG_API FScfgFacade : public TSharedFromThis<FScfgFacade>
 {
 public:
 	// The worker's poll interval in seconds, with a screen open and otherwise (scfg.gd's _POLL_OPEN_S, _POLL_IDLE_S).
-	static constexpr double POLL_OPEN_S = 3.0;
-	static constexpr double POLL_IDLE_S = 15.0;
+	static constexpr double PollOpenSeconds = 3.0;
+	static constexpr double PollIdleSeconds = 15.0;
 	// The most characters a hash field takes (a pasted clipboard is cut there too).
-	static constexpr int32 TX_MAX_LENGTH = 90;
+	static constexpr int32 TxMaxLength = 90;
 
 	using FPayDone = TFunction<void(const FScfgPaymentResult&)>;
 	using FRestoreDone = TFunction<void(const FScfgRestoreResult&)>;
@@ -197,9 +197,9 @@ public:
 	// runtime wallet). Checked first, touching nothing: the chains are built, the configuration with them, its logo
 	// file and every item row on a copy, and a failure (wallet.missing from a wallet file not read yet, a mistyped
 	// wallet, a missing logo, an item the wallets cannot sell) is reported and leaves everything as it was, so the call
-	// can be retried (review T3, V3): it applies entirely or not at all. Then, as a code call, it replaces any configuration (the
-	// settings' applied at start, or an earlier call's) with no AddChain() warning: the chains are exactly these
-	// rows, then Configure(Options), then AddItem() for each item. Returns the first Err.
+	// can be retried: it applies entirely or not at all. Then, as a code call, it replaces any configuration (the
+	// settings' applied at start, or an earlier call's) with no AddChain() warning: the chains are exactly these rows,
+	// then Configure(Options), then AddItem() for each item. Returns the first Err.
 	TOptional<scfg::Err> ConfigureWithSettings(
 		const FScfgOptions& InOptions, const TArray<FScfgSettingsChain>& Chains, const TArray<FScfgSettingsItem>& Items);
 	// Line goes to the reporter as a warning at the end of the first frame (the facade's ticker), unless a
@@ -231,8 +231,9 @@ public:
 	scfg::Json Receipts();
 	// {session id: record}: the payments still being watched for, a deep copy.
 	scfg::Json Pending();
-	// Payments run on every platform the plugin builds for (Win64, Mac, Linux).
-	bool Supported() const { return true; }
+	// Payments run on every platform the plugin builds for (UScfgSubsystem::Supported() and the Blueprint node return
+	// this).
+	static constexpr bool Supported() { return true; }
 	// Testing helper: forget every receipt and pending payment on this device (the payments are still on chain, and
 	// Restore brings them back).
 	void ClearLocalData();
@@ -269,7 +270,7 @@ public:
 	void PasteInto(FScfgCheckout& Checkout);
 	// Dropped once the screen moved past its input (Check was pressed).
 	void PasteInto(FScfgRestore& Flow);
-	// Ren'Py's _clean_paste: the first word, hash characters only, at most TX_MAX_LENGTH (it stops there).
+	// Ren'Py's _clean_paste: the first word, hash characters only, at most TxMaxLength (it stops there).
 	static FString CleanPaste(const FString& Text);
 	// The characters a hash field takes (hex or base58; Godot's TX_CHARS).
 	static const FString& TxChars();
@@ -290,7 +291,7 @@ public:
 	// --- the pump ---
 
 	void Pump();
-	// The worker's interval: POLL_OPEN_S while a sheet or the restore screen is open, else POLL_IDLE_S.
+	// The worker's interval: PollOpenSeconds while a sheet or the restore screen is open, else PollIdleSeconds.
 	double PollInterval() const;
 
 	// --- readers for the tests (not the API) ---

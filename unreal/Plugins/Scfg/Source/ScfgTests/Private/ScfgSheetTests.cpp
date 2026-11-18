@@ -161,7 +161,7 @@ void CheckKeyed(FAutomationTestBase& Test, const SScfgScreen& Screen, const TArr
 
 }  // namespace ScfgSheetTestsDetail
 
-// What runs under -nullrhi (engine-facts.md, "Slate under -nullrhi"): the Slate application with the null renderer and
+// What runs under -nullrhi: the Slate application with the null renderer and
 // its font services, a virtual window that paints (and so ticks) its widgets, and FSlateApplication's key routing to
 // the focused widget of that window.
 SCFG_SHEET_TEST(FScfgSheetSlateHeadlessTest, "SlateRunsHeadless")
@@ -345,7 +345,7 @@ bool FScfgSheetUnlockByKeysTest::RunTest(const FString& Parameters)
 	R.W.PayOnChain(CheckoutOf(*Sheet));
 	R.Frame(2);
 	TestEqual(TEXT("done"), Sheet->ShownStep(), FString(TEXT("done")));
-	TestTrue(TEXT("the toast says so"), R.Host->ToastTexts().Contains(
+	TestTrue(TEXT("the toast says so"), FScfgDefaultSheetHostAccess::ToastTexts(*R.Host).Contains(
 		ScfgTexts::Format(TEXT("payment_confirmed_item"), {TEXT("Chapter 2")})));
 	TestTrue(TEXT("Copy hash on the done step"), Sheet->IsShown(TEXT("copy_tx")));
 	TestTrue(TEXT("Continue has the focus"), R.HasFocus(*Sheet, TEXT("continue")));
@@ -427,7 +427,7 @@ FScfgFacade& StartedWithSolana(FAutomationTestBase& Test, FSheetRig& R)
 }
 
 // The button Key, laid out by the painted window, stays inside the method options' width (the body's), and its text
-// wraps to it rather than running past: P3 of the onramp ports review.
+// wraps to it rather than running past.
 void FitsTheBody(FAutomationTestBase& Test, const SScfgPaymentSheet& Sheet, const FString& Key, const FString& Where)
 {
 	const TSharedPtr<SWidget> Button = Sheet.Control(Key);
@@ -1065,13 +1065,13 @@ bool FScfgSheetToastTest::RunTest(const FString& Parameters)
 	R.Host->Notify(TEXT("Purchases restored."));
 	R.Frame();
 	TestEqual(TEXT("a toast on the viewport"), R.NumLayered(), 1);
-	TestEqual(TEXT("its text"), R.Host->ToastTexts(), TArray<FString>{TEXT("Purchases restored.")});
+	TestEqual(TEXT("its text"), FScfgDefaultSheetHostAccess::ToastTexts(*R.Host), TArray<FString>{TEXT("Purchases restored.")});
 	TestTrue(TEXT("the game keeps the focus"), R.Focused() == R.Game);
 	R.Frame(3, 1.f);
-	TestEqual(TEXT("still there after 3 s"), R.Host->NumToasts(), 1);
+	TestEqual(TEXT("still there after 3 s"), FScfgDefaultSheetHostAccess::NumToasts(*R.Host), 1);
 	R.Frame(1, 0.4f);
 	FTSTicker::GetCoreTicker().Tick(0.f);
-	TestEqual(TEXT("faded out and removed"), R.Host->NumToasts(), 0);
+	TestEqual(TEXT("faded out and removed"), FScfgDefaultSheetHostAccess::NumToasts(*R.Host), 0);
 	TestEqual(TEXT("from the viewport too"), R.NumLayered(), 0);
 	return true;
 }
@@ -1126,7 +1126,7 @@ bool FScfgSheetPausedTest::RunTest(const FString& Parameters)
 	R.Host->Notify(TEXT("Purchases restored."));
 	R.Frame(4, 1.f);
 	FTSTicker::GetCoreTicker().Tick(0.f);
-	TestEqual(TEXT("the toast faded in real time"), R.Host->NumToasts(), 0);
+	TestEqual(TEXT("the toast faded in real time"), FScfgDefaultSheetHostAccess::NumToasts(*R.Host), 0);
 	for (int32 I = 0; I < 4 && !Box->IsSet(); ++I)
 	{
 		R.Key(EKeys::Escape);
@@ -1158,7 +1158,7 @@ bool FScfgSheetDefaultHostTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Initialize gave the facade the default host"), FScfgSubsystemAccess::Facade(*Scfg) && FScfgSubsystemAccess::Facade(*Scfg)->DefaultSheetHost.IsValid());
 	TestFalse(TEXT("and no game host"), Scfg->GetSheetHost().IsValid());
-	FScfgSubsystemTestAccess::Start(*Scfg, R.W.Options());  // the fakes from here on
+	FScfgSubsystemAccess::StartFacade(*Scfg, R.W.Options());  // the fakes from here on
 	R.W.Facade = FScfgSubsystemAccess::Facade(*Scfg)->AsShared();
 	FScfgOptions Options;
 	Options.Wallet = UTF8_TO_TCHAR(kDev);
@@ -1239,7 +1239,7 @@ bool FScfgSheetGameEndsTest::RunTest(const FString& Parameters)
 		{
 			return false;
 		}
-		FScfgSubsystemTestAccess::Start(*Scfg, R.W.Options());
+		FScfgSubsystemAccess::StartFacade(*Scfg, R.W.Options());
 		R.W.Facade = FScfgSubsystemAccess::Facade(*Scfg)->AsShared();
 		FScfgOptions Options;
 		Options.Wallet = UTF8_TO_TCHAR(kDev);
@@ -1284,7 +1284,7 @@ bool FScfgSheetGameEndsTest::RunTest(const FString& Parameters)
 		const TCHAR* Way = bCollected ? TEXT("collected") : TEXT("Shutdown");
 		TestEqual(FString::Printf(TEXT("%s: the sheet left the viewport"), Way), R.NumLayered(), 0);
 		TestEqual(FString::Printf(TEXT("%s: closing it created no UObject"), Way), Created, 0);
-		// (final review F1: the C++ OnResolved is dropped at the teardown, as the Pay node's pin is)
+		// (the C++ OnResolved is dropped at the teardown, as the Pay node's pin is)
 		TestFalse(FString::Printf(TEXT("%s: the call resolved without delivering anything, OnResolved included"), Way),
 			Result.IsSet());
 		R.W.Facade.Reset();
@@ -1336,7 +1336,7 @@ public:
 	void Add()
 	{
 		Slate = Widget->TakeWidget();
-		Rig->Layer->AddSlot(FScfgDefaultSheetHost::ZORDER)[Slate.ToSharedRef()];
+		Rig->Layer->AddSlot(FScfgDefaultSheetHost::ZOrder)[Slate.ToSharedRef()];
 	}
 };
 
@@ -1394,9 +1394,9 @@ bool FScfgSheetUmgTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Ruling R2-15 (I1): a game viewport that captured the mouse (the game hides the cursor) keeps neither the clicks
-// nor the cursor while the sheet is open: the sheet releases the capture on show, shows the default cursor, takes
-// the clicks, and gives the capture back to its holder on close.
+// A game viewport that captured the mouse (the game hides the cursor) keeps neither the clicks nor the cursor while the
+// sheet is open: the sheet releases the capture on show, shows the default cursor, takes the clicks, and gives the
+// capture back to its holder on close.
 SCFG_SHEET_TEST(FScfgSheetMouseTest, "TheMouseIsTheSheetsWhileItIsOpen")
 
 bool FScfgSheetMouseTest::RunTest(const FString& Parameters)
@@ -1480,8 +1480,8 @@ bool FScfgSheetMouseTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Ruling R2-15 follow-up (N1, N2): the mouse goes back as the game wants it at the close, not as it was at the open,
-// and a cursor lock without a capture is given back too.
+// The mouse goes back as the game wants it at the close, not as it was at the open, and a cursor lock without a capture
+// is given back too.
 SCFG_SHEET_TEST(FScfgSheetMouseWishTest, "TheMouseGoesBackAsTheGameWantsItNow")
 
 bool FScfgSheetMouseWishTest::RunTest(const FString& Parameters)
@@ -1571,9 +1571,9 @@ bool FScfgSheetMouseWishTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Ruling R2-15, round 3 (B1): the screens take the mouse and the focus back only from the game viewport (or a focus
-// that went nowhere). Another widget (an editor button or field in PIE, a game modal above the sheet, a menu) keeps
-// its capture and its focus, and a capture it held at the open is neither taken nor recorded.
+// The screens take the mouse and the focus back only from the game viewport (or a focus that went nowhere). Another
+// widget (an editor button or field in PIE, a game modal above the sheet, a menu) keeps its capture and its focus, and
+// a capture it held at the open is neither taken nor recorded.
 SCFG_SHEET_TEST(FScfgSheetOthersKeepInputTest, "OtherWidgetsKeepTheirMouseAndFocus")
 
 bool FScfgSheetOthersKeepInputTest::RunTest(const FString& Parameters)
@@ -1587,7 +1587,7 @@ bool FScfgSheetOthersKeepInputTest::RunTest(const FString& Parameters)
 	R.Started(*this);
 	FSlateApplication& App = FSlateApplication::Get();
 	const TSharedRef<SGameSink> Other = SNew(SGameSink);
-	R.Layer->AddSlot(FScfgDefaultSheetHost::ZORDER + 5)[Other];  // above the sheet: a modal, a menu, an editor widget
+	R.Layer->AddSlot(FScfgDefaultSheetHost::ZOrder + 5)[Other];  // above the sheet: a modal, a menu, an editor widget
 	R.Frame();
 	auto Give = [&App, &Other](bool bFocus)
 	{
@@ -1631,9 +1631,9 @@ bool FScfgSheetOthersKeepInputTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Task 7 re-review 3 (N1): a screen that closes below another hands what it took of the game viewport (the capture
-// too) to the screen on top, merged with what that one holds, so the last close gives the capture back: with nothing
-// held by the top screen, and with a lock alone held by it (an always-locking viewport).
+// A screen that closes below another hands what it took of the game viewport (the capture too) to the screen on top,
+// merged with what that one holds, so the last close gives the capture back: with nothing held by the top screen, and
+// with a lock alone held by it (an always-locking viewport).
 SCFG_SHEET_TEST(FScfgSheetHandOverTest, "TheScreenBelowHandsItsCaptureToTheTop")
 
 bool FScfgSheetHandOverTest::RunTest(const FString& Parameters)
@@ -1692,10 +1692,9 @@ bool FScfgSheetHandOverTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Task 8 review M3 (found by the e2e's application deactivation): the engine activates the window again and gives the
-// viewport the focus and the mouse in the same message pump as the click or key that activated it (on Linux a mouse
-// button activates the application, FLinuxApplication), before the sheet's next tick: that input must be the sheet's,
-// not the game's.
+// Found by the e2e's application deactivation: the engine activates the window again and gives the viewport the focus
+// and the mouse in the same message pump as the click or key that activated it (on Linux a mouse button activates the
+// application, FLinuxApplication), before the sheet's next tick: that input must be the sheet's, not the game's.
 SCFG_SHEET_TEST(FScfgSheetFirstInputTest, "TheInputThatActivatesTheGameIsTheSheets")
 
 bool FScfgSheetFirstInputTest::RunTest(const FString& Parameters)
@@ -1738,12 +1737,11 @@ bool FScfgSheetFirstInputTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Task 8 re-review N1 (a supported state) and task 9 review I1 (ruling R2-18): an open sheet the game stops drawing
-// (it collapsed the sheet, or its UScfgSheetWidget, an ancestor of the Slate screen, without closing the flow) leaves
-// the game's mouse, focus, keys and clicks alone from the moment it is hidden: with no frame, one frame and three
-// frames between the hide and the input, in the default host and in a UMG host. Drawn again, the sheet takes them
-// back. A UMG sheet the game collapses is also hidden by the widget's own check (no visible path to it): the focus
-// goes back, the flow still waits, and it is shown again once it is painted.
+// A supported state: an open sheet the game stops drawing (it collapsed the sheet, or its UScfgSheetWidget, an ancestor
+// of the Slate screen, without closing the flow) leaves the game's mouse, focus, keys and clicks alone from the moment
+// it is hidden: with no frame, one frame and three frames between the hide and the input, in the default host and in a
+// UMG host. Drawn again, the sheet takes them back. A UMG sheet the game collapses is also hidden by the widget's own
+// check (no visible path to it): the focus goes back, the flow still waits, and it is shown again once it is painted.
 SCFG_SHEET_TEST(FScfgSheetNotDrawnTest, "AnOpenSheetThatIsNotDrawnLeavesTheInputAlone")
 
 bool FScfgSheetNotDrawnTest::RunTest(const FString& Parameters)
@@ -1864,8 +1862,8 @@ bool FScfgSheetNotDrawnTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Ruling R2-15 (M1): a sheet the game takes off the viewport itself ("Remove All Widgets") is released on the host's
-// next frame: the flow resolves as cancel, the focus goes back, nothing is left open.
+// A sheet the game takes off the viewport itself ("Remove All Widgets") is released on the host's next frame: the flow
+// resolves as cancel, the focus goes back, nothing is left open.
 SCFG_SHEET_TEST(FScfgSheetRemovedTest, "ASheetTheGameRemovesCountsAsCancel")
 
 bool FScfgSheetRemovedTest::RunTest(const FString& Parameters)
@@ -1889,7 +1887,7 @@ bool FScfgSheetRemovedTest::RunTest(const FString& Parameters)
 	R.Host->Tick();
 	R.Frame(2);
 	TestTrue(TEXT("the flow resolved as cancel"), Box->IsSet() && (*Box)->Status == EScfgPaymentStatus::Cancelled);
-	TestEqual(TEXT("the host shows nothing"), R.Host->Screens().Num(), 0);
+	TestEqual(TEXT("the host shows nothing"), FScfgDefaultSheetHostAccess::Screens(*R.Host).Num(), 0);
 	TestEqual(TEXT("no screen left open"), SScfgScreen::OpenScreens().Num(), 0);
 	TestFalse(TEXT("the focus is not left on the removed sheet"), R.FocusInside(*Sheet));
 	return true;
@@ -1904,7 +1902,7 @@ bool FScfgSheetStyleTest::RunTest(const FString& Parameters)
 	const TSharedRef<FSlateStyleSet> Custom = MakeShared<FSlateStyleSet>(TEXT("GameStyle"));
 	Custom->Set(TEXT("Scfg.Title"), FTextBlockStyle().SetColorAndOpacity(FSlateColor(FLinearColor::Red)));
 	const TSharedRef<FScfgStyle> Style = FScfgStyle::Create(TEXT("#ffcc00"), FString(), Custom);
-	TestEqual(TEXT("the developer's colour for the title"), Style->Text(TEXT("Scfg.Title")).ColorAndOpacity.GetSpecifiedColor(),
+	TestEqual(TEXT("the developer's color for the title"), Style->Text(TEXT("Scfg.Title")).ColorAndOpacity.GetSpecifiedColor(),
 		FLinearColor::Red);
 	TestEqual(TEXT("the others are the plugin's"), Style->Text(TEXT("Scfg.Muted")).ColorAndOpacity.GetSpecifiedColor(),
 		FScfgStyle::MutedColor);

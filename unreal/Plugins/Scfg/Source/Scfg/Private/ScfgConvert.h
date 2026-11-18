@@ -30,6 +30,8 @@ SCFG_API scfg::Json ItemKwargs(const FScfgItem& Item);
 SCFG_API scfg::Json PayKwargs(const FScfgPayRequest& Request);
 // "unlock" / "tip"; any other value of the enum is its int, which prepare_payment refuses (payment.bad_kind).
 SCFG_API scfg::Json KindJson(EScfgPayKind Kind);
+// The other direction: "tip" is Tip, anything else Unlock (the core stores only "unlock" and "tip").
+SCFG_API EScfgPayKind PayKind(const scfg::Json& Kind);
 
 // The str, else "" (None, or any other type).
 SCFG_API FString Str(const scfg::Json& Value);

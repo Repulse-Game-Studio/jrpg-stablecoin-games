@@ -36,12 +36,13 @@
 //   - Nothing is written when the text is what is on disk (the worker fires after every tick).
 //   - The receipts changing, the set of sessions changing, or a session's state or hint_tx changing is written at
 //     once (a crash can end the game any moment); any other pending change (scan progress: cursors) at most every
-//     PENDING_SAVE_INTERVAL seconds: it is owed and written by the ticker, or by the next save that may write.
+//     PendingSaveInterval seconds: it is owed and written by the ticker, or by the next save that may write.
 //   - A write is atomic: <path>.tmp is written and flushed (fdatasync), then renamed over <path>, which replaces it in
 //     one step (rename(2) on Linux and Mac; MoveFileExW with MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH on
-//     Windows, unverified: no Win64 build here). The old file is never deleted first, so a failed save keeps it.
+//     Windows, expected to work, not yet built or tested). The old file is never deleted first, so a failed save
+//     keeps it.
 //   - A failed save (a dumps Err such as an int of more than 4300 digits, a write or a rename that fails) keeps the
-//     old file, is reported once (not at every retry, until a save succeeds), and is retried every RETRY_INTERVAL
+//     old file, is reported once (not at every retry, until a save succeeds), and is retried every RetryInterval
 //     seconds from the ticker; a newer state replaces the one owed.
 //   - Destroying the store writes what it still owes (the game quitting).
 //   On Linux and Mac the store calls the POSIX functions itself (stat, open, write, fdatasync, rename), so errno is
@@ -98,18 +99,19 @@ struct FScfgStoreOptions
 	TFunction<void(const scfg::Err&)> OnError;
 	// Each warning (a corrupt file, a dropped record), once. Default: a LogScfg warning.
 	TFunction<void(const FString&)> OnWarning;
-	// Seconds, for the PENDING_SAVE_INTERVAL throttle. Default: FPlatformTime::Seconds(). The tests pass their own.
+	// Seconds, for the PendingSaveInterval throttle. Default: FPlatformTime::Seconds(). The tests pass their own.
 	TFunction<double()> Clock;
 };
 
 class SCFG_API FScfgStore
 {
 public:
-	static constexpr int64 VERSION = 1;
+	// The file's "version" (see LOADING: any other is moved aside).
+	static constexpr int64 FileVersion = 1;
 	// Seconds between the attempts of a failed or deferred save.
-	static constexpr float RETRY_INTERVAL = 10.0f;
+	static constexpr float RetryInterval = 10.0f;
 	// The least seconds between two writes of scan progress alone (Godot's and Ren'Py's PENDING_SAVE_INTERVAL).
-	static constexpr double PENDING_SAVE_INTERVAL = 10.0;
+	static constexpr double PendingSaveInterval = 10.0;
 
 	using FOptions = FScfgStoreOptions;
 
@@ -150,7 +152,7 @@ public:
 
 	// Saves the stores (see SAVING): written now, or owed when only scan progress changed within the interval (true
 	// both ways, and when the file already holds them). False when the store is blocked or the write failed: then it is
-	// reported (once) and retried every RETRY_INTERVAL seconds.
+	// reported (once) and retried every RetryInterval seconds.
 	bool Save(const scfg::Json& InPending, const scfg::Json& InReceipts);
 	// A deferred or failed save waits for the ticker.
 	bool IsSaveOwed() const { return Owed.IsSet(); }
@@ -158,10 +160,10 @@ public:
 	int32 NumWrites() const { return Writes; }
 
 #if !UE_BUILD_SHIPPING
-	// Empty in a game. The plugin's automation tests set it (ScfgTestsModule.cpp): a store about to open DefaultPath(),
-	// the project's own state file, calls it first with that path; true refuses the file unread (the store is blocked,
-	// with a RuntimeError saying so, and does not log its "the payment state file is" line), so no test reads, rewrites
-	// or re-verifies a developer's own payment state.
+	// Empty in a game. The plugin's automation test module sets it: a store about to open DefaultPath(), the
+	// project's own state file, calls it first with that path; true refuses the file unread (the store is blocked, with
+	// a RuntimeError saying so, and does not log its "the payment state file is" line), so no test reads, rewrites or
+	// re-verifies a developer's own payment state.
 	static TFunction<bool(const FString& Path)>& DefaultPathHookForTests();
 #endif
 
@@ -172,9 +174,11 @@ private:
 	// that failed ("cannot create", "cannot write", "cannot replace"). Private: it has no blocked guard, so only the
 	// store (which checks it) and the tests write files.
 	static scfg::Status SaveFile(const FString& Path, const scfg::Json& Pending, const scfg::Json& Receipts);
+#if !UE_BUILD_SHIPPING
 	// Empty in a game. A test sets it to stand in for the final rename of a save (From is the .tmp, To the file), to
 	// make that one step fail.
 	static TFunction<scfg::Status(const FString& From, const FString& To)>& ReplaceHookForTests();
+#endif
 
 	// Writes Doc unless its text is on disk; reports a first failure. No ticker change. OnError may destroy the store
 	// meanwhile: callers check their Alive copy before touching a member.

@@ -17,6 +17,14 @@ const TCHAR* const NoSubsystem = TEXT("scfg: no SCFG subsystem here (the node ne
 const TCHAR* const NoSubsystemOnServer =
 	TEXT("scfg: no SCFG subsystem on a dedicated server (SCFG runs on the players' game clients only)");
 
+// A subsystem that is shutting down, or gone although the node had one: the teardown (maybe inside garbage
+// collection) resolves the call without delivering anything.
+bool IsTeardown(bool bHadSubsystem, const TWeakObjectPtr<UScfgSubsystem>& Subsystem)
+{
+	const UScfgSubsystem* Scfg = Subsystem.Get();
+	return bHadSubsystem && (!Scfg || Scfg->IsShuttingDown());
+}
+
 }  // namespace ScfgAsyncDetail
 
 UScfgPayAsyncAction* UScfgPayAsyncAction::Pay(UObject* WorldContextObject, EScfgPayKind Kind, FScfgPayRequest Request)
@@ -74,11 +82,7 @@ void UScfgPayAsyncAction::Activate()
 
 void UScfgPayAsyncAction::Finish(const FScfgPaymentResult& Result)
 {
-	// A subsystem that is shutting down, or gone although the node had one: the teardown (maybe inside garbage
-	// collection) resolves the call without delivering anything.
-	const UScfgSubsystem* Scfg = Subsystem.Get();
-	const bool bTeardown = bHadSubsystem && (!Scfg || Scfg->IsShuttingDown());
-	if (!bTeardown)
+	if (!ScfgAsyncDetail::IsTeardown(bHadSubsystem, Subsystem))
 	{
 		OnResolved.Broadcast(Result);
 	}
@@ -136,11 +140,7 @@ void UScfgRestoreAsyncAction::Activate()
 
 void UScfgRestoreAsyncAction::Finish(const FScfgRestoreResult& Result)
 {
-	// A subsystem that is shutting down, or gone although the node had one: the teardown (maybe inside garbage
-	// collection) resolves the call without delivering anything.
-	const UScfgSubsystem* Scfg = Subsystem.Get();
-	const bool bTeardown = bHadSubsystem && (!Scfg || Scfg->IsShuttingDown());
-	if (!bTeardown)
+	if (!ScfgAsyncDetail::IsTeardown(bHadSubsystem, Subsystem))
 	{
 		OnResolved.Broadcast(Result);
 	}

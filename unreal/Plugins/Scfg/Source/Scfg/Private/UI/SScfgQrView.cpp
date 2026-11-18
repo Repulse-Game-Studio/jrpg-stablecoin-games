@@ -28,7 +28,7 @@ bool SScfgQrView::Load(const FString& Text, float InTargetSize)
 	Runs.Reset();
 	Size = 0;
 	Error.Reset();
-	const scfg::Result<scfg::paylinks::QrRects> Made = scfg::paylinks::qr_rects(ScfgString::ToUtf8(Text), BORDER);
+	const scfg::Result<scfg::paylinks::QrRects> Made = scfg::paylinks::qr_rects(ScfgString::ToUtf8(Text), BorderModules);
 	if (!Made.ok())
 	{
 		Error = ScfgString::FromUtf8(Made.err().message);

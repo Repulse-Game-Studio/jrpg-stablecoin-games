@@ -1,8 +1,8 @@
 // Copyright 2026 Repulse
 // No Python twin: the query nodes of the SCFG API (godot/addons/scfg/scfg.gd's queries): Owns, HasTipped, TipTotal
-// and Supported (pure), Receipts and Pending (impure: they copy every record), each on the world context's game instance's UScfgSubsystem. The calls
-// with effects are the subsystem's own BlueprintCallable functions, and Pay / Restore its async nodes
-// (ScfgPayAsyncAction.h).
+// and Supported (pure), Receipts and Pending (impure: they copy every record), each on the world context's game
+// instance's UScfgSubsystem. The calls with effects are the subsystem's own BlueprintCallable functions, and Pay /
+// Restore its async nodes (ScfgPayAsyncAction.h).
 #pragma once
 
 #include "CoreMinimal.h"
@@ -14,6 +14,8 @@
 
 class UScfgSubsystem;
 
+// The SCFG query nodes for Blueprint (Owns, Has Tipped, Tip Total, Receipts, Pending, Supported), each on the SCFG
+// subsystem of the world context's game instance, and Get Subsystem to reach its other functions.
 UCLASS()
 class SCFG_API UScfgBlueprintLibrary : public UBlueprintFunctionLibrary
 {
@@ -48,9 +50,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "SCFG", meta = (DisplayName = "Supported (SCFG)"))
 	static bool Supported();
 
-	// A node without a game instance logs one error per node kind per session (a UMG binding is evaluated every
-	// frame); the tests start each check afresh.
-	static void ResetLogOnceForTests();
 	// The world context is on a dedicated server (a server process, a server world, or a play-in-editor server
 	// instance), where no SCFG subsystem exists (UScfgSubsystem::ShouldCreateSubsystem): the nodes' log says so.
 	static bool OnDedicatedServer(const UObject* WorldContextObject);

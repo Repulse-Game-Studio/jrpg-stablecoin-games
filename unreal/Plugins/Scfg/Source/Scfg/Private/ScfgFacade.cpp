@@ -491,7 +491,7 @@ TOptional<scfg::Err> FScfgFacade::ConfigureWithSettings(
 	{
 		return Misuse(ScfgGuard::EngineSpelling(Checked.err()));
 	}
-	// The logo file and every item row too (review V3), against the checked copy, as Configure() and AddItem() will
+	// The logo file and every item row too, against the checked copy, as Configure() and AddItem() will
 	// check them: nothing below can fail on them, so a call either applies entirely or changes nothing.
 	scfg::config::Config Copy = Checked.take();
 	if (scfg::Result<FString> Logo = LogoFile(Options.ProjectDir, Copy.logo); !Logo.ok())
@@ -650,7 +650,7 @@ FScfgWorker* FScfgFacade::EnsureStarted()
 		WorkerOptions.Interval = [Weak]()
 		{
 			const TSharedPtr<FScfgFacade> Self = Weak.Pin();
-			return Self.IsValid() ? Self->PollInterval() : POLL_IDLE_S;
+			return Self.IsValid() ? Self->PollInterval() : PollIdleSeconds;
 		};
 	}
 	scfg::Result<TUniquePtr<FScfgWorker>> Made = FScfgWorker::Create(
@@ -1318,7 +1318,7 @@ FString FScfgFacade::CleanPaste(const FString& Text)
 		++I;
 	}
 	FString Out;
-	while (I < Len && Out.Len() < TX_MAX_LENGTH && !scfg::py::is_space(static_cast<uint32_t>(Text[I])))
+	while (I < Len && Out.Len() < TxMaxLength && !scfg::py::is_space(static_cast<uint32_t>(Text[I])))
 	{
 		int32 Found = INDEX_NONE;
 		if (ScfgFacadeDetail::TxChars.FindChar(Text[I], Found))
@@ -1374,7 +1374,7 @@ bool FScfgFacade::IsMobile() const
 
 double FScfgFacade::PollInterval() const
 {
-	return Checkouts.Num() > 0 || Restores.Num() > 0 ? POLL_OPEN_S : POLL_IDLE_S;
+	return Checkouts.Num() > 0 || Restores.Num() > 0 ? PollOpenSeconds : PollIdleSeconds;
 }
 
 void FScfgFacade::Pump()

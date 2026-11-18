@@ -4,7 +4,7 @@
 // later frame, when FHttpManager ticks, and each test waits for it frame by frame (bounded).
 //
 // THE MAPPING to godot/tests/test_http_transport.gd (its twin; Python's UrllibTransport has none of its own), each test
-// to the one here that has its behaviour, or why there is none:
+// to the one here that has its behavior, or why there is none:
 //   test_200_json_is_the_parsed_body                     BlockNumberFromALocalNode
 //   test_429_is_a_transport_error_with_its_status        AnswersAreReadByUrllibsRules (a 503: the same rule, "HTTP <status>"
 //                                                        with the status; the 429 itself: the CMake CoioTests)
@@ -30,7 +30,7 @@
 //                                                        the core has no prefilter (its Json parser counts the digits as it
 //                                                        reads, CMake's JsonTests)
 // WhatCannotBeSentFailsAtOnce (a dumps Err, a request the engine refuses), HttpsIsRefusedWithoutTlsVerification and
-// TlsVerificationIsAvailableInTheEditor (the fail-closed TLS guard, ruling R5-4) are the Unreal transport's own.
+// TlsVerificationIsAvailableInTheEditor (the fail-closed TLS guard) are the Unreal transport's own.
 #include "HAL/PlatformTLS.h"
 #include "HAL/PlatformTime.h"
 #include "HttpPath.h"
@@ -206,7 +206,7 @@ private:
 	uint32 Port = 0;
 };
 
-// A named coroutine (no coroutine lambdas, ruling R8): the transport's Future as a Co, for a Job.
+// A named coroutine (no coroutine lambdas: Clang miscompiles some of them): the transport's Future as a Co, for a Job.
 scfg::Co<Json> Await(scfg::Future<Json> Answer)
 {
 	co_return co_await std::move(Answer);
@@ -476,7 +476,7 @@ SCFG_HTTP_TEST(FScfgHttpCancelOrphanedTest, "CancelOrphanedCancelsOnlyTheRequest
 
 // No Godot twin (its bridge's cancel is the web build's): cancel_orphaned() (the Engine stopped waiting for a request
 // in flight, Engine::abandon_in_flight) cancels a request whose Future is gone, unbound first so the engine's late
-// completion never reaches the transport, and leaves a request somebody awaits alone (testbed U15).
+// completion never reaches the transport, and leaves a request somebody awaits alone.
 bool FScfgHttpCancelOrphanedTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgHttpTests;
@@ -680,7 +680,7 @@ bool FScfgHttpWorkerTest::RunTest(const FString& Parameters)
 
 SCFG_HTTP_TEST(FScfgHttpTlsRefusedTest, "HttpsIsRefusedWithoutTlsVerification")
 
-// The fail-closed guard (ruling R5-4), with TlsVerificationProblem() answered by the test hook: while the process
+// The fail-closed guard, with TlsVerificationProblem() answered by the test hook: while the process
 // cannot verify a TLS peer, an https:// request (any case of the scheme) is a TransportError("TLS certificate
 // verification unavailable") at once and is never handed to the engine, and the reason is logged once per transport;
 // a plain http:// request is not affected; with verification available, an https:// request is sent.

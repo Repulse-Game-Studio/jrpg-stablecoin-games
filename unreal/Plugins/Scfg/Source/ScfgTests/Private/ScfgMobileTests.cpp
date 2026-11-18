@@ -1,5 +1,5 @@
 // Copyright 2026 Repulse
-// No Python twin: the mobile checkout path of the glue (phase 3, best effort), Scfg.Glue.Mobile.<name>, run on Linux
+// No Python twin: the mobile checkout path of the glue (best effort), Scfg.Glue.Mobile.<name>, run on Linux
 // with the mobile override: the fake platform's bMobile (ScfgFacadeTestKit.h), or FScfgEnginePlatform(true), the
 // engine's own platform told it is a phone. On a phone (PLATFORM_ANDROID || PLATFORM_IOS, ScfgPlatform.h) the checkout
 // offers no browser method (no localhost page), the QR step offers "Open wallet app", which hands the payment request
@@ -140,7 +140,7 @@ bool FScfgMobileEnginePlatformTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("no command line"), FScfgEnginePlatform::MobileOverride(nullptr));
 	TestTrue(TEXT("the tests' override"), FScfgEnginePlatform(true).IsMobile());
 	TestFalse(TEXT("and its desktop"), FScfgEnginePlatform(false).IsMobile());
-	// A link LaunchURL refuses (a game's ShouldLaunchUrl, here; phase 3 review P3-1) is logged with its scheme only.
+	// A link LaunchURL refuses (a game's ShouldLaunchUrl, here) is logged with its scheme only.
 	using namespace ScfgMobileTests;
 	const TDelegate<bool(const TCHAR*)> Before = FCoreDelegates::ShouldLaunchUrl;
 	TArray<FString> Asked;
@@ -174,7 +174,7 @@ bool FScfgMobileFacadeFlagTest::RunTest(const FString& Parameters)
 	};
 	for (const FCase& Case : Cases)
 	{
-		// An unlock and a tip (phase 3 review P3-5): the same rule for both kinds.
+		// An unlock and a tip: the same rule for both kinds.
 		for (const EScfgPayKind Kind : {EScfgPayKind::Unlock, EScfgPayKind::Tip})
 		{
 			const FString What = FString(Case.What) + (Kind == EScfgPayKind::Tip ? TEXT(", a tip") : TEXT(", an unlock"));
@@ -360,7 +360,7 @@ bool FScfgMobileSheetTest::RunTest(const FString& Parameters)
 
 SCFG_MOBILE_TEST(FScfgMobileNoWalletButtonTest, "NoWalletButtonWhenConfiguredOff")
 
-// Phase 3 review P3-5: the wallet button is the QR option wallet_button's, on a phone too.
+// The wallet button is the QR option wallet_button's, on a phone too.
 bool FScfgMobileNoWalletButtonTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgMobileTests;

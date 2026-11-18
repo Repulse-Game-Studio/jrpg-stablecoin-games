@@ -130,7 +130,7 @@ TStrongObjectPtr<UScfgSettings> Make(TFunction<void(UScfgSettings&)> Edit = null
 	return S;
 }
 
-// A subsystem (its game instance never initialised) whose facade has the world's hooks, started as Initialize starts
+// A subsystem (its game instance never initialized) whose facade has the world's hooks, started as Initialize starts
 // it, with Settings.
 struct FGame
 {
@@ -141,7 +141,7 @@ struct FGame
 	{
 		Instance.Reset(NewObject<UGameInstance>());
 		Scfg.Reset(NewObject<UScfgSubsystem>(Instance.Get()));
-		FScfgSubsystemTestAccess::Start(*Scfg, W.Options(), Settings);
+		FScfgSubsystemAccess::StartFacade(*Scfg, W.Options(), Settings);
 		W.Facade = FScfgSubsystemAccess::Facade(*Scfg)->AsShared();
 		Scfg->SetSheetHost(W.Host);
 	}
@@ -239,7 +239,8 @@ bool FScfgSettingsFieldsTest::RunTest(const FString& Parameters)
 				S.Options.Methods.Qr.bEnabled = false;
 				S.Options.Methods.Manual.bEnabled = false;
 			}, TEXT("methods.none_enabled")},
-		{TEXT("Methods.Browser.TimeoutMin"), [](UScfgSettings& S) { S.Options.Methods.Browser.TimeoutMin = 0; }, TEXT("methods.bad_timeout")},
+		{TEXT("Methods.Browser.TimeoutMinutes"), [](UScfgSettings& S) { S.Options.Methods.Browser.TimeoutMinutes = 0; },
+			TEXT("methods.bad_timeout")},
 		{TEXT("Methods.Qr.Chains"), [](UScfgSettings& S) { S.Options.Methods.Qr.Chains = {TEXT("polygon")}; }, TEXT("methods.qr_disabled_chain")},
 		{TEXT("Onramp.Url"), [](UScfgSettings& S) { S.Options.Onramp.Url = TEXT("http://buy.example"); }, TEXT("onramp.bad_url")},
 		{TEXT("Onramp.Chains"), [](UScfgSettings& S) { S.Options.Onramp.Chains = {TEXT("nope")}; }, TEXT("onramp.disabled_chain")},
@@ -354,7 +355,7 @@ bool FScfgSettingsEveryProblemTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the chain and the configuration only"), Problems.Num(), 2);
 	TestTrue(TEXT("the configuration's"), Problems.Num() == 2 && Problems[1].Code == TEXT("address.invalid") &&
 		!Problems[1].Message.StartsWith(TEXT("item")));
-	// Empty settings (testbed F6): no wallet is the opt-out, not a problem; the verdict says they are valid, not
+	// Empty settings: no wallet is the opt-out, not a problem; the verdict says they are valid, not
 	// applied at start, and on testnet. The rest is still checked (with stand-in wallets).
 	const TStrongObjectPtr<UScfgSettings> Empty = Blank();
 	Problems = Empty->Validate();
@@ -514,7 +515,7 @@ bool FScfgSettingsEmptyTest::RunTest(const FString& Parameters)
 		const TStrongObjectPtr<UScfgSettings> S = Make([](UScfgSettings& E) { E.Options.Wallet = TEXT("   "); });
 		FGame G(W, S.Get());
 		TestNull(TEXT("a blank wallet is no wallet"), G.F().GetConfig());
-		TestEqual(TEXT("no warning before the game's code ran (Unreal testbed)"), W.Reports().Warnings.Num(), 0);
+		TestEqual(TEXT("no warning before the game's code ran"), W.Reports().Warnings.Num(), 0);
 		W.Frame();
 		SameLines(*this, TEXT("rows without a wallet and nothing configured in the first frame: one warning"),
 			W.Reports().Warnings,
@@ -534,7 +535,7 @@ bool FScfgSettingsEmptyTest::RunTest(const FString& Parameters)
 
 SCFG_SETTINGS_TEST(FScfgSettingsRuntimeWalletTest, "ARuntimeWalletAppliesTheSettingsChainsOptionsAndItems")
 
-// Testbed F7: settings without a wallet (not applied at start) and a wallet supplied at runtime: ApplySettingsWith
+// Settings without a wallet (not applied at start) and a wallet supplied at runtime: ApplySettingsWith
 // (ConfigureWithSettings for the project's settings) runs their chains, options and items with that wallet.
 bool FScfgSettingsRuntimeWalletTest::RunTest(const FString& Parameters)
 {
@@ -559,7 +560,7 @@ bool FScfgSettingsRuntimeWalletTest::RunTest(const FString& Parameters)
 
 SCFG_SETTINGS_TEST(FScfgSettingsRuntimeWalletRetryTest, "ARuntimeWalletCallCanBeRetriedAndRepeated")
 
-// Review T3: a call that fails (a wallet file not read yet: no wallet) changes nothing, so the retry with the wallet
+// A call that fails (a wallet file not read yet: no wallet) changes nothing, so the retry with the wallet
 // works with the settings' chain row (no chain.duplicate); a second call replaces the configuration; with settings
 // applied at start (their own wallet) the call replaces them without AddChain()'s "set aside" warning.
 bool FScfgSettingsRuntimeWalletRetryTest::RunTest(const FString& Parameters)
@@ -600,7 +601,7 @@ bool FScfgSettingsRuntimeWalletRetryTest::RunTest(const FString& Parameters)
 
 SCFG_SETTINGS_TEST(FScfgSettingsRuntimeWalletAtomicTest, "ARuntimeWalletCallAppliesEntirelyOrNotAtAll")
 
-// Review V3: after a successful call, one whose item row fails (a code used twice) or whose logo file is missing
+// After a successful call, one whose item row fails (a code used twice) or whose logo file is missing
 // changes nothing: the first call's configuration, chains and items stay.
 bool FScfgSettingsRuntimeWalletAtomicTest::RunTest(const FString& Parameters)
 {
@@ -638,7 +639,7 @@ bool FScfgSettingsRuntimeWalletAtomicTest::RunTest(const FString& Parameters)
 
 SCFG_SETTINGS_TEST(FScfgSettingsWalletMessageTest, "TheMissingWalletNamesUnrealsFields")
 
-// Testbed U7 in Unreal: wallet.missing names Options.Wallet / SolanaWallet, not the core's Python keywords.
+// wallet.missing names Options.Wallet / SolanaWallet, not the core's Python keywords.
 bool FScfgSettingsWalletMessageTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgSettingsTests;

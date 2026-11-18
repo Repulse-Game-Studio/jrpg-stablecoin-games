@@ -1,5 +1,5 @@
 // Copyright 2026 Repulse
-// No Python twin: the opt-in live check of FScfgHttpTransport over real HTTPS (final review F2), the counterpart of the
+// No Python twin: the opt-in live check of FScfgHttpTransport over real HTTPS, the counterpart of the
 // repository's `pytest -m live`. Scfg.Live.Https exists only when the editor's environment has SCFG_LIVE=1; without
 // it GetTests lists nothing, so `--filter Scfg` never runs it and never touches the network.
 //

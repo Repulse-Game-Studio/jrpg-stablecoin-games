@@ -21,13 +21,13 @@
 // Blueprint: the Pay and Restore async nodes (ScfgPayAsyncAction.h), the pure nodes of UScfgBlueprintLibrary, and the
 // BlueprintCallable functions below.
 //
-// The behaviour is ScfgFacade.h's (the engine-object-free part this wraps): misuse never crashes (one "LogScfg: Error:
-// scfg: ..." line and a Failed result with the code), AlreadyOwned comes back at once, keep playing resolves Pending,
-// callbacks and the event fire once per payment (handlers must be idempotent), and a game-instance shutdown with a
-// sheet open resolves the call without delivering anything: no callback (PayAsync's and RestoreAsync's OnResolved
-// included, as the async nodes' pins), no event, no notification. The sheet is the plugin's own Slate sheet on the game
-// viewport (FScfgDefaultSheetHost, ScfgDefaultSheetHost.h) unless SetSheetHost() gave another; a game instance
-// without a viewport shows none, and Pay and Restore resolve Failed "sheet.unavailable".
+// The behavior is the plugin-internal facade's (the engine-object-free part this wraps): misuse never crashes (one
+// "LogScfg: Error: scfg: ..." line and a Failed result with the code), AlreadyOwned comes back at once, keep playing
+// resolves Pending, callbacks and the event fire once per payment (handlers must be idempotent), and a game-instance
+// shutdown with a sheet open resolves the call without delivering anything: no callback (PayAsync's and RestoreAsync's
+// OnResolved included, as the async nodes' pins), no event, no notification. The sheet is the plugin's own Slate sheet
+// on the game viewport (FScfgDefaultSheetHost, ScfgDefaultSheetHost.h) unless SetSheetHost() gave another; a game
+// instance without a viewport shows none, and Pay and Restore resolve Failed "sheet.unavailable".
 //
 // CONFIGURATION WITHOUT CODE. Initialize applies the project settings (UScfgSettings, Project Settings > Plugins >
 // SCFG, saved to DefaultGame.ini) when they have a wallet, through the same AddChain / Configure / AddItem calls; a
@@ -44,7 +44,7 @@
 // stored can be dropped by the other's next save until a restart (which reads the file again) or a Restore brings it
 // back. Test payments with one client.
 //
-// Deinitialize (or BeginDestroy, if Deinitialize never ran) tears down in ScfgFacade.h's TEARDOWN order, exactly:
+// Deinitialize (or BeginDestroy, if Deinitialize never ran) tears down in this order, exactly:
 // 1. the open sheets and controllers are closed; 2. the worker is stopped and destroyed (its destructor destroys its
 // Jobs, then the Engine, then the transport it owns); 3. the store flushes what it owes and is destroyed (its OnError,
 // which that flush may call, only logs); 4. the pump leaves the ticker.
@@ -53,7 +53,6 @@
 // function its own line; the ensure beside it reports once per process, with its callstack) and touches nothing:
 // Pay, PayAsync, Restore and RestoreAsync deliver their Failed result ("RuntimeError") on the game thread, at the next
 // tick of the core ticker, never on the calling thread; the queries return their neutral value.
-//
 #pragma once
 
 #include "CoreMinimal.h"
@@ -69,6 +68,8 @@ class FScfgFacade;
 class UScfgSettings;
 struct FScfgFacadeOptions;
 
+// The SCFG API: one per game instance (none on a dedicated server). Configure it, declare the items, then Pay, Restore
+// and the queries; see the file header for the rules.
 UCLASS()
 class SCFG_API UScfgSubsystem : public UGameInstanceSubsystem
 {
@@ -142,6 +143,7 @@ public:
 
 	// A verified receipt unlocks ItemId. Instant and offline. An unknown item is a developer error (logged; false).
 	bool Owns(const FString& ItemId);
+	// True once the player has tipped any amount.
 	bool HasTipped();
 	// The sum of the player's tips as a decimal string ("0", "2.50").
 	FString TipTotal();
@@ -164,6 +166,7 @@ public:
 	// Show a short notification (through the sheet host) when a payment confirms or purchases are restored.
 	UFUNCTION(BlueprintCallable, Category = "SCFG")
 	void SetNotify(bool bInNotify);
+	// Whether those notifications are shown (off until SetNotify(true)).
 	UFUNCTION(BlueprintPure, Category = "SCFG")
 	bool GetNotify() const;
 
@@ -182,13 +185,10 @@ public:
 
 	// Deinitialize has begun: the flows resolve without delivering anything.
 	bool IsShuttingDown() const;
-	// How many calls, process-wide, were refused because they came from another thread (each logged once).
-	static int32 NumOffThreadCalls();
 
 private:
-	friend struct FScfgSubsystemTestAccess;
-	// The plugin's own access (Private/ScfgSubsystemAccess.h): the facade for the tests and the e2e driver, the
-	// unguarded async starts for the nodes.
+	// The plugin's own access (plugin-internal): the facade, the facade's start with other options, and the unguarded
+	// async starts for the nodes.
 	friend struct FScfgSubsystemAccess;
 
 	// PayAsync / RestoreAsync with OnResolved as given: the async nodes, which drop a teardown result themselves (and

@@ -33,8 +33,8 @@ void SScfgToast::Construct(const FArguments& InArgs, const TSharedRef<FScfgStyle
 
 FLinearColor SScfgToast::Fade() const
 {
-	const float Past = Elapsed - SECONDS;
-	const float Alpha = Past <= 0.f ? 1.f : FMath::Clamp(1.f - Past / FADE_SECONDS, 0.f, 1.f);
+	const float Past = Elapsed - ShowSeconds;
+	const float Alpha = Past <= 0.f ? 1.f : FMath::Clamp(1.f - Past / FadeSeconds, 0.f, 1.f);
 	return FLinearColor(1, 1, 1, Alpha);
 }
 
@@ -45,7 +45,7 @@ void SScfgToast::Advance(float Seconds)
 		return;
 	}
 	Elapsed += FMath::Max(0.f, Seconds);
-	if (Elapsed >= SECONDS + FADE_SECONDS)
+	if (Elapsed >= ShowSeconds + FadeSeconds)
 	{
 		bFinished = true;
 		OnFinished.ExecuteIfBound();

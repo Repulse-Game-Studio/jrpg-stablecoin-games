@@ -6,7 +6,7 @@
 //   - submits commands (StartSession, ReportHint, Tick, ...), each with a completion callback that gets the core's
 //     Result<T> (the glue never sees a Co or a Future);
 //   - reads the latest detached Snapshot (GetSnapshot), replaced after every command, and hooks OnStateChanged (the
-//     store saves from it, task 4);
+//     store saves from it);
 //   - collects the tick's StepOutcomes with DrainOutcomes() (a "waiting" one only when it has an error).
 //
 // ONE COMMAND AT A TIME. The commands wait in a FIFO; the next starts when the running one has finished, as worker.py
@@ -14,21 +14,20 @@
 // start). A network command (StartSession, BuildSolanaPayment, Tick, Reverify, RestoreLookup) runs as an scfg::Job
 // and finishes when the transport completes its last request; the others finish at once.
 //
-// TICKS. A tick is a command too, but coalesced, and it yields to queued commands: at most one tick is pending, and
-// it starts only when no command is queued (worker.py drains its queue before the tick of a pass). Commands come
-// first (worker.py, testbed U15): a tick is background work (watching pending payments) and every command is the
-// player's, so a command submitted while a tick runs Engine::tick() makes that tick yield. Its requests are refused
-// (Engine::refuse_requests) and the one in flight ends at once with Abandoned (Engine::abandon_in_flight, from the
-// next frame of the ticker), so Engine::tick() stops there and the tick ends with the outcomes it already has (not an
-// error: nothing goes to OnError, and its Tick() callers get those outcomes); the interrupted session is stepped
-// again by the next tick, which the command requested and which runs right after it. The first-run reverify never
-// yields: only the Engine::tick() part of the first tick does. A tick is
-// requested by Tick() (callers' callbacks gather on the pending one), by every other command (worker.py's submit
-// wakes the loop, so a command is followed by a tick), by Start(), and by the clock: Interval() seconds (default
-// POLL_INTERVAL, worker.py's 15.0) after the last tick ended. The very first tick runs Engine::reverify() before
-// Engine::tick() (worker.py's first run_once); when that reverify fails, the tick fails with its Err and the reverify
-// is not retried (worker.gd), unless it was cancelled by Stop() before it finished: then the next tick runs it. The
-// next tick comes an interval after a failing one.
+// TICKS. A tick is a command too, but coalesced, and it yields to queued commands: at most one tick is pending, and it
+// starts only when no command is queued (worker.py drains its queue before the tick of a pass). Commands come first
+// (worker.py): a tick is background work (watching pending payments) and every command is the player's, so a command
+// submitted while a tick runs Engine::tick() makes that tick yield. Its requests are refused (Engine::refuse_requests)
+// and the one in flight ends at once with Abandoned (Engine::abandon_in_flight, from the next frame of the ticker), so
+// Engine::tick() stops there and the tick ends with the outcomes it already has (not an error: nothing goes to OnError,
+// and its Tick() callers get those outcomes); the interrupted session is stepped again by the next tick, which the
+// command requested and which runs right after it. The first-run reverify never yields: only the Engine::tick() part of
+// the first tick does. A tick is requested by Tick() (callers' callbacks gather on the pending one), by every other
+// command (worker.py's submit wakes the loop, so a command is followed by a tick), by Start(), and by the clock:
+// Interval() seconds (default PollIntervalSeconds, worker.py's 15.0) after the last tick ended. The very first tick
+// runs Engine::reverify() before Engine::tick() (worker.py's first run_once); when that reverify fails, the tick fails
+// with its Err and the reverify is not retried (worker.gd), unless it was cancelled by Stop() before it finished: then
+// the next tick runs it. The next tick comes an interval after a failing one.
 //
 // ERRORS ARE LOGGED HERE, ONCE. Every Err a command or a tick ends with (a CancelledError or Abandoned excepted) goes
 // to OnError (default: LogScfg) exactly once, whether the command has a callback or not and however many Tick()
@@ -59,12 +58,13 @@
 // so a superseded start never holds the next pick up behind its endpoints. Abandoned is not reported to OnError.
 //
 // START AND STOP. Commands submitted before Start() wait for it. Stop() cancels the running command (its Job is
-// destroyed, which cancels its coroutine) and every queued one: each callback gets CancelledError, on the next
-// frame; no tick runs until Start() again, and a command submitted while stopped is cancelled the same way. (worker.gd
-// lets a pass already in flight finish; Unreal's quit has no later frame for it.) Stop() then takes a fresh Snapshot
-// from the Engine (idle by then): an answer that arrived since the last frame has already written its receipt or
-// state change into the Engine, and GetSnapshot() shows it right after Stop() (the facade's Shutdown saves it). Destroying the worker cancels
-// everything without calling back, then tears down in the order Jobs -> Engine -> transport (Shutdown()).
+// destroyed, which cancels its coroutine) and every queued one: each callback gets CancelledError, on the next frame;
+// no tick runs until Start() again, and a command submitted while stopped is cancelled the same way. (worker.gd lets a
+// pass already in flight finish; Unreal's quit has no later frame for it.) Stop() then takes a fresh Snapshot from the
+// Engine (idle by then): an answer that arrived since the last frame has already written its receipt or state change
+// into the Engine, and GetSnapshot() shows it right after Stop() (the facade's Shutdown saves it). Destroying the
+// worker cancels everything without calling back, then tears down in the order Jobs -> Engine -> transport
+// (Shutdown()).
 #pragma once
 
 #include "CoreMinimal.h"
@@ -134,7 +134,7 @@ private:
 struct FScfgWorkerOptions
 {
 	// Seconds between ticks, read when a tick ends (the facade shortens it while a sheet is open). Default:
-	// FScfgWorker::POLL_INTERVAL.
+	// FScfgWorker::PollIntervalSeconds.
 	TFunction<double()> Interval;
 	// The Engine's clock: whole seconds (session timestamps and windows). Default: Unix time.
 	TFunction<int64()> Clock;
@@ -155,7 +155,7 @@ class SCFG_API FScfgWorker
 {
 public:
 	// worker.py's default interval: seconds between the end of one tick and the next, unless a command wakes it.
-	static constexpr double POLL_INTERVAL = 15.0;
+	static constexpr double PollIntervalSeconds = 15.0;
 
 	// A command's completion callback (TOnDone<void> gets a Status).
 	template <class T>
@@ -215,7 +215,7 @@ public:
 	bool IsBusy() const { return Current.IsValid(); }
 	bool IsTickPending() const { return PendingTick.IsValid(); }
 	// The seconds the next tick will wait (Interval(), read now; the tests check the facade's wiring).
-	double GetInterval() const { return Options.Interval ? Options.Interval() : POLL_INTERVAL; }
+	double GetInterval() const { return Options.Interval ? Options.Interval() : PollIntervalSeconds; }
 	// Valid and true while the worker exists: a holder that may outlive it (the Submitter adapter) checks it before
 	// every call.
 	TWeakPtr<bool> GetLifetime() const { return Alive; }

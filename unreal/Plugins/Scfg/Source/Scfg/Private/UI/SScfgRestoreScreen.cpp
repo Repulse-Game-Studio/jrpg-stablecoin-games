@@ -169,7 +169,7 @@ void SScfgRestoreScreen::InputPart(SVerticalBox& Body)
 	const bool bInput = C.State() == TEXT("input");
 	ScfgRestoreScreenDetail::AddTo(Body, Label(ScfgTexts::Get(TEXT("paste_hash_help")), TEXT("Scfg.Muted")));
 	TWeakPtr<SScfgRestoreScreen> Weak = StaticCastSharedRef<SScfgRestoreScreen>(AsShared());
-	ScfgRestoreScreenDetail::AddTo(Body, Field(TEXT("tx_input"), C.TxInput(), FScfgFacade::TX_MAX_LENGTH, FScfgFacade::TxChars(),
+	ScfgRestoreScreenDetail::AddTo(Body, Field(TEXT("tx_input"), C.TxInput(), FScfgFacade::TxMaxLength, FScfgFacade::TxChars(),
 				  [C, Weak](const FString& Text) mutable
 				  {
 					  C.SetTxInput(Text);

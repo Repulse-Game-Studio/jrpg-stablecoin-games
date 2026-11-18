@@ -2,6 +2,8 @@
 // No Python twin: see ScfgBlueprintLibrary.h.
 #include "ScfgBlueprintLibrary.h"
 
+#include "ScfgBlueprintLibraryAccess.h"
+#include "ScfgFacade.h"
 #include "ScfgLog.h"
 #include "ScfgSubsystem.h"
 
@@ -74,10 +76,12 @@ bool UScfgBlueprintLibrary::OnDedicatedServer(const UObject* WorldContextObject)
 	return Context && Context->RunAsDedicated;
 }
 
-void UScfgBlueprintLibrary::ResetLogOnceForTests()
+#if !UE_BUILD_SHIPPING
+void FScfgBlueprintLibraryAccess::ResetLogOnce()
 {
 	ScfgLibraryDetail::Logged().Reset();
 }
+#endif
 
 bool UScfgBlueprintLibrary::Owns(const UObject* WorldContextObject, const FString& ItemId)
 {
@@ -111,5 +115,5 @@ TMap<FString, FScfgPendingPayment> UScfgBlueprintLibrary::Pending(const UObject*
 
 bool UScfgBlueprintLibrary::Supported()
 {
-	return true;
+	return FScfgFacade::Supported();
 }

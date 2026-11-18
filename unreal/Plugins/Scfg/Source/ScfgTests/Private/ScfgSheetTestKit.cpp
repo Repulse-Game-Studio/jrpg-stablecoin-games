@@ -80,7 +80,7 @@ FSheetRig::FSheetRig(FAutomationTestBase& Test, FVector2D Size)
 	GameWorld = Instance->GetWorld();
 	Viewport.Reset(NewObject<UGameViewportClient>(GEngine));  // its ClassWithin is UEngine
 	// The engine gives a game's client its overlay in UGameEngine::CreateGameViewportWidget; a test has no game window.
-	// 5.8 deprecates this setter for a "Bind" that UGameViewportClient does not have (engine-facts.md); 5.6 and 5.7
+	// 5.8 deprecates this setter for a "Bind" that UGameViewportClient does not have; 5.6 and 5.7
 	// have it undeprecated.
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Viewport->SetViewportOverlayWidget(Window, Layer.ToSharedRef());
@@ -273,7 +273,7 @@ TSharedPtr<SScfgPaymentSheet> FSheetRig::Sheet() const
 	{
 		return nullptr;
 	}
-	const TArray<TSharedRef<SScfgScreen>> All = Host->Screens();
+	const TArray<TSharedRef<SScfgScreen>> All = FScfgDefaultSheetHostAccess::Screens(*Host);
 	for (int32 I = All.Num() - 1; I >= 0; --I)
 	{
 		if (All[I]->GetType() == FName(TEXT("SScfgPaymentSheet")))
@@ -290,7 +290,7 @@ TSharedPtr<SScfgRestoreScreen> FSheetRig::RestoreScreen() const
 	{
 		return nullptr;
 	}
-	const TArray<TSharedRef<SScfgScreen>> All = Host->Screens();
+	const TArray<TSharedRef<SScfgScreen>> All = FScfgDefaultSheetHostAccess::Screens(*Host);
 	for (int32 I = All.Num() - 1; I >= 0; --I)
 	{
 		if (All[I]->GetType() == FName(TEXT("SScfgRestoreScreen")))
