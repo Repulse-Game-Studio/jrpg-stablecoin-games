@@ -1124,6 +1124,45 @@ namespace Scfg.Core.Tests
             Assert.That(reported, Is.Empty);
         }
 
+        // test_worker.py's test_an_abandoned_running_job_is_refused_its_next_request: the player picks another
+        // network while a start waits on its first endpoint, which fails; the next endpoint is never asked.
+        [Test]
+        public void AnAbandonedRunningJobIsRefusedItsNextRequest()
+        {
+            var urls = Chains.Testnet["base"].Rpc;
+            Assert.That(urls.Count, Is.GreaterThanOrEqualTo(2), "Base Sepolia has a second endpoint to fall back to");
+            Job? start = null;
+            var handlers = new Dictionary<string, Handler>();
+            foreach (var u in urls) handlers[u] = WorkerFixtures.IdleNode;
+            handlers[urls[0]] = (method, prms) =>
+            {
+                start!.Abandon(); // while its first request is in flight
+                throw new TransportError("timed out after 10s");
+            };
+            var transport = new FakeTransport(handlers);
+            var engine = new Engine(WorkerFixtures.BaseConfig(), transport, null, null, () => 1700000000, entropy: WorkerFixtures.Draws());
+            var w = new Worker(engine, new FakeScheduler());
+            start = w.Submit(async e => await e.StartSession("unlock", "base", new JsonObject { { "item", "chapter2" } }));
+            Completed(w.RunOnce());
+            Assert.That(start.Exception(), Is.InstanceOf<Abandoned>());
+            Assert.That(transport.Calls.Where(c => c.Method == "eth_blockNumber").Select(c => c.Url), Is.EqualTo(new[] { urls[0] }),
+                        "the second endpoint is not asked");
+            Assert.That(w.Snapshot.Pending, Is.Empty);
+        }
+
+        [Test]
+        public void AbandoningAQueuedJobCancelsIt()
+        {
+            var w = new Worker(WorkerFixtures.IdleEngine(), new FakeScheduler());
+            var ran = false;
+            var job = w.Submit(_ => { ran = true; return Task.FromResult<object?>(null); });
+            job.Abandon();
+            Completed(w.RunOnce());
+            Assert.That(job.Cancelled(), Is.True);
+            Assert.That(ran, Is.False);
+            Assert.That(job.IsAbandoned, Is.False, "cancelled, not abandoned while running");
+        }
+
         // --- one thread ----------------------------------------------------------------------------------------------
 
         /// <summary>

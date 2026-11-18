@@ -40,6 +40,15 @@ namespace Scfg.Core
     /// (with a value or an exception) or cancelled. The worker completes the jobs it hands out; test fakes and drivers
     /// may complete their own, as Python's Future API is public too. Not thread-safe: it lives on one thread.
     /// </summary>
+    /// <summary>
+    /// Raised into a job the caller abandoned (<see cref="Job.Abandon"/>), at its next RPC request. Not a
+    /// <see cref="TransportError"/>, so no endpoint cools down (worker.py's Abandoned).
+    /// </summary>
+    public sealed class Abandoned : System.Exception
+    {
+        public Abandoned(string message) : base(message) { }
+    }
+
     public sealed class Job
     {
         private enum State { Pending, Running, Finished, Cancelled }
@@ -67,6 +76,19 @@ namespace Scfg.Core
         public bool Cancelled() => _state == State.Cancelled;
 
         public bool Running() => _state == State.Running;
+
+        /// <summary>Whether <see cref="Abandon"/> found it running: its RPC requests are refused from then on.</summary>
+        public bool IsAbandoned { get; private set; }
+
+        /// <summary>
+        /// worker.py's abandon(): a job that has not started is cancelled (it never runs); a running one is refused its
+        /// next RPC request with <see cref="Abandoned"/>, so the commands queued behind it wait at most for the request
+        /// in flight. Its done callbacks still run when it ends.
+        /// </summary>
+        public void Abandon()
+        {
+            if (!Cancel()) IsAbandoned = true;
+        }
 
         /// <summary>
         /// The value. Throws the job's own exception if it failed (rethrown with its original stack trace, on every
@@ -415,6 +437,8 @@ namespace Scfg.Core
                 if (!cmd.Job.TryStart()) continue; // cancelled, or completed by someone else
                 object? value = null;
                 Exception? error = null;
+                var job = cmd.Job;
+                Engine.RefuseRequests = () => job.IsAbandoned; // this job's requests, refused once it is abandoned
                 try
                 {
                     var task = cmd.Fn(Engine) ?? throw new TypeError("a command returned null instead of a Task");
@@ -423,6 +447,10 @@ namespace Scfg.Core
                 catch (Exception e)
                 {
                     error = e;
+                }
+                finally
+                {
+                    Engine.RefuseRequests = null;
                 }
                 if (cmd.Job.Done())
                 {

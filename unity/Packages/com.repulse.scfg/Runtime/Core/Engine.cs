@@ -47,6 +47,12 @@ namespace Scfg.Core
         public ITransport Transport { get; }
         public IEntropy Entropy { get; }
 
+        /// <summary>
+        /// While it returns true, the RPC requests the Engine's own RPC clients make are refused with
+        /// <see cref="Abandoned"/>: the worker points it at the job it runs (worker.py's per-job transport).
+        /// </summary>
+        public Func<bool>? RefuseRequests { get; set; }
+
         private readonly Func<Chain, object> _rpcFactory;
         private readonly Dictionary<string, object> _rpcs = new Dictionary<string, object>(StringComparer.Ordinal);
         private HashSet<(string Chain, string Token)> _unready = new HashSet<(string, string)>();
@@ -65,10 +71,25 @@ namespace Scfg.Core
             Pending = (JsonObject)DeepCopy.Of(pending ?? new JsonObject())!;
             Receipts = (JsonObject)DeepCopy.Of(receipts ?? new JsonObject())!;
             Entropy = entropy ?? SystemEntropy.Instance;
-            _rpcFactory = rpcFactory ?? (chain => Backends.BackendFor(chain).MakeRpc(chain, Transport));
+            _rpcFactory = rpcFactory ?? (chain => Backends.BackendFor(chain).MakeRpc(chain, new RefusingTransport(this)));
         }
 
         // --- chains & RPC ---------------------------------------------------------
+
+        /// <summary>The Engine's transport, refusing requests while <see cref="RefuseRequests"/> says so.</summary>
+        private sealed class RefusingTransport : ITransport
+        {
+            private readonly Engine _engine;
+
+            public RefusingTransport(Engine engine) { _engine = engine; }
+
+            public Task<object?> PostJson(string url, JsonObject payload, double timeout)
+            {
+                if (_engine.RefuseRequests?.Invoke() == true)
+                    return Task.FromException<object?>(new Abandoned("abandoned before its request to " + url));
+                return _engine.Transport.PostJson(url, payload, timeout);
+            }
+        }
 
         /// <summary>Full registry chain (all tokens, so old receipts stay verifiable) with overrides. KeyError if unknown.</summary>
         public Chain Chain(string key)

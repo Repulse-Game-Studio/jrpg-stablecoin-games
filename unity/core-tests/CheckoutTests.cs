@@ -633,6 +633,34 @@ namespace Scfg.Core.Tests
         }
 
         [Test]
+        public async Task ASupersededStartThatHasNotRunIsCancelledAndNeverRuns()
+        {
+            var (ctl, engine, submit, _) = Setup();
+            ctl.ChooseNetwork("arbitrum");
+            var first = submit.Queue[0].Job;
+            ctl.ChooseNetwork("base");
+            Assert.That(first.Cancelled(), Is.True, "the new pick does not queue behind it");
+            await submit.Run();
+            ctl.Poll();
+            Assert.That(ctl.State, Is.EqualTo("waiting"));
+            Assert.That(ctl.ChainKey, Is.EqualTo("base"));
+            Assert.That(submit.Queue, Is.Empty, "nothing ran for arbitrum, so nothing is left to discard");
+            Assert.That(Chains(engine), Is.EqualTo(new[] { "base" }));
+        }
+
+        [Test]
+        public void ARunningSupersededStartIsMarkedAbandoned()
+        {
+            var (ctl, _, submit, _) = Setup();
+            ctl.ChooseNetwork("arbitrum");
+            var first = submit.Queue[0].Job;
+            Assert.That(first.SetRunningOrNotifyCancel(), Is.True); // the start is running
+            ctl.ChooseNetwork("base");
+            Assert.That(first.Cancelled(), Is.False);
+            Assert.That(first.IsAbandoned, Is.True, "its next RPC request is refused (WorkerTests)");
+        }
+
+        [Test]
         public async Task ChangingTheTipWhileStartingDiscardsTheFirstSession()
         {
             var (ctl, engine, submit, _) = Setup("tip");
@@ -664,10 +692,10 @@ namespace Scfg.Core.Tests
         {
             var (ctl, engine, submit, _) = Setup();
             ctl.ChooseNetwork("arbitrum");
-            ctl.Cancel();
             var job = submit.Queue[0].Job;
             submit.Queue.RemoveAt(0);
-            job.SetRunningOrNotifyCancel();
+            Assert.That(job.SetRunningOrNotifyCancel(), Is.True); // the start is running when the player cancels
+            ctl.Cancel();
             job.SetException(new RpcUnavailable("rpc down"));
             await submit.Run();
             Assert.That(submit.Queue, Is.Empty, "no discard was submitted");
