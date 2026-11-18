@@ -30,7 +30,7 @@ def test_default_onramp_url_is_thirdwebs_buy_page_locked_to_the_token():
     url = onramp_url(ONRAMP_URL, chain="base", chain_id=8453, token="USDC",
                      token_address=USDC_BASE, amount="5.00")
     assert url == ("https://thirdweb.com/bridge/buy-widget?chain=8453"
-                   f"&tokenAddress={USDC_BASE}&amount=5.00&tokenEditable=false")
+                   f"&tokenAddress={USDC_BASE}&amount=5.00&tokenEditable=false&paymentMethods=card")
 
 
 def test_onramp_url_fills_every_placeholder_each_time_it_appears():

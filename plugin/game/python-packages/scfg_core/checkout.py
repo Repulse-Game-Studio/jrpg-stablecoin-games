@@ -24,7 +24,7 @@ from .backends import backend_for
 from .chains import Chain
 from .config import Config, enabled_chains, text_on
 from .models import PaymentResult
-from .paylinks import eip681_transfer_uri, onramp_amount, onramp_url
+from .paylinks import ONRAMP_EXACT_UNITS, eip681_transfer_uri, onramp_amount, onramp_url
 from .payments import MIN_TIP, TIP_PRESETS, PaymentSpec
 from .rpc import RpcUnavailable
 from .solana.paylinks import solana_pay_uri
@@ -50,6 +50,40 @@ MESSAGES = {
     "paste_blocked": ("Your browser blocked pasting. Type it instead: "
                       "the game also finds the payment without it."),
 }
+
+
+ONRAMP_PAGES = ("browser", "qr", "manual")
+
+
+def onramp_view(config: Config, *, token: str, chain_key: str | None, units: int | None,
+                amount: Decimal, step: str, path: list[str], can_go_back: bool,
+                option_keys: list[str]) -> dict:
+    """The buy link's state on a checkout step, as the controller and every port decide it
+    (pinned by the tier1 vectors, fn onramp_view):
+
+    - url: configure(onramp=...)'s page for the chosen network when it is offered there, else
+      None. The suggested amount is the session's exact `units`, or before a session the
+      payment `amount` plus the most the item code and nonce add (ONRAMP_EXACT_UNITS); plus a
+      cent where the token is the network's gas coin (Arc); rounded up to whole cents.
+    - The step it goes on: the method step, or the payment page the sheet opens on when the
+      method step is skipped (a single method: "method" is not in `path`).
+    - shows_onramp: on that step, with a url.
+    - shows_onramp_hint: on that step, without a url (Solana), while the player can go back
+      and another network they can pick (`option_keys`) has the link.
+    """
+    opts = config.onramp
+    chain = enabled_chains(config).get(chain_key) if chain_key else None
+    url = None
+    if opts["enabled"] and chain is not None and chain.key in opts["chains"]:
+        if units is None:
+            units = decimal_to_units(amount) + ONRAMP_EXACT_UNITS
+        url = onramp_url(opts["url"], chain=chain.key, chain_id=chain.chain_id, token=token,
+                         token_address=chain.tokens[token].address,
+                         amount=onramp_amount(units, chain.native_token == token))
+    here = step == "method" or (step in ONRAMP_PAGES and "method" not in path)
+    hint = (opts["enabled"] and here and url is None and can_go_back
+            and any(key in opts["chains"] for key in option_keys))
+    return {"url": url, "shows_onramp": here and url is not None, "shows_onramp_hint": hint}
 
 
 class CheckoutController:
@@ -161,40 +195,30 @@ class CheckoutController:
         return eip681_transfer_uri(token_address=self.token_address, chain_id=self.chain.chain_id,
                                    recipient=self.recipient, units=self.session["units"])
 
+    def _onramp(self) -> dict:
+        return onramp_view(self.config, token=self.spec.token, chain_key=self.chain_key,
+                           units=self.session["units"] if self.session else None,
+                           amount=self.amount, step=self.step, path=self.step_path(),
+                           can_go_back=self.can_go_back,
+                           option_keys=[key for key, _name, _fee in self.chain_options()])
+
     def onramp_url(self) -> str | None:
         """The page where a player without the token buys some with a card, for the chosen
         network, with the payment (plus a cent for the fee on Arc) suggested as the amount.
-        None when configure(onramp=...) doesn't offer it on this network."""
-        opts = self.config.onramp
-        chain = self.chain
-        if not opts["enabled"] or chain is None or chain.key not in opts["chains"]:
-            return None
-        units = self.session["units"] if self.session else decimal_to_units(self.amount)
-        return onramp_url(opts["url"], chain=chain.key, chain_id=chain.chain_id,
-                          token=self.spec.token, token_address=self.token_address,
-                          amount=onramp_amount(units, chain.native_token == self.spec.token))
-
-    def _onramp_step(self) -> bool:
-        """The step where the buy link (or its hint) goes: the method step, or the payment page
-        the sheet opens on when the method step is skipped (a single method)."""
-        return self.step == "method" or (self.step in ("browser", "qr", "manual")
-                                         and "method" not in self.step_path())
+        None when configure(onramp=...) doesn't offer it on this network (see onramp_view)."""
+        return self._onramp()["url"]
 
     @property
     def shows_onramp(self) -> bool:
         """Whether this step offers the buy link."""
-        return self._onramp_step() and self.onramp_url() is not None
+        return self._onramp()["shows_onramp"]
 
     @property
     def shows_onramp_hint(self) -> bool:
         """Whether this step points to the buy link instead ("Pick another network"), because
         the chosen network has none (Solana) but another one the player can pick has it. Its
         button goes back to the network step (``back()``)."""
-        opts = self.config.onramp
-        if (not opts["enabled"] or not self._onramp_step() or self.onramp_url() is not None
-                or not self.can_go_back):
-            return False
-        return any(key in opts["chains"] for key, _name, _fee in self.chain_options())
+        return self._onramp()["shows_onramp_hint"]
 
     def explorer_url(self) -> str | None:
         tx = self.result.tx_hash if self.result and self.result.tx_hash else self.hint_tx

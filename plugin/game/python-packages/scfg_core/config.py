@@ -291,10 +291,12 @@ def _merge_methods(methods: dict | None, chains: tuple[str, ...]) -> dict[str, d
 
 def _onramp_url(value) -> str:
     """An https:// URL of printable ASCII (no spaces) whose only braces are placeholders
-    from ONRAMP_FIELDS, like '{chain_id}'."""
+    from ONRAMP_FIELDS, like '{chain_id}'. A host must follow https://: its first character is
+    not a brace, '/', '?' or '#' ('https://', 'https:///buy' and 'https://{amount}' are refused)."""
     if (not isinstance(value, str) or not value.startswith("https://")
-            or len(value) > ONRAMP_URL_LIMIT or any(not "!" <= ch <= "~" for ch in value)):
-        raise ConfigError("onramp url must be an https:// URL without spaces, "
+            or len(value) > ONRAMP_URL_LIMIT or any(not "!" <= ch <= "~" for ch in value)
+            or value[8:9] in ("", "{", "}", "/", "?", "#")):
+        raise ConfigError("onramp url must be an https:// URL with a host, without spaces, "
                           f"at most {ONRAMP_URL_LIMIT} characters: {value!r}",
                           code="onramp.bad_url")
     for name in ONRAMP_PLACEHOLDER.findall(value):

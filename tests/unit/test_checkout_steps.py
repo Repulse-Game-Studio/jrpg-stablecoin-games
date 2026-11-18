@@ -1,7 +1,9 @@
 """The stepped payment sheet: CheckoutController.step and its navigation."""
 
+from decimal import Decimal
+
 from scfg_core.chains import MAINNET
-from scfg_core.checkout import CheckoutController
+from scfg_core.checkout import CheckoutController, onramp_view
 from scfg_core.config import add_item, build_config
 from scfg_core.engine import Engine
 from scfg_core.payments import prepare_payment
@@ -400,14 +402,14 @@ def test_the_method_step_offers_the_buy_page_for_the_chosen_network():
     assert ctl.step == "method" and ctl.shows_onramp is True
     assert 4_990_000 <= ctl.session["units"] < 5_000_000
     assert ctl.onramp_url() == ("https://thirdweb.com/bridge/buy-widget?chain=42161"
-                                f"&tokenAddress={USDC_ARB}&amount=5.00&tokenEditable=false")
+                                f"&tokenAddress={USDC_ARB}&amount=5.00&tokenEditable=false&paymentMethods=card")
 
 
 def test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee():
     ctl, *_ = setup(chains=["base", "arc"])
     ctl.choose_network("arc")
     ctl.poll()
-    assert ctl.onramp_url().endswith("&amount=5.01&tokenEditable=false")
+    assert ctl.onramp_url().endswith("&amount=5.01&tokenEditable=false&paymentMethods=card")
 
 
 def test_the_buy_link_moves_to_the_only_payment_page():
@@ -427,3 +429,15 @@ def test_the_buy_link_follows_the_onramp_option():
     assert ctl.chain_key == "arbitrum" and ctl.onramp_url() is None
     ctl, *_ = on_method_step(onramp={"url": "https://buy.example/{chain}/{token}?a={amount}"})
     assert ctl.onramp_url() == "https://buy.example/arbitrum/USDC?a=5.00"
+
+
+def test_before_a_session_the_buy_link_suggests_the_most_the_payment_can_be():
+    cfg = build_config(DEV, chains=["arbitrum", "arc"])
+    view = dict(token="USDC", units=None, amount=Decimal("4.99"), step="method",
+                path=["network", "method", "browser", "waiting"], can_go_back=True,
+                option_keys=["arbitrum", "arc"])
+    # 4.99 plus at most 0.009999 of item code and nonce: the session's 4.993742 also gives 5.00
+    assert onramp_view(cfg, chain_key="arbitrum", **view)["url"].count("&amount=5.00&") == 1
+    assert onramp_view(cfg, chain_key="arc", **view)["url"].count("&amount=5.01&") == 1
+    assert onramp_view(cfg, chain_key=None, **view) == {
+        "url": None, "shows_onramp": False, "shows_onramp_hint": True}

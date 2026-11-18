@@ -428,11 +428,11 @@
     "amount": "5.00",
     "chain": "base",
     "chain_id": 8453,
-    "template": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false",
+    "template": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card",
     "token": "USDC",
     "token_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
    },
-   "out": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false"
+   "out": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
   },
   {
    "fn": "onramp_url",
@@ -440,11 +440,11 @@
     "amount": "5.01",
     "chain": "arc",
     "chain_id": 5042,
-    "template": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false",
+    "template": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card",
     "token": "USDC",
     "token_address": "0x3600000000000000000000000000000000000000"
    },
-   "out": "https://thirdweb.com/bridge/buy-widget?chain=5042&tokenAddress=0x3600000000000000000000000000000000000000&amount=5.01&tokenEditable=false"
+   "out": "https://thirdweb.com/bridge/buy-widget?chain=5042&tokenAddress=0x3600000000000000000000000000000000000000&amount=5.01&tokenEditable=false&paymentMethods=card"
   },
   {
    "fn": "onramp_url",
@@ -452,11 +452,11 @@
     "amount": "1000000.01",
     "chain": "ethereum",
     "chain_id": 1,
-    "template": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false",
+    "template": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card",
     "token": "USDT",
     "token_address": "0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb"
    },
-   "out": "https://thirdweb.com/bridge/buy-widget?chain=1&tokenAddress=0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb&amount=1000000.01&tokenEditable=false"
+   "out": "https://thirdweb.com/bridge/buy-widget?chain=1&tokenAddress=0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb&amount=1000000.01&tokenEditable=false&paymentMethods=card"
   },
   {
    "fn": "onramp_url",

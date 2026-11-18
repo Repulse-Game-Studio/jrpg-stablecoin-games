@@ -329,6 +329,15 @@ def test_onramp_url_limit_is_inclusive():
     assert len(url) == 2048 and cfg(onramp={"url": url}).onramp["url"] == url
 
 
+@pytest.mark.parametrize("url", ["https://", "https:///buy", "https://{amount}", "https://?a=1",
+                                 "https://#top", "https://}"])
+def test_onramp_url_needs_a_host(url):
+    with pytest.raises(ConfigError) as e:
+        cfg(onramp={"url": url})
+    assert e.value.code == "onramp.bad_url"
+    assert cfg(onramp={"url": "https://x"}).onramp["url"] == "https://x"
+
+
 def test_onramp_chains_must_be_evm():
     with pytest.raises(ConfigError) as e:
         build_config(DEV, solana_wallet=SOL, onramp={"chains": ["base", "solana"]})

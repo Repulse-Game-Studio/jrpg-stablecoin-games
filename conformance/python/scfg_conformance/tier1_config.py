@@ -13,9 +13,11 @@ Input conventions (same file shape as tier1.py):
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Callable
 
 from scfg_core import chains as chains_mod
+from scfg_core.checkout import onramp_view
 from scfg_core.config import add_item, build_chain, build_config
 from scfg_core.payments import prepare_payment
 from scfg_core.solana import pda
@@ -77,6 +79,15 @@ def _build_chain(i):
 @_fn("build_config")
 def _build_config(i):
     return to_jsonable(_config(i))
+
+
+@_fn("onramp_view")
+def _onramp_view(i):
+    units = i["units"]
+    return onramp_view(_config(i["config"]), token=i["token"], chain_key=i["chain_key"],
+                       units=None if units is None else int(units), amount=Decimal(i["amount"]),
+                       step=i["step"], path=i["path"], can_go_back=i["can_go_back"],
+                       option_keys=i["option_keys"])
 
 
 @_fn("add_item")
@@ -176,6 +187,10 @@ _CONFIG_VALID = [
     _c(onramp={"url": "https://x.example/buy"}),
     _c(onramp={"url": "https://x.example/" + "a" * 2028}),     # 2048 characters
     _c(onramp={"url": "https://x.example/!\"#$%&'()*+,-./:;<=>?@[\\]^_`|~"}),
+    _c(onramp=None),                                            # explicit None: the default
+    _c(onramp={"chains": None}),
+    _c(onramp={"url": "https://x"}),                            # the shortest host
+    _c(onramp={"url": "https://x.example"}),
 ]
 
 
@@ -243,6 +258,8 @@ def _config_errors():
         _c(accent="#0e7c74\n"),       # full match: no trailing newline
         _c(accent="#abc\n"),
         _c(onramp=False),
+        _c(onramp=0),
+        _c(onramp=""),
         _c(onramp=["enabled"]),
         _c(onramp={"enable": False}),
         _c(onramp={"enabled": "no"}),
@@ -267,6 +284,17 @@ def _config_errors():
         _c(onramp={"url": "https://x.example/?a=amount}"}),
         _c(onramp={"url": "https://x.example/?a={{amount}}"}),
         _c(onramp={"url": "https://x.example/?a=}{amount}{"}),
+        # a host must follow https://
+        _c(onramp={"url": "https://"}),
+        _c(onramp={"url": "https:///buy"}),
+        _c(onramp={"url": "https://{amount}"}),
+        _c(onramp={"url": "https://?a=1"}),
+        _c(onramp={"url": "https://#top"}),
+        _c(onramp={"url": "https://}"}),
+        # the order inside the option: unknown option, then enabled, then url, then chains
+        _c(onramp={"enabled": "no", "zzz": 1}),
+        _c(onramp={"url": "ftp://x", "enabled": "no"}),
+        _c(onramp={"chains": "base", "url": "ftp://x"}),
         # the first problem wins: an unknown placeholder before a stray brace
         _c(onramp={"url": "https://x.example/?a={x}}"}),
         _c(onramp={"chains": "base"}),
@@ -285,7 +313,73 @@ def _config_errors():
     ]
 
 
-_topic("config", [("build_config", i) for i in _CONFIG_VALID + _config_errors()])
+# --- the buy link on a checkout step (scfg_core.checkout.onramp_view) --------------------------
+# The controller's onramp_url, shows_onramp and shows_onramp_hint come from onramp_view, given
+# the controller's state: the payment's token, the chosen chain, the session's exact units (None
+# before a session), the payment amount, the step, the step path, can_go_back and the keys of
+# the networks the player can pick.
+
+_PATH_METHOD = ["network", "method", "browser", "waiting"]
+_PATH_ONE_METHOD = ["network", "manual", "waiting"]
+_BOTH_ARC = {"wallet": EVM, "solana_wallet": SOL, "chains": ["base", "arc", "solana"]}
+
+
+def _view(config=None, *, token="USDC", chain_key="base", units="4993742", amount="4.99",
+          step="method", path=None, can_go_back=True, option_keys=None) -> dict:
+    return {"config": config or _c(), "token": token, "chain_key": chain_key, "units": units,
+            "amount": amount, "step": step, "path": _PATH_METHOD if path is None else path,
+            "can_go_back": can_go_back,
+            "option_keys": ["base", "arc", "solana"] if option_keys is None else option_keys}
+
+
+_ONRAMP_VIEW = [
+    _view(),                                                              # the method step
+    _view(units="5000000"),                                               # whole cents
+    _view(units=None),                                                    # before a session
+    _view(units=None, amount="5"),
+    _view(units=None, amount="0.01"),
+    _view(_c(chains=["base", "arc"]), chain_key="arc"),                   # Arc: a cent for the fee
+    _view(_c(chains=["base", "arc"]), chain_key="arc", units=None),
+    _view(_c(chains=["base", "arc"]), chain_key="arc", units="5000000"),
+    _view(_c(tokens=["USDT"]), token="USDT", chain_key="ethereum", units="12340103"),
+    _view(chain_key=None),                                                # no network chosen yet
+    _view(chain_key=""),
+    _view(chain_key="polygon"),
+    # where it goes: the method step, or the payment page when the method step is skipped
+    _view(step="browser"),
+    _view(step="qr"),
+    _view(step="manual"),
+    _view(step="manual", path=_PATH_ONE_METHOD),
+    _view(step="browser", path=["network", "browser", "waiting"]),
+    _view(step="qr", path=["qr", "waiting"]),
+    _view(step="network"),
+    _view(step="amount", path=["amount", "network", "method", "browser", "waiting"]),
+    _view(step="waiting"),
+    _view(step="done"),
+    _view(step="waiting", path=_PATH_ONE_METHOD),
+    # the option
+    _view(_c(onramp={"enabled": False})),
+    _view(_c(onramp={"chains": ["arbitrum"]})),
+    _view(_c(onramp={"url": "https://buy.example/{chain}/{token}?a={amount}&id={chain_id}"})),
+    _view(_c(testnet=True)),                                              # testnet: offered nowhere
+    _view(_c(testnet=True, onramp={"chains": ["base"]})),
+    # the hint: Solana has no buy page, another network the player can pick does
+    _view(_BOTH_ARC, chain_key="solana"),
+    _view(_BOTH_ARC, chain_key="solana", step="manual", path=_PATH_ONE_METHOD),
+    _view(_BOTH_ARC, chain_key="solana", can_go_back=False),             # a transaction was seen
+    _view(_BOTH_ARC, chain_key="solana", option_keys=["solana"]),        # nothing else to pick
+    _view(_BOTH_ARC, chain_key="solana", option_keys=["arc", "solana"]),
+    _view(_BOTH_ARC, chain_key="solana", step="waiting"),
+    _view(_BOTH_ARC, chain_key="solana", step="qr"),
+    _view({**_BOTH_ARC, "onramp": {"enabled": False}}, chain_key="solana"),
+    _view({**_BOTH_ARC, "onramp": {"chains": []}}, chain_key="solana"),
+    _view({**_BOTH_ARC, "testnet": True}, chain_key="solana"),
+    _view({**_BOTH_ARC, "testnet": True, "onramp": {"chains": ["base"]}}, chain_key="solana"),
+    _view(_BOTH_ARC, chain_key=None, can_go_back=False),
+]
+
+_topic("config", [("build_config", i) for i in _CONFIG_VALID + _config_errors()]
+       + [("onramp_view", i) for i in _ONRAMP_VIEW])
 
 # --- custom chains ---------------------------------------------------------------------------
 

@@ -925,7 +925,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1018,7 +1018,7 @@
       "base"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1114,7 +1114,7 @@
       "base"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1248,7 +1248,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1353,7 +1353,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1463,7 +1463,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1556,7 +1556,7 @@
     "onramp": {
      "chains": [],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1649,7 +1649,7 @@
     "onramp": {
      "chains": [],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1719,7 +1719,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1783,7 +1783,7 @@
     "onramp": {
      "chains": [],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1884,7 +1884,7 @@
     "onramp": {
      "chains": [],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1987,7 +1987,7 @@
       "base"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2096,7 +2096,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2153,7 +2153,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2239,7 +2239,7 @@
     "onramp": {
      "chains": [],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2338,7 +2338,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2431,7 +2431,7 @@
     "onramp": {
      "chains": [],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2525,7 +2525,7 @@
     "onramp": {
      "chains": [],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2620,7 +2620,7 @@
       "arc"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2720,7 +2720,7 @@
       "base"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2820,7 +2820,7 @@
       "fuji"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],

@@ -335,6 +335,9 @@
   "tests/unit/test_config.py::test_onramp_url_limit_is_inclusive": [
    "tier1/config"
   ],
+  "tests/unit/test_config.py::test_onramp_url_needs_a_host": [
+   "tier1/config"
+  ],
   "tests/unit/test_config.py::test_qr_chains_subset_ok": [
    "tier1/config"
   ],

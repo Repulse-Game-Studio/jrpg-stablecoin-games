@@ -42,7 +42,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -98,7 +98,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -144,7 +144,7 @@
     "onramp": {
      "chains": [],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -202,7 +202,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -253,7 +253,7 @@
     "onramp": {
      "chains": [],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -306,7 +306,7 @@
     "onramp": {
      "chains": [],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -360,7 +360,7 @@
       "arbitrum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -420,7 +420,7 @@
       "arc"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -474,7 +474,7 @@
       "base"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -526,7 +526,7 @@
     "onramp": {
      "chains": [],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -584,7 +584,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -642,7 +642,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -701,7 +701,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -771,7 +771,7 @@
       "arbitrum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -835,7 +835,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -899,7 +899,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -962,7 +962,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1029,7 +1029,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1096,7 +1096,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1159,7 +1159,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1229,7 +1229,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [
      "AUn431TLHb8hD7r95QKArw2ezfSR5YBZipFo6vu1iZpe"
@@ -1290,7 +1290,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1347,7 +1347,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1404,7 +1404,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1461,7 +1461,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1518,7 +1518,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1575,7 +1575,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1632,7 +1632,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1687,7 +1687,7 @@
       "arc"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1743,7 +1743,7 @@
       "ethereum"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1802,7 +1802,7 @@
       "ethereum"
      ],
      "enabled": false,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1860,7 +1860,7 @@
       "arc"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1914,7 +1914,7 @@
     "onramp": {
      "chains": [],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1974,7 +1974,7 @@
       "polygon"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2034,7 +2034,7 @@
       "arc"
      ],
      "enabled": true,
-     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2273,6 +2273,240 @@
      ],
      "enabled": true,
      "url": "https://x.example/!\"#$%&'()*+,-./:;<=>?@[\\]^_`|~"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "onramp": null,
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "chains": null
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://x"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://x.example"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum"
+    ],
+    "confirmations": {},
+    "custom_chains": {},
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://x.example"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2875,6 +3109,22 @@
    "error": "onramp.not_a_dict",
    "fn": "build_config",
    "in": {
+    "onramp": 0,
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.not_a_dict",
+   "fn": "build_config",
+   "in": {
+    "onramp": "",
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.not_a_dict",
+   "fn": "build_config",
+   "in": {
     "onramp": [
      "enabled"
     ],
@@ -3161,6 +3411,99 @@
    }
   },
   {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https:///buy"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://{amount}"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://?a=1"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://#top"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "url": "https://}"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.unknown_option",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "enabled": "no",
+     "zzz": 1
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.enabled_not_bool",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "enabled": "no",
+     "url": "ftp://x"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.bad_url",
+   "fn": "build_config",
+   "in": {
+    "onramp": {
+     "chains": "base",
+     "url": "ftp://x"
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
    "error": "onramp.unknown_placeholder",
    "fn": "build_config",
    "in": {
@@ -3306,6 +3649,1316 @@
      "enabled": "no"
     },
     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "5000000"
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": null
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "5",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": null
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.01&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "0.01",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": null
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=0.02&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "arc",
+    "config": {
+     "chains": [
+      "base",
+      "arc"
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=5042&tokenAddress=0x3600000000000000000000000000000000000000&amount=5.01&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "arc",
+    "config": {
+     "chains": [
+      "base",
+      "arc"
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": null
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=5042&tokenAddress=0x3600000000000000000000000000000000000000&amount=5.01&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "arc",
+    "config": {
+     "chains": [
+      "base",
+      "arc"
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "5000000"
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=5042&tokenAddress=0x3600000000000000000000000000000000000000&amount=5.01&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "ethereum",
+    "config": {
+     "tokens": [
+      "USDT"
+     ],
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDT",
+    "units": "12340103"
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=1&tokenAddress=0xdAC17F958D2ee523a2206206994597C13D831ec7&amount=12.35&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": null,
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": true,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": true,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "polygon",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=137&tokenAddress=0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "browser",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "qr",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "manual",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "manual",
+     "waiting"
+    ],
+    "step": "manual",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "browser",
+     "waiting"
+    ],
+    "step": "browser",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "qr",
+     "waiting"
+    ],
+    "step": "qr",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "network",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "amount",
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "amount",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "waiting",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "done",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "manual",
+     "waiting"
+    ],
+    "step": "waiting",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "onramp": {
+      "enabled": false
+     },
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "onramp": {
+      "chains": [
+       "arbitrum"
+      ]
+     },
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "onramp": {
+      "url": "https://buy.example/{chain}/{token}?a={amount}&id={chain_id}"
+     },
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://buy.example/base/USDC?a=5.00&id=8453"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "testnet": true,
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "base",
+    "config": {
+     "onramp": {
+      "chains": [
+       "base"
+      ]
+     },
+     "testnet": true,
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": true,
+    "shows_onramp_hint": false,
+    "url": "https://thirdweb.com/bridge/buy-widget?chain=84532&tokenAddress=0x036CbD53842c5426634e7929541eC2318f3dCF7e&amount=5.00&tokenEditable=false&paymentMethods=card"
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "solana",
+    "config": {
+     "chains": [
+      "base",
+      "arc",
+      "solana"
+     ],
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": true,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "solana",
+    "config": {
+     "chains": [
+      "base",
+      "arc",
+      "solana"
+     ],
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "manual",
+     "waiting"
+    ],
+    "step": "manual",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": true,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": false,
+    "chain_key": "solana",
+    "config": {
+     "chains": [
+      "base",
+      "arc",
+      "solana"
+     ],
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "solana",
+    "config": {
+     "chains": [
+      "base",
+      "arc",
+      "solana"
+     ],
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "solana",
+    "config": {
+     "chains": [
+      "base",
+      "arc",
+      "solana"
+     ],
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": true,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "solana",
+    "config": {
+     "chains": [
+      "base",
+      "arc",
+      "solana"
+     ],
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "waiting",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "solana",
+    "config": {
+     "chains": [
+      "base",
+      "arc",
+      "solana"
+     ],
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "qr",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "solana",
+    "config": {
+     "chains": [
+      "base",
+      "arc",
+      "solana"
+     ],
+     "onramp": {
+      "enabled": false
+     },
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "solana",
+    "config": {
+     "chains": [
+      "base",
+      "arc",
+      "solana"
+     ],
+     "onramp": {
+      "chains": []
+     },
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "solana",
+    "config": {
+     "chains": [
+      "base",
+      "arc",
+      "solana"
+     ],
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "testnet": true,
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": true,
+    "chain_key": "solana",
+    "config": {
+     "chains": [
+      "base",
+      "arc",
+      "solana"
+     ],
+     "onramp": {
+      "chains": [
+       "base"
+      ]
+     },
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "testnet": true,
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": true,
+    "url": null
+   }
+  },
+  {
+   "fn": "onramp_view",
+   "in": {
+    "amount": "4.99",
+    "can_go_back": false,
+    "chain_key": null,
+    "config": {
+     "chains": [
+      "base",
+      "arc",
+      "solana"
+     ],
+     "solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    },
+    "option_keys": [
+     "base",
+     "arc",
+     "solana"
+    ],
+    "path": [
+     "network",
+     "method",
+     "browser",
+     "waiting"
+    ],
+    "step": "method",
+    "token": "USDC",
+    "units": "4993742"
+   },
+   "out": {
+    "shows_onramp": false,
+    "shows_onramp_hint": false,
+    "url": null
    }
   }
  ],
