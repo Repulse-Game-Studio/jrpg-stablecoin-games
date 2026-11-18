@@ -35,6 +35,19 @@ namespace Scfg.Core.Tests
 
         private static string CodeOf(System.Action f) => Assert.Throws<ConfigError>(() => f())!.Code;
 
+        // test_config.py's test_onramp_url_needs_a_host: a host must follow https://.
+        [TestCase("https://")]
+        [TestCase("https:///buy")]
+        [TestCase("https://{amount}")]
+        [TestCase("https://?a=1")]
+        [TestCase("https://#top")]
+        [TestCase("https://}")]
+        public void OnrampUrlNeedsAHost(string url)
+        {
+            Assert.That(CodeOf(() => Config.BuildConfig(Kw(("wallet", Evm1), ("onramp", Kw(("url", url)))))), Is.EqualTo("onramp.bad_url"));
+            Assert.That(Config.BuildConfig(Kw(("wallet", Evm1), ("onramp", Kw(("url", "https://x"))))).Onramp.Url, Is.EqualTo("https://x"));
+        }
+
         [Test]
         public void UnknownAndMissingKeywordsAreTypeErrors()
         {

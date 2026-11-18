@@ -209,6 +209,13 @@ test("test_onramp_url_limit_is_inclusive", () => {
   assert.ok(url.length === 2048 && buildConfig({ wallet: W, onramp: { url } }).onramp.url === url);
 });
 
+test("test_onramp_url_needs_a_host", () => {
+  for (const url of ["https://", "https:///buy", "https://{amount}", "https://?a=1", "https://#top", "https://}"]) {
+    assert.equal(code(() => buildConfig({ wallet: W, onramp: { url } })), "onramp.bad_url", url);
+  }
+  assert.equal(buildConfig({ wallet: W, onramp: { url: "https://x" } }).onramp.url, "https://x");
+});
+
 test("test_onramp_chains_must_be_evm", () => {
   assert.equal(code(() => buildConfig({ wallet: W, solana_wallet: SOL, onramp: { chains: ["base", "solana"] } })), "onramp.not_evm");
 });

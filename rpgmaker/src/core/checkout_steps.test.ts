@@ -5,8 +5,9 @@ import { FakeChain, transferLog } from "../../test/chain_fakes.ts";
 import { FakeServer, PageWithPump, immediateSubmitter } from "../../test/checkout_fakes.ts";
 import { FakeClock } from "../../test/rpc_fakes.ts";
 import { MAINNET, type Chain } from "./chains.ts";
-import { CheckoutController } from "./checkout.ts";
+import { CheckoutController, onrampView } from "./checkout.ts";
 import { addItem, buildConfig, type BuildConfigOptions } from "./config.ts";
+import { Dec } from "./decimal.ts";
 import { Engine } from "./engine.ts";
 import { preparePayment } from "./payments.ts";
 import { makeStepOutcome } from "./watcher.ts";
@@ -426,4 +427,16 @@ test("test_the_buy_link_follows_the_onramp_option", async () => {
   assert.ok(ctl.chain_key === "arbitrum" && ctl.onrampUrl() === null);
   ({ ctl } = await onMethodStep({ onramp: { url: "https://buy.example/{chain}/{token}?a={amount}" } }));
   assert.equal(ctl.onrampUrl(), "https://buy.example/arbitrum/USDC?a=5.00");
+});
+
+test("test_before_a_session_the_buy_link_suggests_the_most_the_payment_can_be", () => {
+  const cfg = buildConfig({ wallet: DEV, chains: ["arbitrum", "arc"] });
+  const view = (chainKey: string | null) => onrampView(cfg, {
+    token: "USDC", chainKey, units: null, amount: Dec.parse("4.99") as Dec, step: "method",
+    path: ["network", "method", "browser", "waiting"], canGoBack: true, optionKeys: ["arbitrum", "arc"],
+  });
+  // 4.99 plus at most 0.009999 of item code and nonce: the session's 4.993742 also gives 5.00
+  assert.ok(view("arbitrum").url!.includes("&amount=5.00&"));
+  assert.ok(view("arc").url!.includes("&amount=5.01&"));
+  assert.deepEqual(view(null), { url: null, shows_onramp: false, shows_onramp_hint: true });
 });

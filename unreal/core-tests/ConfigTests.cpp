@@ -445,3 +445,13 @@ SCFG_TEST(PaymentsTests, ATipCarriesWhateverTitleAndItemItWasGiven) {
     SCFG_CHECK_EQ(t, outcome(pay("tip", Json::dict({{"amount", "1"}, {"token", "USDC"}, {"colour", 1}}))),
                   "TypeError: prepare_payment() got an unexpected keyword argument 'colour'");
 }
+
+// test_config.py's test_onramp_url_needs_a_host: a host must follow https://.
+SCFG_TEST(ConfigTests, test_onramp_url_needs_a_host) {
+    for (const char* url : {"https://", "https:///buy", "https://{amount}", "https://?a=1", "https://#top", "https://}"}) {
+        const std::string got = cfg("onramp", Json::dict({{"url", url}}));
+        SCFG_CHECK(t, got.starts_with("ConfigError(onramp.bad_url)"));
+    }
+    Result<config::Config> ok = config::build_config(evm_kw("onramp", Json::dict({{"url", "https://x"}})));
+    SCFG_CHECK(t, ok.ok() && ok.value().onramp.url == "https://x");
+}

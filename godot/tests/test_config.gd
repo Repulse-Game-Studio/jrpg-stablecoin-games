@@ -331,6 +331,13 @@ func test_onramp_url_limit_is_inclusive() -> bool:
 	return T.done()
 
 
+func test_onramp_url_needs_a_host() -> bool:
+	for url: String in ["https://", "https:///buy", "https://{amount}", "https://?a=1", "https://#top", "https://}"]:
+		_bad({"onramp": {"url": url}}, "onramp.bad_url")
+	T.eq(_good({"onramp": {"url": "https://x"}})["onramp"]["url"], "https://x", "the shortest host")
+	return T.done()
+
+
 func test_onramp_chains_must_be_evm() -> bool:
 	_bad({"solana_wallet": SOL, "onramp": {"chains": ["base", "solana"]}}, "onramp.not_evm")
 	return T.done()

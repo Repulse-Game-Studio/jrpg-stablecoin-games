@@ -490,3 +490,19 @@ func test_the_buy_link_follows_the_onramp_option() -> bool:
 	ctl = _on_method_step({"onramp": {"url": "https://buy.example/{chain}/{token}?a={amount}"}})["ctl"]
 	T.eq(ctl.onramp_url(), "https://buy.example/arbitrum/USDC?a=5.00", "a custom page")
 	return T.done()
+
+
+func test_before_a_session_the_buy_link_suggests_the_most_the_payment_can_be() -> bool:
+	var cfg: Variant = ScfgConfig.build_config({"wallet": DEV, "chains": ["arbitrum", "arc"]})
+	if not T.ok(cfg is Dictionary, "build_config"):
+		return T.done()
+	var path := ["network", "method", "browser", "waiting"]
+	var keys := ["arbitrum", "arc"]
+	# 4.99 plus at most 0.009999 of item code and nonce: the session's 4.993742 also gives 5.00
+	var arb: Variant = ScfgCheckoutController.onramp_view(cfg, "USDC", "arbitrum", null, "4.99", "method", path, true, keys)
+	T.ok(str(arb["url"]).contains("&amount=5.00&"), str(arb))
+	var arc: Variant = ScfgCheckoutController.onramp_view(cfg, "USDC", "arc", null, "4.99", "method", path, true, keys)
+	T.ok(str(arc["url"]).contains("&amount=5.01&"), str(arc))
+	var none: Variant = ScfgCheckoutController.onramp_view(cfg, "USDC", null, null, "4.99", "method", path, true, keys)
+	T.eq(none, {"url": null, "shows_onramp": false, "shows_onramp_hint": true}, "no network chosen")
+	return T.done()

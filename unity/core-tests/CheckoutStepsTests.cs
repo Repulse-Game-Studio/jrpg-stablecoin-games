@@ -601,5 +601,21 @@ namespace Scfg.Core.Tests
             ctl = (await OnMethodStepWith(new JsonObject { { "url", "https://buy.example/{chain}/{token}?a={amount}" } })).Ctl;
             Assert.That(ctl.OnrampUrl(), Is.EqualTo("https://buy.example/arbitrum/USDC?a=5.00"));
         }
+    
+        [Test]
+        public void BeforeASessionTheBuyLinkSuggestsTheMostThePaymentCanBe()
+        {
+            var cfg = Config.BuildConfig(new JsonObject { { "wallet", Dev }, { "chains", L("arbitrum", "arc") } });
+            var path = new List<string> { "network", "method", "browser", "waiting" };
+            var keys = new List<string> { "arbitrum", "arc" };
+            OnrampView View(string? key) => Checkout.OnrampView(cfg, "USDC", key, null, Dec.Parse("4.99")!, "method", path, true, keys);
+            // 4.99 plus at most 0.009999 of item code and nonce: the session's 4.993742 also gives 5.00
+            Assert.That(View("arbitrum").Url, Does.Contain("&amount=5.00&"));
+            Assert.That(View("arc").Url, Does.Contain("&amount=5.01&"));
+            var none = View(null);
+            Assert.That(none.Url, Is.Null);
+            Assert.That(none.ShowsOnramp, Is.False);
+            Assert.That(none.ShowsOnrampHint, Is.True);
+        }
     }
 }
