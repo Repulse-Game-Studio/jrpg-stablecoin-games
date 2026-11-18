@@ -46,10 +46,17 @@ struct Request {
 // drops a request on shutdown (destroys its Promise) completes it with CancelledError, which resumes the waiting
 // coroutine inside that destructor: destroy the Jobs that use a transport before the transport (Co.h, "Teardown
 // order").
+//
+// cancel_orphaned() stops the requests nobody waits for any more (their Promise is orphaned(), Co.h): the Engine
+// calls it when it stopped waiting for a request in flight (Engine::abandon_in_flight: an abandoned command, a tick
+// yielding to a command). A transport that can, cancels them (the HTTP request is aborted) and drops their promises,
+// which resumes nothing; the default does nothing, and their late answers complete promises nobody sees. It must
+// not complete a promise somebody still awaits.
 class Transport {
 public:
     virtual ~Transport() = default;
     virtual Future<Json> post_json(std::string url, Json payload, double timeout) = 0;
+    virtual void cancel_orphaned() {}
 };
 
 // The JSON-RPC response for an HTTP answer, by rpc.UrllibTransport's rules, as every real transport reads one:

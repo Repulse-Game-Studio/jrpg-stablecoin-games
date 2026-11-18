@@ -42,9 +42,9 @@
 // - complete() resumes the awaiting coroutine, if any, before it returns; completing before anyone awaits is
 //   fine (the await then does not suspend). Completing twice is a programming error.
 // - Destroying a Promise that was never completed completes its Future with Err CancelledError (a BaseException,
-//   so an `except Exception` in the core does not swallow it), resuming a waiter inside the destructor. A
-//   transport cancels its outstanding requests on shutdown by dropping their promises: move them out of its own
-//   containers first, since the resumed coroutines may call the transport again.
+//   so an `except Exception` in the core does not swallow it), resuming a waiter inside the destructor, unless it
+//   was release()d first. A transport cancels its outstanding requests on shutdown by dropping their promises: move
+//   them out of its own containers first, since the resumed coroutines may call the transport again.
 //
 // Teardown order: destroy every Job (and every Co outside a Job) before the objects its coroutines use: the Engine,
 // the RPC clients, the transport. Destroying a suspended Co only runs its frames' destructors and resumes nothing,
@@ -268,8 +268,19 @@ public:
         if (std::coroutine_handle<> w = std::exchange(s->waiter, {})) w.resume();
     }
 
-    // complete() was called (or the Promise was moved from).
+    // complete() was called (or the Promise was moved from, or released).
     bool completed() const { return !s_ || s_->result.has_value(); }
+
+    // Not completed, and nobody can see its answer any more: the Future was handed out and it, and the coroutine
+    // that awaited it, are gone (a frame destroyed while it waited unregisters). A transport may stop such a request
+    // (Transport::cancel_orphaned, Coio.h); completing or dropping the Promise then resumes nothing.
+    bool orphaned() const { return s_ && given_ && !s_->result && s_.use_count() == 1; }
+
+    // Lets go of the Future without completing it, so no CancelledError resumes its waiter: a coroutine awaiting it
+    // stays suspended until its own frame is destroyed. For an owner torn down before the coroutines that wait on it
+    // (the Engine's in-flight requests, Engine.h's Lifetime), where a dropped Promise would resume them inside its
+    // destructor. The Promise is then as if moved from.
+    void release() { s_.reset(); }
 
 private:
     void cancel() {

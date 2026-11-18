@@ -62,6 +62,14 @@ private:
     std::shared_ptr<bool> busy_;
 };
 
+// RefusingTransport's forwarder: transport_'s answer to the request becomes the Engine's own Future's. A named
+// function, not a lambda (Co.h, ruling R8); destroyed while it waits (abandon), it resumes nothing.
+Co<void> forward_answer(Future<Json> inner, std::shared_ptr<Promise<Json>> answer) {
+    Result<Json> got = co_await std::move(inner);
+    if (!answer->completed()) answer->complete(std::move(got));  // resumes the waiting command inside this call
+    co_return ok();
+}
+
 SystemEntropy& system_entropy() {
     static SystemEntropy e;
     return e;
@@ -113,8 +121,48 @@ Future<Json> Engine::RefusingTransport::post_json(std::string url, Json payload,
     if (owner_->refuse_requests && owner_->refuse_requests()) {
         return Future<Json>::completed(Err::make("Abandoned", "abandoned before its request to " + url));
     }
-    return owner_->transport_->post_json(std::move(url), std::move(payload), timeout);
+    Future<Json> inner = owner_->transport_->post_json(url, std::move(payload), timeout);
+    if (inner.done()) return inner;  // answered at once: nothing to abandon
+    prune();
+    auto answer = std::make_shared<Promise<Json>>();
+    Future<Json> out = answer->get_future();
+    Co<void> forward = detail::forward_answer(std::move(inner), answer);  // suspends on inner
+    flights_.push_back(Flight{std::move(url), std::move(answer), std::move(forward)});
+    return out;
 }
+
+void Engine::RefusingTransport::prune() {
+    // A forwarder that is still completing its answer (this request is being made from inside that completion) is
+    // not done yet, so it is never destroyed while it runs.
+    flights_.erase(std::remove_if(flights_.begin(), flights_.end(), [](const Flight& f) { return f.forward.done(); }),
+                   flights_.end());
+}
+
+void Engine::RefusingTransport::abandon() {
+    // Out of the list first: the resumed commands may post again (Co.h's Promise rules).
+    std::vector<Flight> ending = std::move(flights_);
+    flights_.clear();
+    bool stopped = false;
+    for (Flight& f : ending) {
+        if (f.forward.done()) continue;
+        f.forward = Co<void>();  // stops waiting for transport_'s answer: a late one resumes nothing
+        stopped = true;
+    }
+    if (stopped) owner_->transport_->cancel_orphaned();  // aborts those requests where the transport can
+    for (Flight& f : ending) {
+        if (f.answer->completed()) continue;
+        f.answer->complete(Err::make("Abandoned", "abandoned while its request to " + f.url + " was in flight"));
+    }
+}
+
+Engine::RefusingTransport::~RefusingTransport() {
+    for (Flight& f : flights_) {
+        f.forward = Co<void>();
+        f.answer->release();  // a command still waiting is not resumed inside the Engine's destructor
+    }
+}
+
+void Engine::abandon_in_flight() { refusing_.abandon(); }
 
 // --- chains & RPC ---
 
@@ -253,7 +301,11 @@ Co<std::vector<StepOutcome>> Engine::tick() {
     // list(self.pending.items()): a step may remove sessions (its own, when it is paid or closed).
     const std::vector<Json::Dict::Entry> stored(pending_.as_dict().begin(), pending_.as_dict().end());
     for (const Json::Dict::Entry& entry : stored) {
-        SCFG_CO_TRY(std::optional<StepOutcome> outcome, co_await advance_one(entry.first, entry.second, now));
+        Result<std::optional<StepOutcome>> stepped = co_await advance_one(entry.first, entry.second, now);
+        // A command the player waits on came in (worker.py): the sessions not stepped yet, and the one interrupted (as
+        // by a network failure), wait for the next tick; the outcomes so far are kept.
+        if (!stepped.ok() && stepped.err().is_a("Abandoned")) break;
+        SCFG_CO_TRY(std::optional<StepOutcome> outcome, std::move(stepped));
         if (outcome) outcomes.push_back(std::move(*outcome));
     }
     SCFG_CO_TRY(std::vector<StepOutcome> expired, expire(now));
@@ -265,8 +317,8 @@ Co<std::optional<StepOutcome>> Engine::advance_one(std::string sid, Json rec, Js
     Result<std::optional<StepOutcome>> stepped = co_await step_session(sid, rec, now);
     if (stepped.ok()) co_return std::move(stepped);
     // except Exception: a crash in one session never stops the others. A BaseException (CancelledError) is not
-    // an Exception: it leaves tick() at once.
-    if (!stepped.err().is_a("Exception")) co_return std::move(stepped).err();
+    // an Exception: it leaves tick() at once. Abandoned is not a crash: the tick yields (tick()).
+    if (!stepped.err().is_a("Exception") || stepped.err().is_a("Abandoned")) co_return std::move(stepped).err();
     report(stepped.err());
     StepOutcome failed;
     failed.session_id = std::move(sid);

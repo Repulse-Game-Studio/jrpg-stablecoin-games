@@ -43,6 +43,9 @@ public:
 	virtual void Cancel() = 0;
 	virtual void Deliver() = 0;
 	virtual bool IsTick() const { return false; }
+	// Its requests are refused while a command waits (worker.py: commands come first): a tick inside Engine::tick(),
+	// not its first-run reverify.
+	virtual bool Yields() const { return false; }
 	// The Err the command finished with (not called before Poll() said it finished), or null for a value.
 	virtual const scfg::Err* Error() const = 0;
 
@@ -151,6 +154,7 @@ public:
 	bool bReverifyFirst = false;
 
 	virtual bool IsTick() const override { return true; }
+	virtual bool Yields() const override { return TickJob.has_value() && !Result; }
 	virtual void Start(scfg::engine::Engine& E) override
 	{
 		bStarted = true;
@@ -459,6 +463,11 @@ bool FScfgWorker::IsTickRunning() const
 	return Current.IsValid() && Current->IsTick();
 }
 
+bool FScfgWorker::RefusesCurrent() const
+{
+	return Current.IsValid() && (Current->IsAbandoned() || (Current->Yields() && Queue.Num() > 0));
+}
+
 TUniquePtr<FScfgWorker::FCommand> FScfgWorker::TakeNext()
 {
 	if (Queue.Num() > 0)
@@ -498,6 +507,13 @@ bool FScfgWorker::OnTicker(float DeltaTime)
 	}
 	for (;;)
 	{
+		if (Current && Current->bStarted && RefusesCurrent())
+		{
+			// Abandoned, or a tick yielding to a queued command: its request in flight ends now (Abandoned) instead of
+			// at its answer or timeout, and the command, refused any further request, finishes (ABANDONED COMMANDS
+			// and TICKS in ScfgWorker.h). From the ticker: the coroutine resumes inside this call.
+			Engine->abandon_in_flight();
+		}
 		if (Current && Current->Poll(*Engine))
 		{
 			Finished.Add(MoveTemp(Current));
@@ -555,8 +571,8 @@ bool FScfgWorker::OnTicker(float DeltaTime)
 		}
 		// One command at a time: the Engine would abort an overlap (Engine.h).
 		check(!Engine->running());
-		// Its requests are refused once its flag turns true; a command without one is never refused.
-		Engine->refuse_requests = [Flag = Current->Abandoned] { return Flag && *Flag; };
+		// Its requests are refused once its flag turns true, and a tick's while a command waits (RefusesCurrent).
+		Engine->refuse_requests = [this] { return RefusesCurrent(); };
 		Current->Start(*Engine);
 	}
 }

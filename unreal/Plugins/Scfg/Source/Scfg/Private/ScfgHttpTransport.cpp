@@ -241,6 +241,29 @@ TUniquePtr<FScfgHttpTransport::FWaiting> FScfgHttpTransport::Take(const IHttpReq
 	return Entry;
 }
 
+void FScfgHttpTransport::cancel_orphaned()
+{
+	check(IsInGameThread());
+	TArray<TUniquePtr<FWaiting>> Orphans;
+	for (auto It = Waiting.CreateIterator(); It; ++It)
+	{
+		if (It.Value()->Promise.orphaned())
+		{
+			Orphans.Add(MoveTemp(It.Value()));
+			It.RemoveCurrent();
+		}
+	}
+	for (TUniquePtr<FWaiting>& Each : Orphans)
+	{
+		// Unbound first, as in Shutdown(): CancelRequest may finish the request (and call the delegate) at once.
+		Each->Request->OnProcessRequestComplete().Unbind();
+		Each->Request->CancelRequest();
+		++NumCancelledOrphans;
+	}
+	// Nobody awaits these promises: dropping them resumes nothing.
+	Orphans.Reset();
+}
+
 void FScfgHttpTransport::Shutdown()
 {
 	check(IsInGameThread());  // it may resume waiting coroutines

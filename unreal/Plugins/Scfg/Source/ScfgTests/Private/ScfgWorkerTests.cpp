@@ -17,7 +17,8 @@
 //   test_loop_survives_errors                                      AFailingTickIsReportedAndTheNextComesLater
 //   test_async_commands_are_awaited                                TheReceiptAndSolanaCommandsRunThroughTheWorker (each
 //                                                                  network command finishes when the node answers, frames later)
-//   test_pump_a_command_submitted_mid_tick_waits_for_the_tick      CommandsNeverInterleaveWithATick
+//   test_pump_a_command_submitted_mid_tick_makes_the_tick_yield    CommandsNeverInterleaveWithATick
+//   test_pump_the_first_run_reverify_does_not_yield                TheFirstRunReverifyDoesNotYield
 //   test_pump_commands_run_before_a_due_tick_and_plain_results_resolve CommandsRunBeforeTheTickInOrder
 //   test_pump_a_submit_landing_mid_run_gets_its_follow_up_at_once  CommandsNeverInterleaveWithATick
 //   test_pump_a_run_without_a_mid_run_wake_waits_the_interval      TicksComeEveryInterval
@@ -68,6 +69,9 @@
 //                                                                  commands run as scfg::Job coroutines on the Engine)
 //   (worker.py's abandon) test_an_abandoned_running_job_is_refused_its_next_request,
 //   test_abandoning_a_queued_job_cancels_it                        AnAbandonedStartIsCancelledOrRefusedItsNextRequest
+//   test_an_abandoned_job_stops_waiting_for_its_request_in_flight  AnAbandonedStartStopsWaitingForItsRequestInFlight
+//   (test_worker_priority.py) test_a_start_does_not_wait_behind_the_watching_of_pending_payments
+//                                                                  AStartDoesNotWaitBehindTheWatchingOfPendingPayments
 // The tests here without a twin are the Unreal glue's own: refused stores, OnStateChanged's order and handlers,
 // teardown, Stop() from inside the Engine, a handler destroying the worker, the cancelled or failed startup reverify
 // through Stop(), the receipt commands, the fresh snapshot at Stop().
@@ -142,10 +146,13 @@ struct FStats
 	int32 Shutdowns = 0;
 	int32 DroppedAtShutdown = 0;
 	int32 AnsweredLate = 0;
+	int32 Cancelled = 0;  // held requests cancel_orphaned() cancelled (nobody awaited them any more)
 };
 
 // Answers each JSON-RPC request after Delay frames (Pump calls), as FHttpModule answers on a later tick: from
-// Answer(method), a result or an Err the request fails with. Hold keeps every request until it is set back.
+// Answer(method), a result or an Err the request fails with. Hold keeps every request until it is set back; a request
+// posted while Hang is set is never answered (a host that never answers) until it is cancelled or shut down.
+// cancel_orphaned() cancels the held requests nobody awaits any more, as FScfgHttpTransport's does.
 class FFakeTransport final : public FScfgTransport
 {
 public:
@@ -168,6 +175,7 @@ public:
 	TFunction<std::optional<Json>(const FString& Method)> RpcErrorFor = [](const FString&) { return std::nullopt; };
 	int32 Delay = 1;
 	bool bHold = false;
+	bool bHang = false;
 	int64_t Head = 1000;
 
 	virtual scfg::Future<Json> post_json(std::string Url, Json Payload, double Timeout) override
@@ -184,8 +192,20 @@ public:
 		{
 			return scfg::Future<Json>::completed(std::move(Envelope));
 		}
-		Held.push_back(FHeld{scfg::Promise<Json>(), std::move(Envelope), Delay});
+		Held.push_back(FHeld{scfg::Promise<Json>(), std::move(Envelope), Delay, bHang});
 		return Held.back().Promise.get_future();
+	}
+
+	virtual void cancel_orphaned() override
+	{
+		std::deque<FHeld> Orphans;
+		std::deque<FHeld> Kept;
+		for (FHeld& Each : Held)
+		{
+			(Each.Promise.orphaned() ? Orphans : Kept).push_back(std::move(Each));
+		}
+		Held = std::move(Kept);
+		Stats->Cancelled += static_cast<int32>(Orphans.size());
 	}
 
 	virtual void Shutdown() override
@@ -208,7 +228,7 @@ public:
 		std::deque<FHeld> Later;
 		for (FHeld& Each : Held)
 		{
-			(--Each.FramesLeft <= 0 ? Due : Later).push_back(std::move(Each));
+			(!Each.bHung && --Each.FramesLeft <= 0 ? Due : Later).push_back(std::move(Each));
 		}
 		Held = std::move(Later);
 		for (FHeld& Each : Due)
@@ -239,6 +259,7 @@ private:
 		scfg::Promise<Json> Promise;
 		Result<Json> Answer;
 		int32 FramesLeft;
+		bool bHung;
 	};
 
 	TSharedRef<FStats> Stats;
@@ -581,9 +602,12 @@ bool FScfgWorkerCommandFromCallbackTest::RunTest(const FString& Parameters)
 
 SCFG_WORKER_TEST(FScfgWorkerNoInterleavingTest, "CommandsNeverInterleaveWithATick")
 
-// test_commands_never_interleave_with_a_tick, test_pump_a_command_submitted_mid_tick_waits_for_the_tick,
-// test_pump_a_submit_landing_mid_run_gets_its_follow_up_at_once: a command submitted while the tick waits for the
-// network runs after it, then its own follow-up tick runs at once (not an interval later).
+// test_commands_never_interleave_with_a_tick, test_pump_a_command_submitted_mid_tick_makes_the_tick_yield (testbed
+// U15), test_pump_a_submit_landing_mid_run_gets_its_follow_up_at_once: a command submitted while the tick waits for the
+// network makes the tick yield: on the next frame the tick's request in flight ends (cancelled at the transport), the
+// tick ends with the outcomes it has (none: it was stepping its first session), not an error, and the command runs
+// then, never while the Engine runs; its own follow-up tick runs at once (not an interval later) and steps the
+// session again.
 bool FScfgWorkerNoInterleavingTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgWorkerTests;
@@ -594,31 +618,195 @@ bool FScfgWorkerNoInterleavingTest::RunTest(const FString& Parameters)
 	}
 	*W.Interval = 1000;
 	W.Fake->bHold = true;
+	TGot<FScfgWorker::FOutcomes> First;
+	W.Worker->Tick(First.Callback());
 	W.Worker->Start();
 	W.Frame();
 	TestTrue(TEXT("the first tick waits for eth_blockNumber"), W.Worker->IsBusy() && W.Fake->NumHeld() == 1);
 	TGot<void> Hint;
-	bool bBusyDuring = false;
+	bool bBusyDuring = true;
 	const scfg::engine::Engine& Engine = W.Worker->GetEngine();
 	W.Worker->SetUiStatus("ps_a", "pending", [&](scfg::Status S)
 	{
 		bBusyDuring = Engine.running();
 		Hint.Value.emplace(std::move(S));
 	});
-	W.Frames(5);
-	TestFalse(TEXT("not run while the tick waits"), Hint.Value.has_value());
-	TestEqual(TEXT("queued"), W.Worker->NumQueued(), 1);
+	TestFalse(TEXT("not run inside the call"), Hint.Value.has_value());
+	W.Frame();
+	TestTrue(TEXT("the tick yielded"), First.Ok());
+	TestEqual(TEXT("with the outcomes it had"), First.Value && First.Value->ok() ? Statuses(First.Value->value()) :
+		FString(TEXT("-")), FString());
+	TestEqual(TEXT("its request in flight was cancelled"), W.Stats->Cancelled, 1);
+	TestTrue(TEXT("the command ran next"), Hint.Ok());
+	TestFalse(TEXT("the Engine was idle when it ran"), bBusyDuring);
+	TestEqual(TEXT("the yield is no error"), W.Errors->Num(), 0);
 	W.Fake->bHold = false;
 	W.Frames(10);
-	TestTrue(TEXT("ran after the tick"), Hint.Ok());
-	TestFalse(TEXT("the Engine was idle when it ran"), bBusyDuring);
-	// tick 1 (eth_blockNumber, eth_getLogs), then the follow-up tick at once, though the interval is 1000 s
+	// the yielded tick's eth_blockNumber, then the follow-up tick at once (the interval is 1000 s): the whole step
 	TestEqual(TEXT("requests"), FString::Join(W.Stats->Methods, TEXT(",")),
-		TEXT("eth_blockNumber,eth_getLogs,eth_blockNumber,eth_getLogs"));
+		TEXT("eth_blockNumber,eth_blockNumber,eth_getLogs"));
 	TestEqual(TEXT("ui_status"), ScfgString::FromUtf8(W.Worker->GetSnapshot().pending.as_dict().get("ps_a").as_dict()
 		.get("ui_status").as_str()), TEXT("pending"));
 	W.Frames(20, 10.0f);
-	TestEqual(TEXT("then the interval"), W.Stats->Methods.Num(), 4);
+	TestEqual(TEXT("then the interval"), W.Stats->Methods.Num(), 3);
+	TestEqual(TEXT("errors"), W.Errors->Num(), 0);
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerReverifyDoesNotYieldTest, "TheFirstRunReverifyDoesNotYield")
+
+// test_the_first_run_reverify_does_not_yield: only the Engine::tick() part of a tick yields to a command. A command
+// submitted while the first tick's reverify waits for the node waits for it; the tick part that follows yields
+// before its first request, and the command runs.
+bool FScfgWorkerReverifyDoesNotYieldTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	FWorld W;
+	if (!TestTrue(TEXT("created"), W.Make(Json::dict({{"ps_a", Awaiting("ps_a", kNow)}}), Receipts()).ok()))
+	{
+		return false;
+	}
+	*W.Interval = 1000;
+	W.Fake->bHold = true;
+	TGot<FScfgWorker::FOutcomes> First;
+	W.Worker->Tick(First.Callback());
+	W.Worker->Start();
+	W.Frame();
+	TestEqual(TEXT("the reverify waits for the node"), FString::Join(W.Stats->Methods, TEXT(",")),
+		TEXT("eth_blockNumber"));
+	TGot<Json> Ran;
+	int32 RequestsWhenRan = -1;
+	const TSharedRef<FStats> Stats = W.Stats;
+	W.Worker->Run([](scfg::engine::Engine&) -> Result<Json> { return Json("ran"); }, [&](Result<Json> R)
+	{
+		RequestsWhenRan = Stats->Methods.Num();
+		Ran.Value.emplace(std::move(R));
+	});
+	W.Frames(5);
+	TestFalse(TEXT("the command waits for the reverify"), Ran.Value.has_value());
+	TestEqual(TEXT("nothing was cancelled"), W.Stats->Cancelled, 0);
+	TestTrue(TEXT("still busy"), W.Worker->IsBusy() && W.Fake->NumHeld() == 1);
+	W.Fake->bHold = false;
+	W.Frames(5);
+	TestTrue(TEXT("the first tick ended"), First.Ok());
+	TestEqual(TEXT("before stepping a session"), First.Value && First.Value->ok() ? Statuses(First.Value->value()) :
+		FString(TEXT("-")), FString());
+	TestTrue(TEXT("then the command ran"), Ran.Ok());
+	// the reverify's eth_blockNumber and eth_getLogs (the receipt's block); the tick part asked nothing (refused
+	// before its request); the follow-up tick then steps the session
+	TestEqual(TEXT("only the reverify had asked when the command ran"), RequestsWhenRan, 2);
+	TestEqual(TEXT("requests"), FString::Join(W.Stats->Methods, TEXT(",")).Left(43),
+		TEXT("eth_blockNumber,eth_getLogs,eth_blockNumber"));
+	TestEqual(TEXT("nothing was cancelled"), W.Stats->Cancelled, 0);
+	TestEqual(TEXT("errors"), W.Errors->Num(), 0);
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerStartBeforeWatchingTest, "AStartDoesNotWaitBehindTheWatchingOfPendingPayments")
+
+// test_a_start_does_not_wait_behind_the_watching_of_pending_payments (testbed U15): three pending tips on base testnet
+// whose watching hangs (a host that never answers); a start submitted while that tick runs makes it yield at once,
+// its request in flight included, and starts within a few frames; the pending payments are untouched, and nothing is
+// reported.
+bool FScfgWorkerStartBeforeWatchingTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	FWorld W;
+	if (!TestTrue(TEXT("created"), W.Make().ok()))
+	{
+		return false;
+	}
+	*W.Interval = 1000;
+	W.Worker->Start();
+	W.Frames(3);
+	TArray<TSharedRef<TGot<Json>>> Tips;
+	for (int32 I = 0; I < 3; ++I)  // three pending tips, as in the testbed
+	{
+		Tips.Add(MakeShared<TGot<Json>>());
+		W.Worker->StartSession("tip", "base", Json::dict({{"amount", "1.00"}, {"token", "USDC"}}), Tips.Last()->Callback());
+	}
+	W.Frames(20);
+	for (const TSharedRef<TGot<Json>>& Tip : Tips)
+	{
+		TestTrue(TEXT("a tip started"), Tip->Ok());
+	}
+	if (!TestEqual(TEXT("three pending"), static_cast<int32>(W.Worker->GetSnapshot().pending.as_dict().size()), 3))
+	{
+		return false;
+	}
+	const Result<std::string> Before = scfg::json::dumps(W.Worker->GetSnapshot().pending);
+	W.Fake->bHang = true;
+	TGot<FScfgWorker::FOutcomes> Watching;
+	W.Worker->Tick(Watching.Callback());
+	W.Frame();
+	TestTrue(TEXT("the tick watches the first tip and hangs"), W.Worker->IsBusy() && W.Fake->NumHeld() == 1);
+	W.Fake->bHang = false;  // the network is back for the start (the tick's request still hangs)
+	TGot<Json> Started;
+	int32 PendingAtStart = 0;
+	std::optional<Result<std::string>> After;
+	FScfgWorker& Worker = *W.Worker;
+	W.Worker->StartSession("unlock", "base", Json::dict({{"item", "chapter2"}}), [&](Result<Json> R)
+	{
+		// the snapshot is fresh here, before the follow-up tick steps the sessions again
+		Json Others = scfg::deep_copy(Worker.GetSnapshot().pending);
+		PendingAtStart = static_cast<int32>(Others.as_dict().size());
+		if (R.ok())
+		{
+			Others.as_dict().erase(R.value().as_dict().get("id").as_str());
+		}
+		After.emplace(scfg::json::dumps(Others));
+		Started.Value.emplace(std::move(R));
+	});
+	W.Frames(3);
+	TestTrue(TEXT("the start completed within a few frames"), Started.Ok());
+	TestTrue(TEXT("the tick yielded, with no error"), Watching.Ok());
+	TestEqual(TEXT("its hanging request was cancelled"), W.Stats->Cancelled, 1);
+	TestEqual(TEXT("four pending"), PendingAtStart, 4);
+	TestTrue(TEXT("the pending tips are untouched"),
+		Before.ok() && After && After->ok() && Before.value() == After->value());
+	TestEqual(TEXT("errors"), W.Errors->Num(), 0);
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerAbandonedInFlightTest, "AnAbandonedStartStopsWaitingForItsRequestInFlight")
+
+// test_an_abandoned_job_stops_waiting_for_its_request_in_flight (testbed U15): a superseded start whose request is in
+// flight (a host that never answers) ends with Abandoned on the next frame, not at the request's timeout; the request
+// is cancelled at the transport, nothing is logged, and the next start goes out at once.
+bool FScfgWorkerAbandonedInFlightTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	FWorld W;
+	if (!TestTrue(TEXT("created"), W.Make().ok()))
+	{
+		return false;
+	}
+	*W.Interval = 1000;
+	W.Worker->Start();
+	W.Frames(3);
+	W.Fake->bHang = true;
+	const std::shared_ptr<bool> Flag = std::make_shared<bool>(false);
+	TGot<Json> First;
+	W.Worker->StartSession("unlock", "base", Json::dict({{"item", "chapter2"}}), First.Callback(), Flag);
+	W.Frame();
+	TestTrue(TEXT("the start waits for a host that never answers"), W.Worker->IsBusy() && W.Fake->NumHeld() == 1);
+	W.Fake->bHang = false;
+	TGot<Json> Next;
+	*Flag = true;  // the player picked another network
+	W.Worker->StartSession("unlock", "base", Json::dict({{"item", "chapter2"}}), Next.Callback());
+	W.Frame();
+	TestEqual(TEXT("the abandoned start ended at once"), First.Kind(), FString(TEXT("Abandoned")));
+	if (First.Value && !First.Value->ok())
+	{
+		TestTrue(TEXT("while its request was in flight"),
+			First.Value->err().message.find("was in flight") != std::string::npos);
+	}
+	TestEqual(TEXT("its request was cancelled"), W.Stats->Cancelled, 1);
+	TestEqual(TEXT("not logged"), W.Errors->Num(), 0);
+	W.Frames(3);
+	TestTrue(TEXT("the next start succeeded"), Next.Ok());
+	TestEqual(TEXT("one session"), static_cast<int32>(W.Worker->GetSnapshot().pending.as_dict().size()), 1);
+	TestEqual(TEXT("errors"), W.Errors->Num(), 0);
 	return true;
 }
 

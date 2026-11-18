@@ -15,7 +15,14 @@
 // and finishes when the transport completes its last request; the others finish at once.
 //
 // TICKS. A tick is a command too, but coalesced, and it yields to queued commands: at most one tick is pending, and
-// it starts only when no command is queued (worker.py drains its queue before the tick of a pass). A tick is
+// it starts only when no command is queued (worker.py drains its queue before the tick of a pass). Commands come
+// first (worker.py, testbed U15): a tick is background work (watching pending payments) and every command is the
+// player's, so a command submitted while a tick runs Engine::tick() makes that tick yield. Its requests are refused
+// (Engine::refuse_requests) and the one in flight ends at once with Abandoned (Engine::abandon_in_flight, from the
+// next frame of the ticker), so Engine::tick() stops there and the tick ends with the outcomes it already has (not an
+// error: nothing goes to OnError, and its Tick() callers get those outcomes); the interrupted session is stepped
+// again by the next tick, which the command requested and which runs right after it. The first-run reverify never
+// yields: only the Engine::tick() part of the first tick does. A tick is
 // requested by Tick() (callers' callbacks gather on the pending one), by every other command (worker.py's submit
 // wakes the loop, so a command is followed by a tick), by Start(), and by the clock: Interval() seconds (default
 // POLL_INTERVAL, worker.py's 15.0) after the last tick ended. The very first tick runs Engine::reverify() before
@@ -46,8 +53,10 @@
 //
 // ABANDONED COMMANDS. A command submitted with an abandon flag (StartSession's, from the checkout's Delivery) that is
 // true when its turn comes is cancelled instead (CancelledError, as Stop()'s), and the Engine refuses the running
-// command's RPC requests once its flag turns true (Engine::refuse_requests, set as each command starts): worker.py's
-// abandon(fut), so a superseded start never holds the next pick up behind its endpoints.
+// command's RPC requests once its flag turns true (Engine::refuse_requests, set as each command starts), its request
+// in flight included: on the next frame the ticker ends it with Abandoned (Engine::abandon_in_flight; the HTTP
+// request is cancelled, coio::Transport::cancel_orphaned), not at its answer or its timeout. worker.py's abandon(fut),
+// so a superseded start never holds the next pick up behind its endpoints. Abandoned is not reported to OnError.
 //
 // START AND STOP. Commands submitted before Start() wait for it. Stop() cancels the running command (its Job is
 // destroyed, which cancels its coroutine) and every queued one: each callback gets CancelledError, on the next
@@ -174,8 +183,8 @@ public:
 
 	// --- commands (the Engine's, Engine.h; each followed by a tick) ---
 
-	// Abandoned (Submitter.h's abandon flag): once true, the start is cancelled if it has not begun, and refused its
-	// next RPC request (Err Abandoned, Engine::refuse_requests) if it runs.
+	// Abandoned (Submitter.h's abandon flag): once true, the start is cancelled if it has not begun, and if it runs
+	// it ends with Err Abandoned at once, its request in flight included (ABANDONED COMMANDS above).
 	void StartSession(scfg::Json Kind, scfg::Json Chain, scfg::Json Opts, TOnDone<scfg::Json> OnDone,
 		scfg::worker::AbandonFlag Abandoned = nullptr);
 	void BuildSolanaPayment(scfg::Json Sid, scfg::Json Account, TOnDone<scfg::Json> OnDone);
@@ -234,6 +243,9 @@ private:
 	void BroadcastStateChanged(const TSharedRef<bool>& StillAlive);
 	void Refresh();
 	bool IsTickRunning() const;
+	// The running command's requests are refused: it was abandoned, or it is a tick in Engine::tick() and a command
+	// waits (TICKS, ABANDONED COMMANDS above). Engine::refuse_requests asks it.
+	bool RefusesCurrent() const;
 
 	// Declared in teardown order, reversed: the transport outlives the Engine, which outlives the commands' Jobs.
 	TUniquePtr<FScfgTransport> Transport;

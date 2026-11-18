@@ -21,6 +21,10 @@
 // Shutdown() (also run by the destructor) unbinds each request's delegates first, so a late completion can never
 // reach this object, cancels the request, then drops its promise (CancelledError).
 //
+// cancel_orphaned() (Coio.h; the Engine stopped waiting for a request: an abandoned start, a tick yielding to a
+// command) does the same for each request nobody awaits any more (Promise::orphaned): taken out of the map, its
+// delegate unbound, CancelRequest(), its promise dropped, which resumes nothing. Every other request is untouched.
+//
 // Port limits (unreal/README.md, "Known divergences"):
 // - Timeouts. urllib's timeout bounds each socket operation; SetTimeout bounds the whole request, so an answer that
 //   trickles in for longer than timeout succeeds in Python and is "timed out" here. A timeout <= 0 sets no total
@@ -56,12 +60,14 @@ public:
 
 	virtual scfg::Future<scfg::Json> post_json(std::string Url, scfg::Json Payload, double Timeout) override;
 	virtual void Shutdown() override;
+	virtual void cancel_orphaned() override;
 
-	// Requests posted so far (the tests count them), those handed to the engine (ProcessRequest), and those still
-	// waiting for an answer.
+	// Requests posted so far (the tests count them), those handed to the engine (ProcessRequest), those still
+	// waiting for an answer, and those cancel_orphaned() cancelled.
 	int32 Posts() const { return NumPosts; }
 	int32 Started() const { return NumStarted; }
 	int32 InFlight() const { return Waiting.Num(); }
+	int32 CancelledOrphans() const { return NumCancelledOrphans; }
 
 	// The TransportError message of a refused https:// request.
 	static constexpr const char* TlsUnavailable = "TLS certificate verification unavailable";
@@ -98,6 +104,7 @@ private:
 	const IHttpRequest* Starting = nullptr;
 	int32 NumPosts = 0;
 	int32 NumStarted = 0;
+	int32 NumCancelledOrphans = 0;
 	bool bShutDown = false;
 	bool bLoggedTls = false;
 };

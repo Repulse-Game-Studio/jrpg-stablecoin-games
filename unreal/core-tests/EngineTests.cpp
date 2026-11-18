@@ -77,12 +77,37 @@ struct HeadTransport final : scfg::coio::Transport {
 struct HeldTransport final : scfg::coio::Transport {
     std::deque<Promise<Json>> held;
     size_t posts = 0;
+    size_t cancels = 0;  // cancel_orphaned() calls
     Future<Json> post_json(std::string url, Json payload, double timeout) override {
         (void)url, (void)payload, (void)timeout;
         ++posts;
         held.emplace_back();
         return held.back().get_future();
     }
+    void cancel_orphaned() override { ++cancels; }
+};
+
+// Answers at once (eth_blockNumber 0x3e8, eth_getLogs []) until hold_from requests have been made, then keeps the
+// rest waiting; before_hold runs as the last request answered at once is made.
+struct HoldLaterTransport final : scfg::coio::Transport {
+    size_t hold_from = 0;
+    std::function<void()> before_hold;
+    std::vector<std::string> methods;
+    std::deque<Promise<Json>> held;
+    size_t cancels = 0;
+    Future<Json> post_json(std::string url, Json payload, double timeout) override {
+        (void)url, (void)timeout;
+        const std::string method = payload.as_dict().get("method").as_str();
+        methods.push_back(method);
+        if (methods.size() > hold_from) {
+            held.emplace_back();
+            return held.back().get_future();
+        }
+        if (methods.size() == hold_from && before_hold) before_hold();
+        Json result = method == "eth_blockNumber" ? Json("0x3e8") : Json::list();
+        return Future<Json>::completed(Json::dict({{"jsonrpc", "2.0"}, {"id", 1}, {"result", result}}));
+    }
+    void cancel_orphaned() override { ++cancels; }
 };
 
 Json awaiting(std::string chain, int64_t created_at) {
@@ -145,6 +170,116 @@ SCFG_TEST(EngineTests, RefusedRequestsAreAbandonedAndCoolNoEndpointDown) {
     if (a.ok()) {
         const scfg::rpc::RpcClient& client = scfg::backends::base::client_of(a.value());
         t.check(client.live_urls() == client.urls(), "no endpoint cooled down");
+    }
+}
+
+// worker.py's _Refusing, its request in flight: once refusal is on, abandon_in_flight() ends the request the command
+// waits for at once with Abandoned (the worker calls it from its loop), the transport is asked to cancel it (nobody
+// awaits its Future any more), its late answer resumes nothing, and no endpoint cools down (testbed U15).
+SCFG_TEST(EngineTests, ARefusedRequestInFlightEndsAtOnce) {
+    HeldTransport transport;
+    scfg_test::tier2::ScriptedEntropy entropy;
+    entropy.load(draws());
+    engine::Engine eng(base_config(), transport, Json(), Json(), [] { return int64_t{1700000000}; }, {}, {}, &entropy);
+    eng.abandon_in_flight();  // nothing in flight: a no-op
+    SCFG_CHECK_EQ(t, transport.cancels, size_t{0});
+    bool refuse = false;
+    eng.refuse_requests = [&refuse] { return refuse; };
+    std::optional<Result<Json>> got;
+    scfg::Job<Json> job;
+    job.start(eng.start_session("unlock", "base", Json::dict({{"item", "chapter2"}})),
+              [&got](Result<Json> r) { got.emplace(std::move(r)); });
+    if (!t.check(!job.done() && transport.held.size() == 1, "the start waits for eth_blockNumber")) return;
+    t.check(!transport.held.front().orphaned(), "the Engine awaits the request");
+    refuse = true;
+    eng.abandon_in_flight();
+    if (!t.check(job.done() && got && !got->ok(), "the start ended inside abandon_in_flight()")) return;
+    SCFG_CHECK_EQ(t, got->err().kind, "Abandoned");
+    SCFG_CHECK_EQ(t, got->err().message, "abandoned while its request to " + std::string(kBaseRpc) + " was in flight");
+    SCFG_CHECK_EQ(t, transport.posts, size_t{1});  // no other endpoint was asked
+    SCFG_CHECK_EQ(t, transport.cancels, size_t{1});
+    t.check(transport.held.front().orphaned(), "nobody awaits the request any more");
+    t.check(!eng.running(), "the Engine is free");
+    transport.held.front().complete(Json::dict({{"result", "0x3e8"}}));  // the late answer resumes nothing
+    SCFG_CHECK_EQ(t, got->err().kind, "Abandoned");
+    Result<engine::Snapshot> snap = eng.snapshot();
+    t.check(snap.ok() && snap.value().pending.as_dict().empty(), "no session was stored");
+    Result<scfg::backends::base::Rpc> a = eng.rpc("base");
+    if (a.ok()) {
+        const scfg::rpc::RpcClient& client = scfg::backends::base::client_of(a.value());
+        t.check(client.live_urls() == client.urls(), "no endpoint cooled down");
+    }
+    // refusal off: the next start goes out, and an answer completes it through the Engine's own Future
+    refuse = false;
+    got.reset();
+    scfg::Job<Json> next;
+    next.start(eng.start_session("unlock", "base", Json::dict({{"item", "chapter2"}})),
+               [&got](Result<Json> r) { got.emplace(std::move(r)); });
+    if (!t.check(transport.held.size() == 2, "the next start asked the node")) return;
+    transport.held.back().complete(Json::dict({{"jsonrpc", "2.0"}, {"id", 1}, {"result", "0x3e8"}}));
+    t.check(next.done() && got && got->ok(), got && !got->ok() ? got->err().str() : "not finished");
+    SCFG_CHECK_EQ(t, transport.cancels, size_t{1});
+}
+
+// Python's tick_co: a session's step that ends with Abandoned (a command waits: worker.py) stops the tick there,
+// whether its request was refused before it was made or abandoned in flight. The outcomes so far are kept, the
+// interrupted session and the ones after it are not touched (the next tick steps them), the expiries still run, and
+// nothing is reported (Abandoned is not contained as an internal_error).
+SCFG_TEST(EngineTests, TheTickStopsAtAbandonedKeepingItsOutcomes) {
+    for (const bool in_flight : {true, false}) {
+        const std::string mode = in_flight ? "in flight: " : "refused: ";
+        HoldLaterTransport transport;
+        Json pending = Json::dict({{"ps_a", awaiting("base", 1700000000)}, {"ps_b", awaiting("base", 1700000000)},
+                                   {"ps_c", awaiting("base", 1700000100 - 3600)}});  // ps_c's window has closed
+        pending.as_dict().find("ps_b")->as_dict().set("id", "ps_b");
+        pending.as_dict().find("ps_c")->as_dict().set("id", "ps_c");
+        const Result<std::string> untouched = scfg::json::dumps(pending.as_dict().get("ps_b"));
+        std::vector<std::string> reported;
+        engine::Engine eng(base_config(), transport, pending, Json(), [] { return int64_t{1700000100}; }, {},
+                           [&reported](const Err& e) { reported.push_back(e.str()); });
+        bool refuse = false;
+        eng.refuse_requests = [&refuse] { return refuse; };
+        // ps_a's step (eth_blockNumber, eth_getLogs) is answered at once; ps_b's eth_blockNumber is held (in flight),
+        // or refused (refusal turns on as ps_a's last request is made)
+        transport.hold_from = 2;
+        if (!in_flight) transport.before_hold = [&refuse] { refuse = true; };
+        std::optional<Result<std::vector<engine::StepOutcome>>> got;
+        scfg::Job<std::vector<engine::StepOutcome>> job;
+        job.start(eng.tick(), [&got](Result<std::vector<engine::StepOutcome>> r) { got.emplace(std::move(r)); });
+        if (in_flight) {
+            if (!t.check(!job.done() && transport.held.size() == 1, mode + "ps_b waits for eth_blockNumber")) continue;
+            refuse = true;
+            eng.abandon_in_flight();
+        }
+        if (!t.check(job.done() && got && got->ok(), mode + (got && !got->ok() ? got->err().str() : "the tick"))) {
+            continue;
+        }
+        const std::vector<engine::StepOutcome>& outcomes = got->value();
+        if (!t.check(outcomes.size() == 2, mode + "two outcomes, not " + std::to_string(outcomes.size()))) continue;
+        SCFG_CHECK_EQ(t, outcomes[0].session_id, "ps_a");  // kept
+        t.check(!outcomes[0].error.has_value(), mode + "ps_a's step is no error");
+        SCFG_CHECK_EQ(t, outcomes[1].session_id, "ps_c");  // not stepped, but expired
+        SCFG_CHECK_EQ(t, outcomes[1].status, "expired");
+        t.check(reported.empty(), mode + "nothing reported: " + (reported.empty() ? "" : reported[0]));
+        const std::vector<std::string> expected = {"eth_blockNumber", "eth_getLogs", "eth_blockNumber"};
+        const std::vector<std::string>& asked = transport.methods;
+        if (in_flight) {
+            t.check(asked == expected, mode + "ps_b asked once, ps_c never");
+            SCFG_CHECK_EQ(t, transport.cancels, size_t{1});
+        } else {
+            t.check(asked == std::vector<std::string>(expected.begin(), expected.end() - 1),
+                    mode + "ps_b's request never reached the transport");
+            SCFG_CHECK_EQ(t, transport.cancels, size_t{0});
+        }
+        const Result<std::string> after = scfg::json::dumps(eng.pending().as_dict().get("ps_b"));
+        t.check(untouched.ok() && after.ok() && untouched.value() == after.value(), mode + "ps_b untouched");
+        t.check(eng.pending().as_dict().size() == 3, mode + "every session kept");
+        // the next tick steps every session again
+        refuse = false;
+        transport.hold_from = 1000;
+        transport.held.clear();  // ps_b's late answer: nobody awaits it
+        std::optional<Result<std::vector<engine::StepOutcome>>> next = run_now(eng.tick());
+        t.check(next && next->ok() && next->value().size() == 3, mode + "the next tick steps the three");
     }
 }
 

@@ -20,11 +20,14 @@
 // What must not happen is a resume after the Engine is gone: destroy the Job before the transport answers or drops
 // its request. If the transport is torn down first (the Engine alive), its dropped promises resume the waiting
 // coroutine with CancelledError: that is a BaseException, which no step contains, so it leaves tick() (and every
-// other method) at once, without another request and without touching the session it was stepping.
+// other method) at once, without another request and without touching the session it was stepping. The requests in
+// flight through the default RPC objects are the Engine's own (RefusingTransport wraps each one): destroying the
+// Engine lets go of them without completing them (Promise::release), so a coroutine still waiting on one is not
+// resumed inside the Engine's destructor; it stays suspended until its Job is destroyed.
 //
 // Errors: a crash while stepping one session (or, later, checking one receipt or classifying one transfer) is
 // reported to on_error and counted, never propagated, exactly where Python has `except Exception`; a BaseException
-// (CancelledError) is never contained. on_error is called from inside the running command's coroutine, so it must not
+// (CancelledError) is never contained, and neither is Abandoned (a refused request, below): the tick stops there. on_error is called from inside the running command's coroutine, so it must not
 // destroy the Job or Co that runs the command (Co.h, Job): that destroys the frame that is executing, which is
 // undefined behaviour with no diagnostic. A handler that wants to tear down records the wish and acts after on_done.
 #pragma once
@@ -111,11 +114,21 @@ public:
     // A network command's coroutine is alive (it is running or suspended): no other command may start.
     bool running() const { return *running_; }
     // While it returns true, the default RPC objects' requests are refused with Err Abandoned (not a TransportError,
-    // so no endpoint cools down): worker.py's _Refusing transport. The worker sets it for each command it starts,
-    // from that command's abandon flag (Submitter.h's Delivery::abandon), so a superseded session start stops at
-    // its next request instead of trying the rest of its endpoints. Empty: nothing is refused. A custom RpcFactory's
-    // objects are not affected.
+    // so no endpoint cools down): worker.py's _Refusing transport. The worker sets it for each command it starts:
+    // true once that command's abandon flag is (Submitter.h's Delivery::abandon), so a superseded session start stops
+    // at its next request instead of trying the rest of its endpoints, and, for a tick, while a command waits
+    // (worker.py: commands come first). Empty: nothing is refused. A custom RpcFactory's objects are not affected.
+    // It is read inside the running command's coroutine (at each request), so it must not start or end a command.
     std::function<bool()> refuse_requests;
+    // Ends the requests in flight through the default RPC objects at once, each with Err Abandoned ("abandoned while
+    // its request to <url> was in flight"): worker.py's _Refusing, which stops waiting for a request when refusal turns
+    // on. The transport is asked to cancel them (Transport::cancel_orphaned: the HTTP request is aborted where it can
+    // be), otherwise their late answers are dropped. The owner calls it once refuse_requests says true, so the
+    // resumed command's next request is refused and it ends; tick() stops at the Abandoned keeping its outcomes.
+    // The waiting coroutine resumes inside this call (Co.h's Promise::complete), and its Job's on_done may run in
+    // it: call it from the owner's own loop, never from inside a command's coroutine (on_error, refuse_requests) or a
+    // Job's on_done. Nothing in flight: a no-op.
+    void abandon_in_flight();
 
     // --- chains & RPC ---
 
@@ -140,7 +153,10 @@ public:
     Status set_ui_status(const Json& sid, const Json& status);
     // Drop a session the player abandoned before paying (still awaiting, no hint); a no-op otherwise.
     Status discard_session(const Json& sid);
-    // Every session, one after another in pending order (never concurrently), then the expiries.
+    // Every session, one after another in pending order (never concurrently), then the expiries. A session's step
+    // that ends with Err Abandoned (its request refused, or abandoned in flight: a command waits, worker.py) stops
+    // the stepping there, as Python's tick_co breaks: the sessions not stepped yet, and the one interrupted, wait for
+    // the next tick, and the outcomes so far are kept; the expiries still run.
     Co<std::vector<StepOutcome>> tick();
 
     // --- receipts ---
@@ -160,7 +176,8 @@ public:
     Result<Snapshot> snapshot() const;
 
 private:
-    // Python _advance: one session's step, or nullopt for a session kept unwatched until its horizon.
+    // Python _advance: one session's step, or nullopt for a session kept unwatched until its horizon. A crash (an
+    // Exception) is contained as internal_error; Abandoned and a BaseException are passed on.
     Co<std::optional<StepOutcome>> advance_one(std::string sid, Json rec, Json now);
     Co<std::optional<StepOutcome>> step_session(std::string sid, Json rec, Json now);
     // Python _expire: the 30-minute payment window closing (scanning continues up to 24 h).
@@ -174,14 +191,32 @@ private:
     void report(const Err& e) const;
     backends::base::RpcFor rpc_for();
 
-    // The transport the default RPC objects post through: transport_, unless refuse_requests says no.
+    // The transport the default RPC objects post through: transport_, unless refuse_requests says no. A request
+    // that does not complete at once is handed out as its own Future, which a forwarding coroutine completes with
+    // transport_'s answer, or abandon() completes with Abandoned (the forwarder is destroyed first, so the late
+    // answer resumes nothing).
     class SCFGCORE_API RefusingTransport final : public coio::Transport {
     public:
         explicit RefusingTransport(Engine& owner) : owner_(&owner) {}
+        RefusingTransport(const RefusingTransport&) = delete;
+        RefusingTransport& operator=(const RefusingTransport&) = delete;
+        // Lets go of the requests in flight without resuming their waiters (see Lifetime above).
+        ~RefusingTransport() override;
         Future<Json> post_json(std::string url, Json payload, double timeout) override;
+        // Engine::abandon_in_flight.
+        void abandon();
 
     private:
+        struct Flight {
+            std::string url;
+            std::shared_ptr<Promise<Json>> answer;  // shared with the forwarder
+            Co<void> forward;                       // awaits transport_'s Future, then completes answer
+        };
+        // Drops the flights whose forwarder has finished.
+        void prune();
+
         Engine* owner_;
+        std::vector<Flight> flights_;
     };
 
     config::Config config_;

@@ -327,6 +327,32 @@ SCFG_TEST(CoTests, APromiseDroppedIncompleteCancelsItsFuture) {
     SCFG_CHECK(t, scfg::errors::misuse().empty());
 }
 
+// orphaned(): nobody can see the answer any more (the Future and its waiter are gone), which a transport checks to
+// cancel such a request; release(): let go without completing, so the waiter is not resumed (it stays suspended).
+SCFG_TEST(CoTests, AnOrphanedPromiseAndARelease) {
+    Promise<int> p;
+    SCFG_CHECK(t, !p.orphaned());  // no Future handed out yet
+    std::optional<Co<int>> waiter(std::in_place, await_future(p.get_future()));
+    SCFG_CHECK(t, !p.orphaned());  // awaited
+    waiter.reset();                // the waiting frame is destroyed: it unregisters
+    SCFG_CHECK(t, p.orphaned());
+    p.complete(1);  // resumes nothing
+    SCFG_CHECK(t, !p.orphaned() && p.completed());
+    {
+        Promise<int> q;
+        Future<int> held = q.get_future();
+        SCFG_CHECK(t, !q.orphaned());  // somebody still holds the Future
+    }
+    Promise<int> r;
+    Co<int> stays = await_future(r.get_future());
+    r.release();
+    SCFG_CHECK(t, r.completed() && !r.orphaned());
+    {
+        Promise<int> dropped = std::move(r);  // a released Promise cancels nothing when dropped
+    }
+    SCFG_CHECK(t, !stays.done());  // still suspended; destroying it is the cancellation
+}
+
 SCFG_TEST(CoTests, CompletingBeforeTheAwaitIsFine) {
     Promise<int> p;
     Future<int> f = p.get_future();

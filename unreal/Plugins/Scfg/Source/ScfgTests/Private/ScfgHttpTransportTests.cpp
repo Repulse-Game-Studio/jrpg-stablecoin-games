@@ -472,6 +472,70 @@ bool FScfgHttpShutdownTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+SCFG_HTTP_TEST(FScfgHttpCancelOrphanedTest, "CancelOrphanedCancelsOnlyTheRequestsNobodyAwaits")
+
+// No Godot twin (its bridge's cancel is the web build's): cancel_orphaned() (the Engine stopped waiting for a request
+// in flight, Engine::abandon_in_flight) cancels a request whose Future is gone, unbound first so the engine's late
+// completion never reaches the transport, and leaves a request somebody awaits alone (testbed U15).
+bool FScfgHttpCancelOrphanedTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgHttpTests;
+	FLocalNode& Node = FLocalNode::Get();
+	if (!TestTrue(TEXT("the local node is listening on 127.0.0.1"), Node.IsUp()))
+	{
+		return false;
+	}
+	TSharedRef<FCall> Call = MakeShared<FCall>();
+	const int32 SeenBefore = Node.Seen.Num();
+	Call->Post(Node.Url(TEXT("/hang")));
+	{
+		// posted, and its Future dropped at once: nobody awaits it
+		scfg::Future<Json> Dropped = Call->Transport->post_json(ScfgString::ToUtf8(Node.Url(TEXT("/hang"))),
+			Json::dict({{"jsonrpc", "2.0"}, {"id", 8}, {"method", "eth_blockNumber"}, {"params", Json::list()}}), 10.0);
+		TestFalse(TEXT("the dropped one is in flight"), Dropped.done());
+	}
+	struct FWait
+	{
+		double Since = FPlatformTime::Seconds();
+		bool bCancelled = false;
+		int32 FramesAfter = 0;
+	};
+	TSharedRef<FWait> Wait = MakeShared<FWait>();
+	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand([this, Call, Wait, &Node, SeenBefore]()
+	{
+		if (!Wait->bCancelled)
+		{
+			// wait until the node holds both requests, so they really are in flight
+			if (Node.Seen.Num() < SeenBefore + 2 && FPlatformTime::Seconds() - Wait->Since < kPatience)
+			{
+				return false;
+			}
+			TestEqual(TEXT("in flight"), Call->Transport->InFlight(), 2);
+			Call->Transport->cancel_orphaned();
+			Wait->bCancelled = true;
+			TestEqual(TEXT("the orphan was cancelled"), Call->Transport->CancelledOrphans(), 1);
+			TestEqual(TEXT("the awaited one is still in flight"), Call->Transport->InFlight(), 1);
+			TestFalse(TEXT("and not answered"), Call->Got.has_value());
+			Call->Transport->cancel_orphaned();
+			TestEqual(TEXT("a second call cancels nothing more"), Call->Transport->CancelledOrphans(), 1);
+			return false;
+		}
+		if (++Wait->FramesAfter < 10)  // some frames for the cancelled request's late completion to (not) arrive
+		{
+			return false;
+		}
+		TestFalse(TEXT("the awaited one is still waiting"), Call->Got.has_value());
+		TestEqual(TEXT("still in flight"), Call->Transport->InFlight(), 1);
+		Call->Transport->Shutdown();
+		TestTrue(TEXT("then dropped by Shutdown()"), Call->Got.has_value() && !Call->Got->ok() &&
+			Call->Got->err().kind == "CancelledError");
+		Call->Transport.Reset();
+		Node.Release();
+		return true;
+	}));
+	return true;
+}
+
 SCFG_HTTP_TEST(FScfgHttpRefusedAtOnceTest, "WhatCannotBeSentFailsAtOnce")
 
 // Two requests that never leave: a payload json::dumps refuses (an int of more than 4300 digits, Python's
