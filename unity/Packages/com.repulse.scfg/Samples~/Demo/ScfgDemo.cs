@@ -194,6 +194,7 @@ namespace Scfg.Samples.Demo
             {
                 b.style.minWidth = 280;
                 b.style.marginBottom = 8;
+                b.style.color = new Color(0.1f, 0.1f, 0.12f); // dark text on the light button, not the root's white
                 root.Add(b);
             }
             _status = new Label { style = { color = new Color(0.8f, 0.8f, 0.9f), marginTop = 16 } };

@@ -384,7 +384,11 @@ namespace Scfg.Samples.Showcase
         // The text color of the whole screen (the panel's default would be dark on the dark background).
         private static readonly Color TextColor = new Color(0.85f, 0.87f, 0.9f);
 
-        private static Button MakeButton(string text, System.Action onClick) => new Button(onClick) { text = text };
+        // Dark text on the theme's light buttons: a Button inherits the screen's light TextColor otherwise.
+        private static Button MakeButton(string text, System.Action onClick) =>
+            new Button(onClick) { text = text, style = { color = ButtonTextColor } };
+
+        private static readonly Color ButtonTextColor = new Color(0.1f, 0.1f, 0.12f);
     }
 
     // Where the scene finds the payout wallets (the Demo does the same in its Wallets()): the component's fields when one is set,
