@@ -388,7 +388,7 @@ test("test_tick_contains_a_session_crash", async () => {
   assert.ok(b.id in e.pending);
 });
 
-// Testbed U15 (worker.ts: commands come first): a step whose request is refused (Abandoned)
+// Commands come first (worker.ts): a step whose request is refused (Abandoned)
 // stops the tick there. The outcomes so far are kept, the rest wait for the next tick, the expiry
 // still runs, and the yield is no crash (no internal_error, nothing reported).
 test("test_a_refused_tick_stops_keeping_its_outcomes", async () => {
@@ -470,4 +470,12 @@ test("test_restore_lookup_keeps_integer_like_chain_keys_in_order", async () => {
   }
   await assert.rejects(e.restoreLookup(TX), (x: unknown) => x instanceof RestoreError && x.code === "tx_not_found");
   assert.deepEqual(asked, ["zeta", "10", "ethereum", "arbitrum", "polygon", "base", "arc"]);
+});
+
+// A request with no transport fails as worker.py's gate and Godot's engine.gd do: an Error that
+// names the url it could not reach (not the RPC-client builder's TypeError).
+test("test_a_request_without_a_transport_names_its_url", async () => {
+  const e = new Engine(buildConfig({ wallet: DEV }), {});
+  await assert.rejects(e.requests.postJson("https://a.rpc", {}, 5),
+    (x: unknown) => x instanceof Error && !(x instanceof TypeError) && x.message === "no transport to reach https://a.rpc");
 });

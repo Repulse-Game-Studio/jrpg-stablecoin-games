@@ -26,9 +26,9 @@ export const COOLDOWN_MAX = 600.0;
  */
 export const CALL_BUDGET = 15.0;
 /**
- * The least of the budget an endpoint is asked with: under it the endpoints left are skipped (not
- * cooled down) and the call is RpcUnavailable, so no endpoint is cooled down for failing a
- * request it was given a sliver of time for.
+ * The least of the budget an endpoint is asked with (the floor): under it the endpoints left are
+ * skipped (not cooled down) and the call is RpcUnavailable, so no endpoint is cooled down for
+ * failing a request it was given a sliver of time for.
  */
 export const MIN_ATTEMPT = 2.0;
 /** The smallest eth_getLogs block range a chain may be configured with. */

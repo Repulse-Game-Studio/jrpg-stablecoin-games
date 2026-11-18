@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
-import { CancelSource, FetchTransport, MAX_RESPONSE_BYTES, TransportError } from "./coio.ts";
+import { Abandoned, CancelSource, FetchTransport, MAX_RESPONSE_BYTES, TransportError } from "./coio.ts";
 import { jsonLoads } from "./pystr.ts";
 
 type Handler = (body: string, res: http.ServerResponse) => void;
@@ -97,7 +97,8 @@ test("a timeout aborts the request as a TransportError", async () => {
   });
 });
 
-// Testbed U15: a request nobody waits for any more (worker.ts) is aborted at once.
+// A request nobody waits for any more (worker.ts) is aborted at once, and fails with Abandoned
+// (as Godot's ScfgHttpTransport): not a TransportError, so no endpoint cools down.
 test("a cancelled request is aborted at once, and one cancelled already is never sent", async () => {
   let sent = 0;
   await withServer(() => { sent++; /* never answers */ }, async (url) => {
@@ -107,9 +108,10 @@ test("a cancelled request is aborted at once, and one cancelled already is never
     assert.equal(sent, 1);
     const t0 = Date.now();
     cancel.cancel();
-    await assert.rejects(answer, (e: unknown) => e instanceof TransportError);
+    const isCancelled = (e: unknown) => e instanceof Abandoned && e.message === `the request to ${url} was cancelled`;
+    await assert.rejects(answer, isCancelled);
     assert.ok(Date.now() - t0 < 1000, "at once, not at the 10 s timeout");
-    await assert.rejects(new FetchTransport().postJson(url, {}, 10, cancel), /cancelled/);
+    await assert.rejects(new FetchTransport().postJson(url, {}, 10, cancel), isCancelled);
     assert.equal(sent, 1);
   });
 });

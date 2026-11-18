@@ -9,9 +9,9 @@ import http from "node:http";
 import https from "node:https";
 import type { AddressInfo } from "node:net";
 import { TransportError } from "../core/index.ts";
-import { CancelSource } from "../core/coio.ts";
+import { Abandoned, CancelSource } from "../core/coio.ts";
 import { RpcClient, RpcUnavailable, CALL_BUDGET } from "../core/rpc.ts";
-import { FALLBACK_FLOOR, NodeHttpsTransport } from "./node_transport.ts";
+import { MIN_FALLBACK, NodeHttpsTransport } from "./node_transport.ts";
 
 interface Seen { method: string; url: string; headers: http.IncomingHttpHeaders; body: string }
 
@@ -423,7 +423,7 @@ test("anOversizedErrorAnswerIsTooLarge", async () => {
     isTransportError(null, /^response too large$/));
 });
 
-// U12 of the Unity testbed: a DNS server that never answers. Node's request timeout starts only once
+// A DNS server that never answers. Node's request timeout starts only once
 // the socket connects, so the lookup needs a timer of its own (rpc.py's resolve_within).
 test("aNameLookupThatNeverAnswersIsBoundedByTheTimeout", async () => {
   const stuck = {
@@ -458,6 +458,31 @@ const stuckLookup = {
   },
 };
 
+/**
+ * Runs `body` with setTimeout and Date mocked (no real wait, so no wall-clock slack to tune) and a
+ * clock in seconds read from the mocked Date.
+ */
+async function onMockedTimers(body: (clock: () => number) => Promise<void>): Promise<void> {
+  mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1_000_000 });
+  try {
+    await body(() => Date.now() / 1000);
+  } finally {
+    mock.timers.reset();
+  }
+}
+
+/** Inside onMockedTimers: `promise`, the mocked time moved on in 50 ms steps until it settles. */
+async function settled<T>(promise: Promise<T>): Promise<T> {
+  let done = false;
+  const watched = promise.finally(() => { done = true; });
+  watched.catch(() => undefined);
+  for (let i = 0; i < 1000 && !done; i++) {
+    await new Promise((r) => setImmediate(r));
+    if (!done) mock.timers.tick(50);
+  }
+  return watched;
+}
+
 /** A fallback that never answers: fails "timed out" after its `timeout`, as FetchTransport's abort. Records [url, timeout]. */
 function hangingFallback() {
   const calls: Array<[string, number]> = [];
@@ -470,9 +495,9 @@ function hangingFallback() {
   };
 }
 
-// Review T1 for Node: behind a proxy only the fallback (Chromium's fetch, which uses the OS proxy)
+// Behind a proxy only the fallback (Chromium's fetch, which uses the OS proxy)
 // reaches the RPC. A lookup Node could not finish in time is a DNS failure, retried through it.
-// Review V2: the retry shares the request's timeout: the lookup has half of it, the fallback what
+// The retry shares the request's timeout: the lookup has half of it, the fallback what
 // is left (not the whole timeout again).
 test("aLookupThatTimesOutGoesOnceMoreThroughTheFallback", async () => {
   const asked: Array<[string, number]> = [];
@@ -482,34 +507,36 @@ test("aLookupThatTimesOutGoesOnceMoreThroughTheFallback", async () => {
       return Promise.resolve({ jsonrpc: "2.0", id: 1, result: "0x1" });
     },
   };
-  const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback });
-  const started = performance.now();
-  const answer = await within(t.postJson("https://behind-a-proxy.example/", {}, 1.0), 3000);
-  const ms = performance.now() - started;
-  assert.deepEqual(answer, { jsonrpc: "2.0", id: 1, result: "0x1" });
-  assert.equal(asked.length, 1);
-  assert.equal(asked[0]![0], "https://behind-a-proxy.example/");
-  const left = asked[0]![1];
-  assert.ok(ms >= 450, `the lookup had half of the timeout (${ms} ms)`);
-  assert.ok(left <= 1.0 - 0.45 && left >= 1.0 - ms / 1000 - 0.05, `the fallback gets what is left of the timeout, not all of it (${left} s)`);
+  await onMockedTimers(async (clock) => {
+    const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback, clock });
+    const started = clock();
+    const answer = await settled(t.postJson("https://behind-a-proxy.example/", {}, 1.0));
+    assert.deepEqual(answer, { jsonrpc: "2.0", id: 1, result: "0x1" });
+    assert.equal(clock() - started, 0.5, "the lookup had half of the timeout");
+    assert.deepEqual(asked, [["https://behind-a-proxy.example/", 0.5]],
+      "the fallback gets what is left of the timeout, not all of it");
+  });
 });
 
 test("aLookupTimeoutAndItsFallbackStayWithinTheRequestsTimeout", async () => {
-  // Review V2: a DNS that never answers and a fallback that hangs too end together at `timeout`,
+  // A DNS that never answers and a fallback that hangs too end together at `timeout`,
   // not at twice it.
   const fallback = hangingFallback();
-  const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback });
-  const started = performance.now();
-  await assert.rejects(within(t.postJson("https://nowhere.example/", {}, 0.8), 3000),
-    (e: unknown) => e instanceof TransportError && /timed out/.test(e.message));
-  const ms = performance.now() - started;
-  assert.equal(fallback.calls.length, 1, "the fallback was asked");
-  assert.ok(ms >= 750 && ms < 950, `the attempt took its timeout, not more (${ms} ms)`);
+  await onMockedTimers(async (clock) => {
+    const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback, clock });
+    const started = clock();
+    await assert.rejects(settled(t.postJson("https://nowhere.example/", {}, 0.8)),
+      (e: unknown) => e instanceof TransportError && /timed out/.test(e.message));
+    const took = clock() - started;
+    assert.equal(fallback.calls.length, 1, "the fallback was asked");
+    assert.ok(Math.abs(fallback.calls[0]![1] - 0.4) < 1e-9, `with the half left (${fallback.calls[0]![1]} s)`);
+    assert.ok(Math.abs(took - 0.8) < 1e-9, `the attempt took its timeout, not more (${took} s)`);
+  });
 });
 
 test("theFallbackIsNotAskedWithLessThanTheFloorLeft", async () => {
-  // half of 0.4 s is left after the lookup's 0.2 s: under FALLBACK_FLOOR, so the lookup's failure is the answer
-  assert.equal(FALLBACK_FLOOR, 0.25);
+  // half of 0.4 s is left after the lookup's 0.2 s: under MIN_FALLBACK, so the lookup's failure is the answer
+  assert.equal(MIN_FALLBACK, 0.25);
   const fallback = hangingFallback();
   const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback });
   await assert.rejects(within(t.postJson("https://nowhere.example/", {}, 0.4), 3000),
@@ -527,34 +554,23 @@ test("theFallbackIsNotAskedWithLessThanTheFloorLeft", async () => {
 });
 
 test("aCallOverFourEndpointsWhoseLookupsAndFallbackHangEndsWithinTheCallBudget", async () => {
-  // Review V2 over the real RpcClient (CALL_BUDGET, MIN_ATTEMPT) and transport, on mocked timers:
+  // Over the real RpcClient (CALL_BUDGET, MIN_ATTEMPT) and transport, on mocked timers:
   // A's attempt is 10 s (5 s lookup, 5 s fallback), B's the 5 s left (2.5 + 2.5); C and D are not
   // asked. Before, A's attempt alone took 20 s (a full timeout twice).
-  mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1_000_000 });
-  try {
-    const clock = () => Date.now() / 1000;
+  await onMockedTimers(async (clock) => {
     const fallback = hangingFallback();
     const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback, clock });
     const urls = ["https://a.example/", "https://b.example/", "https://c.example/", "https://d.example/"];
     const rpc = new RpcClient(urls, { transport: t, clock });
     const started = clock();
-    let settled = false;
-    const call = rpc.blockNumber().finally(() => { settled = true; });
-    call.catch(() => undefined);
-    for (let i = 0; i < 1000 && !settled; i++) {
-      await new Promise((r) => setImmediate(r));
-      if (!settled) mock.timers.tick(50);
-    }
-    await assert.rejects(call, RpcUnavailable);
+    await assert.rejects(settled(rpc.blockNumber()), RpcUnavailable);
     const took = clock() - started;
     assert.ok(took <= CALL_BUDGET + 0.1, `the call ended within its ${CALL_BUDGET} s budget (${took} s)`);
     assert.deepEqual(fallback.calls, [[urls[0], 5], [urls[1], 2.5]]);
-  } finally {
-    mock.timers.reset();
-  }
+  });
 });
 
-// Review T4: a request on a kept-alive socket (Node 19+ keeps them by default) never sees "connect",
+// A request on a kept-alive socket (Node 19+ keeps them by default) never sees "connect",
 // so the lookup timer must stop at once; else an answer streamed for longer than `timeout` in
 // total, every read well inside it, failed as "timed out resolving".
 test("aKeptAliveSocketStopsTheLookupTimer", async () => {
@@ -590,9 +606,9 @@ test("aKeptAliveSocketStopsTheLookupTimer", async () => {
   }
 });
 
-// Testbed U15: a request nobody waits for any more (the job was abandoned, or the tick yields to a
-// command) is destroyed at once, never retried through the fallback; one cancelled before it
-// starts never reaches the server.
+// A request nobody waits for any more (the job was abandoned, or the tick yields to a command) is
+// destroyed at once and fails with Abandoned, never retried through the fallback; one cancelled
+// before it starts never reaches the server.
 test("aCancelledRequestIsDestroyedAtOnceAndNeverRetried", async () => {
   let closed!: () => void;
   const serverSawClose = new Promise<void>((r) => { closed = r; });
@@ -613,10 +629,11 @@ test("aCancelledRequestIsDestroyedAtOnceAndNeverRetried", async () => {
   assert.equal(seen.length, 1, "the request reached the server");
   const t0 = performance.now();
   cancel.cancel();
-  await assert.rejects(within(answer, 3000), isTransportError(null, /^cancelled$/));
+  const isCancelled = (e: unknown) => e instanceof Abandoned && e.message === `the request to ${url} was cancelled`;
+  await assert.rejects(within(answer, 3000), isCancelled);
   assert.ok(performance.now() - t0 < 1000, "at once");
   await within(serverSawClose, 3000);
   assert.deepEqual(asked, [], "a cancelled request never goes through the fallback");
-  await assert.rejects(within(t.postJson(url, {}, 10, cancel), 3000), isTransportError(null, /^cancelled$/));
+  await assert.rejects(within(t.postJson(url, {}, 10, cancel), 3000), isCancelled);
   assert.equal(seen.length, 1, "one cancelled already is never sent");
 });

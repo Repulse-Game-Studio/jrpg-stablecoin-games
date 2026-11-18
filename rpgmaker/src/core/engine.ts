@@ -114,7 +114,8 @@ export class Engine {
         }
         const transport = this.transport;
         if (transport === undefined) {
-          return Promise.reject(new TypeError("Engine needs a transport to build RPC clients"));
+          // worker.py's RuntimeError, as Godot's engine.gd
+          return Promise.reject(new Error(`no transport to reach ${url}`));
         }
         const cancel = new CancelSource();
         this._inFlight.add(cancel);
@@ -144,7 +145,7 @@ export class Engine {
    * If refuseRequests now says so, every request in flight through `requests` ends at once with
    * Abandoned, and the transport is told to stop it (Cancel). The Worker calls it when it abandons
    * the running job or a command arrives while a tick runs: the job never waits on a request it
-   * no longer needs (testbed U15).
+   * no longer needs.
    */
   refuseInFlight(): void {
     if (this.refuseRequests === null || !this.refuseRequests()) return;
@@ -231,7 +232,7 @@ export class Engine {
    * A tick whose requests are refused (Abandoned: a command the player waits on came in,
    * worker.ts) stops there: the sessions not stepped yet, and the one interrupted (as by a network
    * failure), wait for the next tick; the outcomes so far are kept, and so is a hint verdict the
-   * interrupted step reached before it was refused (its backend returns it, review V1).
+   * interrupted step reached before it was refused (its backend returns it).
    */
   async tick(): Promise<StepOutcome[]> {
     const now = this.clock();

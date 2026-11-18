@@ -271,6 +271,8 @@ export class Worker {
 
   /** Engine.tick, yielding to a command submitted meanwhile (see the header). */
   private async _tick(): Promise<StepOutcome[]> {
+    // Python and Godot yield to any queued command; a queued job cancelled meanwhile never runs,
+    // so there is no reason to yield to it here.
     this.engine.refuseRequests = () => this._commands.some((c) => !c.job.done());
     this._ticking = true;
     try {

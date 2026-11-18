@@ -49,8 +49,9 @@ export class Abandoned extends Error {
  * A request's cancellation, the optional fourth argument of `postJson`: it fires once nobody waits
  * for the answer any more (engine.ts refuseInFlight: the job was abandoned, or the tick yields to
  * a command). A transport that can stop the exchange then does (FetchTransport aborts its fetch,
- * NodeHttpsTransport destroys its request); one that ignores it is simply not waited for, and its
- * late answer is dropped.
+ * NodeHttpsTransport destroys its request) and fails with Abandoned, which nobody reads (the
+ * Engine stopped waiting for it); one that ignores it is simply not waited for, and its late
+ * answer is dropped.
  */
 export interface Cancel {
   readonly cancelled: boolean;
@@ -186,7 +187,8 @@ export class FetchTransport implements Transport {
   async postJson(url: string, payload: object, timeout: number, cancel?: Cancel): Promise<unknown> {
     const g = globalThis as unknown as FetchGlobals;
     if (typeof g.fetch !== "function") throw new TransportError("fetch is not available");
-    if (cancel?.cancelled) throw new TransportError("cancelled");
+    const cancelled = () => new Abandoned(`the request to ${url} was cancelled`);
+    if (cancel?.cancelled) throw cancelled();
     const controller = typeof g.AbortController === "function" ? new g.AbortController() : null;
     const timer = controller ? g.setTimeout(() => controller.abort(), timeout * 1000) : null;
     // nobody waits for the answer any more: the fetch is aborted (its failure goes unread)
@@ -207,6 +209,7 @@ export class FetchTransport implements Transport {
         if (controller) controller.abort();
       });
     } catch (e) {
+      if (cancel?.cancelled) throw cancelled();
       if (e instanceof TransportError) throw e;
       throw new TransportError(messageOf(e));
     } finally {
