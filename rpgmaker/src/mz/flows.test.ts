@@ -296,7 +296,7 @@ const pendingById = (s: Scfg, sid: string) => s.pending().find((r) => r["id"] ==
 
 // --- pay -------------------------------------------------------------------------------------
 
-// Review T2: the plugin builds its own RPC clients (its rpc_factory); they must post through the
+// The plugin builds its own RPC clients (its rpc_factory); they must post through the
 // Engine's refusing transport, so a running start the player moved away from is refused its next
 // request instead of trying the rest of its endpoints while the new pick waits behind it.
 test("aRunningStartThePlayerLeftIsRefusedItsNextRequest", async () => {
@@ -334,7 +334,7 @@ test("aRunningStartThePlayerLeftIsRefusedItsNextRequest", async () => {
   assert.equal(box.result, undefined, "the payment is still open");
 });
 
-// Testbed U15 on the plugin's own rpc_factory: the left start's request in flight is never
+// On the plugin's own rpc_factory, the left start's request in flight is never
 // answered (a host that hangs), yet the new pick starts at once; the transport is told to stop it.
 test("aRunningStartThePlayerLeftStopsWaitingForItsRequestInFlight", async () => {
   const asked: string[] = [];

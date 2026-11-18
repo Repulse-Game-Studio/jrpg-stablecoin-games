@@ -552,7 +552,7 @@ export class Scfg {
       engine = new Engine(this._config, {
         transport, pending: m.doc.pending, receipts: m.doc.receipts, on_error: this._logError,
         // RPC cooldowns must not jump with the wall clock; `requests` is the transport behind the
-        // Engine's refusal, so an abandoned start's requests are refused (review T2)
+        // Engine's refusal, so an abandoned start's requests are refused
         rpc_factory: (chain, requests) => backendFor(chain).makeRpc(chain, requests, rpcClock),
         ...this._hooks.engine_opts,
       });

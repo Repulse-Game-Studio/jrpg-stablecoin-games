@@ -261,9 +261,9 @@ test("test_async_commands_are_awaited", async () => {
 
 // --- test_pump_worker.py: the semantics that are not frame pumping -----------------------
 
-// Testbed U15: the player's command does not wait behind a background tick. The tick's request
-// in flight is ended (review T7: its answer is never kept), the command runs next, and the next
-// tick comes after it. No error is reported for the yield.
+// The player's command does not wait behind a background tick. The tick's request in flight is
+// ended (its answer is never kept), the command runs next, and the next tick comes after it. No
+// error is reported for the yield.
 test("test_a_command_submitted_mid_tick_makes_the_tick_yield", async () => {
   const e = new CoopEngine();
   const errors: unknown[] = [];
@@ -652,7 +652,7 @@ test("test_an_abandoned_running_job_is_refused_its_next_request", async () => {
   assert.equal(engine.refuseRequests, null, "cleared after the job");
 });
 
-// Testbed U15: a superseded start whose request is in flight (a host that never answers) ends at
+// A superseded start whose request is in flight (a host that never answers) ends at
 // once when abandoned, not at the request's 10 s timeout. The transport is told (Cancel).
 test("test_an_abandoned_job_stops_waiting_for_its_request_in_flight", async () => {
   const cfg = buildConfig({ wallet: "0x52908400098527886E0F7030069857D2E4169EE7", chains: ["base"], testnet: true });

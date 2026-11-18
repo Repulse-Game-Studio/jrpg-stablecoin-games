@@ -73,7 +73,6 @@ def test_evm_chain_still_uses_eip681():
 
 
 def test_pasting_the_wrong_family_is_an_invalid_hash():
-    """Review focus 1."""
     ctl, e = started("solana")
     assert ctl.submit_hash(EVM_TX) is False and ctl.error == "invalid_hash"
     assert ctl.submit_hash(SIG) is True and e.pending[ctl.session_id]["hint_tx"] == SIG

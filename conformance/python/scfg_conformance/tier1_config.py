@@ -423,7 +423,7 @@ _CHAIN_ERRORS = [
     _chain(explorer_tx="http://snowtrace.io/tx/{}"),
     _chain(explorer_tx="http://127.0.0.1.evil.org/tx/{}"),
     _chain(explorer_tx="http://localhost:4000\n/tx/{}"),
-    # the loopback rule's bypasses (review T9): userinfo, case, a trailing dot, IPv6, any address
+    # the loopback rule's bypasses: userinfo, case, a trailing dot, IPv6, any address
     _chain(explorer_tx="http://localhost@evil.com/tx/{}"),
     _chain(explorer_tx="http://LOCALHOST/tx/{}"),
     _chain(explorer_tx="HTTP://127.0.0.1/tx/{}"),

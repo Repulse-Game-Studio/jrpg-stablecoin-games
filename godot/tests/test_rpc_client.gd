@@ -226,7 +226,7 @@ func test_each_attempt_waits_at_most_what_is_left_of_the_budget() -> bool:
 	return T.done()
 
 
-## Review T5: A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not asked
+## A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not asked
 ## with a sliver of time, nor cooled down for failing it.
 func test_an_endpoint_is_not_asked_with_less_than_the_floor_left() -> bool:
 	var c_ := "https://c.rpc"
@@ -240,7 +240,7 @@ func test_an_endpoint_is_not_asked_with_less_than_the_floor_left() -> bool:
 	return T.done()
 
 
-## Review V5, the floor's boundary: with exactly MIN_ATTEMPT left C is asked, with that timeout;
+## The floor's boundary: with exactly MIN_ATTEMPT left C is asked, with that timeout;
 ## with less (1.9 s) it is not, and stays live.
 func test_the_floor_is_asked_at_exactly_min_attempt_left() -> bool:
 	var c_ := "https://c.rpc"

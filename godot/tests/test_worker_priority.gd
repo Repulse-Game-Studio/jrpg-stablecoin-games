@@ -1,4 +1,4 @@
-## The twin of tests/unit/test_worker_priority.py (testbed U15): a session start the player waits
+## The twin of tests/unit/test_worker_priority.py: a session start the player waits
 ## on comes before the background watching of pending payments. With pending sessions whose checks
 ## hang (a DNS that never answers), the start submitted while a tick runs makes the tick yield at
 ## once, its request in flight included, and starts in well under the per-request timeout; the
@@ -20,7 +20,7 @@ func test_a_start_does_not_wait_behind_the_watching_of_pending_payments() -> boo
 	var errors := []
 	var engine := ScfgEngine.new(cfg, {"transport": node, "clock": func() -> int: return 1700000000,
 		"on_error": func(x: Variant) -> void: errors.append(x)})
-	for i in 3:  # three pending tips, as in the testbed
+	for i in 3:  # three pending tips
 		var rec: Variant = await engine.start_session("tip", "base", {"amount": "1.00", "token": "USDC"})
 		T.ok(rec is Dictionary, str(rec))
 	T.eq(engine.pending.size(), 3)
@@ -61,7 +61,7 @@ class RevertingNode:
 		return await super.post_json(url, payload, timeout)
 
 
-## Review V1: the tick judged the hint (reverted) and cleared it, then waits on its next request;
+## The tick judged the hint (reverted) and cleared it, then waits on its next request;
 ## a command makes it yield. The verdict is still reported, not lost with the step.
 func test_a_hint_verdict_reached_before_the_tick_yields_is_reported() -> bool:
 	var tree := Engine.get_main_loop() as SceneTree

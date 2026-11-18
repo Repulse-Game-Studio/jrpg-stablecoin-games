@@ -147,7 +147,7 @@ test("test_each_attempt_waits_at_most_what_is_left_of_the_budget", async () => {
 });
 
 test("test_an_endpoint_is_not_asked_with_less_than_the_floor_left", async () => {
-  // Review T5: A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not
+  // A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not
   // asked with a sliver of time, nor cooled down for failing it.
   const C = "https://c.rpc";
   const clock = new FakeClock();
@@ -161,7 +161,7 @@ test("test_an_endpoint_is_not_asked_with_less_than_the_floor_left", async () => 
 
 for (const [bTakes, asked] of [[3, true], [3.1, false]] as const) {
   test(`test_the_floor_is_asked_at_exactly_min_attempt_left[${bTakes}-${asked}]`, async () => {
-    // Review V5, the floor's boundary: with exactly MIN_ATTEMPT left C is asked, with that
+    // The floor's boundary: with exactly MIN_ATTEMPT left C is asked, with that
     // timeout; with less (1.9 s) it is not, and stays live.
     const C = "https://c.rpc";
     const clock = new FakeClock();

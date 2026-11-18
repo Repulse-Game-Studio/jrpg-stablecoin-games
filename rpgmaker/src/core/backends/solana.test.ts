@@ -692,7 +692,7 @@ for (const failure of ["unavailable", "rpc_error"]) {
 }
 
 test("test_hint_expiry_is_reported_when_the_tick_yields_later_in_the_step", async () => {
-  // Review V1 (port-only check): the reference lookup is refused because a command came in
+  // A port-only check: the reference lookup is refused because a command came in
   // (worker.ts). The verdict reached earlier in the step is reported; a step with no verdict
   // yields (Abandoned) and is not mistaken for network trouble.
   const s = setup();

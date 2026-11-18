@@ -88,7 +88,7 @@ def test_invented_signature_is_dropped_when_history_covers_it():
 
 
 def test_old_receipt_on_a_pruned_endpoint_is_kept():
-    """Review focus 5: publicnode keeps ~2 days; a null from it proves nothing."""
+    """Publicnode keeps ~2 days; a null from it proves nothing."""
     chain = FakeSolanaChain()
     chain.first_available = 10**9
     assert verdict(chain, receipt_for(sig(1))) == "keep"

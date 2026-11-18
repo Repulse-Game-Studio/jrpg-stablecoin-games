@@ -104,9 +104,9 @@ def test_answers_resume_the_job_and_publish_outcomes_and_snapshot():
 
 
 def test_a_command_submitted_mid_tick_makes_the_tick_yield():
-    """Testbed U15: the player's command does not wait behind a background tick. The tick's
-    request in flight is cancelled (review T7: its answer is never kept), the command runs
-    next, and the next tick comes after it. No error is reported for the yield."""
+    """The player's command does not wait behind a background tick. The tick's request in
+    flight is cancelled (its answer is never kept), the command runs next, and the next tick
+    comes after it. No error is reported for the yield."""
     engine, bridge, w, _ = make()
     errors = []
     w.on_error = errors.append

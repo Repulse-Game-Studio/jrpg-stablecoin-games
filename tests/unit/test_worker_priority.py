@@ -1,4 +1,4 @@
-"""Testbed U15: a session start the player waits on comes before the background watching of
+"""A session start the player waits on comes before the background watching of
 pending payments. With pending sessions whose checks hang (a DNS that never answers), the start
 submitted while a tick runs makes the tick yield at once, its request in flight included, and
 starts in well under the per-request timeout; the yielded tick keeps its outcomes and the next
@@ -38,7 +38,7 @@ def test_a_start_does_not_wait_behind_the_watching_of_pending_payments():
     add_item(cfg, "chapter2", code=37, price="4.99", token="USDC", title="Chapter 2")
     node = Node()
     engine = Engine(cfg, transport=node, clock=lambda: 1700000000)
-    for _ in range(3):  # three pending tips, as in the testbed
+    for _ in range(3):  # three pending tips
         engine.start_session("tip", "base", amount="1.00", token="USDC")
     assert len(engine.pending) == 3
     errors = []
@@ -74,7 +74,7 @@ class RevertingNode(Node):
 
 
 def test_a_hint_verdict_reached_before_the_tick_yields_is_reported():
-    """Review V1: the tick judged the hint (reverted) and cleared it, then waits on its next
+    """The tick judged the hint (reverted) and cleared it, then waits on its next
     request; a command makes it yield. The verdict is still reported, not lost with the step."""
     cfg = build_config(DEV, chains=["base"], testnet=True)
     add_item(cfg, "chapter2", code=37, price="4.99", token="USDC", title="Chapter 2")

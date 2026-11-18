@@ -191,7 +191,7 @@ def test_abandoning_a_queued_job_cancels_it():
 
 
 def test_an_abandoned_job_stops_waiting_for_its_request_in_flight():
-    """Testbed U15: a superseded start whose request is in flight (a host that never answers)
+    """A superseded start whose request is in flight (a host that never answers)
     ends at once when abandoned, not at the request's 10 s timeout."""
     import time
     release = threading.Event()

@@ -1,5 +1,5 @@
 /**
- * Twin of tests/unit/test_worker_priority.py. Testbed U15: a session start the player waits on
+ * Twin of tests/unit/test_worker_priority.py: a session start the player waits on
  * comes before the background watching of pending payments. With pending sessions whose checks
  * hang (a DNS that never answers), the start submitted while a tick runs makes the tick yield at
  * once, its request in flight included, and starts in well under the per-request timeout; the
@@ -57,7 +57,7 @@ test("test_a_start_does_not_wait_behind_the_watching_of_pending_payments", async
   const node = new Node();
   const errors: unknown[] = []; // the Worker's and the Engine's (an Abandoned step is no internal_error)
   const engine = new Engine(cfg, { transport: node, clock: () => 1700000000, on_error: (e) => errors.push(e) });
-  for (let i = 0; i < 3; i++) { // three pending tips, as in the testbed
+  for (let i = 0; i < 3; i++) { // three pending tips
     await engine.startSession("tip", "base", { amount: "1.00", token: "USDC" });
   }
   assert.equal(Object.keys(engine.pending).length, 3);
@@ -96,7 +96,7 @@ class RevertingNode extends Node {
 }
 
 test("test_a_hint_verdict_reached_before_the_tick_yields_is_reported", async () => {
-  // Review V1: the tick judged the hint (reverted) and cleared it, then waits on its next
+  // The tick judged the hint (reverted) and cleared it, then waits on its next
   // request; a command makes it yield. The verdict is still reported, not lost with the step.
   const cfg = buildConfig({ wallet: DEV, chains: ["base"], testnet: true });
   addItem(cfg, "chapter2", { code: 37, price: "4.99", token: "USDC", title: "Chapter 2" });

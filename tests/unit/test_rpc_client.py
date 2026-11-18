@@ -140,7 +140,7 @@ def test_each_attempt_waits_at_most_what_is_left_of_the_budget():
 
 
 def test_an_endpoint_is_not_asked_with_less_than_the_floor_left():
-    """Review T5: A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not
+    """A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not
     asked with a sliver of time, nor cooled down for failing it."""
     C = "https://c.rpc"
     clock = FakeClock()
@@ -155,7 +155,7 @@ def test_an_endpoint_is_not_asked_with_less_than_the_floor_left():
 
 @pytest.mark.parametrize("b_takes, asked", [(3, True), (3.1, False)])
 def test_the_floor_is_asked_at_exactly_min_attempt_left(b_takes, asked):
-    """Review V5, the floor's boundary: with exactly MIN_ATTEMPT left C is asked, with that
+    """The floor's boundary: with exactly MIN_ATTEMPT left C is asked, with that
     timeout; with less (1.9 s) it is not, and stays live."""
     C = "https://c.rpc"
     clock = FakeClock()

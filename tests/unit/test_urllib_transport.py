@@ -105,7 +105,7 @@ def no_proxy(monkeypatch):
 
 def test_a_name_lookup_that_never_answers_is_bounded_by_the_timeout(monkeypatch, no_proxy):
     """With a DNS server that never answers, getaddrinfo waits for the resolver's own timeout
-    (about 20 s per endpoint measured in the Unity testbed): the request's timeout must cover it."""
+    (about 20 s per endpoint measured): the request's timeout must cover it."""
     import socket
     import threading
     import time
@@ -163,7 +163,7 @@ class _ConnectProxy(threading.Thread):
 
 
 def test_behind_a_proxy_the_name_is_left_to_the_proxy(monkeypatch, no_proxy):
-    """Review T1: on a proxy-only network this machine cannot resolve the RPC host, the proxy
+    """On a proxy-only network this machine cannot resolve the RPC host, the proxy
     does. The request must reach the proxy (a CONNECT for the host), not fail on a local lookup."""
     import socket
 
@@ -200,7 +200,7 @@ def test_a_lookup_error_is_left_to_urlopen(monkeypatch, no_proxy):
 
 
 def test_the_lookup_counts_inside_the_timeout(monkeypatch, no_proxy):
-    """Review T6: the lookup and the request share one timeout; urlopen gets what is left."""
+    """The lookup and the request share one timeout; urlopen gets what is left."""
     import socket
     import time
     import urllib.error
@@ -231,7 +231,7 @@ def test_the_lookup_counts_inside_the_timeout(monkeypatch, no_proxy):
 ])
 def test_the_proxy_check_is_urllibs_own_with_the_port(monkeypatch, no_proxy, no_proxy_value, url,
                                                       proxied):
-    """Review V4: the lookup is skipped exactly when urllib goes through the proxy, a no_proxy
+    """The lookup is skipped exactly when urllib goes through the proxy, a no_proxy
     entry with a port included (urllib asks proxy_bypass with the request's host:port)."""
     import urllib.request
 

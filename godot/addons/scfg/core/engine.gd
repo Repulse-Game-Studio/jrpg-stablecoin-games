@@ -211,7 +211,7 @@ static func _hashable(key: Variant) -> Variant:
 ## at once with an Abandoned ScfgErr (its caller resumes at the end of the frame) and its transport
 ## is told to stop it (ScfgCoio's CANCELLING; otherwise its late answer is dropped). The worker
 ## calls it when the running job is abandoned or a command arrives while a tick runs, so a job
-## never waits on a request nobody needs any more (testbed U15). Nothing happens otherwise.
+## never waits on a request nobody needs any more. Nothing happens otherwise.
 func refuse_in_flight() -> void:
 	if _refusing != null:
 		_refusing.end_refused()

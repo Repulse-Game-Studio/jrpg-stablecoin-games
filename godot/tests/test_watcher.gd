@@ -204,7 +204,7 @@ class HeadDownChain:
 		return ScfgErr.make("RpcUnavailable", "fake outage")
 
 
-## Review V1 (the EVM twin of Solana's rule): the hint was judged and cleared, then the scan's
+## The EVM twin of Solana's rule: the hint was judged and cleared, then the scan's
 ## eth_blockNumber fails. The verdict is reported, not replaced by network_unavailable: the next
 ## step has no hint, so it would never be.
 func test_hint_verdict_survives_a_network_failure_later_in_the_step() -> bool:

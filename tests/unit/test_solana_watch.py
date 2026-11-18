@@ -126,7 +126,7 @@ def test_scan_spends_at_most_five_transactions_per_step():
 
 
 def test_scan_pages_back_past_a_full_page():
-    """Review focus 3: >100 new signatures since the last step must not hide a payment."""
+    """More than 100 new signatures since the last step must not hide a payment."""
     pending, receipts, chain, rec = setup()
     chain.pay(sig(500), mint=MINT, payer=PAYER, owner=DEV, amount=UNITS, addresses=[DEST])
     for n in range(1, 250):  # newer, unrelated traffic
@@ -183,7 +183,7 @@ def test_good_hint_matches_round_amount():
 
 
 def test_vanished_match_becomes_a_hint_and_is_found_again():
-    """Review focus 4: a lagging endpoint's null status must not lose the payment."""
+    """A lagging endpoint's null status must not lose the payment."""
     pending, receipts, chain, rec = setup()
     chain.pay(sig(1), mint=MINT, payer=PAYER, owner=DEV, amount=UNITS, addresses=[DEST])
     assert step(pending, receipts, chain, rec).status == "confirming"
