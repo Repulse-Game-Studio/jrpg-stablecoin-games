@@ -204,9 +204,9 @@ protected:
 	// A value that may be long and has no spaces (an address, a hash): wraps anywhere.
 	TSharedRef<STextBlock> Mono(const FString& Text);
 	// Variation: Scfg.Button, Scfg.Button.Small, Scfg.Button.Primary, Scfg.Button.Accent. Row groups buttons side by
-	// side for left and right.
+	// side for left and right. bWrap: the text wraps to the button's width (give the button a filled slot).
 	TSharedRef<SWidget> Button(const FString& Key, const FString& Text, FName Variation, TFunction<void()> OnPress,
-		const FString& Row = FString(), bool bEnabled = true, bool bVisible = true);
+		const FString& Row = FString(), bool bEnabled = true, bool bVisible = true, bool bWrap = false);
 	// A segmented option: a label and an optional smaller second line, filled with the accent when selected.
 	TSharedRef<SWidget> Option(const FString& Key, const FString& Text, const FString& Sub, bool bSelected,
 		TFunction<void()> OnPress, const FString& Row = FString());

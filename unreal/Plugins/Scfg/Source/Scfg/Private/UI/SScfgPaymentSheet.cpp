@@ -368,16 +368,19 @@ void SScfgPaymentSheet::StepNetwork(SVerticalBox& Body)
 
 void SScfgPaymentSheet::OnrampLink(SVerticalBox& Step)
 {
+	// the body's full width, the text wrapping inside it: the hint is wider than the 432-unit body in one line
 	FScfgCheckoutController C = *Controller;
 	if (C.ShowsOnrampHint())
 	{
-		Step.AddSlot().AutoHeight().HAlign(HAlign_Left).Padding(0, 0, 0, 10)[Button(TEXT("onramp_hint"),
-			ScfgTexts::Format(TEXT("onramp_hint"), {C.Token()}), TEXT("Scfg.Button.Small"), [C]() mutable { C.Back(); })];
+		Step.AddSlot().AutoHeight().HAlign(HAlign_Fill).Padding(0, 0, 0, 10)[Button(TEXT("onramp_hint"),
+			ScfgTexts::Format(TEXT("onramp_hint"), {C.Token()}), TEXT("Scfg.Button.Small"), [C]() mutable { C.Back(); },
+			FString(), true, true, true)];
 	}
 	else if (C.ShowsOnramp())
 	{
-		Step.AddSlot().AutoHeight().HAlign(HAlign_Left).Padding(0, 0, 0, 10)[Button(TEXT("onramp"),
-			ScfgTexts::Format(TEXT("onramp_link"), {C.Token()}), TEXT("Scfg.Button.Small"), [C]() mutable { C.OpenOnramp(); })];
+		Step.AddSlot().AutoHeight().HAlign(HAlign_Fill).Padding(0, 0, 0, 10)[Button(TEXT("onramp"),
+			ScfgTexts::Format(TEXT("onramp_link"), {C.Token()}), TEXT("Scfg.Button.Small"), [C]() mutable { C.OpenOnramp(); },
+			FString(), true, true, true)];
 	}
 }
 

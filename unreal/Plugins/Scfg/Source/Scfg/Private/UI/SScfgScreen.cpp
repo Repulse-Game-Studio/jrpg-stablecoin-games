@@ -674,7 +674,7 @@ void SScfgScreen::AddEntry(FEntry Entry)
 }
 
 TSharedRef<SWidget> SScfgScreen::Button(const FString& Key, const FString& Text, FName Variation,
-	TFunction<void()> OnPress, const FString& Row, bool bEnabled, bool bVisible)
+	TFunction<void()> OnPress, const FString& Row, bool bEnabled, bool bVisible, bool bWrap)
 {
 	TSharedPtr<SButton> B;
 	const TSharedRef<SWidget> Outer = Ring(Key,
@@ -697,6 +697,7 @@ TSharedRef<SWidget> SScfgScreen::Button(const FString& Key, const FString& Text,
 			.Text(FText::FromString(Text))
 			.TextStyle(&Style->Text(ScfgScreenDetail::ButtonTextStyle(Variation)))
 			.Justification(ETextJustify::Center)
+			.AutoWrapText(bWrap)
 		]);
 	Outer->SetVisibility(bVisible ? EVisibility::Visible : EVisibility::Collapsed);
 	FEntry Entry{Key, B.ToSharedRef(), Row, MoveTemp(OnPress)};

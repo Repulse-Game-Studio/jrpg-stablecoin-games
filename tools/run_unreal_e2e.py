@@ -871,6 +871,32 @@ def sheet_drawn(path: Path, view: dict) -> str | None:
 # --- the scenarios ---------------------------------------------------------------------------
 
 
+def buy_link_drawn_in_the_sheet(game: Game, snap: dict, shots: Path, family: str) -> None:
+    """The method step's buy link (configure's onramp, on by default for the mainnet chains the evm
+    and arc families dress as): laid out within the method options' width, its text in one or more
+    lines inside it, and drawn (the screenshot). The solana family runs on testnet: no link and no
+    hint."""
+    view = sheet(snap)
+    link = button(view, "onramp")
+    if family == "solana":
+        expect(link is None and button(view, "onramp_hint") is None,
+               "a testnet Solana payment should show no buy link and no hint", view)
+        return
+    expect(link is not None and link["text"] == "No USDC yet? Buy some with a card",
+           "the method step should show the buy link", view)
+    options = [b["rect"] for b in view["buttons"] if b["name"].startswith("method_")]
+    left = min(r[0] for r in options)
+    right = max(r[0] + r[2] for r in options)
+    x, _y, w, _h = link["rect"]
+    expect(w > 0 and x >= left - 1 and x + w <= right + 1,
+           f"the buy link {link['rect']} should lie inside the body ({left}..{right})", view)
+    shot = shots / f"unreal-e2e-{family}-method.png"
+    game.call("screenshot", path=str(shot), timeout=180)
+    why = sheet_drawn(shot, view)
+    expect(why is None, f"the screenshot {shot} does not show the sheet: {why}")
+    print(f"  method step: the buy link inside the body, {link['rect']} (screenshot {shot})")
+
+
 def unlock_by_manual_transfer(game: Game, fam, state_file: Path, shots: Path, family: str) -> None:
     wait_for(game, "the Unlock button", lambda s: button(s["game"], UNLOCK) is not None, 120)
     game.click(UNLOCK, "game")
@@ -879,6 +905,7 @@ def unlock_by_manual_transfer(game: Game, fam, state_file: Path, shots: Path, fa
     expect(snap["paused"], "the showcase should pause the game while the sheet is open")
     expect(snap["input"]["focus"] == "sheet", "the sheet should have the keyboard focus",
            snap["input"])
+    buy_link_drawn_in_the_sheet(game, snap, shots, family)
     game.click("method_manual")
     wait_for(game, "the manual step", has_button("copy_amount"))
     amount = copy_value(game, "copy_amount")
