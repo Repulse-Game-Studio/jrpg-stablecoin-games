@@ -14,8 +14,7 @@ chain you add yourself.
 
 ## From the release zip
 
-The Unreal plugin first ships in release 0.3.0. Until that release exists there is no zip; you can still
-[try the showcase](#try-the-showcase-first) from a clone of the repository.
+The Unreal plugin first ships in release 0.3.0.
 
 1. Download the zip for your engine version, `scfg-unreal-<version>-ue<5.x>.zip` (`-ue5.6`, `-ue5.7` or `-ue5.8`),
    from the [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest). Each
@@ -189,7 +188,9 @@ rules.
 
 1. Pay once with each method you enabled (browser wallet, phone wallet by QR, manual transfer) on a testnet, to
    **your own wallet**, from a second wallet of yours. Get test USDC from
-   [Circle's faucet](https://faucet.circle.com/).
+   [Circle's faucet](https://faucet.circle.com/), and a little of the network's coin for the fee (Sepolia ETH, for
+   example from [Google's faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia), POL on Amoy from
+   [Polygon's faucet](https://faucet.polygon.technology/), Devnet SOL from [Solana's faucet](https://faucet.solana.com/)).
 2. Quit the game in the middle of a payment, start it again and check that the purchase still completes.
 3. Call `ClearLocalData()`, then use **Restore** with the transaction hash.
 4. In every build but Shipping (the editor included) the sheet shows **DEV MODE: paying to** and the start and end
@@ -197,7 +198,11 @@ rules.
 5. Set `bTestnet = false` (or untick **Testnet** in the project settings).
 6. If you take Solana payments, receive any amount of each token on your mainnet Solana wallet once first. Until
    then the Output Log warns (`scfg: your wallet can't receive USDT on solana yet ...`) and players are not offered
-   that token.
+   that token. The same rule applies on Devnet while you test.
+   Check the buy link (**No USDC yet? Buy some with a card**) and, on Solana, its **Pick another network** hint. On
+   testnet the link is off by default (cards don't buy test tokens); to see both before mainnet, name your enabled
+   testnet EVM networks in **Configure > Onramp > Chains** (`FScfgOnramp::Chains`, for example `base` and
+   `arbitrum`), then empty it again. See [The buy link](api.md#the-buy-link-onramp).
 7. Package the game and pay once from the packaged build. A Shipping game has not been run in this preview yet. If
    you set a logo, check that **Validate** gives no packaging warning (see
    [Logo](api.md#the-logo-in-a-packaged-game)).
@@ -220,6 +225,10 @@ MyGame/
 └── Plugins/
     └── Scfg/
         ├── Scfg.uplugin
+        ├── README.md            (this developer guide, the docs' Unreal pages in one file)
+        ├── LICENSE              (MIT)
+        ├── NOTICES.txt          (the third-party code the core ports: the QR generator, Keccak)
+        ├── Config/FilterPlugin.ini  (keeps the three files above in a packaged copy of the plugin)
         ├── Resources/Web/       (the browser checkout page, staged with a packaged desktop game)
         └── Source/
             ├── ScfgCore/        (the engine-independent payment core, plain C++20)

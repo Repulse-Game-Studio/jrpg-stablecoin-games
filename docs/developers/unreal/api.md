@@ -108,7 +108,7 @@ It is **on by default on mainnet**. Turn it off, or change it, with `FScfgOption
 | `FScfgOnramp` field | Meaning |
 |---|---|
 | `bEnabled` | `true` (default) or `false` |
-| `Chains` | The networks it is offered on (enabled EVM networks only). Empty: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens) |
+| `Chains` | The networks it is offered on (enabled EVM networks only). Empty: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens). Name testnet networks here (for example `base`, `arbitrum`) to see the link and the Solana hint before mainnet |
 | `Url` | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused. Empty: thirdweb's page |
 
 A mistake is reported with its code: `onramp.bad_url` (also a url with no host after `https://`),
@@ -161,7 +161,13 @@ panel.
 - **Applied at start, opt-in.** When the game instance starts, the subsystem applies the settings through the same
   calls a game makes: `AddChain` for each chain row, `Configure(Options)`, then `AddItem` for each item row. Settings
   without a wallet (`Wallet` and `SolanaWallet` both empty) are not applied at all, so a game configured from code is
-  unaffected; if they have chain or item rows, one warning says why. A failing row is logged like any misuse, then
+  unaffected; if they have chain or item rows, one warning says why. **Validate** reports no problem for the
+  missing wallet (it checks the rest with stand-in wallets) and says the settings are not applied.
+- **A wallet supplied at runtime** (one per build, or read from a file) can use the settings' chains, options and
+  items: `ConfigureWithSettings(Wallet, SolanaWallet)` (Blueprint too; either may be empty) runs their `AddChain`
+  rows, `Configure` with their options and these wallets, then their `AddItem` rows, as calls from code, and returns
+  the first error code or `""`. Leave the wallets in the settings empty, and call it where `Configure` goes (below).
+  `ApplySettingsWith(Settings, Wallet, SolanaWallet)` does the same with another `UScfgSettings` object (C++). A failing row is logged like any misuse, then
   once more naming the settings; a failing chain or `Configure` applies nothing, a failing item keeps what came before
   it.
 - **A code call made after them wins.** The settings are one unit. A `Configure` from code replaces everything they
@@ -590,6 +596,12 @@ to Arbitrum Sepolia and one to Solana Devnet, with the certificate verified. Wit
 the packaged game refuses both calls without sending them.
 Not tested yet: play in the editor, a Shipping game run, and a real desktop session with a window manager.
 
+Known issue (the engine, not the plugin): a packaged Linux game that gets SIGTERM while it presents on a software
+Vulkan driver under Xvfb (lavapipe, a fraction of a frame per second) can crash while recreating its swapchain
+(`VK_ERROR_SURFACE_LOST_KHR`, then `VK_ERROR_OUT_OF_HOST_MEMORY` and a segfault in `VulkanLinuxPlatform.cpp`). A
+normal quit is clean, so a headless test should end the game from inside it (`Quit`, or `RequestExit`) rather than
+with a signal.
+
 **Windows and macOS** are in the plugin's platform list but have never been built: they are unverified. **UE 5.6 and
 5.7** are unverified too: 5.6 is the minimum, and the release has a zip for each of 5.6, 5.7 and 5.8 (the same source,
 each `Scfg.uplugin` declaring its engine version), but only 5.8.4 has been tested.
@@ -631,7 +643,7 @@ And the common setups:
 | `Pay` resolves `Failed` with `sheet.unavailable` | There is no game viewport: in the editor, play in the editor or run with `-game`. With your own host, its `OpenPayment` returned null |
 | `configure.after_start` | `Configure` came too late: call it in the game instance's `Init()` after `Super::Init()`, or in the first level's `BeginPlay` |
 | `scfg: the SCFG settings (...) were not applied (<code>)` | Press **Validate** in **Project Settings > Plugins > SCFG** and fix what it lists |
-| `scfg: the SCFG settings ... have chains or items but no wallet` | Set a wallet in the project settings, or configure from code |
+| `scfg: the SCFG settings ... have chains or items but no wallet` | Set a wallet in the project settings, configure from code, or call `ConfigureWithSettings(Wallet)` with a wallet supplied at runtime |
 | `scfg: your wallet can't receive USDT on solana yet ...` | Receive any amount of that token on your Solana wallet once, then restart the game |
 | `logo.file_missing` in a packaged game | See [The logo in a packaged game](#the-logo-in-a-packaged-game) |
 | Payment sent but nothing happens | The wallet may have changed the amount. Use **Manual transfer**, then paste the transaction hash |
