@@ -60,7 +60,8 @@ Both run on testnets, so no real money moves, and both pay **your** wallet. Set 
 scene (**SCFG Showcase** or **SCFG Demo**: **Wallet** for an EVM `0x` address, **Solana Wallet** to take Solana on
 Devnet too), or in your project's [SCFG Settings asset](#without-code-the-scfg-settings-asset), which the samples
 use when both component fields are blank. With neither, a sample configures nothing and says so on screen: it never
-pays a placeholder.
+pays a placeholder. With an SCFG Settings asset in the project the samples start from its options (accent, logo, buy
+link, and its networks and tokens when the asset is set to testnet), and add their own items.
 
 To watch a real test payment arrive you need test money in a second wallet (the player's):
 
