@@ -1,6 +1,7 @@
 """Build the drop-in release archives: dist/scfg-renpy-<version>.zip (default),
 dist/scfg-godot-<version>.zip (--engine godot), dist/scfg-rpgmaker-mz-<version>.zip
-(--engine rpgmaker) and dist/scfg-unity-<version>.tgz (--engine unity).
+(--engine rpgmaker), dist/scfg-unity-<version>.tgz (--engine unity) and the Unreal zips
+dist/scfg-unreal-<version>-ue<5.x>.zip (--engine unreal).
 
 The Ren'Py zip mirrors a Ren'Py project, so developers unzip it straight into their
 project folder:
@@ -48,7 +49,7 @@ tarball), the package folder unity/Packages/com.repulse.scfg/ under package/:
 Tests/ stays out (it needs the dev project's test setup). The package's own LICENSE.md must be
 the repository's LICENSE, its .meta files complete and its checkout page copy current.
 
-Usage: uv run python tools/package.py [--engine renpy|godot|rpgmaker|unity]
+Usage: uv run python tools/package.py [--engine renpy|godot|rpgmaker|unity|unreal]
 """
 
 from __future__ import annotations

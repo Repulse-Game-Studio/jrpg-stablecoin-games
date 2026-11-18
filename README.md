@@ -40,7 +40,7 @@ label end_of_chapter1:
 
 ## Using it in your Ren'Py game
 
-For Godot and RPG Maker MZ, follow their install pages linked in the table above.
+For Godot, RPG Maker MZ, Unity and Unreal Engine, follow their install pages linked in the table above.
 
 1. From your Ren'Py project folder, run `uvx stablecoin-games-renpy install .` (or `pipx run stablecoin-games-renpy install .`, or `npx stablecoin-games-renpy install .`),
    and `uvx stablecoin-games-renpy update .` later for new versions. Or download `scfg-renpy-<version>.zip`
