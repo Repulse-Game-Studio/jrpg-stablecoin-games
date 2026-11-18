@@ -438,7 +438,7 @@ SCFG_TEST(CheckoutStepsTests, test_start_failure_returns_to_network_with_the_mes
     s->fake("arbitrum").down = true;
     SCFG_CHECK(t, s->ctl->choose_network("arbitrum").ok());
     s->ctl->poll();
-    SCFG_CHECK(t, s->ctl->step() == "network" && show(s->ctl->error) == "network_unavailable");
+    SCFG_CHECK(t, s->ctl->step() == "network" && show(s->ctl->error) == "start_unreachable");
 }
 
 SCFG_TEST(CheckoutStepsTests, test_start_failure_on_a_skipped_network_shows_the_network_step) {
@@ -449,7 +449,7 @@ SCFG_TEST(CheckoutStepsTests, test_start_failure_on_a_skipped_network_shows_the_
     s->fake("base").down = true;
     (void)ctl.next_step();
     ctl.poll();
-    SCFG_CHECK(t, ctl.step() == "network" && show(ctl.error) == "network_unavailable");
+    SCFG_CHECK(t, ctl.step() == "network" && show(ctl.error) == "start_unreachable");
     SCFG_CHECK(t, ctl.can_go_back());
     s->fake("base").down = false;
     SCFG_CHECK(t, ctl.choose_network("base").ok());

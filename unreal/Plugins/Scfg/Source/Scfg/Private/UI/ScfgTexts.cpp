@@ -29,6 +29,7 @@ static const FEntry GEntries[] = {
 	{TEXT("paste_blocked"), TEXT("Your browser blocked pasting. Type it instead: the game also finds the payment without it.")},
 	{TEXT("solana_unavailable"), TEXT("Payments on Solana aren't available right now.")},
 	{TEXT("start_failed"), TEXT("Couldn't start the payment. Check your connection and try again.")},
+	{TEXT("start_unreachable"), TEXT("Can't reach the network. Pick a network to try again.")},
 	{TEXT("tx_not_a_payment"), TEXT("That transaction isn't a payment for this purchase.")},
 	{TEXT("tx_not_landed"), TEXT("That transaction didn't reach the network. You can pay again.")},
 	{TEXT("tx_reverted"), TEXT("That transaction failed on-chain; no funds were sent.")},

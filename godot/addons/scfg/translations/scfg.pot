@@ -39,6 +39,10 @@ msgstr ""
 msgid "Browser wallet"
 msgstr ""
 
+#. core message: start_unreachable
+msgid "Can't reach the network. Pick a network to try again."
+msgstr ""
+
 #. core message: network_unavailable
 msgid "Can't reach the network. Retrying..."
 msgstr ""

@@ -46,6 +46,9 @@ MESSAGES = {
     "invalid_amount": f"Enter an amount of at least {MIN_TIP} with up to 2 decimals.",
     "browser_unavailable": "Couldn't start the browser checkout. Use another method.",
     "start_failed": "Couldn't start the payment. Check your connection and try again.",
+    # A start every endpoint failed: back on the network step, nothing retries until the player
+    # picks a network again (network_unavailable is the waiting state's, which the worker retries).
+    "start_unreachable": "Can't reach the network. Pick a network to try again.",
     "solana_unavailable": "Payments on Solana aren't available right now.",
     "internal_error": "Something went wrong while checking the payment. Retrying...",
     "paste_blocked": ("Your browser blocked pasting. Type it instead: "
@@ -471,7 +474,7 @@ class CheckoutController:
             self.state = "choose"
             self.chain_key = None
             network = isinstance(exc, RpcUnavailable)
-            self.error = "network_unavailable" if network else "start_failed"
+            self.error = "start_unreachable" if network else "start_failed"
             if self.step not in ("amount", "network"):
                 self._go("network", -1)
             return

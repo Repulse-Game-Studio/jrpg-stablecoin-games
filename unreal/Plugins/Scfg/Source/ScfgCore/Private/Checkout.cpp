@@ -64,6 +64,7 @@ const OrderedMap<std::string>& MESSAGES() {
         {"invalid_amount", "Enter an amount of at least " + payments::MIN_TIP().str() + " with up to 2 decimals."},
         {"browser_unavailable", "Couldn't start the browser checkout. Use another method."},
         {"start_failed", "Couldn't start the payment. Check your connection and try again."},
+        {"start_unreachable", "Can't reach the network. Pick a network to try again."},
         {"solana_unavailable", "Payments on Solana aren't available right now."},
         {"internal_error", "Something went wrong while checking the payment. Retrying..."},
         {"paste_blocked", "Your browser blocked pasting. Type it instead: the game also finds the payment without it."},
@@ -598,7 +599,7 @@ void CheckoutController::poll() {
         state_ = "choose";
         chain_key_.reset();
         const bool network = !started.ok() && started.err().is_a("RpcUnavailable");
-        error = network ? "network_unavailable" : "start_failed";
+        error = network ? "start_unreachable" : "start_failed";
         if (step_ != "amount" && step_ != "network") go("network", -1);
         return;
     }

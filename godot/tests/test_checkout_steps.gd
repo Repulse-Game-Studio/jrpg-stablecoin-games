@@ -368,7 +368,7 @@ func test_start_failure_returns_to_network_with_the_message() -> bool:
 	ctl.choose_network("arbitrum")
 	ctl.poll()
 	T.eq(ctl.step, "network")
-	T.eq(ctl.error, "network_unavailable")
+	T.eq(ctl.error, "start_unreachable")
 	return T.done()
 
 
@@ -381,7 +381,7 @@ func test_start_failure_on_a_skipped_network_shows_the_network_step() -> bool:
 	ctl.next_step()
 	ctl.poll()
 	T.eq(ctl.step, "network")
-	T.eq(ctl.error, "network_unavailable")
+	T.eq(ctl.error, "start_unreachable")
 	T.eq(ctl.can_go_back, true)
 	down.down = false
 	ctl.choose_network("base")

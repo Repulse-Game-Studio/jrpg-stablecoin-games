@@ -138,9 +138,9 @@ namespace Scfg.Core.Tests
             await f.Submitter.Idle();
             f.Ctl.Poll();
             Assert.That(f.Ctl.State, Is.EqualTo("choose"));
-            Assert.That(f.Ctl.Error, Is.EqualTo("network_unavailable"));
+            Assert.That(f.Ctl.Error, Is.EqualTo("start_unreachable"));
             Assert.That(f.Ctl.ChainKey, Is.Null);
-            Assert.That(f.Ctl.Message(), Is.EqualTo(Checkout.Messages["network_unavailable"]));
+            Assert.That(f.Ctl.Message(), Is.EqualTo(Checkout.Messages["start_unreachable"]));
         }
 
         [Test]

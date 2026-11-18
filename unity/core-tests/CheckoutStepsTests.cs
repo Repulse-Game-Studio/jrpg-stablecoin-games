@@ -421,7 +421,7 @@ namespace Scfg.Core.Tests
             await f.Submitter.Idle();
             f.Ctl.Poll();
             Assert.That(f.Ctl.Step, Is.EqualTo("network"));
-            Assert.That(f.Ctl.Error, Is.EqualTo("network_unavailable"));
+            Assert.That(f.Ctl.Error, Is.EqualTo("start_unreachable"));
         }
 
         [Test]
@@ -434,7 +434,7 @@ namespace Scfg.Core.Tests
             await f.Submitter.Idle();
             ctl.Poll();
             Assert.That(ctl.Step, Is.EqualTo("network"));
-            Assert.That(ctl.Error, Is.EqualTo("network_unavailable"));
+            Assert.That(ctl.Error, Is.EqualTo("start_unreachable"));
             Assert.That(ctl.CanGoBack, Is.True);
             f.Rig.Evm("base").Down = false;
             ctl.ChooseNetwork("base");

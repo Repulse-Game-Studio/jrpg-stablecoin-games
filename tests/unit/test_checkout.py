@@ -101,7 +101,7 @@ def test_start_failure_returns_to_choose_with_error():
     fakes["arbitrum"].down = True
     ctl.select_chain("arbitrum")
     ctl.poll()
-    assert ctl.state == "choose" and ctl.error == "network_unavailable"
+    assert ctl.state == "choose" and ctl.error == "start_unreachable"
     assert ctl.message()
 
 

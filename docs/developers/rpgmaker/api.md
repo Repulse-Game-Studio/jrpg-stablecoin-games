@@ -521,6 +521,7 @@ The built-in English of every text. `%s` is where an argument goes.
 | `invalid_amount` | Enter an amount of at least 0.50 with up to 2 decimals. |
 | `browser_unavailable` | Couldn't start the browser checkout. Use another method. |
 | `start_failed` | Couldn't start the payment. Check your connection and try again. |
+| `start_unreachable` | Can't reach the network. Pick a network to try again. |
 | `solana_unavailable` | Payments on Solana aren't available right now. |
 | `internal_error` | Something went wrong while checking the payment. Retrying... |
 | `paste_blocked` | Your browser blocked pasting. Type it instead: the game also finds the payment without it. |

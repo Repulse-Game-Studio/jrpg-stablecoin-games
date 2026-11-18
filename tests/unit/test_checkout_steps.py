@@ -308,7 +308,7 @@ def test_start_failure_returns_to_network_with_the_message():
     fakes["arbitrum"].down = True
     ctl.choose_network("arbitrum")
     ctl.poll()
-    assert ctl.step == "network" and ctl.error == "network_unavailable"
+    assert ctl.step == "network" and ctl.error == "start_unreachable"
 
 
 def test_start_failure_on_a_skipped_network_shows_the_network_step():
@@ -318,7 +318,7 @@ def test_start_failure_on_a_skipped_network_shows_the_network_step():
     fakes["base"].down = True
     ctl.next_step()
     ctl.poll()
-    assert ctl.step == "network" and ctl.error == "network_unavailable"
+    assert ctl.step == "network" and ctl.error == "start_unreachable"
     assert ctl.can_go_back is True
     fakes["base"].down = False
     ctl.choose_network("base")

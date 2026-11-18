@@ -311,7 +311,7 @@ test("test_start_failure_returns_to_network_with_the_message", async () => {
   ctl.chooseNetwork("arbitrum");
   await submit.idle();
   ctl.poll();
-  assert.ok(ctl.step === "network" && ctl.error === "network_unavailable");
+  assert.ok(ctl.step === "network" && ctl.error === "start_unreachable");
 });
 
 test("test_start_failure_on_a_skipped_network_shows_the_network_step", async () => {
@@ -321,7 +321,7 @@ test("test_start_failure_on_a_skipped_network_shows_the_network_step", async () 
   ctl.nextStep();
   await submit.idle();
   ctl.poll();
-  assert.ok(ctl.step === "network" && ctl.error === "network_unavailable");
+  assert.ok(ctl.step === "network" && ctl.error === "start_unreachable");
   assert.equal(ctl.canGoBack, true);
   fakes["base"].down = false;
   ctl.chooseNetwork("base");

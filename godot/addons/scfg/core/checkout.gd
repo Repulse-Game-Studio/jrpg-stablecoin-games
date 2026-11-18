@@ -59,6 +59,7 @@ static var MESSAGES := {
 	"invalid_amount": "Enter an amount of at least %s with up to 2 decimals." % str(ScfgPayments.MIN_TIP),
 	"browser_unavailable": "Couldn't start the browser checkout. Use another method.",
 	"start_failed": "Couldn't start the payment. Check your connection and try again.",
+	"start_unreachable": "Can't reach the network. Pick a network to try again.",
 	"solana_unavailable": "Payments on Solana aren't available right now.",
 	"internal_error": "Something went wrong while checking the payment. Retrying...",
 	"paste_blocked": "Your browser blocked pasting. Type it instead: the game also finds the payment without it.",
@@ -613,7 +614,7 @@ func poll() -> void:
 		state = "choose"
 		chain_key = null
 		var network: bool = exc is ScfgErr and (exc as ScfgErr).is_a("RpcUnavailable")
-		error = "network_unavailable" if network else "start_failed"
+		error = "start_unreachable" if network else "start_failed"
 		if step != "amount" and step != "network":
 			_go("network", -1)
 		return

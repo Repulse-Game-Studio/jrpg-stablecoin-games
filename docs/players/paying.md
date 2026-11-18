@@ -107,6 +107,7 @@ the payment is confirmed.
 | What you see | What it means |
 |---|---|
 | "Can't reach the network. Retrying..." | The game can't reach the blockchain right now. It keeps trying. Check your internet connection. |
+| "Can't reach the network. Pick a network to try again." | The payment couldn't start because the game can't reach that blockchain. Check your internet connection, then pick the network again (or another one). |
 | "Payment too small" | Less than the price arrived. Contact the developer with your transaction hash. |
 | "The payment window has closed" | The game stopped waiting. If you already paid, it keeps checking for 24 hours and unlocks the item when the payment arrives. You can also [restore](restore.md) it with the transaction hash. |
 | The checkout page warns that you have no ETH or almost no SOL "for the network fee" | Add a little of that network's coin to your wallet first, or the transaction will fail. |

@@ -224,7 +224,7 @@ SCFG_TEST(CheckoutTests, test_start_failure_returns_to_choose_with_error) {
     s->fake("arbitrum").down = true;
     SCFG_CHECK(t, ctl.select_chain("arbitrum").ok());
     ctl.poll();
-    SCFG_CHECK(t, ctl.state() == "choose" && show(ctl.error) == "network_unavailable");
+    SCFG_CHECK(t, ctl.state() == "choose" && show(ctl.error) == "start_unreachable");
     SCFG_CHECK(t, ctl.message().has_value());
 }
 
@@ -482,8 +482,9 @@ SCFG_TEST(CheckoutTests, test_messages_match_catalogue) {
     SCFG_CHECK(t, ours.as_dict().keys() == std::vector<std::string>({"network_unavailable", "tx_reverted",
                                                                      "tx_not_a_payment", "tx_not_landed", "invalid_hash",
                                                                      "invalid_amount", "browser_unavailable",
-                                                                     "start_failed", "solana_unavailable",
-                                                                     "internal_error", "paste_blocked"}));
+                                                                     "start_failed", "start_unreachable",
+                                                                     "solana_unavailable", "internal_error",
+                                                                     "paste_blocked"}));
 }
 
 // A worker Stop() cancels the start: start_failed (not network_unavailable), back to choose.
