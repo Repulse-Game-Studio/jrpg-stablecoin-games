@@ -24,12 +24,13 @@ FScfgWorker::TOnDone<T> FScfgSubmitter::Wrap(scfg::worker::OnDone<T> Done)
 	};
 }
 
-void FScfgSubmitter::start_session(
-	scfg::Json kind, scfg::Json chain, scfg::Json opts, scfg::worker::OnDone<scfg::Json> done)
+void FScfgSubmitter::start_session(scfg::Json kind, scfg::Json chain, scfg::Json opts,
+	scfg::worker::OnDone<scfg::Json> done, scfg::worker::AbandonFlag abandoned)
 {
 	if (FScfgWorker* W = Live())
 	{
-		W->StartSession(std::move(kind), std::move(chain), std::move(opts), Wrap(std::move(done)));
+		W->StartSession(
+			std::move(kind), std::move(chain), std::move(opts), Wrap(std::move(done)), std::move(abandoned));
 		return;
 	}
 	++Dropped;

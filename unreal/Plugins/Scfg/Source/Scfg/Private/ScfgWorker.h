@@ -23,10 +23,10 @@
 // is not retried (worker.gd), unless it was cancelled by Stop() before it finished: then the next tick runs it. The
 // next tick comes an interval after a failing one.
 //
-// ERRORS ARE LOGGED HERE, ONCE. Every Err a command or a tick ends with (a CancelledError excepted) goes to OnError
-// (default: LogScfg) exactly once, whether the command has a callback or not and however many Tick() callers wait on
-// that tick; so do a failing snapshot and the Engine's contained errors. The callbacks get the Result as well, to
-// turn it into a Failed result: they must not log it again.
+// ERRORS ARE LOGGED HERE, ONCE. Every Err a command or a tick ends with (a CancelledError or Abandoned excepted) goes
+// to OnError (default: LogScfg) exactly once, whether the command has a callback or not and however many Tick()
+// callers wait on that tick; so do a failing snapshot and the Engine's contained errors. The callbacks get the Result
+// as well, to turn it into a Failed result: they must not log it again.
 //
 // CALLBACKS. Every completion callback and OnStateChanged run on the game thread from the worker's ticker, never
 // inside a call to the worker (a sync command's callback comes on the next frame), and in this order: the Err (if
@@ -43,6 +43,11 @@
 // AddSPLambda: the owner is checked at call time) or Remove() it in the owner's destructor, never a raw `this`
 // alone. The list is shared (a TSharedRef), so a subscriber that may outlive the worker keeps a TWeakPtr to it and
 // removes its handler only while it is still there.
+//
+// ABANDONED COMMANDS. A command submitted with an abandon flag (StartSession's, from the checkout's Delivery) that is
+// true when its turn comes is cancelled instead (CancelledError, as Stop()'s), and the Engine refuses the running
+// command's RPC requests once its flag turns true (Engine::refuse_requests, set as each command starts): worker.py's
+// abandon(fut), so a superseded start never holds the next pick up behind its endpoints.
 //
 // START AND STOP. Commands submitted before Start() wait for it. Stop() cancels the running command (its Job is
 // destroyed, which cancels its coroutine) and every queued one: each callback gets CancelledError, on the next
@@ -68,6 +73,7 @@
 #include "Scfg/Json.h"
 #include "Scfg/Restore.h"
 #include "Scfg/Result.h"
+#include "Scfg/Submitter.h"
 #include "Scfg/Watcher.h"
 
 #include <cstdint>
@@ -168,7 +174,10 @@ public:
 
 	// --- commands (the Engine's, Engine.h; each followed by a tick) ---
 
-	void StartSession(scfg::Json Kind, scfg::Json Chain, scfg::Json Opts, TOnDone<scfg::Json> OnDone);
+	// Abandoned (Submitter.h's abandon flag): once true, the start is cancelled if it has not begun, and refused its
+	// next RPC request (Err Abandoned, Engine::refuse_requests) if it runs.
+	void StartSession(scfg::Json Kind, scfg::Json Chain, scfg::Json Opts, TOnDone<scfg::Json> OnDone,
+		scfg::worker::AbandonFlag Abandoned = nullptr);
 	void BuildSolanaPayment(scfg::Json Sid, scfg::Json Account, TOnDone<scfg::Json> OnDone);
 	void ReportHint(scfg::Json Sid, scfg::Json TxHash, TOnDone<void> OnDone);
 	void SetUiStatus(scfg::Json Sid, scfg::Json Status, TOnDone<void> OnDone);

@@ -17,7 +17,11 @@
 //   destroyed worker): the controller then never sees that command finish, as with a Python future that never
 //   completes;
 // - accepts an empty done: nobody waits for that command (Python drops the Future; the worker still reports its Err);
-// - lets done submit another command (the abandoned session start's discard does).
+// - lets done submit another command (the abandoned session start's discard does);
+// - honours a session start's abandon flag (worker.py's abandon(fut)): once it is true, a start that has not run is
+//   cancelled (CancelledError) and never runs, and a running one is refused its next RPC request (Err Abandoned,
+//   Engine::refuse_requests), so the player's next pick does not wait behind the endpoints of the one they left. A
+//   fake may ignore it; an empty flag is never set.
 // A done holds no reference to its controller, so it may run after the controller is gone.
 #pragma once
 
@@ -39,12 +43,15 @@ namespace scfg::worker {
 template <class T>
 using OnDone = std::function<void(Result<T>)>;
 
+// A command's abandon flag (Delivery::abandon_flag): true once its controller no longer wants it.
+using AbandonFlag = std::shared_ptr<const bool>;
+
 // The worker's commands the controllers submit, each named and typed as its Engine method (Engine.h).
 class Submitter {
 public:
     virtual ~Submitter() = default;
-    // Engine::start_session(kind, chain, opts): the new session record.
-    virtual void start_session(Json kind, Json chain, Json opts, OnDone<Json> done) = 0;
+    // Engine::start_session(kind, chain, opts): the new session record. abandoned: see the top of this file.
+    virtual void start_session(Json kind, Json chain, Json opts, OnDone<Json> done, AbandonFlag abandoned) = 0;
     // Engine::build_solana_payment(sid, account): {"transaction", "token_balance", "sol_balance"}.
     virtual void build_solana_payment(Json sid, Json account, OnDone<Json> done) = 0;
     // Engine::report_hint(sid, tx_hash).
@@ -85,6 +92,11 @@ public:
         callbacks_.clear();
         for (const auto& fn : callbacks) fn(*result_);
     }
+    // worker.py's abandon(fut): the controller no longer wants this command (see the top of this file). Once.
+    void abandon() { *abandoned_ = true; }
+    bool abandoned() const { return *abandoned_; }
+    // The flag the Submitter running the command watches.
+    AbandonFlag abandon_flag() const { return abandoned_; }
     // The OnDone that delivers into d (it keeps d alive until it runs or is dropped).
     static OnDone<T> receiver(std::shared_ptr<Delivery> d) {
         return [d = std::move(d)](Result<T> r) { d->deliver(std::move(r)); };
@@ -93,6 +105,7 @@ public:
 private:
     std::optional<Result<T>> result_;
     std::vector<std::function<void(const Result<T>&)>> callbacks_;
+    std::shared_ptr<bool> abandoned_ = std::make_shared<bool>(false);
 };
 
 }  // namespace scfg::worker

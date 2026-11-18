@@ -110,6 +110,12 @@ public:
 
     // A network command's coroutine is alive (it is running or suspended): no other command may start.
     bool running() const { return *running_; }
+    // While it returns true, the default RPC objects' requests are refused with Err Abandoned (not a TransportError,
+    // so no endpoint cools down): worker.py's _Refusing transport. The worker sets it for each command it starts,
+    // from that command's abandon flag (Submitter.h's Delivery::abandon), so a superseded session start stops at
+    // its next request instead of trying the rest of its endpoints. Empty: nothing is refused. A custom RpcFactory's
+    // objects are not affected.
+    std::function<bool()> refuse_requests;
 
     // --- chains & RPC ---
 
@@ -168,8 +174,19 @@ private:
     void report(const Err& e) const;
     backends::base::RpcFor rpc_for();
 
+    // The transport the default RPC objects post through: transport_, unless refuse_requests says no.
+    class SCFGCORE_API RefusingTransport final : public coio::Transport {
+    public:
+        explicit RefusingTransport(Engine& owner) : owner_(&owner) {}
+        Future<Json> post_json(std::string url, Json payload, double timeout) override;
+
+    private:
+        Engine* owner_;
+    };
+
     config::Config config_;
     coio::Transport* transport_;
+    RefusingTransport refusing_{*this};
     Json pending_;
     Json receipts_;
     std::function<int64_t()> clock_;

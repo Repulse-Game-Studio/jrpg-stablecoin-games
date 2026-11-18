@@ -362,7 +362,8 @@ Status CheckoutController::select_chain(const std::string& key) {
     Json opts = Json::dict({{"item", spec_.item}, {"amount", amount_.str()}, {"token", spec_.token}, {"title", spec_.title}});
     std::shared_ptr<worker::Delivery<Json>> started = std::make_shared<worker::Delivery<Json>>();
     future_ = started;
-    submit_->start_session(Json(spec_.kind), Json(chosen), std::move(opts), worker::Delivery<Json>::receiver(started));
+    submit_->start_session(Json(spec_.kind), Json(chosen), std::move(opts), worker::Delivery<Json>::receiver(started),
+                           started->abandon_flag());
     const std::vector<std::string> available = methods();
     if (!method_ || !detail::among(available, *method_)) {
         method_ = available.empty() ? std::nullopt : std::optional<std::string>(available[0]);
@@ -692,6 +693,9 @@ void CheckoutController::abandon_start() {
     const std::shared_ptr<worker::Delivery<Json>> fut = std::move(future_);
     future_.reset();
     if (fut == nullptr) return;
+    // worker.py's abandon(fut): cancelled if it has not run, refused its next request if it runs, so the next pick
+    // does not wait behind it.
+    fut->abandon();
     const std::weak_ptr<worker::Submitter> submit = submit_;
     // Future.add_done_callback: runs at once when the start is done, else when it finishes.
     fut->add_done_callback([submit](const Result<Json>& started) {

@@ -66,6 +66,8 @@
 //   test_loop_survives_exceptions                                  AFailingTickIsReportedAndTheNextComesLater
 //   test_generator_commands_are_driven_by_the_engine               TheReceiptAndSolanaCommandsRunThroughTheWorker (the network
 //                                                                  commands run as scfg::Job coroutines on the Engine)
+//   (worker.py's abandon) test_an_abandoned_running_job_is_refused_its_next_request,
+//   test_abandoning_a_queued_job_cancels_it                        AnAbandonedStartIsCancelledOrRefusedItsNextRequest
 // The tests here without a twin are the Unreal glue's own: refused stores, OnStateChanged's order and handlers,
 // teardown, Stop() from inside the Engine, a handler destroying the worker, the cancelled or failed startup reverify
 // through Stop(), the receipt commands, the fresh snapshot at Stop().
@@ -86,6 +88,7 @@
 #include "Scfg/Watcher.h"
 
 #include <deque>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -351,6 +354,49 @@ bool FScfgWorkerFirstSnapshotTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("no request before Start()"), W.Stats->Methods.Num(), 0);
 	TestFalse(TEXT("not running"), W.Worker->IsRunning());
 	TestFalse(TEXT("no tick before Start()"), W.Worker->IsTickPending());
+	return true;
+}
+
+SCFG_WORKER_TEST(FScfgWorkerAbandonedStartTest, "AnAbandonedStartIsCancelledOrRefusedItsNextRequest")
+
+// test_an_abandoned_running_job_is_refused_its_next_request, test_abandoning_a_queued_job_cancels_it (worker.py's
+// abandon): a running start whose flag turns true is refused its next request (Abandoned, before the transport:
+// base sepolia's second endpoint is never asked), a queued one is cancelled without running, neither is logged, and
+// the next command's requests go out again.
+bool FScfgWorkerAbandonedStartTest::RunTest(const FString& Parameters)
+{
+	using namespace ScfgWorkerTests;
+	FWorld W;
+	if (!TestTrue(TEXT("created"), W.Make().ok()))
+	{
+		return false;
+	}
+	W.Worker->Start();
+	W.Frames(5);
+	const TFunction<Result<Json>(const FString&)> Normal = W.Fake->Answer;
+	W.Fake->Answer = [](const FString& Method) -> Result<Json>
+	{ return scfg::Err::transport_error("down: " + ScfgString::ToUtf8(Method), std::nullopt); };
+	const std::shared_ptr<bool> RunningFlag = std::make_shared<bool>(false);
+	const std::shared_ptr<bool> QueuedFlag = std::make_shared<bool>(false);
+	TGot<Json> Running;
+	TGot<Json> Queued;
+	const int32 Before = W.Count(TEXT("eth_blockNumber"));
+	W.Worker->StartSession("unlock", "base", Json::dict({{"item", "chapter2"}}), Running.Callback(), RunningFlag);
+	W.Worker->StartSession("unlock", "base", Json::dict({{"item", "chapter2"}}), Queued.Callback(), QueuedFlag);
+	W.Frame();
+	TestEqual(TEXT("the first start asked one endpoint"), W.Count(TEXT("eth_blockNumber")) - Before, 1);
+	*RunningFlag = true;
+	*QueuedFlag = true;
+	W.Frames(10);
+	TestEqual(TEXT("the running start was refused"), Running.Kind(), FString(TEXT("Abandoned")));
+	TestEqual(TEXT("no other endpoint was asked"), W.Count(TEXT("eth_blockNumber")) - Before, 1);
+	TestEqual(TEXT("the queued start was cancelled"), Queued.Kind(), FString(TEXT("CancelledError")));
+	TestEqual(TEXT("neither is logged"), W.Errors->Num(), 0);
+	W.Fake->Answer = Normal;
+	TGot<Json> Next;
+	W.Worker->StartSession("unlock", "base", Json::dict({{"item", "chapter2"}}), Next.Callback());
+	W.Frames(10);
+	TestTrue(TEXT("the next start goes out and succeeds"), Next.Ok());
 	return true;
 }
 

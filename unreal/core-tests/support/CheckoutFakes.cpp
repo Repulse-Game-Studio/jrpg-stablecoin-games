@@ -164,15 +164,22 @@ Json transfer_log(const std::string& token, const std::string& sender, const std
 
 // ---- submitters ----
 
-void EngineSubmitter::start_session(Json kind, Json chain, Json opts, scfg::worker::OnDone<Json> done) {
+void EngineSubmitter::start_session(Json kind, Json chain, Json opts, scfg::worker::OnDone<Json> done,
+                                    scfg::worker::AbandonFlag abandoned) {
     scfg::engine::Engine* e = engine_;
     dispatch(
         "start_session",
-        [e, kind, chain, opts, done] {
+        [e, kind, chain, opts, done, abandoned] {
+            if (abandoned && *abandoned) {
+                call<Json>(done, Err::make("CancelledError", "abandoned before it ran"));
+                return;
+            }
+            e->refuse_requests = [abandoned] { return abandoned && *abandoned; };
             Result<Json> r = run_now(e->start_session(kind, chain, opts));
+            e->refuse_requests = nullptr;
             call(done, std::move(r));
         },
-        [done](Err err) { call<Json>(done, std::move(err)); });
+        [done](Err err) { call<Json>(done, std::move(err)); }, abandoned);
 }
 
 void EngineSubmitter::build_solana_payment(Json sid, Json account, scfg::worker::OnDone<Json> done) {
@@ -228,13 +235,15 @@ void EngineSubmitter::restore_apply(std::vector<scfg::restore::RestoreCandidate>
         [done](Err err) { call<Json>(done, std::move(err)); });
 }
 
-void ImmediateSubmitter::dispatch(std::string name, std::function<void()> run, std::function<void(Err)> fail) {
-    (void)name, (void)fail;
+void ImmediateSubmitter::dispatch(std::string name, std::function<void()> run, std::function<void(Err)> fail,
+                                  scfg::worker::AbandonFlag abandoned) {
+    (void)name, (void)fail, (void)abandoned;
     run();
 }
 
-void DeferredSubmitter::dispatch(std::string name, std::function<void()> run, std::function<void(Err)> fail) {
-    queue.push_back(Queued{std::move(name), std::move(run), std::move(fail)});
+void DeferredSubmitter::dispatch(std::string name, std::function<void()> run, std::function<void(Err)> fail,
+                                 scfg::worker::AbandonFlag abandoned) {
+    queue.push_back(Queued{std::move(name), std::move(run), std::move(fail), std::move(abandoned)});
 }
 
 void DeferredSubmitter::run() {
@@ -245,7 +254,7 @@ void DeferredSubmitter::run() {
     }
 }
 
-void RecordingSubmitter::start_session(Json, Json, Json, scfg::worker::OnDone<Json>) {
+void RecordingSubmitter::start_session(Json, Json, Json, scfg::worker::OnDone<Json>, scfg::worker::AbandonFlag) {
     submitted.push_back("start_session");
 }
 void RecordingSubmitter::build_solana_payment(Json, Json, scfg::worker::OnDone<Json>) {

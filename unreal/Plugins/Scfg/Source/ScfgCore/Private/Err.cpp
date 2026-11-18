@@ -21,7 +21,7 @@ struct Kind {
 // godot/addons/scfg/core/err.gd's BASES, whole: Python built-ins, the decimal module's
 // signals, the QR generator's DataTooLongError, scfg_core's own, and asyncio's CancelledError (a BaseException,
 // so an `except Exception` around a session step does not swallow a cancellation).
-constexpr std::array<Kind, 27> kKinds = {{
+constexpr std::array<Kind, 28> kKinds = {{
     {"BaseException", ""},
     {"Exception", "BaseException"},
     {"ValueError", "Exception BaseException"},
@@ -53,6 +53,9 @@ constexpr std::array<Kind, 27> kKinds = {{
     // err.gd's Godot-only HostGone (its HTTP host node left the tree): kept, as the table is copied whole, for
     // the Unreal transport's equivalent. Not a TransportError, so the RPC client cools no endpoint down for it.
     {"HostGone", "Exception BaseException"},
+    // worker.py's Abandoned: a superseded command's refused RPC request (Engine::refuse_requests). Not a
+    // TransportError either, so no endpoint cools down.
+    {"Abandoned", "Exception BaseException"},
     {"CancelledError", "BaseException"},
 }};
 

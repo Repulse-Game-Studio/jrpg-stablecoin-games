@@ -89,8 +89,10 @@ scfg::Json transfer_log(const std::string& token, const std::string& sender, con
 class EngineSubmitter : public scfg::worker::Submitter {
 public:
     explicit EngineSubmitter(scfg::engine::Engine& engine) : engine_(&engine) {}
-    void start_session(scfg::Json kind, scfg::Json chain, scfg::Json opts,
-                       scfg::worker::OnDone<scfg::Json> done) override;
+    // Honours the abandon flag as worker.py does: a start abandoned before it runs is cancelled (CancelledError),
+    // and one abandoned while it runs is refused its next request (Engine::refuse_requests).
+    void start_session(scfg::Json kind, scfg::Json chain, scfg::Json opts, scfg::worker::OnDone<scfg::Json> done,
+                       scfg::worker::AbandonFlag abandoned) override;
     void build_solana_payment(scfg::Json sid, scfg::Json account, scfg::worker::OnDone<scfg::Json> done) override;
     void report_hint(scfg::Json sid, scfg::Json tx_hash, scfg::worker::OnDone<void> done) override;
     void set_ui_status(scfg::Json sid, scfg::Json status, scfg::worker::OnDone<void> done) override;
@@ -104,7 +106,8 @@ public:
 protected:
     // run performs the command and calls its done; fail calls done with an Err instead (a test's
     // fut.set_exception).
-    virtual void dispatch(std::string name, std::function<void()> run, std::function<void(scfg::Err)> fail) = 0;
+    virtual void dispatch(std::string name, std::function<void()> run, std::function<void(scfg::Err)> fail,
+                          scfg::worker::AbandonFlag abandoned = {}) = 0;
     scfg::engine::Engine* engine_;
 };
 
@@ -113,7 +116,8 @@ public:
     using EngineSubmitter::EngineSubmitter;
 
 protected:
-    void dispatch(std::string name, std::function<void()> run, std::function<void(scfg::Err)> fail) override;
+    void dispatch(std::string name, std::function<void()> run, std::function<void(scfg::Err)> fail,
+                  scfg::worker::AbandonFlag abandoned) override;
 };
 
 class DeferredSubmitter final : public EngineSubmitter {
@@ -122,6 +126,7 @@ public:
         std::string name;
         std::function<void()> run;
         std::function<void(scfg::Err)> fail;
+        scfg::worker::AbandonFlag abandoned;  // a session start's (empty for the other commands)
     };
     using EngineSubmitter::EngineSubmitter;
     // Runs the queue until it is empty, commands queued meanwhile included.
@@ -129,7 +134,8 @@ public:
     std::deque<Queued> queue;
 
 protected:
-    void dispatch(std::string name, std::function<void()> run, std::function<void(scfg::Err)> fail) override;
+    void dispatch(std::string name, std::function<void()> run, std::function<void(scfg::Err)> fail,
+                  scfg::worker::AbandonFlag abandoned) override;
 };
 
 // Records the commands submitted (by name) and never runs them (`lambda fn: submitted.append(fn)`, and `lambda fn:
@@ -137,7 +143,8 @@ protected:
 class RecordingSubmitter final : public scfg::worker::Submitter {
 public:
     std::vector<std::string> submitted;
-    void start_session(scfg::Json, scfg::Json, scfg::Json, scfg::worker::OnDone<scfg::Json>) override;
+    void start_session(scfg::Json, scfg::Json, scfg::Json, scfg::worker::OnDone<scfg::Json>,
+                       scfg::worker::AbandonFlag) override;
     void build_solana_payment(scfg::Json, scfg::Json, scfg::worker::OnDone<scfg::Json>) override;
     void report_hint(scfg::Json, scfg::Json, scfg::worker::OnDone<void>) override;
     void set_ui_status(scfg::Json, scfg::Json, scfg::worker::OnDone<void>) override;

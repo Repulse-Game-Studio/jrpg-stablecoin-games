@@ -10,6 +10,8 @@
 //   test_changing_the_tip_while_starting_discards_the_first_session     -> the same name
 //   test_cancel_while_starting_leaves_no_session_to_expire              -> the same name
 //   test_a_failed_abandoned_start_needs_no_discard                      -> the same name
+//   test_a_superseded_start_that_has_not_run_is_cancelled_and_never_runs -> the same name
+//   test_a_running_superseded_start_is_marked_abandoned                 -> the same name
 // C++ only (as godot/tests/test_checkout_abandoned_start.gd): test_abandoning_an_already_finished_start_discards_at_once
 // (Python's add_done_callback runs at once on a done future), and test_an_abandoned_start_outlives_its_controller (the
 // discard still goes out when the start finishes after the controller is gone); review R1:
@@ -117,14 +119,42 @@ SCFG_TEST(CheckoutAbandonedStartTests, test_a_failed_abandoned_start_needs_no_di
     if (!s) return;
     CheckoutController& ctl = *s->ctl;
     SCFG_CHECK(t, ctl.choose_network("arbitrum").ok());
-    (void)ctl.cancel();
     if (!t.check(!s->deferred->queue.empty(), "the start is queued")) return;
     fakes::DeferredSubmitter::Queued start = std::move(s->deferred->queue.front());
-    s->deferred->queue.pop_front();
+    s->deferred->queue.pop_front();  // the start is running when the player cancels
+    (void)ctl.cancel();
     start.fail(scfg::Err::make("RuntimeError", "rpc down"));
     s->deferred->run();
     SCFG_CHECK(t, s->engine->pending().as_dict().empty());
     SCFG_CHECK(t, s->deferred->queue.empty());
+}
+
+SCFG_TEST(CheckoutAbandonedStartTests, test_a_superseded_start_that_has_not_run_is_cancelled_and_never_runs) {
+    std::optional<Setup> s = setup(t);
+    if (!s) return;
+    CheckoutController& ctl = *s->ctl;
+    SCFG_CHECK(t, ctl.choose_network("arbitrum").ok());
+    if (!t.check(s->deferred->queue.size() == 1, "the start is queued")) return;
+    const scfg::worker::AbandonFlag first = s->deferred->queue.front().abandoned;
+    SCFG_CHECK(t, ctl.choose_network("base").ok());
+    SCFG_CHECK(t, first && *first);  // the new pick does not queue behind it
+    s->deferred->run();
+    ctl.poll();
+    SCFG_CHECK(t, ctl.state() == "waiting" && ctl.chain_key() == "base");
+    SCFG_CHECK(t, s->deferred->queue.empty());  // nothing ran for arbitrum, so nothing is left to discard
+    SCFG_CHECK(t, pending_chains(*s) == std::vector<std::string>({"base"}));
+}
+
+SCFG_TEST(CheckoutAbandonedStartTests, test_a_running_superseded_start_is_marked_abandoned) {
+    std::optional<Setup> s = setup(t);
+    if (!s) return;
+    CheckoutController& ctl = *s->ctl;
+    SCFG_CHECK(t, ctl.choose_network("arbitrum").ok());
+    if (!t.check(!s->deferred->queue.empty(), "the start is queued")) return;
+    fakes::DeferredSubmitter::Queued start = std::move(s->deferred->queue.front());
+    s->deferred->queue.pop_front();  // running
+    SCFG_CHECK(t, ctl.choose_network("base").ok());
+    SCFG_CHECK(t, start.abandoned && *start.abandoned);  // its next RPC request is refused (EngineTests)
 }
 
 SCFG_TEST(CheckoutAbandonedStartTests, test_abandoning_an_already_finished_start_discards_at_once) {

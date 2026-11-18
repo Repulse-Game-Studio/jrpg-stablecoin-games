@@ -434,7 +434,7 @@ bool FScfgBlueprintSubmitterTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the discard from the destructor is dropped, no crash"), Adapter->NumDropped(), Before + 1);
 	TSharedRef<int32> Late = MakeShared<int32>(0);
 	Submit->start_session("unlock", "arbitrum", Json::dict({{"item", "chapter2"}}),
-		[Late](scfg::Result<Json>) { ++*Late; });
+		[Late](scfg::Result<Json>) { ++*Late; }, nullptr);
 	Submit->discard_session("ps_none", nullptr);
 	TestEqual(TEXT("later commands are dropped too"), Adapter->NumDropped(), Before + 3);
 	for (int32 I = 0; I < 3; ++I)

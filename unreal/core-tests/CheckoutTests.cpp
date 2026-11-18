@@ -144,7 +144,7 @@ const Json& info_of(const Setup& s) { return s.servers->front()->args.session_in
 struct HeldSubmitter final : scfg::worker::Submitter {
     std::vector<scfg::worker::OnDone<Json>> starts;
     std::vector<std::string> names;
-    void start_session(Json, Json, Json, scfg::worker::OnDone<Json> done) override {
+    void start_session(Json, Json, Json, scfg::worker::OnDone<Json> done, scfg::worker::AbandonFlag) override {
         names.push_back("start_session");
         starts.push_back(std::move(done));
     }

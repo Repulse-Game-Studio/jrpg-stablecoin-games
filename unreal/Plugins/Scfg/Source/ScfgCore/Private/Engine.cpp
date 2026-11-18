@@ -104,9 +104,16 @@ Engine::Engine(config::Config config, coio::Transport& transport, Json pending, 
     if (!rpc_factory_) {
         rpc_factory_ = [this](const chains::Chain& c) -> Result<base::Rpc> {
             SCFG_TRY(const base::Backend* backend, backends::backend_for(c));
-            return backend->make_rpc(c, *transport_);
+            return backend->make_rpc(c, refusing_);
         };
     }
+}
+
+Future<Json> Engine::RefusingTransport::post_json(std::string url, Json payload, double timeout) {
+    if (owner_->refuse_requests && owner_->refuse_requests()) {
+        return Future<Json>::completed(Err::make("Abandoned", "abandoned before its request to " + url));
+    }
+    return owner_->transport_->post_json(std::move(url), std::move(payload), timeout);
 }
 
 // --- chains & RPC ---

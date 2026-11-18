@@ -22,9 +22,10 @@ scfg::Err Cancelled()
 	return scfg::Err::make("CancelledError", "the worker was stopped before the command finished");
 }
 
+// Not an error to report: a cancellation, or an abandoned command's refused request (the player moved on).
 bool IsCancelled(const scfg::Err& Error)
 {
-	return Error.kind == "CancelledError";
+	return Error.kind == "CancelledError" || Error.kind == "Abandoned";
 }
 
 }  // namespace ScfgWorkerDetail
@@ -47,6 +48,9 @@ public:
 
 	// Start() was called: the Engine's state may have changed (OnStateChanged follows).
 	bool bStarted = false;
+	// The abandon flag it was submitted with (ABANDONED COMMANDS in ScfgWorker.h), or null.
+	scfg::worker::AbandonFlag Abandoned;
+	bool IsAbandoned() const { return Abandoned && *Abandoned; }
 };
 
 namespace ScfgWorkerDetail
@@ -374,12 +378,15 @@ void FScfgWorker::Tick(TOnDone<FOutcomes> OnDone)
 	}
 }
 
-void FScfgWorker::StartSession(scfg::Json Kind, scfg::Json Chain, scfg::Json Opts, TOnDone<scfg::Json> OnDone)
+void FScfgWorker::StartSession(scfg::Json Kind, scfg::Json Chain, scfg::Json Opts, TOnDone<scfg::Json> OnDone,
+	scfg::worker::AbandonFlag Abandoned)
 {
-	Submit(MakeUnique<ScfgWorkerDetail::TNetworkCommand<scfg::Json>>(
+	TUniquePtr<FCommand> Command = MakeUnique<ScfgWorkerDetail::TNetworkCommand<scfg::Json>>(
 		[Kind = std::move(Kind), Chain = std::move(Chain), Opts = std::move(Opts)](scfg::engine::Engine& E) mutable
 		{ return E.start_session(std::move(Kind), std::move(Chain), std::move(Opts)); },
-		MoveTemp(OnDone)));
+		MoveTemp(OnDone));
+	Command->Abandoned = std::move(Abandoned);
+	Submit(MoveTemp(Command));
 }
 
 void FScfgWorker::BuildSolanaPayment(scfg::Json Sid, scfg::Json Account, TOnDone<scfg::Json> OnDone)
@@ -539,8 +546,17 @@ bool FScfgWorker::OnTicker(float DeltaTime)
 		{
 			return true;
 		}
+		if (Current->IsAbandoned())
+		{
+			// worker.py's abandon(fut) of a queued job: it never runs (ABANDONED COMMANDS in ScfgWorker.h).
+			Current->Cancel();
+			Finished.Add(MoveTemp(Current));
+			continue;
+		}
 		// One command at a time: the Engine would abort an overlap (Engine.h).
 		check(!Engine->running());
+		// Its requests are refused once its flag turns true; a command without one is never refused.
+		Engine->refuse_requests = [Flag = Current->Abandoned] { return Flag && *Flag; };
 		Current->Start(*Engine);
 	}
 }

@@ -46,7 +46,8 @@ struct EngineSubmit final : scfg::worker::Submitter {
     explicit EngineSubmit(scfg::engine::Engine& e) : engine(&e) {}
     scfg::engine::Engine* engine;
     int others = 0;
-    void start_session(Json kind, Json chain, Json opts, scfg::worker::OnDone<Json> done) override {
+    void start_session(Json kind, Json chain, Json opts, scfg::worker::OnDone<Json> done,
+                       scfg::worker::AbandonFlag) override {
         scfg::Job<Json> job;
         job.start(engine->start_session(kind, chain, opts), [&done](Result<Json> r) { done(std::move(r)); });
     }

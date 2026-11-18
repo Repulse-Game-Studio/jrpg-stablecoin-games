@@ -32,8 +32,8 @@ class SCFG_API FScfgSubmitter final : public scfg::worker::Submitter
 public:
 	explicit FScfgSubmitter(FScfgWorker& InWorker);
 
-	virtual void start_session(
-		scfg::Json kind, scfg::Json chain, scfg::Json opts, scfg::worker::OnDone<scfg::Json> done) override;
+	virtual void start_session(scfg::Json kind, scfg::Json chain, scfg::Json opts,
+		scfg::worker::OnDone<scfg::Json> done, scfg::worker::AbandonFlag abandoned) override;
 	virtual void build_solana_payment(
 		scfg::Json sid, scfg::Json account, scfg::worker::OnDone<scfg::Json> done) override;
 	virtual void report_hint(scfg::Json sid, scfg::Json tx_hash, scfg::worker::OnDone<void> done) override;

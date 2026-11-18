@@ -104,7 +104,7 @@ struct HeldSubmitter final : scfg::worker::Submitter {
     std::vector<scfg::worker::OnDone<Json>> applies;
     std::vector<std::vector<RestoreCandidate>> applied;
     std::vector<std::optional<std::map<int64_t, Json>>> applied_choices;
-    void start_session(Json, Json, Json, scfg::worker::OnDone<Json>) override {}
+    void start_session(Json, Json, Json, scfg::worker::OnDone<Json>, scfg::worker::AbandonFlag) override {}
     void build_solana_payment(Json, Json, scfg::worker::OnDone<Json>) override {}
     void report_hint(Json, Json, scfg::worker::OnDone<void>) override {}
     void set_ui_status(Json, Json, scfg::worker::OnDone<void>) override {}

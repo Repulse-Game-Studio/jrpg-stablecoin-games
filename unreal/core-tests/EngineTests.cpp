@@ -123,6 +123,31 @@ SCFG_TEST(EngineTests, TheDefaultRpcFactoryUsesTheEnginesTransportAndKeepsOneCli
     if (a.ok()) SCFG_CHECK_EQ(t, scfg::backends::base::client_of(a.value()).urls()[0], kBaseRpc);
 }
 
+// worker.py's _Refusing: while refuse_requests says so, the default RPC objects' requests fail with Abandoned before
+// they reach the transport, and no endpoint cools down for it (the next request goes to the first url again).
+SCFG_TEST(EngineTests, RefusedRequestsAreAbandonedAndCoolNoEndpointDown) {
+    HeadTransport transport;
+    scfg_test::tier2::ScriptedEntropy entropy;
+    entropy.load(draws());
+    engine::Engine eng(base_config(), transport, Json(), Json(), [] { return int64_t{1700000000}; }, {}, {}, &entropy);
+    eng.refuse_requests = [] { return true; };
+    std::optional<Result<Json>> refused =
+        run_now(eng.start_session("unlock", "base", Json::dict({{"item", "chapter2"}})));
+    if (!t.check(refused && !refused->ok(), "the start fails at once")) return;
+    SCFG_CHECK_EQ(t, refused->err().kind, "Abandoned");
+    t.check(!refused->err().is_a("TransportError"), "not a TransportError");
+    t.check(transport.methods.empty(), "nothing reached the transport");
+    eng.refuse_requests = [] { return false; };
+    std::optional<Result<Json>> rec = run_now(eng.start_session("unlock", "base", Json::dict({{"item", "chapter2"}})));
+    t.check(rec && rec->ok(), rec && !rec->ok() ? rec->err().str() : "suspended");
+    t.check(transport.methods == std::vector<std::string>{"eth_blockNumber"}, "posted once refusing stopped");
+    Result<scfg::backends::base::Rpc> a = eng.rpc("base");
+    if (a.ok()) {
+        const scfg::rpc::RpcClient& client = scfg::backends::base::client_of(a.value());
+        t.check(client.live_urls() == client.urls(), "no endpoint cooled down");
+    }
+}
+
 SCFG_TEST(EngineTests, StateIsCopiedInAndOut) {
     HeadTransport transport;
     scfg_test::tier2::ScriptedEntropy entropy;
