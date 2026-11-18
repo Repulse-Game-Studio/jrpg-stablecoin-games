@@ -200,19 +200,28 @@ The desktop e2e defaults to SDL's offscreen video driver. Where that isn't avail
 
 ## Releasing
 
-1. Set the new version in `plugin/game/python-packages/scfg_core/__init__.py` (`__version__`) and
-   merge it to `main`.
-2. Tag that commit and push the tag:
+1. Set the new version in `plugin/game/python-packages/scfg_core/__init__.py` (`__version__`) and in every
+   engine's own version file: `godot/addons/scfg/plugin.cfg`, `rpgmaker/src/mz/version.ts`, `npm/package.json`,
+   the Unity `unity/Packages/com.repulse.scfg/package.json` (and `Runtime/Core/PackageVersion.cs`), and the Unreal
+   `unreal/Plugins/Scfg/Scfg.uplugin` (`VersionName`) with `scfg::VERSION` in
+   `unreal/Plugins/Scfg/Source/ScfgCore/Private/Version.cpp`. `tools/package.py` refuses any that differs, and
+   `test.yml` builds every archive on each push. Merge it to `main`.
+2. Check that the editor workflows ran green on that commit: `unity.yml` (the Unity suites and e2e, needs the
+   Unity license secrets) and `unreal.yml` (the Unreal editor build, automation tests and e2e, on the self-hosted
+   runner). Neither runs on a tag, and `release.yml` runs only the cores' tests, so this is the only editor gate
+   before the Unity package and the Unreal zips ship. If a workflow has not run (no secrets, no runner), run its
+   suites locally (`unity/README.md`, `unreal/README.md`) before tagging.
+3. Tag that commit and push the tag:
    ```bash
-   git tag v0.2.0 && git push origin v0.2.0
+   git tag v0.3.0 && git push origin v0.3.0
    ```
 
-`.github/workflows/release.yml` then runs the lint and unit tests, checks that the tag matches
-`__version__`, builds the zip with `tools/package.py` and publishes it as a GitHub release with
-generated notes. A second job builds the `stablecoin-games-renpy` package (`uv build`: the installer in
-`installer/` with the plugin files inside it) and uploads it to PyPI through trusted publishing,
-from the `pypi` environment. A version with letters in it, such as `0.2.0rc1`, is published as a
-prerelease and does not become "latest".
+`.github/workflows/release.yml` then runs the lint and unit tests, the C++ and C# cores' tests, checks that the
+tag matches `__version__`, builds every archive with `tools/package.py` (Ren'Py, Godot, RPG Maker MZ, the Unity
+`.tgz` and the three Unreal zips) and publishes them as a GitHub release with generated notes. A second job builds
+the `stablecoin-games-renpy` package (`uv build`: the installer in `installer/` with the plugin files inside it) and
+uploads it to PyPI through trusted publishing, from the `pypi` environment. A version with letters in it, such as
+`0.3.0rc1`, is published as a prerelease and does not become "latest".
 
 ## License
 
