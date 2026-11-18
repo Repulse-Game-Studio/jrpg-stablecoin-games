@@ -398,7 +398,7 @@ test("test_the_method_step_offers_the_buy_page_for_the_chosen_network", async ()
   const units = BigInt(ctl.session!["units"]);
   assert.ok(units >= 4_990_000n && units < 5_000_000n);
   assert.equal(ctl.onrampUrl(), "https://thirdweb.com/bridge/buy-widget?chain=42161"
-    + `&tokenAddress=${USDC_ARB}&amount=5.00&tokenEditable=false`);
+    + `&tokenAddress=${USDC_ARB}&amount=5.00&tokenEditable=false&paymentMethods=card`);
 });
 
 test("test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee", async () => {
@@ -406,7 +406,7 @@ test("test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee", async () => {
   ctl.chooseNetwork("arc");
   await submit.idle();
   ctl.poll();
-  assert.ok(ctl.onrampUrl()!.endsWith("&amount=5.01&tokenEditable=false"));
+  assert.ok(ctl.onrampUrl()!.endsWith("&amount=5.01&tokenEditable=false&paymentMethods=card"));
 });
 
 test("test_the_buy_link_moves_to_the_only_payment_page", async () => {

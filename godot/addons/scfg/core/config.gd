@@ -540,8 +540,10 @@ static func _onramp_url(value: Variant) -> Variant:
 			if s.unicode_at(i) < 0x21 or s.unicode_at(i) > 0x7e:
 				printable = false
 				break
-	if not printable or not str(value).begins_with("https://") or str(value).length() > ONRAMP_URL_LIMIT:
-		return config_error("onramp.bad_url", "onramp url must be an https:// URL without spaces, at most %d characters: %s" % [
+	# a host must follow https://: its first character is not a brace, "/", "?" or "#"
+	if (not printable or not str(value).begins_with("https://") or str(value).length() > ONRAMP_URL_LIMIT
+			or str(value).substr(8, 1) in ["", "{", "}", "/", "?", "#"]):
+		return config_error("onramp.bad_url", "onramp url must be an https:// URL with a host, without spaces, at most %d characters: %s" % [
 			ONRAMP_URL_LIMIT, ScfgPy.py_repr(value)])
 	var parts := ScfgPaylinks.onramp_split(str(value))
 	for n in range(1, parts.size(), 2):

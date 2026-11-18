@@ -15,7 +15,7 @@
  *
  * Stored fields keep the Python (snake_case) names; methods and computed properties are camelCase.
  */
-import { asUnits, decimalToUnits, formatUnits, parseAmount } from "./amounts.ts";
+import { asUnits, decimalToUnits, formatUnits, parseAmount, type Units } from "./amounts.ts";
 import { backendFor } from "./backends/index.ts";
 import { explorerUrl, type Chain } from "./chains.ts";
 import { enabledChains, registry, textOn, walletFor, type Config } from "./config.ts";
@@ -23,7 +23,7 @@ import type { Dec } from "./decimal.ts";
 import { parseUnreadyKey, unreadyKey, type Engine } from "./engine.ts";
 import { ValueError } from "./errors.ts";
 import { makePaymentResult, type PaymentResult } from "./models.ts";
-import { eip681TransferUri, onrampAmount, onrampUrl } from "./paylinks.ts";
+import { eip681TransferUri, ONRAMP_EXACT_UNITS, onrampAmount, onrampUrl } from "./paylinks.ts";
 import { MIN_TIP, TIP_PRESETS, type PaymentSpec } from "./payments.ts";
 import { RpcUnavailable } from "./rpc.ts";
 import { solanaPayUri } from "./solana/paylinks.ts";
@@ -32,6 +32,44 @@ import type { Job } from "./worker.ts";
 import { hasOwn, pyStrip } from "./pystr.ts";
 
 export const FINAL_STATES: readonly string[] = ["paid", "underpaid", "expired"];
+
+/** The buy link's state on a checkout step (Python's checkout.onramp_view). */
+export interface OnrampView {
+  url: string | null;
+  shows_onramp: boolean;
+  shows_onramp_hint: boolean;
+}
+
+const ONRAMP_PAGES: readonly string[] = ["browser", "qr", "manual"];
+
+/**
+ * The buy link's state on a checkout step, as the controller and every port decide it (Python's
+ * checkout.onramp_view, pinned by the tier1 vectors). url: configure({onramp})'s page for the
+ * chosen network when it is offered there, else null; the suggested amount is the session's exact
+ * `units`, or before a session (null) the payment `amount` plus the most the item code and nonce
+ * add (ONRAMP_EXACT_UNITS); plus a cent where the token is the network's gas coin (Arc); rounded
+ * up to whole cents. The link goes on the method step, or on the payment page the sheet opens on
+ * when `path` has no method step; the hint shows there instead, without a url, while the player
+ * can go back and another network in `optionKeys` has the link.
+ */
+export function onrampView(config: Config, v: {
+  token: string; chainKey: string | null; units: Units | null; amount: Dec; step: string; path: readonly string[];
+  canGoBack: boolean; optionKeys: readonly string[];
+}): OnrampView {
+  const opts = config.onramp;
+  const chain = v.chainKey ? enabledChains(config).get(v.chainKey) ?? null : null;
+  let url: string | null = null;
+  if (opts.enabled && chain !== null && opts.chains.includes(chain.key)) {
+    const units = v.units ?? asUnits(decimalToUnits(v.amount) + ONRAMP_EXACT_UNITS);
+    url = onrampUrl(opts.url, {
+      chain: chain.key, chainId: chain.chain_id, token: v.token, tokenAddress: chain.tokens[v.token]!.address,
+      amount: onrampAmount(units, chain.native_token === v.token),
+    });
+  }
+  const here = v.step === "method" || (ONRAMP_PAGES.includes(v.step) && !v.path.includes("method"));
+  const hint = opts.enabled && here && url === null && v.canGoBack && v.optionKeys.some((k) => opts.chains.includes(k));
+  return { url, shows_onramp: here && url !== null, shows_onramp_hint: hint };
+}
 // Errors that judge the reported transaction (the hint) and drop it.
 export const HINT_VERDICTS: readonly string[] = ["tx_reverted", "tx_not_a_payment", "tx_not_landed"];
 // Order of the steps; the three method pages share a place.
@@ -234,28 +272,26 @@ export class CheckoutController {
    * the payment (plus a cent for the fee on Arc) suggested as the amount. null when
    * configure({onramp}) doesn't offer it on this network.
    */
-  onrampUrl(): string | null {
-    const opts = this.config.onramp;
-    const chain = this.chain;
-    if (!opts.enabled || chain === null || !opts.chains.includes(chain.key)) return null;
-    const units = this.session ? asUnits(BigInt(this.session["units"])) : decimalToUnits(this.amount);
-    return onrampUrl(opts.url, {
-      chain: chain.key, chainId: chain.chain_id, token: this.spec.token, tokenAddress: this.tokenAddress as string,
-      amount: onrampAmount(units, chain.native_token === this.spec.token),
+  private onramp(): OnrampView {
+    return onrampView(this.config, {
+      token: this.spec.token, chainKey: this.chain_key, units: this.session ? asUnits(BigInt(this.session["units"])) : null,
+      amount: this.amount, step: this.step, path: this.stepPath(), canGoBack: this.canGoBack,
+      optionKeys: this.chainOptions().map(([key]) => key),
     });
   }
 
   /**
-   * The step where the buy link (or its hint) goes: the method step, or the payment page the sheet
-   * opens on when the method step is skipped (a single method).
+   * The page where a player without the token buys some with a card, for the chosen network, with
+   * the payment (plus a cent for the fee on Arc) suggested as the amount. null when
+   * configure({onramp}) doesn't offer it on this network (see onrampView).
    */
-  _onrampStep(): boolean {
-    return this.step === "method" || (["browser", "qr", "manual"].includes(this.step) && !this.stepPath().includes("method"));
+  onrampUrl(): string | null {
+    return this.onramp().url;
   }
 
   /** Whether this step offers the buy link. */
   get showsOnramp(): boolean {
-    return this._onrampStep() && this.onrampUrl() !== null;
+    return this.onramp().shows_onramp;
   }
 
   /**
@@ -264,9 +300,7 @@ export class CheckoutController {
    * the network step (back()).
    */
   get showsOnrampHint(): boolean {
-    const opts = this.config.onramp;
-    if (!opts.enabled || !this._onrampStep() || this.onrampUrl() !== null || !this.canGoBack) return false;
-    return this.chainOptions().some(([key]) => opts.chains.includes(key));
+    return this.onramp().shows_onramp_hint;
   }
 
   explorerUrl(): string | null {

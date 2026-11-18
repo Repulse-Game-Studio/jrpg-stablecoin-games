@@ -459,7 +459,7 @@ func test_the_method_step_offers_the_buy_page_for_the_chosen_network() -> bool:
 	T.eq([ctl.step, ctl.shows_onramp], ["method", true])
 	var units: int = ctl.session["units"]
 	T.ok(units >= 4_990_000 and units < 5_000_000, "the session's amount")
-	T.eq(ctl.onramp_url(), "https://thirdweb.com/bridge/buy-widget?chain=42161&tokenAddress=%s&amount=5.00&tokenEditable=false" % USDC_ARB)
+	T.eq(ctl.onramp_url(), "https://thirdweb.com/bridge/buy-widget?chain=42161&tokenAddress=%s&amount=5.00&tokenEditable=false&paymentMethods=card" % USDC_ARB)
 	return T.done()
 
 
@@ -467,7 +467,7 @@ func test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee() -> bool:
 	var ctl: ScfgCheckoutController = _setup({"chains": ["base", "arc"]})["ctl"]
 	ctl.choose_network("arc")
 	ctl.poll()
-	T.ok(str(ctl.onramp_url()).ends_with("&amount=5.01&tokenEditable=false"), str(ctl.onramp_url()))
+	T.ok(str(ctl.onramp_url()).ends_with("&amount=5.01&tokenEditable=false&paymentMethods=card"), str(ctl.onramp_url()))
 	return T.done()
 
 

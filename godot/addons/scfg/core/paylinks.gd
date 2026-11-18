@@ -11,11 +11,14 @@ extends RefCounted
 ## whose {placeholders} are filled in for the network the player picked. The default is
 ## thirdweb's hosted Buy page, which needs no account or key; the player connects their own wallet
 ## there and buys with a card, then pays as usual. tokenEditable=false keeps the page on the
-## network and token the game asked for.
-const ONRAMP_URL := "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+## network and token the game asked for, and paymentMethods=card offers card payment only.
+## tokenAddress is not in thirdweb's iframe docs, but the hosted page honours it (paylinks.py).
+const ONRAMP_URL := "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
 const ONRAMP_FIELDS: Array[String] = ["amount", "chain", "chain_id", "token", "token_address"]
 ## On a chain whose gas coin is the token (Arc), the payment's fee is paid in it too.
 const ONRAMP_GAS_UNITS := 10_000  # 0.01
+## Before a session exists: the most the item code and nonce add to the price (0.009999).
+const ONRAMP_EXACT_UNITS := 9_999
 
 
 ## ERC-20 transfer request that mobile wallets understand when scanned or opened. Python's

@@ -53,7 +53,7 @@ const USDC_BASE := "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 # tests/unit/test_paylinks.py::test_default_onramp_url_is_thirdwebs_buy_page_locked_to_the_token
 func test_default_onramp_url_is_thirdwebs_buy_page_locked_to_the_token() -> bool:
 	T.eq(ScfgPaylinks.onramp_url(ScfgPaylinks.ONRAMP_URL, "base", 8453, "USDC", USDC_BASE, "5.00"),
-		"https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=%s&amount=5.00&tokenEditable=false" % USDC_BASE)
+		"https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=%s&amount=5.00&tokenEditable=false&paymentMethods=card" % USDC_BASE)
 	return T.done()
 
 

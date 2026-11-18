@@ -25,7 +25,7 @@ test("test_onramp_amount", () => {
 test("test_default_onramp_url_is_thirdwebs_buy_page_locked_to_the_token", () => {
   const url = onrampUrl(ONRAMP_URL, { chain: "base", chainId: 8453, token: "USDC", tokenAddress: USDC_BASE, amount: "5.00" });
   assert.equal(url, "https://thirdweb.com/bridge/buy-widget?chain=8453"
-    + `&tokenAddress=${USDC_BASE}&amount=5.00&tokenEditable=false`);
+    + `&tokenAddress=${USDC_BASE}&amount=5.00&tokenEditable=false&paymentMethods=card`);
 });
 
 test("test_onramp_url_fills_every_placeholder_each_time_it_appears", () => {

@@ -401,10 +401,11 @@ function mergeMethods(methods: unknown, chains: readonly string[]): Record<strin
 
 /** An https:// URL of printable ASCII (no spaces) whose only braces are ONRAMP_FIELDS placeholders, like '{chain_id}'. */
 function onrampUrlArg(value: unknown): string {
+  // a host must follow https://: its first character is not a brace, "/", "?" or "#"
   if (typeof value !== "string" || !value.startsWith("https://") || cpLength(value) > ONRAMP_URL_LIMIT
-    || !/^[!-~]*$/.test(value)) {
+    || !/^[!-~]*$/.test(value) || ["", "{", "}", "/", "?", "#"].includes(value.slice(8, 9))) {
     throw new ConfigError(
-      `onramp url must be an https:// URL without spaces, at most ${ONRAMP_URL_LIMIT} characters: ${JSON.stringify(value)}`,
+      `onramp url must be an https:// URL with a host, without spaces, at most ${ONRAMP_URL_LIMIT} characters: ${JSON.stringify(value)}`,
       { code: "onramp.bad_url" });
   }
   for (const [, name] of value.matchAll(ONRAMP_PLACEHOLDER)) {

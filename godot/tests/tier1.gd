@@ -93,6 +93,7 @@ static func _register() -> Dictionary:
 		"get_chains": _get_chains,
 		"build_chain": _build_chain,
 		"build_config": _build_config,
+		"onramp_view": _onramp_view,
 		"add_item": _add_item,
 		"prepare_payment": _prepare_payment,
 		# rpc_errors
@@ -822,6 +823,22 @@ static func _build_config(i: Dictionary) -> Variant:
 	if config is ScfgErr:
 		return config
 	return to_jsonable(config)
+
+
+## checkout.onramp_view(_config(i["config"]), token=..., chain_key=..., units=None or int(i["units"]),
+## amount=Decimal(i["amount"]), step=..., path=..., can_go_back=..., option_keys=...)
+static func _onramp_view(i: Dictionary) -> Variant:
+	var j: Variant = ScfgPy.from_json(i)
+	var config: Variant = _config(j["config"])
+	if config is ScfgErr:
+		return config
+	var units: Variant = null
+	if i["units"] != null:
+		units = _int_field(i, "units")
+		if units is ScfgErr:
+			return units
+	return ScfgCheckoutController.onramp_view(config, j["token"], j["chain_key"], units, j["amount"], j["step"],
+		j["path"], j["can_go_back"], j["option_keys"])
 
 
 ## to_jsonable(add_item(_with_items(i["config"], i.get("existing", [])), **i["item"]))
