@@ -1,8 +1,10 @@
 // No Python twin: the fakes of WorkerTests, twins of the FakeEngine, fakeTimer and deferred() helpers of
-// rpgmaker/src/core/worker.test.ts and of godot/tests/test_worker.gd's FakeEngine, FakeTimer and Gate.
+// rpgmaker/src/core/worker.test.ts and of godot/tests/test_worker.gd's FakeEngine, FakeTimer and Gate, plus
+// HeldTransport (test_pump_worker.py's FakeBridge).
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Scfg.Core;
 
@@ -89,7 +91,16 @@ namespace Scfg.Core.Tests
         public Func<Task<List<StepOutcome>>>? TickImpl;
         public Func<Task<List<string>>>? ReverifyImpl;
         public readonly List<string> Log = new List<string>();
-        public readonly Engine Engine = WorkerFixtures.IdleEngine();
+        public readonly Engine Engine;
+
+        /// <param name="engine">The real Engine the commands get; default <see cref="WorkerFixtures.IdleEngine"/>.</param>
+        public FakeEngine(Engine? engine = null)
+        {
+            Engine = engine ?? WorkerFixtures.IdleEngine();
+        }
+
+        /// <summary>One RPC call through the Engine's own transport (refused as the worker says), on Base Sepolia.</summary>
+        public Task<object?> Call(string method) => ((RpcClient)Engine.Rpc("base")).Call(method, new List<object?>());
 
         public async Task<List<StepOutcome>> Tick()
         {
@@ -113,6 +124,34 @@ namespace Scfg.Core.Tests
 
         public Worker Worker(IScheduler? scheduler = null, Func<double>? interval = null, Action<Exception>? onError = null) =>
             new Worker(Engine, scheduler ?? new FakeScheduler(), interval, onError, Tick, Reverify, Snapshot);
+    }
+
+    /// <summary>
+    /// A transport that keeps every request in flight until the test answers it (test_pump_worker.py's FakeBridge):
+    /// <see cref="Answer"/> completes request <c>i</c> (in the order sent), and a request the Engine cancels
+    /// (<see cref="ICancellableTransport"/>) is recorded in <see cref="Cancelled"/>, its answer left pending.
+    /// </summary>
+    public sealed class HeldTransport : ICancellableTransport
+    {
+        public readonly List<(string Url, string Method, TaskCompletionSource<object?> Answer)> Sent =
+            new List<(string, string, TaskCompletionSource<object?>)>();
+        public readonly List<int> Cancelled = new List<int>();
+
+        public Task<object?> PostJson(string url, JsonObject payload, double timeout) =>
+            PostJson(url, payload, timeout, CancellationToken.None);
+
+        public Task<object?> PostJson(string url, JsonObject payload, double timeout, CancellationToken abandon)
+        {
+            int i = Sent.Count;
+            var answer = new TaskCompletionSource<object?>();
+            Sent.Add((url, (string)payload["method"]!, answer));
+            abandon.Register(() => Cancelled.Add(i));
+            return answer.Task;
+        }
+
+        public IEnumerable<string> Methods => Sent.Select(s => s.Method);
+
+        public void Answer(int i, object? result) => Sent[i].Answer.SetResult(Fakes.Ok(result));
     }
 
     public static class WorkerFixtures

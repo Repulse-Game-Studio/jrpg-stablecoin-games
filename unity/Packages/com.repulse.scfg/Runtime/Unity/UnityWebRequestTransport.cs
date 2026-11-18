@@ -17,12 +17,17 @@
 // Close() (the game quitting, or the facade reset with domain reload off) aborts every request in flight; their
 // callers resume with HostGone, which is not a TransportError, so an RPC client does not cool down a healthy endpoint.
 // Later posts fail with HostGone at once.
+//
+// It is an ICancellableTransport: a request nobody waits for any more (its job was abandoned, or the tick yielded to a
+// command: Engine.AbandonInFlight) is aborted when its token is cancelled and fails with Abandoned, so a lookup that
+// would hang to its timeout frees its connection at once (on WebGL the browser's fetch is aborted with it).
 #nullable enable
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Scfg.Core;
 using UnityEngine;
@@ -37,7 +42,7 @@ namespace Scfg
     }
 
     /// <summary>The <see cref="ITransport"/> of a Unity game (see the file header).</summary>
-    public sealed class UnityWebRequestTransport : ITransport
+    public sealed class UnityWebRequestTransport : ICancellableTransport
     {
         public const string UserAgent = "scfg/0.1";
         public const int RedirectLimit = 8;
@@ -64,7 +69,11 @@ namespace Scfg
             return most;
         }
 
-        public Task<object?> PostJson(string url, JsonObject payload, double timeout)
+        public Task<object?> PostJson(string url, JsonObject payload, double timeout) =>
+            PostJson(url, payload, timeout, CancellationToken.None);
+
+        /// <summary>The same; once <paramref name="abandon"/> is cancelled the request is aborted and fails with <see cref="Abandoned"/>.</summary>
+        public Task<object?> PostJson(string url, JsonObject payload, double timeout, CancellationToken abandon)
         {
             var tcs = new TaskCompletionSource<object?>();
             if (_closed)
@@ -107,6 +116,7 @@ namespace Scfg
             }
             if (op.isDone) pending.Finish();
             else op.completed += _ => pending.Finish();
+            pending.AbortOn(abandon);
             return tcs.Task;
         }
 
@@ -150,6 +160,7 @@ namespace Scfg
             private readonly double _deadline;
             private readonly double _timeout;
             private bool _done;
+            private CancellationTokenRegistration _abandon;
 
             public string Url { get; }
 
@@ -180,6 +191,13 @@ namespace Scfg
                 _timeout = timeout;
             }
 
+            /// <summary>Aborts the request with <see cref="Abandoned"/> once <paramref name="abandon"/> is cancelled.</summary>
+            public void AbortOn(CancellationToken abandon)
+            {
+                if (_done || !abandon.CanBeCanceled) return;
+                _abandon = abandon.Register(() => Fail(new Abandoned("abandoned while its request to " + Url + " was in flight")));
+            }
+
             /// <summary>Fails the request once it is older than its timeout, however far it got (the lookup included).</summary>
             public void AbortIfLate(double now)
             {
@@ -192,6 +210,7 @@ namespace Scfg
                 if (_done) return;
                 _done = true;
                 _owner._inFlight.Remove(this);
+                _abandon.Dispose(); // from inside its own callback too: Dispose does not wait on the calling thread
                 try
                 {
                     _request.Abort();
@@ -223,6 +242,7 @@ namespace Scfg
                 if (_done) return;
                 _done = true;
                 _owner._inFlight.Remove(this);
+                _abandon.Dispose();
                 object? value = null;
                 Exception? error = null;
                 try

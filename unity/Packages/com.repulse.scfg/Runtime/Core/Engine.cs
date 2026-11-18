@@ -4,10 +4,16 @@
 // It owns all plugin state (deep copies of what the game persists) and is NOT re-entrant: one caller drives it, one
 // command at a time, on one thread. Readers get Snapshots, which are detached copies. Methods that need the network
 // are async and only await the injected transport (Python's cooperative *_co jobs); the others are plain.
+//
+// The worker refuses the requests of a job it no longer waits for (worker.py's per-job transport): RefuseRequests
+// refuses the next one with Abandoned, and cancelling AbandonInFlight ends the one in flight at once with Abandoned
+// (an ICancellableTransport also stops the exchange; any other is left to finish and its answer is dropped). Tick()
+// yields that way to a command: it stops, keeping the outcomes it has, and the next tick steps the sessions again.
 #nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Scfg.Core
@@ -53,6 +59,18 @@ namespace Scfg.Core
         /// </summary>
         public Func<bool>? RefuseRequests { get; set; }
 
+        /// <summary>
+        /// Once it is cancelled, every request made while it was set and still in flight ends at once with
+        /// <see cref="Abandoned"/> (worker.py's _Refusing); an <see cref="ICancellableTransport"/> is handed it to stop
+        /// the exchange, any other transport is left to finish and its answer is dropped. The worker sets one per job
+        /// and cancels it when it abandons the job or the tick yields to a command. Default: none (requests are awaited
+        /// as they are).
+        /// </summary>
+        public CancellationToken AbandonInFlight { get; set; }
+
+        /// <summary>The requests in flight under a cancellable <see cref="AbandonInFlight"/>: the worker's test of whether one is left to end.</summary>
+        internal int RequestsInFlight { get; private set; }
+
         private readonly Func<Chain, object> _rpcFactory;
         private readonly Dictionary<string, object> _rpcs = new Dictionary<string, object>(StringComparer.Ordinal);
         private HashSet<(string Chain, string Token)> _unready = new HashSet<(string, string)>();
@@ -76,7 +94,10 @@ namespace Scfg.Core
 
         // --- chains & RPC ---------------------------------------------------------
 
-        /// <summary>The Engine's transport, refusing requests while <see cref="RefuseRequests"/> says so.</summary>
+        /// <summary>
+        /// The Engine's transport, refusing requests while <see cref="RefuseRequests"/> says so and ending the one in
+        /// flight once <see cref="AbandonInFlight"/> is cancelled.
+        /// </summary>
         private sealed class RefusingTransport : ITransport
         {
             private readonly Engine _engine;
@@ -85,9 +106,54 @@ namespace Scfg.Core
 
             public Task<object?> PostJson(string url, JsonObject payload, double timeout)
             {
-                if (_engine.RefuseRequests?.Invoke() == true)
+                var abandon = _engine.AbandonInFlight;
+                if (_engine.RefuseRequests?.Invoke() == true || abandon.IsCancellationRequested)
                     return Task.FromException<object?>(new Abandoned("abandoned before its request to " + url));
-                return _engine.Transport.PostJson(url, payload, timeout);
+                if (!abandon.CanBeCanceled) return _engine.Transport.PostJson(url, payload, timeout);
+                return InFlight(url, payload, timeout, abandon);
+            }
+
+            /// <summary>The answer, or <see cref="Abandoned"/> as soon as <paramref name="abandon"/> is cancelled.</summary>
+            private async Task<object?> InFlight(string url, JsonObject payload, double timeout, CancellationToken abandon)
+            {
+                var transport = _engine.Transport;
+                var answer = transport is ICancellableTransport cancellable
+                    ? cancellable.PostJson(url, payload, timeout, abandon)
+                    : transport.PostJson(url, payload, timeout);
+                if (answer.IsCompleted) return await answer;
+                // A race without Task.WhenAny, whose completion would hop to the thread pool when the transport's task
+                // runs its continuations asynchronously: Relay resumes where an await of the answer would.
+                var first = new TaskCompletionSource<object?>();
+                _engine.RequestsInFlight++;
+                try
+                {
+                    using (abandon.Register(() => first.TrySetException(
+                               new Abandoned("abandoned while its request to " + url + " was in flight"))))
+                    {
+                        _ = Relay(answer, first);
+                        return await first.Task;
+                    }
+                }
+                finally
+                {
+                    _engine.RequestsInFlight--;
+                }
+            }
+
+            /// <summary>
+            /// Hands the answer to <paramref name="first"/> unless the cancellation got there first; a dropped answer's
+            /// late failure is observed here, so it is never an unobserved Task exception.
+            /// </summary>
+            private static async Task Relay(Task<object?> answer, TaskCompletionSource<object?> first)
+            {
+                try
+                {
+                    first.TrySetResult(await answer);
+                }
+                catch (Exception e)
+                {
+                    first.TrySetException(e);
+                }
             }
         }
 
@@ -175,14 +241,27 @@ namespace Scfg.Core
                 Pending.Remove(sid);
         }
 
-        /// <summary>Every session, one after another in pending order (never concurrently), then the expiries.</summary>
+        /// <summary>
+        /// Every session, one after another in pending order (never concurrently), then the expiries. A request refused
+        /// with <see cref="Abandoned"/> (the worker: a command waits) stops the sessions there; the expiries still run.
+        /// </summary>
         public async Task<List<StepOutcome>> Tick()
         {
             long now = Clock();
             var outcomes = new List<StepOutcome>();
             foreach (var kv in Pending.ToList()) // list(self.pending.items())
             {
-                var outcome = await AdvanceOne(kv.Key, kv.Value, now);
+                StepOutcome? outcome;
+                try
+                {
+                    outcome = await AdvanceOne(kv.Key, kv.Value, now);
+                }
+                catch (Abandoned)
+                {
+                    // A command the player waits on came in (Worker): the sessions not stepped yet, and the one
+                    // interrupted (as by a network failure), wait for the next tick; the outcomes so far are kept.
+                    break;
+                }
                 if (outcome != null) outcomes.Add(outcome);
             }
             outcomes.AddRange(Expire(now));
@@ -192,7 +271,8 @@ namespace Scfg.Core
         /// <summary>
         /// One session's step. A session this build can no longer watch (its chain left the registry, or the game
         /// stopped accepting that family) is kept until its scan horizon, then closed. A crash in one session never
-        /// stops the others: it goes to <see cref="OnError"/> and the session reports internal_error.
+        /// stops the others: it goes to <see cref="OnError"/> and the session reports internal_error. An
+        /// <see cref="Abandoned"/> is no crash: it goes up to <see cref="Tick"/>.
         /// </summary>
         private async Task<StepOutcome?> AdvanceOne(string sid, object? rec, long now)
         {
@@ -210,7 +290,7 @@ namespace Scfg.Core
                 return await Backends.BackendFor(chain).Advance(Pending, Receipts, sid, Rpc(k), chain, Config.WalletFor(chain)!,
                                                                 Config.Items, now);
             }
-            catch (Exception e)
+            catch (Exception e) when (!(e is Abandoned)) // not a crash: the tick yields (Tick)
             {
                 Report(e);
                 return new StepOutcome(sid, "waiting", error: "internal_error");

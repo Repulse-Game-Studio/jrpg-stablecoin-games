@@ -326,6 +326,24 @@ namespace Scfg.Tests
             Assert.That(Error(later), Is.TypeOf<HostGone>());
         }
 
+        // Testbed U15: a request nobody waits for any more (its job abandoned, its tick yielding to a command) is aborted
+        // when the Engine's AbandonInFlight token is cancelled, not left to run to its timeout.
+        [UnityTest]
+        public IEnumerator ACancelledTokenAbortsTheRequestInFlight()
+        {
+            using var server = new CannedServer { Silent = true };
+            var transport = new UnityWebRequestTransport();
+            var abandon = new CancellationTokenSource();
+            var t = transport.PostJson(server.Url, Payload, 30, abandon.Token);
+            yield return null;
+            Assert.That(t.IsCompleted, Is.False);
+            Assert.That(transport.InFlight, Is.EqualTo(1));
+            abandon.Cancel();
+            Assert.That(t.IsCompleted, Is.True, "aborted at once");
+            Assert.That(Error(t), Is.TypeOf<Abandoned>(), Error(t)?.ToString());
+            Assert.That(transport.InFlight, Is.EqualTo(0));
+        }
+
         [UnityTest]
         public IEnumerator TheRpcClientWorksOverHttp()
         {

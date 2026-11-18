@@ -747,7 +747,7 @@ namespace Scfg.Core
             var fut = _future;
             _future = null;
             if (fut == null) return;
-            fut.Abandon(); // a queued start never runs; a running one makes no further request (worker.py's abandon)
+            fut.Abandon(); // a queued start never runs; a running one ends at once, its request in flight included (worker.py's abandon)
             var submit = Submit;
             fut.AddDoneCallback(f =>
             {

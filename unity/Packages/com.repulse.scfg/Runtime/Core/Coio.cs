@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Scfg.Core
@@ -43,6 +44,18 @@ namespace Scfg.Core
     public interface ITransport
     {
         Task<object?> PostJson(string url, JsonObject payload, double timeout);
+    }
+
+    /// <summary>
+    /// A transport that can stop an exchange nobody waits for any more (as bridge.js's cancel does a fetch): the
+    /// Engine hands it <see cref="Engine.AbandonInFlight"/>, cancelled once the job was abandoned or the tick yields to a
+    /// command, and the transport then aborts the request. The Engine has already ended that request with
+    /// <see cref="Abandoned"/> by then and never reads its task, which may fail with anything. A plain
+    /// <see cref="ITransport"/> is not waited for either: its late answer is dropped.
+    /// </summary>
+    public interface ICancellableTransport : ITransport
+    {
+        Task<object?> PostJson(string url, JsonObject payload, double timeout, CancellationToken abandon);
     }
 
     public static class Coio

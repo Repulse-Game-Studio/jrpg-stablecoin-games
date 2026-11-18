@@ -16,6 +16,21 @@
 // or use Wake(). A command submitted while the commands run joins them; one submitted during the tick runs in the
 // follow-up pass, never inside a tick.
 //
+// ABANDON. Commands run one at a time, so a session start the player moved away from (another network, another
+// amount, Cancel) would hold up the start that replaced it until its RPC requests ran out. Job.Abandon() prevents
+// that: a job that has not started is cancelled, and a running one ends with Abandoned (not a TransportError: no
+// endpoint cools down) at once, its request in flight included (Engine.AbandonInFlight: an ICancellableTransport
+// aborts it, any other is left to finish and its answer is dropped).
+//
+// COMMANDS COME FIRST. A tick is background work (watching pending payments), and every command is the player's (a
+// start they are waiting on, a hint, a restore): a command submitted while a tick runs makes the tick yield the same
+// way, its request in flight ending with Abandoned. The tick keeps the outcomes it already has (Engine.Tick stops
+// between or inside a session's step, as a network failure would; the interrupted session is stepped again by the
+// next tick), and the command runs next, in the follow-up pass. Only the tick yields, never the first pass's
+// Reverify, and a yielded tick is no error (OnError never hears of it). The request in flight is ended through the
+// scheduler (a 0-second callback, Python's PumpWorker at its next pump), so the job never resumes inside the
+// Submit() or Abandon() that refused it; with no request in flight the refusal alone does it, at the next request.
+//
 // DRAINING CAN SPIN. The pass drains the queue until it is empty, as Python's does, so done callbacks (or commands)
 // that keep submitting commands which complete synchronously never let the pass reach its tick: on Unity's main
 // thread that is a frozen frame, where Python only spins its worker thread. Resubmit from a later frame instead.
@@ -31,17 +46,14 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Scfg.Core
 {
     /// <summary>
-    /// Python's <c>concurrent.futures.Future</c> for the UI's per-frame poll. A job is pending, running, finished
-    /// (with a value or an exception) or cancelled. The worker completes the jobs it hands out; test fakes and drivers
-    /// may complete their own, as Python's Future API is public too. Not thread-safe: it lives on one thread.
-    /// </summary>
-    /// <summary>
-    /// Raised into a job the caller abandoned (<see cref="Job.Abandon"/>), at its next RPC request. Not a
+    /// Raised into a job whose requests are refused (the caller abandoned it, <see cref="Job.Abandon"/>, or it is a tick
+    /// yielding to a command), at its next RPC request or at once for the one in flight. Not a
     /// <see cref="TransportError"/>, so no endpoint cools down (worker.py's Abandoned).
     /// </summary>
     public sealed class Abandoned : System.Exception
@@ -49,6 +61,11 @@ namespace Scfg.Core
         public Abandoned(string message) : base(message) { }
     }
 
+    /// <summary>
+    /// Python's <c>concurrent.futures.Future</c> for the UI's per-frame poll. A job is pending, running, finished
+    /// (with a value or an exception) or cancelled. The worker completes the jobs it hands out; test fakes and drivers
+    /// may complete their own, as Python's Future API is public too. Not thread-safe: it lives on one thread.
+    /// </summary>
     public sealed class Job
     {
         private enum State { Pending, Running, Finished, Cancelled }
@@ -80,14 +97,20 @@ namespace Scfg.Core
         /// <summary>Whether <see cref="Abandon"/> found it running: its RPC requests are refused from then on.</summary>
         public bool IsAbandoned { get; private set; }
 
+        /// <summary>The worker's, set while the job runs: ends its request in flight once it is abandoned.</summary>
+        internal Action? OnAbandon { get; set; }
+
         /// <summary>
-        /// worker.py's abandon(): a job that has not started is cancelled (it never runs); a running one is refused its
-        /// next RPC request with <see cref="Abandoned"/>, so the commands queued behind it wait at most for the request
-        /// in flight. Its done callbacks still run when it ends.
+        /// worker.py's abandon(): a job that has not started is cancelled (it never runs); a running one ends with
+        /// <see cref="Abandoned"/>, its RPC request in flight included (on the worker's next scheduler callback, never
+        /// inside this call), and is refused any further one, so the commands queued behind it never wait for it. Its
+        /// done callbacks still run when it ends.
         /// </summary>
         public void Abandon()
         {
-            if (!Cancel()) IsAbandoned = true;
+            if (Cancel()) return;
+            IsAbandoned = true;
+            OnAbandon?.Invoke();
         }
 
         /// <summary>
@@ -311,6 +334,8 @@ namespace Scfg.Core
         private readonly Queue<Command> _commands = new Queue<Command>();
         private List<StepOutcome> _outcomes = new List<StepOutcome>();
         private bool _first = true;
+        private CancellationTokenSource? _tickInFlight; // the running tick's AbandonInFlight: a command makes it yield
+        private CancellationTokenSource? _ending; // the AbandonInFlight an EndInFlight callback is scheduled for
         private TaskCompletionSource<object?>? _chain; // the in-flight run plus its follow-ups
         private bool _again; // a Wake()/Submit()/RunOnce() landed mid-run
         private bool _started;
@@ -355,6 +380,7 @@ namespace Scfg.Core
                 return job;
             }
             _commands.Enqueue(new Command(fn, job));
+            if (_tickInFlight != null) EndInFlight(_tickInFlight); // commands come first (see the file header)
             Wake();
             return job;
         }
@@ -438,7 +464,10 @@ namespace Scfg.Core
                 object? value = null;
                 Exception? error = null;
                 var job = cmd.Job;
+                var abandon = new CancellationTokenSource(); // no timer nor wait handle: nothing to dispose
                 Engine.RefuseRequests = () => job.IsAbandoned; // this job's requests, refused once it is abandoned
+                Engine.AbandonInFlight = abandon.Token;
+                job.OnAbandon = () => EndInFlight(abandon);
                 try
                 {
                     var task = cmd.Fn(Engine) ?? throw new TypeError("a command returned null instead of a Task");
@@ -450,7 +479,9 @@ namespace Scfg.Core
                 }
                 finally
                 {
+                    job.OnAbandon = null;
                     Engine.RefuseRequests = null;
+                    Engine.AbandonInFlight = default;
                 }
                 if (cmd.Job.Done())
                 {
@@ -466,9 +497,69 @@ namespace Scfg.Core
                 _first = false;
                 await _reverify();
             }
-            foreach (var o in await _tick())
+            foreach (var o in await Tick())
                 if (o.Status != "waiting" || !string.IsNullOrEmpty(o.Error)) _outcomes.Add(o);
             Snapshot = _snapshot();
+        }
+
+        /// <summary>The tick, yielding to a command submitted meanwhile (see the file header).</summary>
+        private async Task<List<StepOutcome>> Tick()
+        {
+            var abandon = new CancellationTokenSource();
+            Engine.RefuseRequests = CommandWaits;
+            Engine.AbandonInFlight = abandon.Token;
+            _tickInFlight = abandon;
+            try
+            {
+                return await _tick();
+            }
+            catch (Abandoned)
+            {
+                return new List<StepOutcome>(); // a tick that does not keep its outcomes when it yields: none
+            }
+            finally
+            {
+                _tickInFlight = null;
+                Engine.RefuseRequests = null;
+                Engine.AbandonInFlight = default;
+            }
+        }
+
+        private bool CommandWaits()
+        {
+            foreach (var cmd in _commands)
+                if (!cmd.Job.Done()) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Ends the request in flight of a job whose requests are now refused, from a 0-second scheduler callback (see
+        /// the file header). Nothing to do with no request in flight: the job meets the refusal at its next one.
+        /// </summary>
+        private void EndInFlight(CancellationTokenSource abandon)
+        {
+            if (Engine.RequestsInFlight == 0 || abandon.IsCancellationRequested || _ending == abandon) return;
+            _ending = abandon;
+            try
+            {
+                _scheduler.Schedule(() =>
+                {
+                    if (_ending == abandon) _ending = null;
+                    try
+                    {
+                        abandon.Cancel(); // a job that ended meanwhile has nothing left to end: no-op
+                    }
+                    catch (Exception e)
+                    {
+                        Report(e); // a transport's abort that threw; the request still ended with Abandoned
+                    }
+                }, 0);
+            }
+            catch (Exception e)
+            {
+                _ending = null;
+                Report(e); // no callback: the job waits for its request in flight, as before
+            }
         }
 
         /// <summary>Starts the loop: a pass at once, then one every <see cref="Interval"/>. Does nothing while running.</summary>

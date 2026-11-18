@@ -194,29 +194,83 @@ namespace Scfg.Core.Tests
 
         // --- test_pump_worker.py: the semantics that are not frame pumping ------------------------------------
 
-        [Test]
-        public void PumpACommandSubmittedMidTickWaitsForTheTick()
+        /// <summary>The fake engine over a <see cref="HeldTransport"/>, its tick one eth_blockNumber call.</summary>
+        private static (FakeEngine E, HeldTransport Node) HeldEngine()
         {
-            var e = new FakeEngine();
-            var gate = new Gate();
+            var node = new HeldTransport();
+            var e = new FakeEngine(new Engine(WorkerFixtures.BaseConfig(), node, null, null, () => 1700000000));
             e.TickImpl = async () =>
             {
-                await gate.Wait();
+                e.Log.Add("tick:" + await e.Call("eth_blockNumber"));
                 return new List<StepOutcome>();
             };
-            var w = e.Worker();
-            var run = w.RunOnce();
-            var job = w.Submit(Commands.Sync(_ =>
-            {
-                e.Log.Add("choose");
-                return "chosen";
-            }));
+            return (e, node);
+        }
+
+        private static Func<Engine, Task<object?>> Choose(FakeEngine e) => async _ =>
+        {
+            var chosen = await e.Call("eth_chainId");
+            e.Log.Add("choose:" + chosen);
+            return chosen;
+        };
+
+        // Testbed U15: the player's command does not wait behind a background tick. The tick's request in flight is
+        // cancelled (on the next scheduler callback, never inside Submit; its answer is never kept), the command runs
+        // next, and the next tick comes after it. No error is reported for the yield.
+        [Test]
+        public void PumpACommandSubmittedMidTickMakesTheTickYield()
+        {
+            var (e, node) = HeldEngine();
+            var errors = new List<Exception>();
+            var t = new FakeScheduler();
+            var w = e.Worker(t, () => 10, errors.Add);
+            w.Start();
+            t.Fire(); // reverify, then the tick's request in flight (0)
+            Assert.That(node.Methods, Is.EqualTo(new[] { "eth_blockNumber" }));
+            var job = w.Submit(Choose(e));
             Assert.That(job.Done(), Is.False);
-            e.TickImpl = null;
-            gate.Open();
-            Completed(run);
+            Assert.That(node.Cancelled, Is.Empty, "not inside Submit");
+            Assert.That(t.RunDue(), Is.EqualTo(1), "the tick's request is ended from the scheduler");
+            Assert.That(node.Cancelled, Is.EqualTo(new[] { 0 }));
+            Assert.That(node.Methods, Is.EqualTo(new[] { "eth_blockNumber", "eth_chainId" }));
+            node.Answer(1, "chosen");
             Assert.That(job.Result(), Is.EqualTo("chosen"));
-            Assert.That(e.Log, Is.EqualTo(new[] { "reverify", "tick", "choose", "tick" }));
+            Assert.That(node.Methods.Last(), Is.EqualTo("eth_blockNumber"), "the follow-up tick, after the command");
+            node.Answer(2, "0x1");
+            node.Answer(0, "0x0"); // the yielded tick's late answer: dropped
+            Assert.That(e.Log, Is.EqualTo(new[] { "reverify", "tick", "choose:chosen", "tick", "tick:0x1" }));
+            Assert.That(e.Ticks, Is.EqualTo(2));
+            Assert.That(t.Pending!.Seconds, Is.EqualTo(10), "the loop goes on");
+            Assert.That(errors, Is.Empty);
+            w.Stop();
+        }
+
+        // Only the tick yields: the launch reverify (run once) finishes first.
+        [Test]
+        public void PumpTheFirstRunReverifyDoesNotYield()
+        {
+            var (e, node) = HeldEngine();
+            e.ReverifyImpl = async () =>
+            {
+                e.Log.Add("reverify:" + await e.Call("eth_getBalance"));
+                return new List<string>();
+            };
+            var errors = new List<Exception>();
+            var t = new FakeScheduler();
+            var w = e.Worker(t, () => 10, errors.Add);
+            w.Start();
+            t.Fire(); // the reverify's request in flight (0)
+            var job = w.Submit(Choose(e));
+            Assert.That(t.RunDue(), Is.EqualTo(0), "nothing to end: the reverify is no tick");
+            Assert.That(node.Cancelled, Is.Empty);
+            Assert.That(node.Methods, Is.EqualTo(new[] { "eth_getBalance" }));
+            Assert.That(job.Done(), Is.False);
+            node.Answer(0, "ok"); // the tick then yields before its request
+            Assert.That(node.Cancelled, Is.Empty);
+            Assert.That(node.Methods, Is.EqualTo(new[] { "eth_getBalance", "eth_chainId" }));
+            Assert.That(e.Log, Is.EqualTo(new[] { "reverify", "reverify:ok", "tick" }));
+            Assert.That(errors, Is.Empty, "a yielded tick is no error");
+            w.Stop();
         }
 
         [Test]
@@ -343,7 +397,9 @@ namespace Scfg.Core.Tests
                 e.Log.Add("cmd");
                 return 1;
             }));
-            Assert.That(job.Done(), Is.False); // not executed while the tick awaits the network
+            // not executed while the tick awaits (a wait that is no RPC request: nothing to yield; one that is
+            // makes the tick yield first, PumpACommandSubmittedMidTickMakesTheTickYield)
+            Assert.That(job.Done(), Is.False);
             gate.Open();
             Completed(run);
             Assert.That(job.Result(), Is.EqualTo(1));
@@ -459,6 +515,18 @@ namespace Scfg.Core.Tests
             };
             _ = later.Worker().RunOnce();
             gate.Open();
+
+            // the dropped answer of an abandoned job's request in flight, failing once nobody waits for it
+            var held = new TaskCompletionSource<object?>();
+            var engine = new Engine(WorkerFixtures.BaseConfig(), new LateTransport(held.Task), null, null, () => 1700000000,
+                                    entropy: WorkerFixtures.Draws());
+            var t = new FakeScheduler();
+            var abandoned = new Worker(engine, t);
+            var start = abandoned.Submit(async x => await x.StartSession("unlock", "base", new JsonObject { { "item", "chapter2" } }));
+            _ = abandoned.RunOnce();
+            start.Abandon();
+            t.RunDue();
+            held.SetException(new RuntimeError("never observed"));
         }
 
         [Test]
@@ -1161,6 +1229,68 @@ namespace Scfg.Core.Tests
             Assert.That(job.Cancelled(), Is.True);
             Assert.That(ran, Is.False);
             Assert.That(job.IsAbandoned, Is.False, "cancelled, not abandoned while running");
+        }
+
+        // test_worker.py's test_an_abandoned_job_stops_waiting_for_its_request_in_flight (testbed U15): a superseded
+        // start whose request is in flight (a host that never answers) ends at once when abandoned, not at the
+        // request's timeout: on the worker's next scheduler callback, never inside Abandon().
+        [Test]
+        public void AnAbandonedJobStopsWaitingForItsRequestInFlight()
+        {
+            var node = new HeldTransport();
+            var engine = new Engine(WorkerFixtures.BaseConfig(), node, null, null, () => 1700000000, entropy: WorkerFixtures.Draws());
+            var reported = new List<Exception>();
+            engine.OnError = reported.Add;
+            var t = new FakeScheduler();
+            var w = new Worker(engine, t);
+            var start = w.Submit(async e => await e.StartSession("unlock", "base", new JsonObject { { "item", "chapter2" } }));
+            var run = w.RunOnce();
+            Assert.That(node.Methods, Is.EqualTo(new[] { "eth_blockNumber" }), "its request in flight");
+            start.Abandon();
+            Assert.That(start.Done(), Is.False, "not inside Abandon");
+            Assert.That(t.RunDue(), Is.EqualTo(1));
+            Assert.That(start.Exception(), Is.InstanceOf<Abandoned>());
+            Assert.That(start.Exception()!.Message, Does.Contain("in flight"));
+            Assert.That(node.Cancelled, Is.EqualTo(new[] { 0 }), "the transport is told to stop the exchange");
+            Completed(run);
+            Assert.That(node.Sent, Has.Count.EqualTo(1), "no further request");
+            node.Answer(0, "0x3e8"); // its late answer: dropped
+            Assert.That(w.Snapshot.Pending, Is.Empty);
+            Assert.That(reported, Is.Empty);
+        }
+
+        // The same over a transport that cannot stop an exchange: it is not waited for, and its late answer is dropped
+        // (its late failure is observed: NeitherAJobNorAForgottenRunOnceRaisesAnUnobservedTaskException).
+        [Test]
+        public void AnAbandonedJobDropsTheAnswerOfATransportThatCannotCancel()
+        {
+            var held = new TaskCompletionSource<object?>();
+            var transport = new LateTransport(held.Task);
+            var engine = new Engine(WorkerFixtures.BaseConfig(), transport, null, null, () => 1700000000, entropy: WorkerFixtures.Draws());
+            var t = new FakeScheduler();
+            var w = new Worker(engine, t);
+            var start = w.Submit(async e => await e.StartSession("unlock", "base", new JsonObject { { "item", "chapter2" } }));
+            var run = w.RunOnce();
+            start.Abandon();
+            Assert.That(t.RunDue(), Is.EqualTo(1));
+            Assert.That(start.Exception(), Is.InstanceOf<Abandoned>());
+            Completed(run);
+            held.SetResult(Fakes.Ok("0x3e8"));
+            Assert.That(w.Snapshot.Pending, Is.Empty, "the late answer starts no session");
+            Assert.That(transport.Posts, Is.EqualTo(1));
+        }
+
+        private sealed class LateTransport : ITransport
+        {
+            private readonly Task<object?> _answer;
+            public int Posts;
+            public LateTransport(Task<object?> answer) { _answer = answer; }
+
+            public Task<object?> PostJson(string url, JsonObject payload, double timeout)
+            {
+                Posts++;
+                return _answer;
+            }
         }
 
         // --- one thread ----------------------------------------------------------------------------------------------
