@@ -2,16 +2,19 @@
 
 **[Website](https://jrpg.com/stablecoinforgames/)** ·
 [Docs](https://jrpg.com/stablecoinforgames/docs/) ·
+[Releases](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest) ·
 [itch.io](https://repulse-games.itch.io/stablecoin-for-games) ·
 [npm](https://www.npmjs.com/package/stablecoin-games-renpy) ·
 [PyPI](https://pypi.org/project/stablecoin-games-renpy/)
 
 Accept **USDC/USDT tips and unlock purchases** in your game, paid straight to the developer's wallet, on
 Ethereum, Arbitrum, Polygon, Base, **Arc** and **Solana**. No server, no accounts, no middleman in the payment:
-the game watches the blockchain itself. Players with no stablecoin yet get an optional "Buy some with a card" link
-to a third-party provider (thirdweb by default, on by default on mainnet; `onramp={"enabled": False}` turns it off,
-see [the buy link](docs/developers/configure/README.md#the-buy-link)); what they buy there lands in their own
-wallet, and the payment itself still goes straight to yours.
+the game watches the blockchain itself. One plugin per engine, for **Ren'Py, Godot, RPG Maker MZ, Unity and
+Unreal Engine**, all with the same API shape, the same payment sheet and the same payment core.
+
+![A player tips 3 USDC on Arc in Ruby Dreams: pick an amount, pick a network, scan the QR code, payment confirmed](.github/media/tip-arc.gif)
+
+## Engines
 
 | Engine | You add | Status | Docs |
 |---|---|---|---|
@@ -21,14 +24,42 @@ wallet, and the payment itself still goes straight to yours.
 | **Unity 6.3 LTS+** | the `com.repulse.scfg` UPM package (git URL or `.tgz`), C# | Preview: tested on 6000.6.9f1, Linux (Mono and IL2CPP) and WebGL players; 6.3 LTS, Windows and macOS not yet checked | [Install](docs/developers/unity/install.md), [samples](unity/Packages/com.repulse.scfg/Samples~/Showcase/README.md) |
 | **Unreal Engine 5.6+** | the `Scfg` plugin (C++, Blueprint), UE 5.6+ | Preview: tested on UE 5.8.4, Linux desktop (uncooked and packaged); 5.6/5.7, Windows, macOS and mobile not yet checked | [Install](docs/developers/unreal/install.md), [showcase](unreal/Plugins/ScfgShowcase/README.md) |
 
-They share one payment core: the Ren'Py plugin's Python is the reference, and the TypeScript (RPG Maker),
-GDScript (Godot), C# (Unity) and C++ (Unreal, `unreal/Plugins/Scfg/Source/ScfgCore/`) ports replay the same
-[conformance vectors](conformance/README.md). `tools/package.py` builds `scfg-renpy-<version>.zip`,
-`scfg-godot-<version>.zip`, `scfg-rpgmaker-mz-<version>.zip`, `scfg-unity-<version>.tgz` and, with
-`--engine unreal`, one Unreal zip per engine version (`scfg-unreal-<version>-ue5.6.zip`, `-ue5.7.zip` and
-`-ue5.8.zip`); each release carries all of them. Mobile builds are best effort and unverified on every engine.
+Mobile builds are best effort and unverified on every engine.
 
-![A player tips 3 USDC on Arc in Ruby Dreams: pick an amount, pick a network, scan the QR code, payment confirmed](.github/media/tip-arc.gif)
+## What a game gets
+
+- **Unlocks and tips.** Fixed-price items, pay-what-you-want items and a tip jar, in USDC or USDT.
+- **Paid to your wallet.** The player sends the payment from their own wallet (a QR code, a browser-wallet
+  checkout page, or a plain Send) to your address. Nothing passes through us or anyone else.
+- **No server.** The game reads public RPC endpoints, finds the payment, verifies it and stores a receipt on the
+  player's machine. Ownership checks (`owns("chapter2")`) are instant and work offline.
+- **Restore.** A player who reinstalls or moves to another machine gets a purchase back from the chain with the
+  payment's transaction hash.
+- **Six networks built in**, plus any EVM chain you add: Ethereum, Arbitrum and Polygon (USDC and USDT), Base
+  (USDC), Arc (USDC) and Solana (USDC and USDT). Testnets for all of them behind one switch.
+- **A buy link for players with no stablecoin** (new in 0.3.0, see [below](#the-buy-link)).
+- **Your look.** A logo and an accent colour in every engine, and deeper restyling in each engine's own way (see
+  its docs). The texts can be reworded or translated in Godot and RPG Maker MZ; the screens are English only in Unity
+  and Unreal for now.
+- **Without code where the engine allows it:** RPG Maker's plugin parameters and commands, Unity's **SCFG
+  Settings** asset, Unreal's **Project Settings > Plugins > SCFG** and Blueprint nodes.
+
+Read [Security and limitations](docs/developers/security/README.md) before selling anything: without a server,
+unlocks are honour-grade, and a determined player can bypass them.
+
+## Install and first payment
+
+Every release carries all the packages: download yours from the
+[latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest). Each snippet below
+sets a wallet, adds one item and sells it on testnets, so no real money moves.
+
+### Ren'Py
+
+From your project folder: `uvx stablecoin-games-renpy install .` (or `pipx run stablecoin-games-renpy install .`,
+or `npx stablecoin-games-renpy install .`), and `uvx stablecoin-games-renpy update .` later for new versions. Or
+unzip `scfg-renpy-<version>.zip` (from the release or [itch.io](https://repulse-games.itch.io/stablecoin-for-games))
+into the folder that contains `game/`; you get `game/scfg/` and `game/python-packages/scfg_core/`.
+[Install guide](docs/developers/install.md), [developer guide](docs/developers/README.md).
 
 ```renpy
 init python:
@@ -41,33 +72,153 @@ label end_of_chapter1:
         jump chapter2
 ```
 
-## Using it in your Ren'Py game
+**Updating an existing game:** Arc is built in and offered by default. Read the guide's
+[upgrade notes](docs/developers/configure/arc.md#upgrading-to-the-version-with-arc-built-in) first, especially if
+your payout wallet is a smart-contract wallet or your game added Arc itself with `add_chain()`.
 
-For Godot, RPG Maker MZ, Unity and Unreal Engine, follow their install pages linked in the table above.
+### Godot
 
-1. From your Ren'Py project folder, run `uvx stablecoin-games-renpy install .` (or `pipx run stablecoin-games-renpy install .`, or `npx stablecoin-games-renpy install .`),
-   and `uvx stablecoin-games-renpy update .` later for new versions. Or download `scfg-renpy-<version>.zip`
-   from the [latest release](https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games/releases/latest)
-   or [itch.io](https://repulse-games.itch.io/stablecoin-for-games).
-   To build it yourself instead, clone the repo and run `python tools/package.py` (Python 3.9+,
-   no dependencies), which writes the same zip to `dist/`. Don't copy the repo itself into your
-   game: only `plugin/game/` ships, and the zip holds exactly that.
-2. Unzip it into your Ren'Py project folder, the one that contains `game/`. You get `game/scfg/` and
-   `game/python-packages/scfg_core/`. See [Install](docs/developers/install.md) for the layout and for updating.
-3. Follow the [developer guide](docs/developers/README.md). It covers configuration, the
-   API, testing on testnets, customizing the look, web builds and the security model.
+Import `scfg-godot-<version>.zip` through the **AssetLib** tab (or copy its `addons` folder into your project),
+then enable **Stablecoin for Games (SCFG)** under **Project Settings > Plugins**. That registers the autoload
+`Scfg`. [Install guide](docs/developers/godot/install.md), [API](docs/developers/godot/api.md).
 
-**Updating an existing game:** Arc is now built in and offered by default. Read the
-guide's [upgrade notes](docs/developers/configure/arc.md#upgrading-to-the-version-with-arc-built-in)
-first, especially if your payout wallet is a smart-contract wallet or your game added Arc
-itself with `add_chain()`.
+```gdscript
+func _ready() -> void:
+    Scfg.configure({"wallet": "0xYourWallet", "testnet": true})
+    Scfg.add_item("chapter2", {"code": 1, "price": "4.99", "token": "USDC", "title": "Chapter 2"})
 
-Requires Ren'Py 8.2 or newer. Read [Security and limitations](docs/developers/security/README.md)
-before selling anything: without a server, unlocks are honour-grade.
+func _on_unlock_pressed() -> void:
+    var result := await Scfg.pay("unlock", {"item": "chapter2"})
+    if result.status == "paid" or result.status == "already_owned":
+        start_chapter_two()
+```
 
-The docs are published at https://jrpg.com/stablecoinforgames/docs/.
-Players can read how paying works, which wallets work and how to restore a purchase in
-[docs/players/](docs/players/paying.md).
+### RPG Maker MZ
+
+Unzip `scfg-rpgmaker-mz-<version>.zip` into the folder that contains `game.rmmzproject`, add **SCFG** in
+**Tools > Plugin Manager** and fill in its parameters (Wallet, Testnet, Items). In an event, use the plugin command
+**SCFG > Unlock Item** and gate your content on the item's **Owned Switch**; no script is needed.
+[Install guide](docs/developers/rpgmaker/install.md), [API](docs/developers/rpgmaker/api.md). From your own plugin:
+
+```js
+const result = await SCFG.pay("unlock", { item: "chapter2" });
+if (result.status === "paid" || result.status === "already_owned") {
+    // start chapter two
+}
+```
+
+### Unity
+
+In the Package Manager, **Add package from git URL...**:
+
+```
+https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games.git?path=unity/Packages/com.repulse.scfg#v0.3.0
+```
+
+or **Add package from tarball...** with `scfg-unity-<version>.tgz`. The package has two samples (Showcase and
+Demo) and an optional **SCFG Settings** asset that configures it without code.
+[Install guide](docs/developers/unity/install.md), [API](docs/developers/unity/api.md).
+
+```csharp
+using Scfg;
+
+void Awake()
+{
+    SCFG.Configure(new ScfgOptions { Wallet = "0xYourWallet", Testnet = true });
+    SCFG.AddItem("chapter2", new ScfgItem { Code = 1, Price = "4.99", Token = "USDC", Title = "Chapter 2" });
+}
+
+public async void OnUnlockPressed()
+{
+    ScfgPaymentResult result = await SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
+    if (result.Status == ScfgPaymentStatus.Paid || result.Status == ScfgPaymentStatus.AlreadyOwned)
+        StartChapterTwo();
+}
+```
+
+### Unreal Engine
+
+Download the zip for your engine version (`scfg-unreal-<version>-ue5.6.zip`, `-ue5.7.zip` or `-ue5.8.zip`), copy
+its `Scfg` folder into your project's `Plugins` folder and let the editor build it (the zip is source code). C++
+projects add `"Scfg"` to their `Build.cs`; Blueprint projects find the nodes in the **SCFG** category, and
+**Project Settings > Plugins > SCFG** configures the plugin without code. The optional showcase sample is
+`scfg-unreal-showcase-<version>.zip`. [Install guide](docs/developers/unreal/install.md),
+[API](docs/developers/unreal/api.md).
+
+```cpp
+UScfgSubsystem* Scfg = GetGameInstance()->GetSubsystem<UScfgSubsystem>();
+
+FScfgOptions Options;
+Options.Wallet = TEXT("0xYourWallet");
+Options.bTestnet = true;
+Scfg->Configure(Options);
+
+FScfgItem Item;
+Item.Code = 1;
+Item.Price = TEXT("4.99");
+Item.Token = TEXT("USDC");
+Item.Title = TEXT("Chapter 2");
+Scfg->AddItem(TEXT("chapter2"), Item);
+
+FScfgPayRequest Request;
+Request.Item = TEXT("chapter2");
+Scfg->PayAsync(EScfgPayKind::Unlock, Request, [](const FScfgPaymentResult& Result)
+{
+    if (Result.Status == EScfgPaymentStatus::Paid || Result.Status == EScfgPaymentStatus::AlreadyOwned)
+    {
+        // start chapter two
+    }
+});
+```
+
+## The buy link
+
+Players who have no USDC or USDT yet see **"No USDC yet? Buy some with a card"** on the payment sheet. It opens a
+third-party provider's hosted buy page (thirdweb by default, card payment only) for the network they picked, with
+the payment as the suggested amount. What they buy lands in their own wallet, and they then pay as usual, straight
+to yours. The link carries only the network, the token and the amount: not your wallet, not the item.
+
+It is **on by default on mainnet**, so a game that upgrades to 0.3.0 shows it without a configuration change. It
+is offered on the built-in EVM networks (the provider does not sell on Solana yet), and not on testnets unless you
+list networks for it. To turn it off:
+
+| Engine | Off switch |
+|---|---|
+| Ren'Py | `scfg.configure(..., onramp={"enabled": False})` |
+| Godot | `Scfg.configure({..., "onramp": {"enabled": false}})` |
+| RPG Maker MZ | `{"enabled": false}` in the **Buy Link** parameter |
+| Unity | `ScfgOptions.Onramp = new ScfgOnramp { Enabled = false }` |
+| Unreal | `FScfgOptions.Onramp.bEnabled = false` |
+
+The same setting limits the link to some networks or points it at another provider's `https://` page. See
+[the buy link](docs/developers/configure/README.md#the-buy-link) in the guide.
+
+## Docs
+
+The docs are published at https://jrpg.com/stablecoinforgames/docs/ and live in [`docs/`](docs/):
+
+- **Developers:** the [guide](docs/developers/README.md) ([how it works](docs/developers/how-it-works.md),
+  [configuration](docs/developers/configure/README.md), [Arc](docs/developers/configure/arc.md),
+  [Solana](docs/developers/configure/solana.md), [testing on testnets](docs/developers/testing.md),
+  [customizing](docs/developers/customizing.md), [security](docs/developers/security/README.md),
+  [troubleshooting](docs/developers/troubleshooting.md)) and one section per engine:
+  [Godot](docs/developers/godot/install.md), [RPG Maker MZ](docs/developers/rpgmaker/install.md),
+  [Unity](docs/developers/unity/install.md), [Unreal](docs/developers/unreal/install.md).
+- **Players:** [how paying works](docs/players/paying.md), [which wallets work](docs/players/wallets.md) and
+  [restoring a purchase](docs/players/restore.md).
+- **Changes:** [`CHANGELOG.md`](CHANGELOG.md).
+
+## How the five ports stay the same
+
+They share one payment core. The Ren'Py plugin's Python (`scfg_core`) is the reference, and the TypeScript (RPG
+Maker), GDScript (Godot), C# (Unity) and C++ (Unreal, `unreal/Plugins/Scfg/Source/ScfgCore/`) ports replay the same
+[conformance vectors](conformance/README.md) recorded from it, run the same local-chain integration tests, and
+their localhost checkout servers pass the same security suite.
+
+`tools/package.py` builds `scfg-renpy-<version>.zip`, `scfg-godot-<version>.zip`,
+`scfg-rpgmaker-mz-<version>.zip`, `scfg-unity-<version>.tgz` and, with `--engine unreal`, one Unreal zip per engine
+version (`scfg-unreal-<version>-ue5.6.zip`, `-ue5.7.zip` and `-ue5.8.zip`) and the showcase zip; each release
+carries all of them. Don't copy the repo itself into a game: only the packages' contents ship.
 
 ## Repository layout
 
