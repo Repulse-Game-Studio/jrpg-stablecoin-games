@@ -156,7 +156,9 @@ jobs:
           NOTES
           # this version's CHANGELOG.md section (its "## <version>" heading up to the next one) goes on top
           awk -v h="## $VERSION" '$0 == h { f = 1; next } /^## / { f = 0 } f' CHANGELOG.md > /tmp/changes.md
-          if [ -s /tmp/changes.md ]; then cat /tmp/changes.md /tmp/notes.md > /tmp/all-notes.md && mv /tmp/all-notes.md /tmp/notes.md; fi
+          # A blank line between the two: the section can end on a list item (the file's last line, or one right above
+          # the next heading), and without it Markdown reads the install lines as more of that item.
+          if [ -s /tmp/changes.md ]; then { cat /tmp/changes.md; echo; cat /tmp/notes.md; } > /tmp/all-notes.md && mv /tmp/all-notes.md /tmp/notes.md; fi
           gh release create "$GITHUB_REF_NAME" \
             "dist/scfg-renpy-$VERSION.zip" \
             "dist/scfg-godot-$VERSION.zip" \
