@@ -1,5 +1,5 @@
-// No Python twin: direct checks of Sessions/Receipts against scfg_core output (normalize_tx_hash lives in the
-// tx_ids topic, which is enabled with normalize_any_tx in task 10; these keep it covered until then).
+// No Python twin: direct checks of Sessions/Receipts against scfg_core output, normalize_tx_hash among them (the
+// tx_ids conformance topic, Tier1.cs, covers it and normalize_any_tx too; these stay as direct checks).
 using System;
 using System.Collections.Generic;
 using NUnit.Framework;
