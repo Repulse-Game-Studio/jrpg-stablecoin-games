@@ -26,8 +26,27 @@ namespace ScfgHttpTransportDetail
 // The TransportError of a request that got no HTTP answer. urllib's own texts where the engine tells as much
 // (socket.timeout's "timed out"; URLError's "<urlopen error ...>", whose reason, an errno text in Python, the engine
 // does not give), and the core's "response too large".
+// EHttpFailureReason::ResponseTooLarge is newer than the enum's first five values: an engine without it has no such
+// failure to report, and the plugin still compiles there.
+template <typename E>
+constexpr bool IsResponseTooLarge(E Reason)
+{
+	if constexpr (requires { E::ResponseTooLarge; })
+	{
+		return Reason == E::ResponseTooLarge;
+	}
+	else
+	{
+		return false;
+	}
+}
+
 std::string FailureMessage(EHttpFailureReason Reason)
 {
+	if (IsResponseTooLarge(Reason))
+	{
+		return std::string(scfg::coio::RESPONSE_TOO_LARGE);
+	}
 	switch (Reason)
 	{
 	case EHttpFailureReason::TimedOut:
@@ -36,8 +55,6 @@ std::string FailureMessage(EHttpFailureReason Reason)
 		return "<urlopen error connection failed>";
 	case EHttpFailureReason::Cancelled:
 		return "<urlopen error the request was cancelled>";
-	case EHttpFailureReason::ResponseTooLarge:
-		return std::string(scfg::coio::RESPONSE_TOO_LARGE);
 	case EHttpFailureReason::None:
 	case EHttpFailureReason::Other:
 	default:

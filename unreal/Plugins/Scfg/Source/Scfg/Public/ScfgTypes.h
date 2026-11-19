@@ -194,7 +194,8 @@ struct FScfgOptions
 	// Wallets earlier versions of the game were paid to (their receipts stay valid).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	TArray<FString> PreviousWallets;
-	// An image in the project, relative to the project directory ("Content/Scfg/logo.png"): .png, .jpg or .webp.
+	// An image in the project, relative to the project directory ("Content/Scfg/logo.png"): .png, .jpg or .webp
+	// (the in-game sheet draws only a png or jpg).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FString Logo;
 	// "#rrggbb" for selected options; empty: the default.

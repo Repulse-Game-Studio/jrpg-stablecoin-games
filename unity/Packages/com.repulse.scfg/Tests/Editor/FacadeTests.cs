@@ -259,6 +259,28 @@ namespace Scfg.Tests
         }
 
         [Test]
+        public void ASubscriberThatThrowsDoesNotKeepAnEventFromTheOthers()
+        {
+            StoreReceipt(Receipt());
+            _rig.Configure();
+            int changed = 0;
+            SCFG.ReceiptsChanged += () => throw new System.InvalidOperationException("a destroyed HUD");
+            SCFG.ReceiptsChanged += () => changed++;
+            var events = new List<ScfgPaymentResult>();
+            SCFG.PaymentResolved += _ => throw new System.InvalidOperationException("a destroyed HUD");
+            SCFG.PaymentResolved += events.Add;
+            SCFG.ClearLocalData();
+            Assert.That(changed, Is.EqualTo(1));
+            var (call, screen, _) = OpenManualPayment();
+            screen.Close("cancel");
+            _rig.Pump();
+            Assert.That(Result(call).Status, Is.EqualTo(ScfgPaymentStatus.Cancelled));
+            Assert.That(events.Single().Status, Is.EqualTo(ScfgPaymentStatus.Cancelled));
+            Assert.That(_rig.Reported.Count(r => r.StartsWith("scfg: a game handler threw: InvalidOperationException")),
+                Is.EqualTo(2));
+        }
+
+        [Test]
         public void ClearLocalDataWhileTheWorkerRunsSkipsTheSnapshotsMadeBeforeTheWipe()
         {
             StoreReceipt(Receipt());

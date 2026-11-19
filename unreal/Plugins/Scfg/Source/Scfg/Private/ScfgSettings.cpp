@@ -199,7 +199,7 @@ TArray<FString> UScfgSettings::Verdict(const TArray<FScfgSettingsProblem>& Probl
 	if (IsEmpty())
 	{
 		Lines.Add(TEXT("No wallet is set, so these settings are not applied at start: the game configures SCFG from "
-			"code, or calls ConfigureWithSettings(Wallet) to apply them with a wallet supplied at runtime."));
+			"code, or calls ConfigureWithSettings(Wallet, SolanaWallet) to apply them with a wallet supplied at runtime."));
 	}
 	if (Options.bTestnet)
 	{

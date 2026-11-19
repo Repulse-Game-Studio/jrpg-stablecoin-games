@@ -123,7 +123,7 @@ void UScfgSubsystem::StartFacade(const FScfgFacadeOptions& Options, const UScfgS
 			// runtime wallet (ConfigureWithSettings) in its Init() or first BeginPlay gets no warning (the opt-out).
 			Facade->WarnUnlessConfiguredAfterAFrame(TEXT("scfg: the SCFG settings (Project Settings > Plugins > SCFG) "
 				"have chains or items but no wallet, so they were not applied at start, and nothing configured SCFG in "
-				"the first frame: set a wallet there, configure from code, or call ConfigureWithSettings(Wallet) with a "
+				"the first frame: set a wallet there, configure from code, or call ConfigureWithSettings(Wallet, SolanaWallet) with a "
 				"wallet supplied at runtime."));
 		}
 		return;

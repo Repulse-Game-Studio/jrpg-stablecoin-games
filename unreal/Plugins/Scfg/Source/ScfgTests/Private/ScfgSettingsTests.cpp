@@ -521,7 +521,7 @@ bool FScfgSettingsEmptyTest::RunTest(const FString& Parameters)
 			W.Reports().Warnings,
 			{TEXT("scfg: the SCFG settings (Project Settings > Plugins > SCFG) have chains or items but no wallet, so they "
 				  "were not applied at start, and nothing configured SCFG in the first frame: set a wallet there, "
-				  "configure from code, or call ConfigureWithSettings(Wallet) with a wallet supplied at runtime.")});
+				  "configure from code, or call ConfigureWithSettings(Wallet, SolanaWallet) with a wallet supplied at runtime.")});
 		TestEqual(TEXT("no error"), W.Reports().Errors.Num(), 0);
 		TestEqual(TEXT("the game's own chain is not refused"), G.Scfg->AddChain(TEXT("myl2"), MyL2()), FString());
 	}

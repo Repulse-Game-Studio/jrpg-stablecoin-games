@@ -198,6 +198,8 @@ An `Awaitable` can be awaited once (as every Unity `Awaitable`). Await it from t
 method of a `MonoBehaviour`, for example a button handler `async void OnTipPressed()`. When the game quits with the
 sheet open, the `await` still returns (with the result the sheet had, else `Cancelled`) but nothing is delivered to
 callbacks or events; the payment stays watched and its result arrives at the next start through `PaymentResolved`.
+A payment that confirmed in the moment before the quit is the exception: its receipt is saved, so `SCFG.Owns()` and
+`SCFG.TipTotal()` count it at the next start, but no result is delivered for it. Read those at start, not only the event.
 Check `this == null` after the `await` if your object may be gone by then.
 
 ### ScfgPaymentResult
@@ -482,7 +484,8 @@ the build: the page's files ship inside the package.
 
 The package works with Mono and IL2CPP at any managed stripping level, with nothing to set up. Its `Runtime/link.xml`
 says what the linker must keep; Unity ignores a `link.xml` inside a package, so the package's editor code hands it
-to the linker of every player build. Nothing in it looks a type up by name.
+to the linker of every player build. The one type the package looks up by name (`UnityEngine.WebGLInput`, for the
+keyboard on the WebGL checkout) is in that `link.xml`.
 
 ## Mobile (unverified)
 

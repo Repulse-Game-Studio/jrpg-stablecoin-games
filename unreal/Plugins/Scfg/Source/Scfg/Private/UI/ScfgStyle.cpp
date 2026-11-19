@@ -13,6 +13,7 @@
 #include "Modules/ModuleManager.h"
 #include "Styling/CoreStyle.h"
 
+#include "ScfgLog.h"
 #include "ScfgString.h"
 
 #include "Scfg/Config.h"
@@ -257,13 +258,13 @@ void FScfgStyle::LoadLogo(const FString& LogoPath)
 	}
 	IImageWrapperModule& Images = FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
 	const EImageFormat Format = Images.DetectImageFormat(Bytes.GetData(), Bytes.Num());
-	if (Format == EImageFormat::Invalid)
-	{
-		return;
-	}
-	const TSharedPtr<IImageWrapper> Wrapper = Images.CreateImageWrapper(Format);
+	const TSharedPtr<IImageWrapper> Wrapper =
+		Format == EImageFormat::Invalid ? TSharedPtr<IImageWrapper>() : Images.CreateImageWrapper(Format);
 	if (!Wrapper.IsValid() || !Wrapper->SetCompressed(Bytes.GetData(), Bytes.Num()))
 	{
+		// The engine decodes png and jpg but not webp: such a logo shows on the checkout page only.
+		UE_LOG(LogScfg, Warning, TEXT("scfg: the engine cannot decode the logo %s, so the payment sheet shows none "
+			"(the browser checkout page still does). Use a .png or .jpg."), *LogoPath);
 		return;
 	}
 	LogoSize = FVector2D(Wrapper->GetWidth(), Wrapper->GetHeight());

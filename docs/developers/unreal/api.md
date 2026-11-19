@@ -78,7 +78,7 @@ configuration: declare the items again after it.
 | `RpcUrls` | Your own RPC endpoints per chain key (an `FScfgRpcUrls` whose `Urls` are https URLs, or `http://127.0.0.1` / `http://localhost` with a port for a local node), tried before the built-in public ones |
 | `Confirmations` | Confirmations required per chain key (1 or more; not for Solana, which waits for finalization) |
 | `PreviousWallets` | Wallets you were paid to before (EVM and Solana addresses can be mixed). Their receipts stay valid |
-| `Logo` | An image file shown on the sheet and the checkout page, relative to the project folder: png, jpg or webp. To ship it, keep it in a folder under `Content/` (`Content/Scfg/logo.png`) and stage that folder: see [The logo in a packaged game](#the-logo-in-a-packaged-game) |
+| `Logo` | An image file shown on the sheet and the checkout page, relative to the project folder: png, jpg or webp (the in-game sheet shows only a png or jpg; a webp logo shows on the checkout page alone, with a warning in the log). To ship it, keep it in a folder under `Content/` (`Content/Scfg/logo.png`) and stage that folder: see [The logo in a packaged game](#the-logo-in-a-packaged-game) |
 | `Accent` | The accent color of the sheet and the checkout page, `"#rrggbb"`. Empty: the default |
 
 | `FScfgMethods` field | Meaning |
@@ -643,7 +643,7 @@ And the common setups:
 | `Pay` resolves `Failed` with `sheet.unavailable` | There is no game viewport: in the editor, play in the editor or run with `-game`. With your own host, its `OpenPayment` returned null |
 | `configure.after_start` | `Configure` came too late: call it in the game instance's `Init()` after `Super::Init()`, or in the first level's `BeginPlay` |
 | `scfg: the SCFG settings (...) were not applied (<code>)` | Press **Validate** in **Project Settings > Plugins > SCFG** and fix what it lists |
-| `scfg: the SCFG settings ... have chains or items but no wallet` | Set a wallet in the project settings, configure from code, or call `ConfigureWithSettings(Wallet)` with a wallet supplied at runtime |
+| `scfg: the SCFG settings ... have chains or items but no wallet` | Set a wallet in the project settings, configure from code, or call `ConfigureWithSettings(Wallet, SolanaWallet)` with a wallet supplied at runtime |
 | `scfg: your wallet can't receive USDT on solana yet ...` | Receive any amount of that token on your Solana wallet once, then restart the game |
 | `logo.file_missing` in a packaged game | See [The logo in a packaged game](#the-logo-in-a-packaged-game) |
 | Payment sent but nothing happens | The wallet may have changed the amount. Use **Manual transfer**, then paste the transaction hash |

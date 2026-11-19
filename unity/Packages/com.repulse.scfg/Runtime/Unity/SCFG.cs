@@ -754,17 +754,23 @@ namespace Scfg
             }
         }
 
-        /// <summary>A game handler: its exception is logged, never thrown into the pump.</summary>
+        /// <summary>
+        /// A game handler: its exception is logged, never thrown into the pump. An event's subscribers are called one
+        /// by one, so one that throws (a destroyed object that never unsubscribed) does not keep the result from the rest.
+        /// </summary>
         private static void Call<T>(Action<T>? cb, T value)
         {
             if (cb == null) return;
-            try
+            foreach (var one in cb.GetInvocationList())
             {
-                cb(value);
-            }
-            catch (Exception e)
-            {
-                ReportError("a game handler threw:", e);
+                try
+                {
+                    ((Action<T>)one)(value);
+                }
+                catch (Exception e)
+                {
+                    ReportError("a game handler threw:", e);
+                }
             }
         }
 
@@ -772,13 +778,16 @@ namespace Scfg
         private static void Call(Action? cb)
         {
             if (cb == null) return;
-            try
+            foreach (var one in cb.GetInvocationList())
             {
-                cb();
-            }
-            catch (Exception e)
-            {
-                ReportError("a game handler threw:", e);
+                try
+                {
+                    ((Action)one)();
+                }
+                catch (Exception e)
+                {
+                    ReportError("a game handler threw:", e);
+                }
             }
         }
 
