@@ -15,7 +15,7 @@ version). The generated list of changes follows it there, and the release's date
   change. To turn it off: `onramp={"enabled": False}` in Ren'Py, `{"onramp": {"enabled": false}}` in Godot,
   `{"enabled": false}` in RPG Maker MZ's **Buy Link** parameter, `ScfgOptions.Onramp = new ScfgOnramp { Enabled =
   false }` in Unity, `FScfgOptions.Onramp.bEnabled = false` in Unreal. See
-  [the buy link](docs/developers/configure/README.md#the-buy-link).
+  [the buy link](https://jrpg.com/stablecoinforgames/docs/developers/configure/#the-buy-link).
 - Web builds open every outside link (the buy page, the explorer) with `noopener,noreferrer`.
 - **Faster "can't reach the network".** Every engine's RPC request timeout now covers the name lookup, a call spends
   at most 15 s across a chain's endpoints (not 10 s per endpoint), and picking another network while a payment is
