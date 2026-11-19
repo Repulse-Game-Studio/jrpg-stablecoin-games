@@ -1359,6 +1359,10 @@ def showcase_tour(game: Game, saved: Path, shots: Path) -> dict:
            f"the unlock sheet should offer the testnets, not {networks}", snap)
     expect(snap["paused"], "the showcase should pause the game while the sheet is open", snap)
     seen["networks"] = networks
+    # the sheet as the player sees it, with the showcase's logo in its header
+    sheet_shot = shots / "unreal-showcase-sheet.png"
+    game.call("screenshot", path=str(sheet_shot), timeout=180)
+    print(f"  screenshot {sheet_shot}")
     game.key("Escape")
     wait_for(game, "the unlock sheet to close", no_screen)
     snap = wait_for(game, "the unlock result",

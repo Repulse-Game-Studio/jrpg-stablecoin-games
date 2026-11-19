@@ -87,6 +87,14 @@ static void UpdateGuard()
 	}
 }
 
+// A button without Slate's own focus rectangle (a dashed border in a game, drawn over the widget that has the
+// keyboard focus): the screens show the focus with their own ring (Ring()).
+class SScfgButton final : public SButton
+{
+public:
+	virtual const FSlateBrush* GetFocusBrush() const override { return nullptr; }
+};
+
 // Godot's back arrow (_arrow()): a short line with a chevron, in ink.
 class SArrow final : public SLeafWidget
 {
@@ -678,7 +686,7 @@ TSharedRef<SWidget> SScfgScreen::Button(const FString& Key, const FString& Text,
 {
 	TSharedPtr<SButton> B;
 	const TSharedRef<SWidget> Outer = Ring(Key,
-		SAssignNew(B, SButton)
+		SAssignNew(B, ScfgScreenDetail::SScfgButton)
 		.ButtonStyle(&Style->Button(Variation))
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Center)
@@ -731,7 +739,7 @@ TSharedRef<SWidget> SScfgScreen::Option(const FString& Key, const FString& Text,
 	}
 	TSharedPtr<SButton> B;
 	const TSharedRef<SWidget> Outer = Ring(Key,
-		SAssignNew(B, SButton)
+		SAssignNew(B, ScfgScreenDetail::SScfgButton)
 		.ButtonStyle(&Style->Button(bSelected ? TEXT("Scfg.Option.Selected") : TEXT("Scfg.Option")))
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Center)
@@ -818,7 +826,7 @@ TSharedRef<SWidget> SScfgScreen::BackArrow(const FString& Key, TFunction<void()>
 		.WidthOverride(36)
 		.HeightOverride(36)
 		[
-			SAssignNew(B, SButton)
+			SAssignNew(B, ScfgScreenDetail::SScfgButton)
 			.ButtonStyle(&Style->Button(TEXT("Scfg.Button.Back")))
 			.ToolTipText(FText::FromString(ScfgTexts::Get(TEXT("back"))))
 			.IsFocusable(true)
@@ -879,12 +887,18 @@ TSharedPtr<SWidget> SScfgScreen::Logo()
 	}
 	const FVector2D Fit = Style->LogoFitted();
 	return Reg(TEXT("logo"),
+		// The outer box keeps the logo at the left of the header; the inner one gives it its fitted size. One box
+		// with both would lay the image out at its own pixel width and the fitted height, out of proportion.
 		SNew(SBox)
 		.HAlign(HAlign_Left)
-		.WidthOverride(float(Fit.X))
-		.HeightOverride(float(Fit.Y))
+		.VAlign(VAlign_Top)
 		[
-			SNew(SImage).Image(Style->Brush(TEXT("Scfg.Logo")))
+			SNew(SBox)
+			.WidthOverride(float(Fit.X))
+			.HeightOverride(float(Fit.Y))
+			[
+				SNew(SImage).Image(Style->Brush(TEXT("Scfg.Logo")))
+			]
 		]);
 }
 

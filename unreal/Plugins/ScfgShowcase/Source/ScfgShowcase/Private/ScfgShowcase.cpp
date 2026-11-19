@@ -5,6 +5,7 @@
 
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/FileManager.h"
 #include "Interfaces/IPluginManager.h"
@@ -216,10 +217,22 @@ void SScfgShowcaseHud::Construct(const FArguments& InArgs)
 	];
 }
 
+// A HUD button whose keyboard and gamepad focus shows as a plain rounded line. Slate's own focus rectangle in a game is
+// a dashed image border, which looks rough next to these buttons.
+class SScfgShowcaseButton final : public SButton
+{
+public:
+	virtual const FSlateBrush* GetFocusBrush() const override
+	{
+		static const FSlateRoundedBoxBrush Focus(FLinearColor::Transparent, 4.f, FLinearColor(1.f, 1.f, 1.f, 0.9f), 2.f);
+		return &Focus;
+	}
+};
+
 TSharedRef<SButton> SScfgShowcaseHud::MakeButton(FButtonSpec Spec)
 {
 	TSharedPtr<STextBlock> Label;
-	const TSharedRef<SButton> Button = SNew(SButton)
+	const TSharedRef<SButton> Button = SNew(SScfgShowcaseButton)
 		.OnClicked_Lambda([OnClick = MoveTemp(Spec.OnClick)]()
 		{
 			if (OnClick)
