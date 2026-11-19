@@ -42,6 +42,7 @@
 #include "Scfg/SolanaPda.h"
 #include "Scfg/Watcher.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>

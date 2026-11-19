@@ -54,6 +54,7 @@
 #include "Scfg/Result.h"
 #include "Scfg/Watcher.h"
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string>

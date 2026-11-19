@@ -55,6 +55,7 @@
 #include "Scfg/Result.h"
 #include "Scfg/Watcher.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <optional>

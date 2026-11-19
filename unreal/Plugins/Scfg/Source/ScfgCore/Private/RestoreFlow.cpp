@@ -117,7 +117,9 @@ void RestoreController::poll() {
             error = detail::failure_code(found.err());
             return;
         }
-        candidates_ = found.value();
+        // A fresh copy moved in, not a copy assignment: GCC 15 at -O2 reports a false -Wfree-nonheap-object in the
+        // variant's copy assignment (RestoreCandidate::transfer).
+        candidates_ = std::vector<restore::RestoreCandidate>(found.value());
         const bool all_restored = std::all_of(candidates_.begin(), candidates_.end(),
                                               [](const restore::RestoreCandidate& c) { return c.already_restored; });
         if (all_restored) {
