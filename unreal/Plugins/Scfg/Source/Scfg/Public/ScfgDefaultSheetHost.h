@@ -88,7 +88,10 @@ private:
 
 	TWeakObjectPtr<UGameInstance> GameInstance;
 	TSharedPtr<const ISlateStyle> StyleOverride;
+#if !UE_BUILD_SHIPPING
+	// Replaces the game viewport's wish for the mouse (the plugin's tests, through FScfgDefaultSheetHostAccess).
 	TFunction<FScfgMouseWish()> MouseWishOverride;
+#endif
 	TArray<FShown> Shown;
 	TArray<FToast> Toasts;
 	void EnsureTicking();

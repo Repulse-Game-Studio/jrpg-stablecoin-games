@@ -120,7 +120,11 @@ TSharedPtr<FScfgScreen> FScfgDefaultSheetHost::Show(const TSharedRef<SScfgScreen
 	Widget->BindScreen(Handle);
 	// the viewport locks the cursor with its capture unless its lock mode says not to: given back so on close
 	Widget->SetMouseLockHint(Client->LockDuringCapture());
+#if UE_BUILD_SHIPPING
+	Widget->SetMouseWish(ScfgDefaultSheetHostDetail::WishOf(Client, GameInstance));
+#else
 	Widget->SetMouseWish(MouseWishOverride ? MouseWishOverride : ScfgDefaultSheetHostDetail::WishOf(Client, GameInstance));
+#endif
 	Client->AddViewportWidgetContent(Widget, ZOrder);
 	Shown.Add(FShown{Handle, Widget, Client});
 	Widget->OnShown();

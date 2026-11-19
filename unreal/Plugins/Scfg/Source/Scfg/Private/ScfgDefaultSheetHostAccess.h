@@ -1,7 +1,7 @@
 // Copyright 2026 Repulse
 // No Python twin: the plugin's own access to FScfgDefaultSheetHost's private parts (its friend), for the plugin's
-// tests and the development project's end-to-end driver, never a game's: the mouse hook, which takes the private
-// FScfgMouseWish (UI/SScfgScreen.h), and, outside Shipping, what the host shows.
+// tests and the development project's end-to-end driver, never a game's, and all of it outside Shipping: the mouse
+// hook, which takes the private FScfgMouseWish (UI/SScfgScreen.h), and what the host shows.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -23,6 +23,7 @@ SCFG_API TFunction<FScfgMouseWish()> WishOf(UGameViewportClient* Client, TWeakOb
 
 struct FScfgDefaultSheetHostAccess
 {
+#if !UE_BUILD_SHIPPING
 	// What the host's screens take as the game viewport's wish for the mouse (default: WishOf the game viewport
 	// client).
 	static void SetMouseWishOverride(FScfgDefaultSheetHost& Host, TFunction<FScfgMouseWish()> Wish)
@@ -30,7 +31,6 @@ struct FScfgDefaultSheetHostAccess
 		Host.MouseWishOverride = MoveTemp(Wish);
 	}
 
-#if !UE_BUILD_SHIPPING
 	// The screens shown, oldest first, as their widgets (SScfgPaymentSheet / SScfgRestoreScreen).
 	static TArray<TSharedRef<SScfgScreen>> Screens(const FScfgDefaultSheetHost& Host)
 	{
