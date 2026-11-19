@@ -299,7 +299,7 @@ namespace Scfg.Samples.Showcase
                 bool has = SCFG.Owns(id);
                 _itemStates[id].text = has ? "owned" : "";
                 foreach (var b in _itemButtons[id]) b.style.display = has ? DisplayStyle.None : DisplayStyle.Flex;
-                if (has) owned.Add(item.Title);
+                if (has) owned.Add(item.Title ?? id);
             }
             _summary.text = string.Join("\n", new[]
             {
