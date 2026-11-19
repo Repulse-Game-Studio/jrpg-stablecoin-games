@@ -23,7 +23,7 @@ on:
   # runners' families, helpers and mocks). The weekly run covers everything else.
   push:
     branches: [main]
-    paths: &paths
+    paths:
       - "unity/**"
       - "plugin/game/scfg/web/**"
       - "plugin/game/python-packages/scfg_core/**"
@@ -44,7 +44,26 @@ on:
       - "uv.lock"
       - ".github/workflows/unity.yml"
   pull_request:
-    paths: *paths
+    paths:   # keep in step with push.paths above
+      - "unity/**"
+      - "plugin/game/scfg/web/**"
+      - "plugin/game/python-packages/scfg_core/**"
+      - "contracts/**"
+      - "tools/run_unity_e2e.py"
+      - "tools/run_unity_web_e2e.py"
+      - "tools/check_unity_samples.py"
+      - "tools/run_godot_e2e.py"
+      - "tools/run_godot_web_e2e.py"
+      - "tools/run_renpy_e2e.py"
+      - "tools/run_renpy_web_e2e.py"
+      - "tools/sync_demo.py"
+      - "tools/fetch_godot.py"
+      - "tests/integration/browser_mocks.py"
+      - "tests/integration/mock_token.py"
+      - "tests/integration/solana_local.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/unity.yml"
   schedule:
     - cron: "0 7 * * 1"   # weekly, after test.yml: a new runner image or GameCI image shows up here
   workflow_dispatch:
