@@ -89,7 +89,9 @@ env:
   # cliVersion it downloads the latest CLI release at every run: the action's SHA pin alone does not pin what
   # runs. This is the release the workflow was checked against (its build check wants the "Build succeeded!"
   # line the build methods log); bump it together with unity-builder, after reading what changed.
-  GAME_CI_CLI: v0.1.76
+  # Not named GAME_CI_*: the CLI reads every GAME_CI_<NAME> variable as its option <name> and refuses one it does
+  # not know ("Unknown argument: cli").
+  GAMECI_CLI_VERSION: v0.1.76
 
 jobs:
   license:
@@ -170,7 +172,7 @@ jobs:
           projectPath: ${{ env.PROJECT }}
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: StandaloneLinux64
-          cliVersion: ${{ env.GAME_CI_CLI }}
+          cliVersion: ${{ env.GAMECI_CLI_VERSION }}
           buildMethod: Scfg.Maintenance.ScfgSamplesCheck.Check
           allowDirtyBuild: true   # the samples' copy is untracked
 
@@ -197,7 +199,7 @@ jobs:
           projectPath: ${{ env.PROJECT }}
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: StandaloneLinux64
-          cliVersion: ${{ env.GAME_CI_CLI }}
+          cliVersion: ${{ env.GAMECI_CLI_VERSION }}
           buildMethod: Scfg.E2E.ScfgE2EBuild.BuildLinux
           customParameters: -scfgBackend il2cpp -scfgOut /github/workspace/build/linux-il2cpp
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
@@ -242,7 +244,7 @@ jobs:
           projectPath: ${{ env.PROJECT }}
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: WebGL
-          cliVersion: ${{ env.GAME_CI_CLI }}
+          cliVersion: ${{ env.GAMECI_CLI_VERSION }}
           buildMethod: Scfg.E2E.ScfgE2EBuild.BuildWebGL
           customParameters: -scfgOut /github/workspace/build/webgl
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
