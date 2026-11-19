@@ -704,10 +704,12 @@ void FScfgFacade::OnWorkerStateChanged()
 
 const scfg::engine::Snapshot* FScfgFacade::CurrentSnapshot() const
 {
+#if !UE_BUILD_SHIPPING
 	if (SnapshotForTests)
 	{
 		return SnapshotForTests();
 	}
+#endif
 	return Worker ? &Worker->GetSnapshot() : nullptr;
 }
 
@@ -1407,7 +1409,11 @@ void FScfgFacade::Pump()
 	}
 	TArray<TSharedRef<FScfgCheckout>> Controllers = Checkouts;
 	Controllers.Append(Background);
+#if UE_BUILD_SHIPPING
+	const FScfgWorker::FOutcomes Outcomes = W->DrainOutcomes();
+#else
 	const FScfgWorker::FOutcomes Outcomes = DrainForTests ? DrainForTests() : W->DrainOutcomes();
+#endif
 	for (const scfg::watcher::StepOutcome& Outcome : Outcomes)
 	{
 		for (const TSharedRef<FScfgCheckout>& Each : Controllers)

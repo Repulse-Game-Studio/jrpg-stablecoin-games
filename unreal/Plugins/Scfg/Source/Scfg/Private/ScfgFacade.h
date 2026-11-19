@@ -308,6 +308,7 @@ public:
 	int32 NumRestoreCallbacks() const;
 	TArray<FString> CallbackSessionIds() const;
 	TArray<FString> CheckoutIds() const;
+#if !UE_BUILD_SHIPPING
 	// Delivers a core result as the pump does (Godot's tests call _deliver).
 	void DeliverForTests(const scfg::models::PaymentResult& Result) { Deliver(Result); }
 	// Registers a Pay callback for a session (Godot's tests set _callbacks[sid]).
@@ -316,6 +317,7 @@ public:
 	// (its RacingWorker). Empty: the worker's.
 	TFunction<const scfg::engine::Snapshot*()> SnapshotForTests;
 	TFunction<FScfgWorker::FOutcomes()> DrainForTests;
+#endif
 
 private:
 	struct FWait
