@@ -634,9 +634,11 @@ def launch_chromium(p, **options):
 
 def isolated_env(home: Path) -> dict:
     """os.environ with HOME and the XDG directories under `home`, so Godot's user data (and the
-    editor settings an --import writes) never touch the developer's."""
+    editor settings an --import writes) never touch the developer's. The desktop session's X input
+    method (XMODIFIERS, e.g. @im=ibus) is left out: no such server runs on the game's display under
+    xvfb-run, and Godot would warn that it could not create its input context."""
     return {
-        **os.environ,
+        **{k: v for k, v in os.environ.items() if k != "XMODIFIERS"},
         "HOME": str(home),
         "XDG_DATA_HOME": str(home / "data"),
         "XDG_CONFIG_HOME": str(home / "config"),
