@@ -156,13 +156,20 @@ def pytest_configure(config):
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(config, items):
-    """Marks the `cpp` items `cpp_server`, so pyproject's addopts (`and not cpp_server`) deselect
-    them and a plain `pytest` never builds the C++ driver. tryfirst: before pytest's own `-m`
-    deselection reads the marks."""
+    """Marks the `cpp` items `cpp_server`, then deselects them unless the `-m` expression names
+    the marker: pyproject's addopts (`and not cpp_server`) do that for the default run, but a `-m`
+    on the command line replaces theirs, and a negative one (`-m "not node_server"`) must not
+    build the C++ driver either. tryfirst: before pytest's own `-m` deselection reads the marks."""
     for item in items:
         callspec = getattr(item, "callspec", None)
         if callspec is not None and callspec.params.get("make_server") == "cpp":
             item.add_marker("cpp_server")
+    if "cpp_server" in (config.option.markexpr or ""):
+        return
+    dropped = [item for item in items if item.get_closest_marker("cpp_server") is not None]
+    if dropped:
+        config.hook.pytest_deselected(items=dropped)
+        items[:] = [item for item in items if item.get_closest_marker("cpp_server") is None]
 
 
 def _cpp_errors(text):

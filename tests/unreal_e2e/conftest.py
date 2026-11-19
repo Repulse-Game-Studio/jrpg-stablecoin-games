@@ -18,8 +18,16 @@ HERE = Path(__file__).resolve().parent
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(config, items):
-    """Marks this directory's items `unreal_e2e`, so pyproject's addopts deselect them unless `-m`
-    names the marker. tryfirst: before pytest's own `-m` deselection reads the marks."""
+    """Marks this directory's items `unreal_e2e`, then deselects them unless the `-m` expression names
+    the marker: pyproject's addopts do that for the default run, but a `-m` on the command line
+    replaces theirs, and a negative one (`-m "not integration"`) must not start Unreal either.
+    tryfirst: before pytest's own `-m` deselection reads the marks."""
     for item in items:
         if HERE in Path(str(item.fspath)).resolve().parents:
             item.add_marker("unreal_e2e")
+    if "unreal_e2e" in (config.option.markexpr or ""):
+        return
+    dropped = [item for item in items if item.get_closest_marker("unreal_e2e") is not None]
+    if dropped:
+        config.hook.pytest_deselected(items=dropped)
+        items[:] = [item for item in items if item.get_closest_marker("unreal_e2e") is None]
