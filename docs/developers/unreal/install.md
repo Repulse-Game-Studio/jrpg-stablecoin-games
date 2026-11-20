@@ -3,8 +3,8 @@
 Accept **USDC** and **USDT** tips and unlock purchases in your Unreal game, paid **directly to your own wallet**.
 There is no server, no account and no middleman in the payment: the plugin watches the blockchain itself. It is a code plugin,
 `Scfg`, for **UE 5.6 or newer**, in C++ and Blueprint projects. Each release has a zip for each of UE 5.6, 5.7 and
-5.8. It has been tested on UE 5.8.4 only, in Linux desktop builds; 5.6 and 5.7 are untested, Windows and macOS are
-expected to work but not yet built or tested, and mobile is best effort (see [Platforms](api.md#platforms)).
+5.8. It has been tested on UE 5.8.4 only, in Linux desktop builds; 5.6 and 5.7 are untested, Windows builds (with MSVC,
+on UE 5.8) but is not yet fully tested, macOS is expected to work but not yet built or tested, and mobile is best effort (see [Platforms](api.md#platforms)).
 
 Chains: Ethereum, Arbitrum, Polygon (USDC and USDT), Base (USDC), Arc (USDC), Solana (USDC and USDT), plus any EVM
 chain you add yourself.
@@ -234,7 +234,7 @@ rules.
    `[/Script/Engine.NetworkSettings] n.VerifyPeer=False`. Setting `n.VerifyPeer=True` in your `DefaultEngine.ini`
    makes the rest of your game's HTTPS fail closed too, and makes UAT stage the engine's bundle in the pak on every
    platform (the tested setup). Windows and macOS use the system's certificate store (expected to work, not yet
-   built or tested). If the packaged game's Output Log says
+   tested). If the packaged game's Output Log says
    `scfg: refusing https:// RPC requests: TLS certificate verification unavailable`, no payment can be checked
    until this is fixed.
 

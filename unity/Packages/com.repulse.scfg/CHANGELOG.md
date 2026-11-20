@@ -7,7 +7,8 @@ version). The generated list of changes follows it there, and the release's date
 
 - **New engines (Preview):** a Unity package (`com.repulse.scfg`, Unity 6.3 LTS+, tested on 6000.6.9f1 in Linux and
   WebGL players) and an Unreal Engine plugin (`Scfg`, UE 5.6+, tested on UE 5.8.4 on Linux). Windows and macOS are
-  expected to work on both but not yet tested (for Unreal, not yet built either); mobile is best effort.
+  expected to work on both but not yet fully tested; the Unreal plugin builds with MSVC on Windows (UE 5.8), and is
+  not yet built on macOS; mobile is best effort.
 - **Buy link, on by default on mainnet.** Players who have no USDC or USDT yet see "No USDC yet? Buy some with a card"
   on the payment sheet. It opens thirdweb's hosted buy page (card payment only) for the network they picked, with the
   payment as the suggested amount; they buy into their own wallet and then pay as usual, straight to your wallet. The
