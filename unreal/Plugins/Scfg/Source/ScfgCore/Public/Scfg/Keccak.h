@@ -14,6 +14,10 @@
 
 namespace scfg::keccak {
 
+// MSVC warns (C4686) when a dllimport function returns a class template specialization that is not instantiated yet
+// at its declaration; sizeof instantiates it here.
+static_assert(sizeof(std::array<uint8_t, 32>) == 32);
+
 // keccak256(data): the 32-byte digest (Keccak-f[1600], rate 1088 bits, capacity 512, suffix 0x01).
 SCFGCORE_API std::array<uint8_t, 32> keccak256(std::span<const uint8_t> data);
 // The same for the bytes of a string (Python's keccak256(text.encode()) when text is ASCII, as every caller's is).

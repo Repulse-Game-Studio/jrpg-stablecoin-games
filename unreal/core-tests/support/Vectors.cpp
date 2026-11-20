@@ -20,7 +20,14 @@ static std::string& fallback() {
 }
 
 std::string root() {
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)  // getenv: MSVC's "unsafe" deprecation; the value is only read here
+#endif
     const char* env = std::getenv("SCFG_VECTORS");
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
     if (env != nullptr && *env != '\0') {
         std::error_code ec;
         fs::path abs = fs::absolute(fs::path(env), ec);

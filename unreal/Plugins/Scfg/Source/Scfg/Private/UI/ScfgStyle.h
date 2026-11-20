@@ -34,8 +34,20 @@ class SCFG_API FScfgStyle final : public FSlateStyleSet
 {
 public:
 	// The palette (theme.gd's constants).
-	static const FLinearColor SheetColor, InkColor, InkHoverColor, MutedColor, FaintColor, LineColor, RuleColor,
-		HoverColor, DimColor, OkColor, WarnColor, ErrorColor, WhiteColor;
+	// One per declaration: MSVC refuses every declarator after the first of an exported class's static member (C2487).
+	static const FLinearColor SheetColor;
+	static const FLinearColor InkColor;
+	static const FLinearColor InkHoverColor;
+	static const FLinearColor MutedColor;
+	static const FLinearColor FaintColor;
+	static const FLinearColor LineColor;
+	static const FLinearColor RuleColor;
+	static const FLinearColor HoverColor;
+	static const FLinearColor DimColor;
+	static const FLinearColor OkColor;
+	static const FLinearColor WarnColor;
+	static const FLinearColor ErrorColor;
+	static const FLinearColor WhiteColor;
 	// The docked sheet's width, the step dots' and the status dot's size, the logo's box (design pixels).
 	static constexpr float SheetWidth = 520.f;
 	static constexpr float DotSize = 10.f;

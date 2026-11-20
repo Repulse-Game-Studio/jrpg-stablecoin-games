@@ -757,7 +757,7 @@ bool FScfgStoreThrottleTest::RunTest(const FString& Parameters)
 		Store.Save(Progress, Json::dict());
 		TestTrue(TEXT("owed at the end"), Store.NumWrites() == 7 && Store.IsSaveOwed());
 	}
-	TestEqual(TEXT("destroying the store wrote what it owed"), Cursor(), 907);
+	TestEqual(TEXT("destroying the store wrote what it owed"), Cursor(), static_cast<int64_t>(907));
 	TestEqual(TEXT("nothing reported"), Reports.Errors.Num() + Reports.Warnings.Num(), 0);
 	return true;
 }
