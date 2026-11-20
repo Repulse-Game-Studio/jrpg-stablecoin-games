@@ -3,8 +3,8 @@
 Accept **USDC** and **USDT** tips and unlock purchases in your Unreal game, paid **directly to your own wallet**.
 There is no server, no account and no middleman in the payment: the plugin watches the blockchain itself. It is a code plugin,
 `Scfg`, for **UE 5.6 or newer**, in C++ and Blueprint projects. Each release has a zip for each of UE 5.6, 5.7 and
-5.8. It has been tested on UE 5.8.4 only, in Linux desktop builds; 5.6 and 5.7 are untested, Windows builds (with MSVC,
-on UE 5.8), macOS is expected to work but not yet built or tested, and mobile is best effort (see [Platforms](api.md#platforms)).
+5.8. It has been tested on UE 5.8.4 only, in Linux desktop builds, and it builds with MSVC on Windows (UE 5.8); 5.6 and
+5.7 are untested, macOS is expected to work but not yet built or tested, and mobile is best effort (see [Platforms](api.md#platforms)).
 
 Chains: Ethereum, Arbitrum, Polygon (USDC and USDT), Base (USDC), Arc (USDC), Solana (USDC and USDT), plus any EVM
 chain you add yourself.
