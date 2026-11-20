@@ -752,6 +752,9 @@ bool FScfgSheetQrTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("modules per side, the quiet zone included"), Qr->Modules(), Modules);
 		TestEqual(TEXT("one run each"), Qr->NumRuns(), Runs);
 		TestEqual(TEXT("the last paint drew one box per run"), Qr->LastBoxes(), Runs);
+		// MakeBox draws with the tint it is given, not the brush's colour: a white tint on the runs was a blank code.
+		TestTrue(TEXT("the runs are drawn black and opaque"), Qr->LastDarkTint().Equals(FLinearColor::Black));
+		TestTrue(TEXT("on a white, opaque background"), Qr->LastLightTint().Equals(FLinearColor::White));
 		const int32 Scale = Qr->LastScale();
 		TestTrue(TEXT("an integer scale of at least 1"), Scale >= 1);
 		if (!bNarrow)

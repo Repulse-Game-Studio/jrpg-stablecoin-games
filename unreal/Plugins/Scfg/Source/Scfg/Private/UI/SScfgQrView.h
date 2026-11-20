@@ -39,6 +39,9 @@ public:
 	// What the last OnPaint drew: its scale and its dark boxes (the white background not counted).
 	int32 LastScale() const { return PaintedScale; }
 	int32 LastBoxes() const { return PaintedBoxes; }
+	// The tints the last OnPaint gave the background and the dark boxes (MakeBox ignores a brush's own colour).
+	FLinearColor LastLightTint() const { return PaintedLightTint; }
+	FLinearColor LastDarkTint() const { return PaintedDarkTint; }
 
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
 		FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle,
@@ -63,4 +66,6 @@ private:
 	FSlateColorBrush Black;
 	mutable int32 PaintedScale = 0;
 	mutable int32 PaintedBoxes = 0;
+	mutable FLinearColor PaintedLightTint = FLinearColor::Transparent;
+	mutable FLinearColor PaintedDarkTint = FLinearColor::Transparent;
 };

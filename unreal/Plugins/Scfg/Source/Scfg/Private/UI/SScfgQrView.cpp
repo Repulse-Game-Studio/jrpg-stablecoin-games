@@ -81,14 +81,20 @@ int32 SScfgQrView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 	const int32 Scale = ModuleScale(FMath::Min(Local.X, Local.Y));
 	PaintedScale = Scale;
 	const float Side = float(Size * Scale);
+	// MakeBox colours a box with its tint argument only (white by default), never with the brush's own colour, so each
+	// brush's colour is passed here, as Slate's widgets do, times the widget style's (a fading sheet fades its code).
+	const FLinearColor Fade = InWidgetStyle.GetColorAndOpacityTint();
+	PaintedLightTint = White.GetTint(InWidgetStyle) * Fade;
+	PaintedDarkTint = Black.GetTint(InWidgetStyle) * Fade;
 	FSlateDrawElement::MakeBox(OutDrawElements, LayerId,
-		AllottedGeometry.ToPaintGeometry(FVector2f(Side, Side), FSlateLayoutTransform()), &White);
+		AllottedGeometry.ToPaintGeometry(FVector2f(Side, Side), FSlateLayoutTransform()), &White, ESlateDrawEffect::None,
+		PaintedLightTint);
 	for (const FIntRect& R : DarkRects(Scale))
 	{
 		FSlateDrawElement::MakeBox(OutDrawElements, LayerId + 1,
 			AllottedGeometry.ToPaintGeometry(FVector2f(float(R.Width()), float(R.Height())),
 				FSlateLayoutTransform(FVector2f(float(R.Min.X), float(R.Min.Y)))),
-			&Black);
+			&Black, ESlateDrawEffect::None, PaintedDarkTint);
 		++PaintedBoxes;
 	}
 	return LayerId + 1;
