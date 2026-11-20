@@ -3,8 +3,8 @@
 Stablecoin for Games for **Unity 6.3 LTS or newer**: accept **USDC** and **USDT** tips and unlock purchases in
 your game, paid **directly to your own wallet**. There is no server, no account and no middleman in the payment: the package
 watches the blockchain itself. It is a UPM package, `com.repulse.scfg`, in plain C# with no
-native plugins and nothing beyond Unity's built-in modules. It runs in desktop and WebGL builds: Windows and
-macOS are supported, unverified (Linux and WebGL are tested); mobile is best effort and unverified. It is a **preview**: tested on Unity 6000.6.9f1, in Linux players (Mono and IL2CPP)
+native plugins and nothing beyond Unity's built-in modules. It runs in desktop and WebGL builds: Linux, Windows and
+WebGL are tested, macOS is supported, unverified; mobile is best effort and unverified. It is a **preview**: tested on Unity 6000.6.9f1, in Linux players (Mono and IL2CPP)
 and in a WebGL build in Chromium, against local test chains. 6.3 LTS is the declared minimum but nobody has compiled
 the package on it yet. A real-wallet testnet payment is the last check before it leaves preview.
 

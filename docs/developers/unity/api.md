@@ -417,7 +417,9 @@ and never inside your save slots, so loading an older save cannot lose a purchas
 
 - Receipts and new or finished payments are written at once; a payment's scan progress at most every 10 seconds,
   and again when the game quits or goes to the background. A save writes a `.tmp` file and then replaces the old
-  one, so a crash leaves the previous file whole.
+  one, so a crash leaves the previous file whole. On Windows another program (a virus scanner, the search indexer)
+  can hold the file just written for a moment; the replace is then tried again for up to about 75 ms before the save
+  counts as failed and is attempted again later.
 - A corrupt file is moved aside to `state.json.corrupt` (then `.corrupt.2`, ...) and the package starts empty, with a
   warning in development builds. Restore brings the purchases back from the chain.
 - A file that exists but cannot be read right now (a permission, a lock) is left alone: no payments start that run
