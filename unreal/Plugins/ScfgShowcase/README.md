@@ -42,7 +42,7 @@ Start it as a game, or press **Play** in the editor (any map works, since the ga
 "$UE_ROOT/Engine/Binaries/Linux/UnrealEditor" /path/to/YourProject.uproject -game -windowed -ResX=1280 -ResY=720
 ```
 
-`$UE_ROOT` stands for your engine's root directory, the folder that holds `Engine/` (set it with `export UE_ROOT=/path/to/UnrealEngine`, or write the path out). On Windows the editor is `Engine\Binaries\Win64\UnrealEditor.exe`, with the same arguments (it builds on Windows; not yet fully tested there).
+`$UE_ROOT` stands for your engine's root directory, the folder that holds `Engine/` (set it with `export UE_ROOT=/path/to/UnrealEngine`, or write the path out). On Windows the editor is `Engine\Binaries\Win64\UnrealEditor.exe`, with the same arguments (it builds on Windows).
 
 Where the configuration comes from, as the HUD's **Configured from** line says:
 

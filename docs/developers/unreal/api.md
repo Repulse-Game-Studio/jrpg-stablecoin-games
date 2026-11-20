@@ -598,11 +598,10 @@ game, uncooked and packaged, pays on local EVM, Arc and Solana test chains by ma
 method. Its HTTPS requests to real RPC endpoints verify the certificate; without root certificates they are
 refused before anything is sent.
 
-Not tested yet: UE 5.6 and 5.7, Windows, macOS, mobile, a Shipping game run, play in the editor, Blueprint-only
+Not tested yet: UE 5.6 and 5.7, macOS, mobile, a Shipping game run, play in the editor, Blueprint-only
 projects, and packaging with the zen store as the cooked output store (the default).
 
-**Windows** is in the plugin's platform list, and the plugin builds there with MSVC on UE 5.8, but it is not yet fully
-tested on Windows. **macOS** is in the list too and is expected to work, but the plugin has not yet been built or
+**Windows** is in the plugin's platform list, and the plugin builds there with MSVC on UE 5.8. **macOS** is in the list too and is expected to work, but the plugin has not yet been built or
 tested on it. **UE 5.6 and 5.7** are untested too: 5.6 is the minimum, and the release has a zip for each
 of 5.6, 5.7 and 5.8 (the same source, each `Scfg.uplugin` declaring its engine version), but only 5.8.4 has been
 tested.

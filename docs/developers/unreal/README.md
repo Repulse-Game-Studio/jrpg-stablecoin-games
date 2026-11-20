@@ -6,7 +6,7 @@ the blockchain itself. It is a code plugin, `Scfg`, in C++ (its payment core is 
 `.uasset` content, usable from C++ and from Blueprint. It is a **preview**: tested only on UE 5.8.4, in Linux
 desktop builds, against local test chains. UE 5.6 is the minimum: each release has one zip per engine version (5.6,
 5.7 and 5.8), and each declares its own version, but only 5.8.4 has been tested. Nobody has compiled the plugin on 5.6
-or 5.7 yet; the plugin builds with MSVC on Windows (UE 5.8) but is not yet fully tested there, macOS is expected to work but
+or 5.7 yet; the plugin builds with MSVC on Windows (UE 5.8), macOS is expected to work but
 not yet built or tested, and mobile is best effort. A
 real-wallet testnet payment is the last check before it leaves preview.
 

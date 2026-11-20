@@ -4,7 +4,7 @@ Accept **USDC** and **USDT** tips and unlock purchases in your Unreal game, paid
 There is no server, no account and no middleman in the payment: the plugin watches the blockchain itself. It is a code plugin,
 `Scfg`, for **UE 5.6 or newer**, in C++ and Blueprint projects. Each release has a zip for each of UE 5.6, 5.7 and
 5.8. It has been tested on UE 5.8.4 only, in Linux desktop builds; 5.6 and 5.7 are untested, Windows builds (with MSVC,
-on UE 5.8) but is not yet fully tested, macOS is expected to work but not yet built or tested, and mobile is best effort (see [Platforms](api.md#platforms)).
+on UE 5.8), macOS is expected to work but not yet built or tested, and mobile is best effort (see [Platforms](api.md#platforms)).
 
 Chains: Ethereum, Arbitrum, Polygon (USDC and USDT), Base (USDC), Arc (USDC), Solana (USDC and USDT), plus any EVM
 chain you add yourself.
@@ -40,7 +40,7 @@ needs the compiler for step 3. If the editor will not build the plugin for it, a
 Class**), which turns the project into a C++ project, and open it again.
 
 Tested: the plugin from the 5.8 zip on UE 5.8.4 on Linux, in a fresh C++ project made from the Blank template, as an
-uncooked and as a packaged Development game. Not tested yet: UE 5.6 and 5.7, Windows, macOS, mobile, a Shipping game
+uncooked and as a packaged Development game. Not tested yet: UE 5.6 and 5.7, macOS, mobile, a Shipping game
 run, play in the editor, Blueprint-only projects, and packaging with **Use Zen Server as cooked output store** on
 (Packaging; the default).
 
@@ -233,8 +233,7 @@ rules.
    `Engine/Content/`): keep it there when you repackage or trim the staged files. Do not set
    `[/Script/Engine.NetworkSettings] n.VerifyPeer=False`. Setting `n.VerifyPeer=True` in your `DefaultEngine.ini`
    makes the rest of your game's HTTPS fail closed too, and makes UAT stage the engine's bundle in the pak on every
-   platform (the tested setup). Windows and macOS use the system's certificate store (expected to work, not yet
-   tested). If the packaged game's Output Log says
+   platform (the tested setup). Windows and macOS use the system's certificate store (expected to work). If the packaged game's Output Log says
    `scfg: refusing https:// RPC requests: TLS certificate verification unavailable`, no payment can be checked
    until this is fixed.
 

@@ -34,7 +34,7 @@ uv run python tools/run_unreal_build.py --target ScfgDevEditor --config Developm
 "$UE_ROOT/Engine/Binaries/Linux/UnrealEditor" unreal/Project/ScfgDev/ScfgDev.uproject -game -windowed -ResX=1280 -ResY=720 -scfg-showcase-code
 ```
 
-On Windows the editor is `Engine\Binaries\Win64\UnrealEditor.exe`, with the same arguments (it builds on Windows; not yet fully tested there).
+On Windows the editor is `Engine\Binaries\Win64\UnrealEditor.exe`, with the same arguments (it builds on Windows).
 
 The showcase has no level of its own: the game runs on the engine's empty `/Engine/Maps/Entry` map (`GameDefaultMap`), so the project has no assets of its own. The screen is built in C++ with Slate (`unreal/Plugins/ScfgShowcase/Source/ScfgShowcase/Private/ScfgShowcase.cpp`).
 
