@@ -1,0 +1,8 @@
+# Text is stored and checked out with LF on every platform, whatever core.autocrlf says (Git for Windows sets it to
+# true). Several checks compare files byte for byte: the conformance vectors must re-dump to themselves
+# (unity/core-tests JsonTests.EveryVectorFileRoundTrips), the web page copies must match their sources, and the
+# release archives ship what is checked out. Unity rewrites the YAML it touches with LF.
+* text=auto eol=lf
+
+# Visual Studio's solution files are committed with CRLF: kept byte for byte, never converted.
+*.sln -text

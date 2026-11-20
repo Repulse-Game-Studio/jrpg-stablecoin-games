@@ -13,7 +13,9 @@
 //   be read right now (a permission, a lock, an I/O error), or a bad one that cannot be moved aside, is left alone and
 //   Error is set: the caller must not save over it this run.
 // - Save(path, pending, receipts): writes <path>.tmp (flushed to disk), then replaces <path> with it, so a crash leaves
-//   the previous file whole. Returns null or the error.
+//   the previous file whole. Returns null or the error. On Windows another process (an antivirus scanner, the search
+//   indexer, a backup tool) can hold the file just written for a moment, and the replace then fails with a sharing
+//   error; Save tries the replace again a few times within about 75 ms before it reports the error.
 #nullable enable
 using System;
 using System.Collections.Generic;
@@ -53,6 +55,52 @@ namespace Scfg
         private static readonly UTF8Encoding Strict = new UTF8Encoding(false, true);
 
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false);
+
+        /// <summary>How many more times a replace refused for a moment is tried; the waits before them are 5, 10, 20, 40 ms.</summary>
+        internal const int ReplaceRetries = 4;
+
+        /// <summary>
+        /// True for the Win32 errors another process's open handle gives a replace or move, which go away once it closes the
+        /// file: ERROR_SHARING_VIOLATION (32), ERROR_LOCK_VIOLATION (33), ERROR_UNABLE_TO_REMOVE_REPLACED (1175),
+        /// ERROR_UNABLE_TO_MOVE_REPLACEMENT (1176) and ERROR_UNABLE_TO_MOVE_REPLACEMENT_2 (1177). The low word of the
+        /// HResult is the Win32 code on .NET and on Mono alike.
+        /// </summary>
+        internal static bool IsTransientReplaceError(Exception e)
+        {
+            if (!(e is IOException) || e is FileNotFoundException || e is DirectoryNotFoundException) return false;
+            switch (e.HResult & 0xFFFF)
+            {
+                case 32:
+                case 33:
+                case 1175:
+                case 1176:
+                case 1177:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>Moves <paramref name="tmp"/> over <paramref name="path"/> (or into place when there is none yet).</summary>
+        private static void Replace(string tmp, string path)
+        {
+            if (File.Exists(path))
+            {
+                try
+                {
+                    File.Replace(tmp, path, null);
+                }
+                catch (PlatformNotSupportedException)
+                {
+                    File.Delete(path); // Load reads the .tmp if a crash comes between the two steps
+                    File.Move(tmp, path);
+                }
+            }
+            else
+            {
+                File.Move(tmp, path);
+            }
+        }
 
         /// <summary>True when an entry is at <paramref name="path"/>, readable or not.</summary>
         private static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
@@ -146,30 +194,24 @@ namespace Scfg
                 TryDelete(tmp);
                 return new IOException("cannot write " + tmp + ": " + e.Message, e);
             }
-            try
+            for (int attempt = 0; ; attempt++)
             {
-                if (File.Exists(path))
+                try
                 {
-                    try
-                    {
-                        File.Replace(tmp, path, null);
-                    }
-                    catch (PlatformNotSupportedException)
-                    {
-                        File.Delete(path); // Load reads the .tmp if a crash comes between the two steps
-                        File.Move(tmp, path);
-                    }
+                    Replace(tmp, path);
+                    return null;
                 }
-                else
+                catch (Exception e) when (attempt < ReplaceRetries && IsTransientReplaceError(e))
                 {
-                    File.Move(tmp, path);
+                    // the file is the game's own and the wait is short (at most about 75 ms, at most once per save attempt;
+                    // a failed save is attempted again every PendingSaveInterval), so the main thread waits for it here
+                    System.Threading.Thread.Sleep(5 << attempt);
+                }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is NotSupportedException)
+                {
+                    return new IOException("cannot replace " + path + ": " + e.Message, e);
                 }
             }
-            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is NotSupportedException)
-            {
-                return new IOException("cannot replace " + path + ": " + e.Message, e);
-            }
-            return null;
         }
 
         private static void TryDelete(string path)
