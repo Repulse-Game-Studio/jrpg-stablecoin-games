@@ -165,6 +165,66 @@ namespace Scfg.Tests
             Assert.That(File.Exists(P() + ".tmp"), Is.False);
         }
 
+        private static bool OnWindows => Path.DirectorySeparatorChar == '\\';
+
+        /// <summary>Opens <paramref name="path"/> as a scanner does: reading, without letting others delete or replace it.</summary>
+        private static FileStream Hold(string path) => new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+        [Test]
+        public void AReplaceRefusedForAMomentIsTriedAgain()
+        {
+            // Windows refuses to replace a file another process has open without FILE_SHARE_DELETE (a virus scanner reading
+            // the file just written, say): the replace waits for it, briefly. Elsewhere the open file is no obstacle.
+            Assert.That(ScfgStore.Save(P(), new JsonObject(), new JsonObject()), Is.Null);
+            var held = Hold(P());
+            // a thread of its own, not a pool timer: the editor's thread pool can start a timer's callback late
+            var release = new System.Threading.Thread(() =>
+            {
+                System.Threading.Thread.Sleep(10);
+                held.Dispose();
+            });
+            release.Start();
+            try
+            {
+                Assert.That(ScfgStore.Save(P(), Pending(), Receipts()), Is.Null);
+            }
+            finally
+            {
+                release.Join();
+                held.Dispose();
+            }
+            Assert.That(Json.Equal(ScfgStore.Load(P()).Receipts, Receipts()), Is.True);
+            Assert.That(File.Exists(P() + ".tmp"), Is.False);
+        }
+
+        [Test]
+        public void AReplaceRefusedForLongIsAnErrorAndLeavesTheOldFile()
+        {
+            if (!OnWindows) Assert.Ignore("an open file blocks a replace on Windows only");
+            Assert.That(ScfgStore.Save(P(), new JsonObject(), Receipts()), Is.Null);
+            Exception? err;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            using (Hold(P()))
+                err = ScfgStore.Save(P(), new JsonObject(), new JsonObject());
+            watch.Stop();
+            Assert.That(err, Is.Not.Null);
+            Assert.That(err!.Message, Does.Contain("cannot replace"));
+            Assert.That(ScfgStore.IsTransientReplaceError(err.InnerException!), Is.True, err.InnerException!.ToString());
+            Assert.That(watch.ElapsedMilliseconds, Is.LessThan(2000), "the retries are short");
+            Assert.That(Json.Equal(ScfgStore.Load(P()).Receipts, Receipts()), Is.True);
+        }
+
+        [Test]
+        public void OnlySharingErrorsAreTriedAgain()
+        {
+            Assert.That(ScfgStore.IsTransientReplaceError(new IOException("x", unchecked((int)0x80070020))), Is.True, "sharing violation");
+            Assert.That(ScfgStore.IsTransientReplaceError(new IOException("x", unchecked((int)0x80070497))), Is.True, "unable to remove replaced");
+            Assert.That(ScfgStore.IsTransientReplaceError(new IOException("x", 1175)), Is.True, "a bare Win32 code");
+            Assert.That(ScfgStore.IsTransientReplaceError(new IOException("x", unchecked((int)0x80070070))), Is.False, "disk full");
+            Assert.That(ScfgStore.IsTransientReplaceError(new UnauthorizedAccessException("x")), Is.False);
+            Assert.That(ScfgStore.IsTransientReplaceError(new FileNotFoundException("x")), Is.False);
+        }
+
         [Test]
         public void AFailedWriteLeavesTheOldFile()
         {
