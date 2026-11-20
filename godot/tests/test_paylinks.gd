@@ -32,6 +32,45 @@ func test_eip681_uri() -> bool:
 	return T.done()
 
 
+# tests/unit/test_paylinks.py::test_onramp_amount
+func test_onramp_amount() -> bool:
+	for c: Array in [
+			[4_993_742, false, "5.00"],  # rounded up to whole cents
+			[4_993_742, true, "5.01"],  # plus a cent for the fee where the token is the gas coin
+			[5_000_000, false, "5.00"],  # already whole cents
+			[5_000_001, false, "5.01"],
+			[1_230_017, true, "1.25"],
+			[0, false, "0.00"],
+			[1, false, "0.01"],
+			[1_000_000_009_999, false, "1000000.01"]]:
+		T.eq(ScfgPaylinks.onramp_amount(c[0], c[1]), c[2], "%d %s" % [c[0], c[1]])
+	return T.done()
+
+
+const USDC_BASE := "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+
+
+# tests/unit/test_paylinks.py::test_default_onramp_url_is_thirdwebs_buy_page_locked_to_the_token
+func test_default_onramp_url_is_thirdwebs_buy_page_locked_to_the_token() -> bool:
+	T.eq(ScfgPaylinks.onramp_url(ScfgPaylinks.ONRAMP_URL, "base", 8453, "USDC", USDC_BASE, "5.00"),
+		"https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=%s&amount=5.00&tokenEditable=false&paymentMethods=card" % USDC_BASE)
+	return T.done()
+
+
+# tests/unit/test_paylinks.py::test_onramp_url_fills_every_placeholder_each_time_it_appears
+func test_onramp_url_fills_every_placeholder_each_time_it_appears() -> bool:
+	var arc_usdc := "0x3600000000000000000000000000000000000000"
+	T.eq(ScfgPaylinks.onramp_url("https://x.example/{chain}/{chain}?id={chain_id}&t={token}&a={amount}&c={token_address}",
+		"arc", 5042, "USDC", arc_usdc, "1.25"), "https://x.example/arc/arc?id=5042&t=USDC&a=1.25&c=" + arc_usdc, "each")
+	T.eq(ScfgPaylinks.onramp_url("https://x.example/buy", "arc", 5042, "USDC", "0x36", "1.25"), "https://x.example/buy",
+		"none")
+	T.is_err(ScfgPaylinks.onramp_url("https://x.example/{wallet}", "arc", 5042, "USDC", "0x36", "1.25"), "KeyError",
+		"an unknown placeholder")
+	T.eq(ScfgPaylinks.onramp_split("a{{b}}{c{d}e}"), PackedStringArray(["a{", "b", "}{c", "d", "e}"]),
+		"split as Python's ONRAMP_PLACEHOLDER")
+	return T.done()
+
+
 # tests/unit/test_paylinks.py::test_qr_matrix_is_square_with_finder_patterns
 func test_qr_matrix_is_square_with_finder_patterns() -> bool:
 	var m: Variant = ScfgPaylinks.qr_matrix("hello")

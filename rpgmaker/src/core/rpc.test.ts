@@ -2,9 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Handler } from "../../test/rpc_fakes.ts";
 import { FakeClock, FakeTransport, down, err, ok } from "../../test/rpc_fakes.ts";
+import type { Transport } from "./coio.ts";
 import { TransportError } from "./coio.ts";
 import { KeyError, ValueError } from "./errors.ts";
-import { COOLDOWN_MAX, COOLDOWN_START, pyHexInt, MIN_LOG_RANGE, RpcClient, RpcError, RpcUnavailable, isRangeError, suggestedRange } from "./rpc.ts";
+import { CALL_BUDGET, COOLDOWN_MAX, COOLDOWN_START, pyHexInt, MIN_ATTEMPT, MIN_LOG_RANGE, RpcClient, RpcError, RpcUnavailable, isRangeError, suggestedRange } from "./rpc.ts";
 
 const A = "https://a.rpc";
 const B = "https://b.rpc";
@@ -100,6 +101,78 @@ test("test_all_endpoints_down_raises_unavailable", async () => {
   const { c } = client({ [A]: down, [B]: down });
   await assert.rejects(c.blockNumber(), RpcUnavailable);
 });
+
+/**
+ * Each url takes `costs[url]` seconds of the clock (absent: its whole timeout, a hang) and then
+ * fails, or answers when it is in `answers`. Records [url, timeout].
+ */
+class TimedTransport implements Transport {
+  calls: Array<[string, number]> = [];
+  private readonly clock: FakeClock;
+  private readonly costs: Record<string, number>;
+  private readonly answers: Set<string>;
+  constructor(clock: FakeClock, costs: Record<string, number>, answers: string[] = []) {
+    this.clock = clock;
+    this.costs = costs;
+    this.answers = new Set(answers);
+  }
+  async postJson(url: string, _payload: any, timeout: number): Promise<unknown> {
+    this.calls.push([url, timeout]);
+    const cost = this.costs[url];
+    this.clock.advance(cost === undefined ? timeout : Math.min(cost, timeout));
+    if (this.answers.has(url)) return ok("0x7");
+    throw new TransportError(`timed out after ${timeout}s`);
+  }
+}
+
+test("test_a_call_spends_at_most_its_budget_across_endpoints", async () => {
+  const C = "https://c.rpc";
+  const D = "https://d.rpc";
+  const clock = new FakeClock();
+  const t = new TimedTransport(clock, {}); // every endpoint hangs
+  const rpc = new RpcClient([A, B, C, D], { transport: t, clock: clock.call });
+  assert.equal(CALL_BUDGET, 15.0);
+  await assert.rejects(rpc.blockNumber(), RpcUnavailable);
+  assert.deepEqual(t.calls, [[A, 10.0], [B, 5.0]]); // the rest of the 15 s, then nothing is left for C, D
+  assert.equal(clock.now, 1000.0 + CALL_BUDGET);
+  assert.deepEqual(rpc.liveUrls(), [C, D]); // skipped, not cooled down: the next call asks C
+});
+
+test("test_each_attempt_waits_at_most_what_is_left_of_the_budget", async () => {
+  const C = "https://c.rpc";
+  const clock = new FakeClock();
+  const t = new TimedTransport(clock, { [A]: 3, [B]: 10, [C]: 1 }, [C]);
+  assert.equal(await new RpcClient([A, B, C], { transport: t, clock: clock.call }).blockNumber(), 7);
+  assert.deepEqual(t.calls, [[A, 10.0], [B, 10.0], [C, 2.0]]);
+});
+
+test("test_an_endpoint_is_not_asked_with_less_than_the_floor_left", async () => {
+  // A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not
+  // asked with a sliver of time, nor cooled down for failing it.
+  const C = "https://c.rpc";
+  const clock = new FakeClock();
+  const t = new TimedTransport(clock, { [B]: 4 });
+  const rpc = new RpcClient([A, B, C], { transport: t, clock: clock.call });
+  assert.equal(MIN_ATTEMPT, 2.0);
+  await assert.rejects(rpc.blockNumber(), RpcUnavailable);
+  assert.deepEqual(t.calls, [[A, 10.0], [B, 5.0]]);
+  assert.deepEqual(rpc.liveUrls(), [C]);
+});
+
+for (const [bTakes, asked] of [[3, true], [3.1, false]] as const) {
+  test(`test_the_floor_is_asked_at_exactly_min_attempt_left[${bTakes}-${asked}]`, async () => {
+    // The floor's boundary: with exactly MIN_ATTEMPT left C is asked, with that
+    // timeout; with less (1.9 s) it is not, and stays live.
+    const C = "https://c.rpc";
+    const clock = new FakeClock();
+    const t = new TimedTransport(clock, { [B]: bTakes });
+    const rpc = new RpcClient([A, B, C], { transport: t, clock: clock.call });
+    await assert.rejects(rpc.blockNumber(), RpcUnavailable);
+    const expected: Array<[string, number]> = [[A, 10.0], [B, 5.0], ...(asked ? [[C, MIN_ATTEMPT] as [string, number]] : [])];
+    assert.deepEqual(t.calls, expected);
+    assert.equal(rpc.liveUrls().includes(C), !asked);
+  });
+}
 
 for (const [name, bad] of [["not_a_dict", "not a dict"], ["no_result_or_error", { jsonrpc: "2.0", id: 1 }]] as const) {
   test(`test_malformed_response_counts_as_endpoint_failure[${name}]`, async () => {

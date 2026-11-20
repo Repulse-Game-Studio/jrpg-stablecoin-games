@@ -6,6 +6,7 @@ from scfg_core.config import (
     DEFAULT_ACCENT,
     DEFAULT_METHODS,
     add_item,
+    build_chain,
     build_config,
     chains_for_token,
     enabled_chains,
@@ -14,6 +15,7 @@ from scfg_core.config import (
 )
 from scfg_core.errors import ConfigError
 from scfg_core.models import Item
+from scfg_core.paylinks import ONRAMP_URL
 
 DEV = "0x52908400098527886E0F7030069857D2E4169EE7"
 OLD = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
@@ -260,3 +262,83 @@ def test_arc_drops_out_when_usdc_is_disabled():
     assert "arc" not in enabled_chains(build_config(DEV, tokens=["USDT"]))
     with pytest.raises(ConfigError):
         build_config(DEV, chains=["arc"], tokens=["USDT"])
+
+
+# --- onramp (the "Buy some with a card" link) ----------------------------------------------
+
+SOL = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+AVAX = dict(name="Avalanche", chain_id=43114, rpc="https://api.avax.network/ext/bc/C/rpc",
+            tokens={"USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"}, confirmations=5,
+            explorer_tx="https://snowtrace.io/tx/{}")
+
+
+def test_onramp_defaults_to_the_builtin_evm_chains_on_mainnet():
+    c = build_config(DEV, solana_wallet=SOL)
+    assert c.onramp == {"enabled": True, "url": ONRAMP_URL,
+                        "chains": ("arbitrum", "base", "arc", "polygon", "ethereum")}
+
+
+def test_onramp_is_not_offered_on_testnet_unless_chains_are_listed():
+    assert cfg(testnet=True).onramp["chains"] == ()
+    assert cfg(testnet=True, onramp={"chains": ["base"]}).onramp["chains"] == ("base",)
+
+
+def test_onramp_default_follows_the_enabled_chains_and_skips_custom_ones():
+    avax = build_chain("avalanche", **AVAX)
+    c = cfg(chains=["base", "avalanche", "arc"], custom_chains=[avax])
+    assert c.onramp["chains"] == ("base", "arc")
+    c = cfg(chains=["base", "avalanche"], custom_chains=[avax], onramp={"chains": ["avalanche"]})
+    assert c.onramp["chains"] == ("avalanche",)
+
+
+def test_onramp_options_merge():
+    url = "https://example.com/buy?net={chain}&id={chain_id}&t={token}@{token_address}&a={amount}"
+    c = cfg(onramp={"enabled": False, "url": url, "chains": ("arc",)})
+    assert c.onramp == {"enabled": False, "url": url, "chains": ("arc",)}
+    assert cfg(onramp={}).onramp == cfg().onramp
+
+
+@pytest.mark.parametrize("onramp, code", [
+    (False, "onramp.not_a_dict"),
+    ({"enable": False}, "onramp.unknown_option"),
+    ({"enabled": "no"}, "onramp.enabled_not_bool"),
+    ({"enabled": 0}, "onramp.enabled_not_bool"),
+    ({"url": "http://example.com/buy"}, "onramp.bad_url"),
+    ({"url": "https://example.com/buy?a={amount} "}, "onramp.bad_url"),
+    ({"url": "https://example.com/café"}, "onramp.bad_url"),
+    ({"url": "https://example.com/" + "a" * 2029}, "onramp.bad_url"),
+    ({"url": None}, "onramp.bad_url"),
+    ({"url": "https://example.com/?w={wallet}"}, "onramp.unknown_placeholder"),
+    ({"url": "https://example.com/?w={}"}, "onramp.unknown_placeholder"),
+    ({"url": "https://example.com/?a={amount"}, "onramp.unmatched_brace"),
+    ({"url": "https://example.com/?a=amount}"}, "onramp.unmatched_brace"),
+    ({"url": "https://example.com/?a={{amount}}"}, "onramp.unmatched_brace"),
+    ({"chains": "base"}, "onramp.chains_not_a_list"),
+    ({"chains": ["tron"]}, "onramp.disabled_chain"),
+    ({"chains": [5]}, "onramp.disabled_chain"),
+    ({"chains": ["base", "base"]}, "onramp.duplicate_chain"),
+])
+def test_bad_onramp(onramp, code):
+    with pytest.raises(ConfigError) as e:
+        cfg(onramp=onramp)
+    assert e.value.code == code
+
+
+def test_onramp_url_limit_is_inclusive():
+    url = "https://example.com/" + "a" * 2028
+    assert len(url) == 2048 and cfg(onramp={"url": url}).onramp["url"] == url
+
+
+@pytest.mark.parametrize("url", ["https://", "https:///buy", "https://{amount}", "https://?a=1",
+                                 "https://#top", "https://}"])
+def test_onramp_url_needs_a_host(url):
+    with pytest.raises(ConfigError) as e:
+        cfg(onramp={"url": url})
+    assert e.value.code == "onramp.bad_url"
+    assert cfg(onramp={"url": "https://x"}).onramp["url"] == "https://x"
+
+
+def test_onramp_chains_must_be_evm():
+    with pytest.raises(ConfigError) as e:
+        build_config(DEV, solana_wallet=SOL, onramp={"chains": ["base", "solana"]})
+    assert e.value.code == "onramp.not_evm"

@@ -7,7 +7,22 @@
  *   - reads the latest detached `Snapshot` from `.snapshot` (replaced after each run),
  *   - collects StepOutcomes with `drainOutcomes()`.
  * At most one `runOnce` is in flight, so a command never executes inside a tick.
+ *
+ * Commands run one at a time, so a session start the player moved away from (another network,
+ * another amount, Cancel) would hold up the start that replaced it until its RPC requests ran out.
+ * `Job.abandon()` prevents that: a job that has not started is cancelled, and a running one ends
+ * with Abandoned (not a TransportError: no endpoint cools down) at once, its request in flight
+ * included (Engine.refuseInFlight: the transport is told to stop it, and its answer is dropped).
+ *
+ * Commands come first. A tick is background work (watching pending payments), and every command
+ * is the player's (a start they are waiting on, a hint, a restore): a command submitted while a
+ * tick runs makes the tick yield the same way, its request in flight ending with Abandoned. The
+ * tick keeps the outcomes it already has (Engine.tick stops between or inside a session's step, as
+ * a network failure would; the interrupted session is stepped again by the next tick), and the
+ * command runs next, in the follow-up run. Only the tick yields, never the first run's reverify;
+ * a yielded tick is no error (on_error never hears of it).
  */
+import { Abandoned } from "./coio.ts";
 import type { Engine, Snapshot } from "./engine.ts";
 import type { StepOutcome } from "./watcher.ts";
 
@@ -62,6 +77,26 @@ export class Job<T> {
   exception(): unknown | null {
     if (this._state === "cancelled") return this._cancelledError;
     return this._state === "failed" ? this._error : null;
+  }
+
+  private _abandoned = false;
+  /** @internal Worker: set while the job runs, so an abandon ends its request in flight. */
+  _onAbandon: (() => void) | null = null;
+
+  /** Whether abandon() found it running: its RPC requests are refused from then on. */
+  get abandoned(): boolean {
+    return this._abandoned;
+  }
+
+  /**
+   * worker.py's abandon(): a job that has not started is cancelled (it never runs); a running one
+   * ends with Abandoned at once, its RPC request in flight included, and is refused any further
+   * one, so the commands queued behind it never wait for it.
+   */
+  abandon(): void {
+    if (this.cancel()) return;
+    this._abandoned = true;
+    this._onAbandon?.();
   }
 
   /** Cancels a job that has not started; false once it is running or finished. */
@@ -126,6 +161,7 @@ export class Worker {
   private _first = true;
   private _chain: Promise<void> | null = null; // the in-flight runOnce (plus its follow-ups)
   private _again = false; // a wake()/submit()/runOnce() landed mid-run
+  private _ticking = false; // Engine.tick runs: a submitted command makes it yield
   private _started = false;
   private _stopped = false;
   private _timer: unknown = null;
@@ -152,6 +188,7 @@ export class Worker {
       return job;
     }
     this._commands.push({ fn, job });
+    if (this._ticking) this.engine.refuseInFlight(); // commands come first (see the header)
     this.wake();
     return job;
   }
@@ -211,20 +248,42 @@ export class Worker {
     while (this._commands.length > 0) {
       const { fn, job } = this._commands.shift()!;
       if (!job._start()) continue;
+      this.engine.refuseRequests = () => job.abandoned; // this job's requests, refused once abandoned
+      job._onAbandon = () => this.engine.refuseInFlight();
       try {
         job._succeed(await fn(this.engine));
       } catch (e) {
         job._fail(e);
+      } finally {
+        job._onAbandon = null;
+        this.engine.refuseRequests = null;
       }
     }
     if (this._first) {
       this._first = false;
       await this.engine.reverify();
     }
-    for (const o of await this.engine.tick()) {
+    for (const o of await this._tick()) {
       if (o.status !== "waiting" || o.error) this._outcomes.push(o);
     }
     this.snapshot = this.engine.snapshot();
+  }
+
+  /** Engine.tick, yielding to a command submitted meanwhile (see the header). */
+  private async _tick(): Promise<StepOutcome[]> {
+    // Python and Godot yield to any queued command; a queued job cancelled meanwhile never runs,
+    // so there is no reason to yield to it here.
+    this.engine.refuseRequests = () => this._commands.some((c) => !c.job.done());
+    this._ticking = true;
+    try {
+      return await this.engine.tick();
+    } catch (e) {
+      if (e instanceof Abandoned) return []; // an engine whose tick does not keep its outcomes when it yields
+      throw e;
+    } finally {
+      this._ticking = false;
+      this.engine.refuseRequests = null;
+    }
   }
 
   start(): void {

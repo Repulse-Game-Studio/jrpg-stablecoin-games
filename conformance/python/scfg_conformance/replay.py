@@ -224,9 +224,13 @@ def call_key(url: str, method: str, params: Any) -> tuple[str, str, str]:
 
 class ReplayTransport:
     """Answers each request from the current step's recorded calls, as a multiset: any order,
-    each recorded call used once, a repeated request needs as many recorded copies."""
+    each recorded call used once, a repeated request needs as many recorded copies. A call with
+    `elapsed` (a request that hung) must have been made with that timeout, and moves the clock
+    by it (`wait`) before its transport_error is raised. A call with `took` (a slow answer)
+    moves the clock by it before it is answered, and its timeout must be over it."""
 
-    def __init__(self):
+    def __init__(self, wait: Callable[[int], None] = lambda seconds: None):
+        self.wait = wait
         self.load([])
 
     def load(self, calls: list[dict]) -> None:
@@ -239,6 +243,17 @@ class ReplayTransport:
         for i, call in enumerate(self._calls):
             if not self._used[i] and call_key(call["url"], call["method"], call["params"]) == key:
                 self._used[i] = True
+                if "took" in call:
+                    if timeout <= call["took"]:
+                        self.problems.append(
+                            f"{url} {payload['method']}: timeout {timeout:g} is not over the "
+                            f"{call['took']} s the answer took")
+                    self.wait(call["took"])
+                if "elapsed" in call:
+                    if timeout != call["elapsed"]:
+                        self.problems.append(f"{url} {payload['method']}: timeout {timeout:g}, "
+                                             f"recorded {call['elapsed']}")
+                    self.wait(call["elapsed"])
                 if "transport_error" in call:
                     err = call["transport_error"]
                     raise TransportError(err["message"], status=err["status"])
@@ -280,7 +295,10 @@ def replay(vector: dict) -> None:
     def on_error(exc: BaseException) -> None:
         errors[0] += 1
 
-    transport = ReplayTransport()
+    def wait(seconds: int) -> None:
+        now[0] += seconds
+
+    transport = ReplayTransport(wait)
     engine = build_engine(setup, transport=transport, clock=lambda: now[0], on_error=on_error)
     steps = vector["steps"]
     for i, step in enumerate(steps):

@@ -72,6 +72,68 @@ static func always(response: Variant) -> Callable:
 	return func(_m: String, _p: Array) -> Variant: return response
 
 
+## A one-shot latch: fire() resumes every `await latch.wait()`, now and later.
+class Latch:
+	extends RefCounted
+	signal fired
+	var is_fired := false
+
+	func fire() -> void:
+		if not is_fired:
+			is_fired = true
+			fired.emit()
+
+	func wait() -> void:
+		if not is_fired:
+			await fired
+
+
+## test_worker_priority.py's Node: answers eth_blockNumber ("0x3e8") and anything else ([], as
+## eth_getLogs), or, while `hang` is set, holds every request until release() and then fails it
+## as a timeout. `methods` records every request's method, `hung` how many were held.
+class HangingNode:
+	extends ScfgCoio.Transport
+	var hang := false
+	var hung := 0
+	var methods: Array = []
+	var _release := Latch.new()
+
+	func release() -> void:
+		_release.fire()
+
+	func post_json(_url: String, payload: Dictionary, timeout: float) -> Variant:
+		methods.append(payload["method"])
+		if hang:
+			hung += 1
+			await _release.wait()
+			return ScfgCoio.transport_error("timed out after %s s" % timeout)
+		var result: Variant = "0x3e8" if payload["method"] == "eth_blockNumber" else []
+		return {"jsonrpc": "2.0", "id": payload["id"], "result": result}
+
+
+## A HangingNode that can stop a held request (ScfgCoio's CANCELLING): `cancelled` records the
+## method of each request its Cancel stopped.
+class CancellableNode:
+	extends HangingNode
+	var cancelled: Array = []
+
+	func post_json_cancellable(url: String, payload: Dictionary, timeout: float, cancel: ScfgCoio.Cancel) -> Variant:
+		if not hang:
+			return await post_json(url, payload, timeout)
+		methods.append(payload["method"])
+		hung += 1
+		var either := Latch.new()
+		_release.fired.connect(either.fire)
+		cancel.cancelled.connect(either.fire)
+		if cancel.is_cancelled or _release.is_fired:
+			either.fire()
+		await either.wait()
+		if cancel.is_cancelled:
+			cancelled.append(payload["method"])
+			return ScfgErr.make("Abandoned", "cancelled")
+		return ScfgCoio.transport_error("timed out after %s s" % timeout)
+
+
 ## In-memory stand-in for ScfgRpcClient (the same method names), driven by tests: the twin of
 ## tests/unit/fakes.py FakeChain.
 ##   - head: the current block number

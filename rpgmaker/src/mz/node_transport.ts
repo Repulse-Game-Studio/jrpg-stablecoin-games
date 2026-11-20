@@ -10,7 +10,13 @@
  *   - a POST with `Content-Type: application/json` and `User-Agent: scfg/0.1`;
  *   - `timeout` (seconds) bounds every wait on the socket, the connection and each read of the
  *     answer, not the whole exchange (urllib's socket timeout): a silent server is a
- *     TransportError("timed out");
+ *     TransportError("timed out"). The name lookup is bounded by it too (rpc.py's
+ *     resolve_within): Node's request timeout starts only once the socket is connecting, so a DNS
+ *     server that never answers held a request far longer (measured: Node's own 5 s, another
+ *     resolver about 20 s). That timer runs from the request to its socket's
+ *     connect, or stops at once on a kept-alive socket (connected already); with a `fallback` it
+ *     is half of `timeout` (the fallback gets the rest), else all of it. Its failure carries the
+ *     code EAI_AGAIN, a DNS failure, which THE FALLBACK below retries;
  *   - a 2xx answer is decoded as UTF-8 JSON, else TransportError("invalid JSON response") (JSON as
  *     the core's Python reads it, pystr.ts jsonLoads: an integer literal of more than 4300 digits
  *     is not JSON);
@@ -20,6 +26,10 @@
  * An answer of more than MAX_RESPONSE_BYTES (coio.ts; urllib has no cap) is
  * TransportError("response too large"): refused on its Content-Length, else when the bytes
  * received pass the limit, and the request is destroyed either way.
+ * A request whose `cancel` (coio.ts Cancel) fires is destroyed at once, and fails with
+ * Abandoned("the request to <url> was cancelled"), which nobody reads (the Engine stopped waiting
+ * for it; Abandoned, not a TransportError, cools no endpoint down); a cancelled request never goes
+ * through the fallback.
  * One deviation: a redirect is not followed (urllib turns a 301-303 to a POST into a GET, which
  * no JSON-RPC endpoint answers); it is TransportError("HTTP 30x"). A failure's Node error code
  * (`ECONNREFUSED`, `CERT_HAS_EXPIRED`, ...) is kept as the TransportError's `code`.
@@ -32,13 +42,19 @@
  * the request's. That failure's message ends with Node's code ("Failed to fetch (Node's https
  * failed first: CERT_HAS_EXPIRED)") and its `cause` is the fallback's own error. Our own read
  * timeout ("timed out") is not retried: it would double the wait on a server that is only slow.
+ * The retry shares the request's `timeout`, never adds to it (Ren'Py counts its lookup inside the
+ * request's timeout too): the fallback is given what is left of `timeout` since the
+ * request began, so a lookup that never answers (EAI_AGAIN after half of `timeout`) and a
+ * fallback that hangs too end together at `timeout`, and a session start on a chain whose
+ * endpoints all do so still fails within the RpcClient's 15 s (CALL_BUDGET). With less than
+ * MIN_FALLBACK left the fallback is not asked: the request fails with Node's own failure.
  *
  * Node APIs used are all in Node 8 or older (`request(options, callback)`, req.on("error"),
  * setTimeout, destroy, end(string), res.statusCode, res.on("data" | "end" | "error" | "aborted"));
  * URL, TextEncoder and TextDecoder come from NW.js's Chromium.
  */
 import { TransportError, type Transport } from "../core/index.ts";
-import { MAX_RESPONSE_BYTES, RESPONSE_TOO_LARGE, declaredLength } from "../core/coio.ts";
+import { Abandoned, MAX_RESPONSE_BYTES, RESPONSE_TOO_LARGE, declaredLength, type Cancel } from "../core/coio.ts";
 import { jsonLoads, pyTruthy } from "../core/pystr.ts";
 
 /** Node's `http` / `https` module, as far as the transport uses it. */
@@ -55,7 +71,17 @@ export interface NodeTransportOptions {
   fallback?: Transport | null;
   /** The most bytes of an answer that are read. Default: MAX_RESPONSE_BYTES. */
   max_response_bytes?: number;
+  /** Seconds, monotonic: what is left of a request's timeout for the fallback. Default: performance.now(). */
+  clock?: () => number;
 }
+
+/** The least of a request's timeout the fallback is asked with (see THE FALLBACK in the header). */
+export const MIN_FALLBACK = 0.25;
+/** The name lookup's share of a request's timeout when there is a fallback (it gets the rest). */
+const LOOKUP_SHARE = 0.5;
+
+const monotonic = (): number => (typeof performance !== "undefined" && typeof performance.now === "function"
+  ? performance.now() : Date.now()) / 1000;
 
 /** Node's certificate / TLS-trust failures (the frozen CA bundle). */
 export const TRUST_CODES: ReadonlySet<string> = new Set([
@@ -109,6 +135,7 @@ export class NodeHttpsTransport implements Transport {
   private readonly _http: NodeHttpModule | null;
   private readonly _ua: string;
   private readonly _maxBytes: number;
+  private readonly _clock: () => number;
   /** The transport a trust or proxy failure is retried through, or null (see the header). */
   readonly fallback: Transport | null;
 
@@ -120,25 +147,37 @@ export class NodeHttpsTransport implements Transport {
     this._http = opts.http && typeof opts.http.request === "function" ? opts.http : null;
     this._ua = opts.user_agent ?? "scfg/0.1";
     this._maxBytes = opts.max_response_bytes ?? MAX_RESPONSE_BYTES;
+    this._clock = opts.clock ?? monotonic;
     this.fallback = opts.fallback && typeof opts.fallback.postJson === "function" ? opts.fallback : null;
   }
 
-  postJson(url: string, payload: object, timeout: number): Promise<unknown> {
-    const direct = this._exchange(url, payload, timeout).then(([status, raw]) => decode(status, raw));
+  postJson(url: string, payload: object, timeout: number, cancel?: Cancel): Promise<unknown> {
     const fallback = this.fallback;
+    const started = this._clock();
+    // with a fallback the lookup gets half of `timeout`, leaving the fallback the rest (header)
+    const lookup = fallback === null ? timeout : timeout * LOOKUP_SHARE;
+    const direct = this._exchange(url, payload, timeout, lookup, cancel).then(([status, raw]) => decode(status, raw));
     if (fallback === null) return direct;
     return direct.catch((e: unknown) => {
-      if (!trustOrProxyFailure(e)) throw e;
+      if (!trustOrProxyFailure(e) || cancel?.cancelled) throw e;
+      // the retry shares `timeout` (header): too little left of it, and Node's failure is the answer
+      const left = timeout - (this._clock() - started);
+      if (!(left >= MIN_FALLBACK)) throw e;
       // once; its answer or failure is the request's, a failure naming why Node's went first
-      return fallback.postJson(url, payload, timeout).catch((f: unknown) => {
+      return fallback.postJson(url, payload, left, cancel).catch((f: unknown) => {
         throw afterNode(f, e as TransportError);
       });
     });
   }
 
   /** [status, body bytes] of one POST, or a TransportError. */
-  private _exchange(url: string, payload: object, timeout: number): Promise<[number, Uint8Array]> {
+  private _exchange(url: string, payload: object, timeout: number, lookup: number, cancel?: Cancel): Promise<[number, Uint8Array]> {
     return new Promise((resolve, reject) => {
+      const cancelled = () => new Abandoned(`the request to ${url} was cancelled`);
+      if (cancel?.cancelled) {
+        reject(cancelled());
+        return;
+      }
       let target: URL;
       try {
         target = new URL(url);
@@ -156,11 +195,18 @@ export class NodeHttpsTransport implements Transport {
       const text = JSON.stringify(payload);
       const length = new TextEncoder().encode(text).length;
       let settled = false;
-      const fail = (message: string, code: string | null = null) => {
+      let lookupTimer: ReturnType<typeof setTimeout> | null = null;
+      const stopLookupTimer = () => {
+        if (lookupTimer !== null) clearTimeout(lookupTimer);
+        lookupTimer = null;
+      };
+      const settleWith = (error: Error) => {
+        stopLookupTimer();
         if (settled) return;
         settled = true;
-        reject(withCode(new TransportError(message), code));
+        reject(error);
       };
+      const fail = (message: string, code: string | null = null) => settleWith(withCode(new TransportError(message), code));
       let req: any = null;
       const destroyQuietly = () => {
         try {
@@ -201,6 +247,7 @@ export class NodeHttpsTransport implements Transport {
             res.on("error", (e: unknown) => fail(messageOf(e), codeOf(e)));
             res.on("aborted", () => fail("the connection was closed before the answer was complete"));
             res.on("end", () => {
+              stopLookupTimer();
               if (settled) return;
               settled = true;
               const raw = new Uint8Array(size);
@@ -220,12 +267,32 @@ export class NodeHttpsTransport implements Transport {
           }
         });
         req.on("error", (e: unknown) => fail(messageOf(e), codeOf(e)));
+        // The name lookup has no socket timer yet: give it (and the connect) `lookup` of its own
+        // (`timeout`, or half of it with a fallback). It is a DNS failure (EAI_AGAIN), so with
+        // `fallback` the request goes once more through it, with the rest of `timeout`, as a name
+        // Node cannot resolve does: behind a proxy only the fallback's fetch reaches the RPC, and
+        // a request must not fail on a lookup before that client has tried.
+        lookupTimer = setTimeout(() => {
+          fail(`timed out resolving ${target.hostname}`, "EAI_AGAIN");
+          destroyQuietly();
+        }, Math.max(1, lookup * 1000));
+        req.on("socket", (socket: any) => {
+          // A kept-alive socket from the agent's pool is connected already and never emits
+          // "connect": stop the timer at once, else it would bound the whole exchange.
+          if (!socket || socket.connecting === false) stopLookupTimer();
+          else if (typeof socket.once === "function") socket.once("connect", stopLookupTimer);
+        });
         // urllib's socket timeout: every wait on the socket (connect, each read) has `timeout`
         req.setTimeout(Math.max(1, timeout * 1000), () => {
           fail("timed out");
           req.destroy();
         });
         req.end(text);
+        // nobody waits for the answer any more (coio.ts Cancel): the request is destroyed
+        cancel?.onCancel(() => {
+          settleWith(cancelled());
+          destroyQuietly();
+        });
       } catch (e) {
         fail(messageOf(e));
         destroyQuietly();

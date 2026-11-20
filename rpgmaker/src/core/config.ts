@@ -20,6 +20,7 @@ import { Dec } from "./decimal.ts";
 import { ConfigError, IndexError, KeyError, ValueError } from "./errors.ts";
 import { normalizeAddress } from "./evm.ts";
 import type { Item } from "./models.ts";
+import { ONRAMP_FIELDS, ONRAMP_PLACEHOLDER, ONRAMP_URL } from "./paylinks.ts";
 import { PY_DIGIT, hasOwn, pyFormat1, pyStrip, pyTruthy } from "./pystr.ts";
 import { MIN_LOG_RANGE } from "./rpc.ts";
 import { b58decode, normalizePubkey } from "./solana/base58.ts";
@@ -31,6 +32,10 @@ export const DEFAULT_METHODS: Record<string, Record<string, unknown>> = {
   qr: { enabled: true, wallet_button: true, chains: null },
   manual: { enabled: true, allow_tx_paste: true },
 };
+// The "No USDC yet? Buy some with a card" link. chains=null: the built-in EVM chains of a
+// mainnet game (card purchases don't exist on test networks); a list chooses the chains.
+export const DEFAULT_ONRAMP: Readonly<Record<string, unknown>> = { enabled: true, url: ONRAMP_URL, chains: null };
+export const ONRAMP_URL_LIMIT = 2048;
 // The id patterns match the whole string (Python's fullmatch: no trailing newline).
 const ITEM_ID = /^[a-z0-9_-]{1,64}$/;
 const CHAIN_KEY = /^[a-z0-9_-]{1,32}$/;
@@ -98,7 +103,15 @@ export interface Config {
   logo: string | null; // image path, shown on the screens and the checkout page
   accent: string; // #rrggbb used for selected options
   custom_chains: Map<string, Chain>; // addChain(), this network, in the order added
+  onramp: Onramp;
   items: Map<string, Item>; // in the order added
+}
+
+/** The buy link: `chains` are the keys it is offered on (resolved: never null). */
+export interface Onramp {
+  enabled: boolean;
+  url: string;
+  chains: string[];
 }
 
 /** Every chain this game knows on its network: built-in, then the developer's own. */
@@ -233,9 +246,11 @@ export function buildChain(key: unknown, opts: BuildChainOptions): Chain {
   }
   const confirmations = positiveInt(o["confirmations"], `${what}: confirmations`);
   const explorerTx = o["explorer_tx"];
-  if (typeof explorerTx !== "string" || !explorerTx.startsWith("https://") || explorerTx.split("{}").length - 1 !== 1) {
+  // http:// only for an explorer on this machine (a local devnet's), as for the rpc urls.
+  if (typeof explorerTx !== "string" || !(explorerTx.startsWith("https://") || LOCAL_HTTP.test(explorerTx))
+      || explorerTx.split("{}").length - 1 !== 1) {
     throw new ConfigError(
-      `${what}: explorer_tx must be an https:// URL with {} where the transaction hash goes, like 'https://snowtrace.io/tx/{}'`,
+      `${what}: explorer_tx must be an https:// URL (http:// only on 127.0.0.1 or localhost) with {} where the transaction hash goes, like 'https://snowtrace.io/tx/{}'`,
       { code: "chain.bad_explorer_tx" });
   }
   try {
@@ -386,6 +401,65 @@ function mergeMethods(methods: unknown, chains: readonly string[]): Record<strin
   return merged;
 }
 
+const HTTPS = "https://";
+
+/** An https:// URL of printable ASCII (no spaces) whose only braces are ONRAMP_FIELDS placeholders, like '{chain_id}'. */
+function onrampUrlArg(value: unknown): string {
+  // a host must follow https://: its first character is not a brace, "/", "?" or "#"
+  if (typeof value !== "string" || !value.startsWith(HTTPS) || cpLength(value) > ONRAMP_URL_LIMIT
+    || !/^[!-~]*$/.test(value) || ["", "{", "}", "/", "?", "#"].includes(value.slice(HTTPS.length, HTTPS.length + 1))) {
+    throw new ConfigError(
+      `onramp url must be an https:// URL with a host, without spaces, at most ${ONRAMP_URL_LIMIT} characters: ${JSON.stringify(value)}`,
+      { code: "onramp.bad_url" });
+  }
+  for (const [, name] of value.matchAll(ONRAMP_PLACEHOLDER)) {
+    if (!ONRAMP_FIELDS.includes(name!)) {
+      throw new ConfigError(`onramp url: unknown placeholder {${name}} (use ${ONRAMP_FIELDS.map((f) => `{${f}}`).join(", ")})`,
+        { code: "onramp.unknown_placeholder" });
+    }
+  }
+  const rest = value.replace(ONRAMP_PLACEHOLDER, "");
+  if (rest.includes("{") || rest.includes("}")) {
+    throw new ConfigError(`onramp url: unmatched brace in ${JSON.stringify(value)}`, { code: "onramp.unmatched_brace" });
+  }
+  return value;
+}
+
+function mergeOnramp(onramp: unknown, chains: readonly string[], reg: Map<string, Chain>, testnet: boolean): Onramp {
+  if (!noneish(onramp) && !isDict(onramp)) {
+    throw new ConfigError("onramp must be a dict like {'enabled': False}", { code: "onramp.not_a_dict" });
+  }
+  const merged: Record<string, unknown> = { ...DEFAULT_ONRAMP };
+  for (const [key, value] of Object.entries(onramp ?? {})) {
+    if (!hasOwn(merged, key)) throw new ConfigError(`unknown option '${key}' for onramp`, { code: "onramp.unknown_option" });
+    put(merged, key, value);
+  }
+  if (typeof merged["enabled"] !== "boolean") {
+    throw new ConfigError("onramp.enabled must be True or False", { code: "onramp.enabled_not_bool" });
+  }
+  const url = onrampUrlArg(merged["url"]);
+  const keys = merged["chains"];
+  if (noneish(keys)) {
+    const builtin = getChains(testnet);
+    const evm = testnet ? [] : chains.filter((k) => hasOwn(builtin, k) && reg.get(k)!.family === "evm");
+    return { enabled: merged["enabled"], url, chains: evm };
+  }
+  if (!Array.isArray(keys)) {
+    throw new ConfigError("onramp.chains must be a list of chain keys", { code: "onramp.chains_not_a_list" });
+  }
+  for (const c of keys) {
+    if (typeof c !== "string" || !chains.includes(c)) {
+      throw new ConfigError(`onramp.chains contains disabled chain ${JSON.stringify(c)}`, { code: "onramp.disabled_chain" });
+    }
+    if (reg.get(c)!.family !== "evm") {
+      throw new ConfigError(`onramp.chains: '${c}' is not an EVM chain; the buy link is offered on EVM chains only`,
+        { code: "onramp.not_evm" });
+    }
+  }
+  if (new Set(keys).size !== keys.length) throw new ConfigError("duplicate chain in onramp.chains", { code: "onramp.duplicate_chain" });
+  return { enabled: merged["enabled"], url, chains: [...keys] };
+}
+
 export interface BuildConfigOptions {
   wallet?: string | null;
   testnet?: boolean;
@@ -399,12 +473,14 @@ export interface BuildConfigOptions {
   accent?: string | null;
   custom_chains?: Chain[] | null;
   solana_wallet?: string | null;
+  /** The buy link: `{enabled, url, chains}`, each optional. */
+  onramp?: { enabled?: boolean; url?: string; chains?: string[] | null } | null;
 }
 
 /** custom_chains: Chains from buildChain(); those of the other network are ignored. */
 export function buildConfig(options: BuildConfigOptions = {}): Config {
   const o = checkOpts(options, ["wallet", "testnet", "chains", "tokens", "methods", "rpc_urls", "confirmations",
-    "previous_wallets", "logo", "accent", "custom_chains", "solana_wallet"], [], "build_config");
+    "previous_wallets", "logo", "accent", "custom_chains", "solana_wallet", "onramp"], [], "build_config");
   const testnet = pyTruthy(o["testnet"]);
   const [custom, otherNetwork] = customChainsFor(o["custom_chains"], testnet);
   const reg = new Map<string, Chain>([...Object.entries(getChains(testnet)), ...custom]);
@@ -452,6 +528,7 @@ export function buildConfig(options: BuildConfigOptions = {}): Config {
   }
 
   const merged = mergeMethods(o["methods"], chains);
+  const buy = mergeOnramp(o["onramp"], chains, reg, testnet);
 
   const urls: Record<string, string[]> = {};
   const urlEntries = pyTruthy(o["rpc_urls"]) ? dictItems(o["rpc_urls"], "rpc_urls") : [];
@@ -479,7 +556,7 @@ export function buildConfig(options: BuildConfigOptions = {}): Config {
   const cfg: Config = {
     wallet, testnet, chains, tokens, methods: merged, rpc_urls: urls, confirmations: confs, previous_wallets: prev,
     solana_wallet: sol, previous_solana_wallets: prevSol, logo: logoArg(o["logo"]), accent: accentArg(o["accent"]),
-    custom_chains: custom, items: new Map(),
+    custom_chains: custom, onramp: buy, items: new Map(),
   };
   if (enabledChains(cfg).size === 0) {
     throw new ConfigError("no enabled chain supports any enabled token", { code: "config.no_usable_token" });

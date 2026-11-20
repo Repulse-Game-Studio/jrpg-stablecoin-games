@@ -1,7 +1,7 @@
 # Install (Godot)
 
 Accept **USDC** and **USDT** tips and unlock purchases in your Godot game, paid **directly to your own
-wallet**. There is no server, no account and no middleman: the addon watches the blockchain itself. It is
+wallet**. There is no server, no account and no middleman in the payment: the addon watches the blockchain itself. It is
 pure GDScript (no GDExtension, no C#), needs Godot **4.3 or newer** (tested on 4.3 and 4.7.2), and works in
 desktop builds and in web exports. Mobile is best effort and unverified (see [Mobile](api.md#mobile-unverified)).
 

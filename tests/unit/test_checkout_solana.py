@@ -20,8 +20,8 @@ SIG = b58encode((7).to_bytes(64, "big"))
 EVM_TX = "0x" + "ab" * 32
 
 
-def setup(unready=frozenset()):
-    cfg = build_config(DEV_EVM, solana_wallet=DEV)
+def setup(unready=frozenset(), **config):
+    cfg = build_config(DEV_EVM, solana_wallet=DEV, **config)
     add_item(cfg, "chapter2", code=37, price="4.99", token="USDC", title="Chapter 2")
     sol, evm = FakeSolanaChain(), FakeChain()
     e = Engine(cfg, rpc_factory=lambda c: sol if c.family == "solana" else evm,
@@ -73,7 +73,6 @@ def test_evm_chain_still_uses_eip681():
 
 
 def test_pasting_the_wrong_family_is_an_invalid_hash():
-    """Review focus 1."""
     ctl, e = started("solana")
     assert ctl.submit_hash(EVM_TX) is False and ctl.error == "invalid_hash"
     assert ctl.submit_hash(SIG) is True and e.pending[ctl.session_id]["hint_tx"] == SIG
@@ -155,3 +154,47 @@ def test_a_verdict_on_an_older_hint_does_not_touch_the_newer_one(error):
     ctl.on_outcome(StepOutcome(ctl.session_id, "waiting", error=error, hint_tx=SIG))
     info = ctl.status_info()
     assert (info["error"], info["tx_hash"], info["dropped_tx"]) == (None, SIG2, None)
+
+
+# --- the buy link's hint: Solana has no buy page, another network does ---------------------
+
+def on_method(chain, **config):
+    ctl, e = setup(**config)
+    ctl.choose_network(chain)
+    ctl.poll()
+    return ctl, e
+
+
+def test_solana_points_to_a_network_with_the_buy_link():
+    ctl, _ = on_method("solana")
+    assert ctl.step == "method"
+    assert ctl.onramp_url() is None and ctl.shows_onramp is False
+    assert ctl.shows_onramp_hint is True
+    ctl.back()
+    assert ctl.step == "network"
+    ctl.choose_network("base")
+    ctl.poll()
+    assert ctl.shows_onramp is True and ctl.shows_onramp_hint is False
+
+
+def test_the_hint_needs_a_network_with_the_link_that_the_player_can_pick():
+    ctl, _ = on_method("solana", onramp={"enabled": False})
+    assert ctl.shows_onramp_hint is False
+    ctl, _ = on_method("solana", testnet=True)       # testnet: no network has the link
+    assert ctl.shows_onramp_hint is False
+    ctl, _ = on_method("solana", onramp={"chains": ["base"]}, chains=["solana", "base"])
+    assert ctl.shows_onramp_hint is True
+    ctl, _ = on_method("solana", testnet=True, onramp={"chains": ["base"]})
+    assert ctl.shows_onramp_hint is True
+
+
+def test_the_hint_shows_where_the_link_would_and_not_once_a_payment_is_seen():
+    only_manual = {"browser": {"enabled": False}, "qr": {"enabled": False}}
+    ctl, _ = on_method("solana", methods=only_manual)
+    assert ctl.step == "manual" and ctl.shows_onramp_hint is True    # the only payment page
+    ctl, _ = on_method("solana")
+    ctl.choose_method("qr")
+    assert ctl.shows_onramp_hint is False                            # the method step had it
+    ctl, _ = on_method("solana", methods=only_manual)
+    ctl.submit_hash(SIG)
+    assert ctl.step == "waiting" and ctl.shows_onramp_hint is False

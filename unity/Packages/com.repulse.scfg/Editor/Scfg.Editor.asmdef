@@ -1,0 +1,7 @@
+{
+    "name": "Scfg.Editor",
+    "rootNamespace": "Scfg.Editor",
+    "references": ["Scfg.Core", "Scfg.Unity"],
+    "includePlatforms": ["Editor"],
+    "autoReferenced": true
+}

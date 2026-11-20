@@ -36,7 +36,7 @@
  * its controller first (cancel / finish stop its browser page), and only then the screen;
  * "keep_playing" moves the controller to `_background`, where its page keeps answering until the
  * session is final or the browser timeout passes. The sheet's buttons that leave the game call
- * `openBrowser`, `openWalletApp`, `openExplorer`, `copy` and `pasteInto` (actions.ts has the
+ * `openBrowser`, `openWalletApp`, `openExplorer`, `openOnramp`, `copy` and `pasteInto` (actions.ts has the
  * per-platform parts). Notifications go through `text()`.
  *
  * WEB (not NW.js; Ren'Py's WEB branches): the browser checkout is the in-page overlay
@@ -352,8 +352,9 @@ export class Scfg {
 
   /**
    * Set the payout wallet and options (Ren'Py's keyword arguments, by their Python names):
-   * wallet and/or solana_wallet, testnet, chains, tokens, methods, rpc_urls, confirmations,
-   * previous_wallets, logo and accent. `logo` names an image in img/scfg/ ("logo" is
+   * wallet and/or solana_wallet, testnet, chains, tokens, methods, onramp, rpc_urls, confirmations,
+   * previous_wallets, logo and accent. `onramp` is the "Buy some with a card" link: {enabled, url,
+   * chains}, like {enabled: false} to hide it. `logo` names an image in img/scfg/ ("logo" is
    * img/scfg/logo.png). It can be called again until payments have started (the frame after the
    * state is read).
    *
@@ -550,8 +551,9 @@ export class Scfg {
     try {
       engine = new Engine(this._config, {
         transport, pending: m.doc.pending, receipts: m.doc.receipts, on_error: this._logError,
-        // RPC cooldowns must not jump with the wall clock
-        rpc_factory: (chain) => backendFor(chain).makeRpc(chain, transport, rpcClock),
+        // RPC cooldowns must not jump with the wall clock; `requests` is the transport behind the
+        // Engine's refusal, so an abandoned start's requests are refused
+        rpc_factory: (chain, requests) => backendFor(chain).makeRpc(chain, requests, rpcClock),
         ...this._hooks.engine_opts,
       });
       worker = new Worker(engine, { interval: () => this._interval(), on_error: this._logError, ...this._hooks.worker_opts });
@@ -1156,12 +1158,20 @@ export class Scfg {
     if (uri) this._openUrl(uri);
   }
 
+  /** The sheet's "No USDC yet? Buy some with a card" (Ren'Py's _open_onramp): the buy page for the chosen network. */
+  openOnramp(ctl: CheckoutController): void {
+    const open = this._openController(ctl);
+    if (!(open instanceof ScreenCheckout)) return;
+    const url = open.onrampUrl();
+    if (url) this._openUrl(url);
+  }
+
   /** The sheet's "View on explorer": open `url` (nothing for null or ""). */
   openExplorer(url: unknown): void {
     if (typeof url === "string" && url !== "") this._openUrl(url);
   }
 
-  /** Open `url` outside the game: NW.js's shell on desktop; on the web the page's window.open (noopener). */
+  /** Open `url` outside the game: NW.js's shell on desktop; on the web the page's window.open (noopener,noreferrer). */
   _openUrl(url: string): void {
     const page = this._webPage();
     if (page !== null && page.available) {

@@ -1,0 +1,187 @@
+name: unreal
+
+# The Unreal plugin in a real UE 5.8 editor, on a self-hosted Linux runner (GitHub's hosted runners have no Unreal
+# Engine): the editor and Shipping builds of the dev project with strict includes, the automation tests, the Linux
+# e2e under Xvfb for evm, arc and solana, the showcase tour (uncooked and packaged), and the release zips with
+# RunUAT BuildPlugin on the 5.8 one. The C++ core's own tests run without Unreal in test.yml (cpp-core).
+#
+# What it needs, in this order:
+#   1. Settings -> Actions -> General -> "Require approval for all external contributors" (the security paragraph
+#      below), before the runner is registered.
+#   2. A Linux x64 machine (Ubuntu 22.04 or 24.04, about 150 GB free for the engine, its DDC, the builds and the
+#      packaged games) with a user account of its own for the runner, not a desktop account. On it: UE 5.8, readable
+#      by that user; the packages xvfb, mesa-vulkan-drivers (lavapipe), libx11-6, libxtst6, cmake (3.25+),
+#      ninja-build, unzip, git and curl; on that user's PATH Anvil (Foundry's foundryup), solana-test-validator (the
+#      Agave release of test.yml's AGAVE_VERSION, its solana-release/bin) and uv; and Playwright's Chromium, installed
+#      once from a checkout with `uv sync && uv run playwright install --with-deps chromium`.
+#   3. A self-hosted runner, registered as that user from Settings -> Actions -> Runners -> New self-hosted runner,
+#      with the extra label unreal (config.sh adds self-hosted and linux), installed as a service (svc.sh).
+#   4. UE_ROOT=<the engine's root directory>, and a PATH= line with the tools' folders, in the .env file of the
+#      runner's folder, then the service restarted. The Unreal tools take the engine from --engine or UE_ROOT and have
+#      no default; the steps below pass "$UE_ROOT", and the first one checks that it is a 5.8 engine.
+#   5. The repository variable UNREAL_RUNNER=true (Settings -> Secrets and variables -> Actions -> Variables). Without
+#      it every job is skipped instead of waiting for a runner that does not exist.
+# Security: a self-hosted runner runs whatever a job sends it, as the runner's user. This workflow has no pull_request
+# trigger, but that does not protect the runner: a fork's pull request can edit this file or add a workflow of its
+# own with on: pull_request and runs-on: [self-hosted, linux, unreal], and its run uses the pull request's copy. What
+# protects it is the approval setting of step 1 (read every fork pull request's changes, workflow files included,
+# before approving its run), and keeping the runner out of any repository where untrusted forks can run workflows;
+# on a public repository, prefer a private mirror for the runner, or an organisation runner group closed to public
+# repositories or limited to this workflow on main. Keep the runner's user out of sudo and away from your own files.
+# The jobs listen on 127.0.0.1 only, except the engine's trace port 0.0.0.0:1985 and solana-test-validator's RPC and
+# faucet sockets: keep the machine behind a firewall that blocks inbound connections from the network.
+
+on:
+  # What the Unreal jobs build or run (the e2e reuses the Godot and Ren'Py runners' chain families, helpers and
+  # mocks; the zip carries the Unreal guide and the license). The weekly run covers everything else.
+  push:
+    branches: [main]
+    paths:
+      - "unreal/**"
+      - "plugin/game/scfg/web/**"
+      - "plugin/game/python-packages/scfg_core/**"
+      - "conformance/vectors/**"
+      - "contracts/**"
+      - "docs/developers/unreal/**"
+      - "LICENSE"
+      - "tools/run_unreal_build.py"
+      - "tools/run_unreal_tests.py"
+      - "tools/run_unreal_e2e.py"
+      - "tools/unreal_common.py"
+      - "tools/package.py"
+      - "tools/package_unreal.py"
+      - "tools/run_godot_e2e.py"
+      - "tools/run_renpy_e2e.py"
+      - "tools/sync_demo.py"
+      - "tests/unreal_showcase/**"
+      - "tests/integration/browser_mocks.py"
+      - "tests/integration/mock_token.py"
+      - "tests/integration/solana_local.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/unreal.yml"
+  schedule:
+    - cron: "0 6 * * 1"   # weekly, as test.yml: a changed runner machine shows up here
+  workflow_dispatch:      # run by hand from the Actions tab
+
+permissions:
+  contents: read
+
+# One Unreal process at a time on the runner: runs never overlap, and a running one is not cancelled (its engine
+# processes are killed by the wrappers' own timeouts, not halfway through by a newer push).
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash   # -eo pipefail: a failed command before a pipe fails the step
+
+jobs:
+  editor:
+    if: vars.UNREAL_RUNNER == 'true'
+    runs-on: [self-hosted, linux, unreal]
+    timeout-minutes: 480   # the wrappers time out each build (3600 s) and run (1800 s) themselves
+    steps:
+      # No token is left in .git/config while the builds, tests and browsers run. The default clean (git clean -ffdx)
+      # stays on, on purpose: every run deletes the dev project's Binaries, Intermediate and DerivedDataCache and
+      # dist/, so it is a full non-unity rebuild and a cold cook (slower), but it builds from the commit alone, as a
+      # developer's checkout or a zip does, and no artefact or Saved state of an earlier run can hide a missing
+      # include, a stale module or a test that passes only on leftovers.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The tools' temporary directories (a test report, a failed e2e's logs and the game's user data) go into the
+      # job's temporary directory, which the runner empties after every job, not into the machine's /tmp. (A job's
+      # env cannot read the runner context: hence a step.)
+      - name: Temporary files in the job's temporary directory
+        run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: The runner has UE 5.8 at UE_ROOT, the e2e's tools and a Chromium for Playwright
+        run: |
+          if [ -z "${UE_ROOT:-}" ] || [ ! -x "$UE_ROOT/Engine/Binaries/Linux/UnrealEditor" ] || [ ! -f "$UE_ROOT/Engine/Build/Build.version" ]; then
+            echo "::error::UE_ROOT (${UE_ROOT:-unset}) is not an Unreal Engine install: set it in the runner's environment"
+            exit 1
+          fi
+          engine=$(python3 -c "import json, sys; v = json.load(open(sys.argv[1])); print('%d.%d.%d' % (v['MajorVersion'], v['MinorVersion'], v['PatchVersion']))" "$UE_ROOT/Engine/Build/Build.version")
+          case "$engine" in
+            5.8.*) echo "Unreal Engine $engine at $UE_ROOT" ;;
+            *) echo "::error::UE_ROOT ($UE_ROOT) is Unreal Engine $engine, not 5.8"; exit 1 ;;
+          esac
+          for tool in uv xvfb-run anvil solana-test-validator; do
+            command -v "$tool" > /dev/null || { echo "::error::$tool is not on the runner's PATH"; exit 1; }
+          done
+          test -f "${SCFG_LAVAPIPE_ICD:-/usr/share/vulkan/icd.d/lvp_icd.json}" || { echo "::error::Mesa's lavapipe (mesa-vulkan-drivers) is missing"; exit 1; }
+          uv sync
+          # The tip step's browser, found the way the e2e finds it: the installed Chrome, else Playwright's Chromium.
+          uv run python - <<'PY' || { echo "::error::no Chrome or Playwright Chromium: run uv run playwright install chromium as the runner's user"; exit 1; }
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              try:
+                  browser = p.chromium.launch(channel="chrome", headless=True)
+              except Exception:
+                  browser = p.chromium.launch(headless=True)
+              print("browser", browser.version)
+              browser.close()
+          PY
+
+      # UBT has no strict-includes switch of its own: these are the three that BuildPlugin's -StrictIncludes passes
+      # (BuildPluginCommand.Automation.cs), so each .cpp of the plugin and the dev project compiles on its own,
+      # with no precompiled header and no unity file to hide a missing include.
+      - name: Editor build with strict includes, failing on any warning of ours
+        run: uv run python tools/run_unreal_build.py --engine "$UE_ROOT" --target ScfgDevEditor --config Development -- -NoPCH -NoSharedPCH -DisableUnity
+      - name: Shipping game build with strict includes (no test module may be linked in)
+        run: uv run python tools/run_unreal_build.py --engine "$UE_ROOT" --target ScfgDev --config Shipping -- -NoPCH -NoSharedPCH -DisableUnity
+      - name: Automation tests in the editor, headless
+        run: uv run python tools/run_unreal_tests.py --engine "$UE_ROOT" --no-build --filter Scfg --report-dir "$RUNNER_TEMP/unreal-tests"
+
+      # The runner starts each game on an X server of its own (it re-runs itself under xvfb-run -a and refuses any
+      # other display), rendered by lavapipe.
+      - name: Linux e2e under Xvfb (EVM)
+        run: uv run python tools/run_unreal_e2e.py --engine "$UE_ROOT" --no-build --family evm
+      - name: Linux e2e under Xvfb (Arc, native USDC send)
+        run: uv run python tools/run_unreal_e2e.py --engine "$UE_ROOT" --no-build --family arc
+      - name: Linux e2e under Xvfb (Solana)
+        run: uv run python tools/run_unreal_e2e.py --engine "$UE_ROOT" --no-build --family solana
+      - name: The showcase tour, uncooked
+        run: uv run python tools/run_unreal_e2e.py --engine "$UE_ROOT" --showcase --no-build
+      - name: The showcase tour on the packaged game (BuildCookRun, Development)
+        run: uv run python tools/run_unreal_e2e.py --engine "$UE_ROOT" --showcase --packaged
+
+      - name: Release zips build
+        run: uv run python tools/package.py --engine unreal
+      - name: BuildPlugin on the 5.8 zip (the stripped plugin builds on its own, outside the dev project)
+        run: |
+          version=$(uv run python -c "import sys; sys.path.insert(0, 'plugin/game/python-packages'); from scfg_core import __version__; print(__version__)")
+          work="$RUNNER_TEMP/buildplugin"
+          rm -rf "$work"
+          mkdir -p "$work/extract"
+          unzip -q "dist/scfg-unreal-$version-ue5.8.zip" -d "$work/extract"
+          # BuildPlugin passes no -ubtargs: UBA's host comes from the environment (XmlConfig.cs); UAT's logs stay
+          # in the work directory.
+          UnrealBuildTool_UnrealBuildAccelerator__Host=127.0.0.1 \
+          uebp_LogFolder="$work/uat-logs" uebp_EngineSavedFolder="$work/uat-saved" \
+          timeout 3600 "$UE_ROOT/Engine/Build/BatchFiles/RunUAT.sh" BuildPlugin \
+            -Plugin="$work/extract/Scfg/Scfg.uplugin" -Package="$work/package" -Rocket -TargetPlatforms=Linux \
+            -StrictIncludes -unattended -utf8output -nop4 2>&1 | tee "$work/buildplugin.log"
+          grep -q "BUILD SUCCESSFUL" "$work/buildplugin.log"
+          if grep -iE "\b(warning|error)\b" "$work/buildplugin.log"; then
+            echo "::error::BuildPlugin logged a warning or an error (above)"
+            exit 1
+          fi
+          for f in README.md LICENSE NOTICES.txt Resources/Web/index.html; do
+            test -f "$work/package/$f" || { echo "::error::the built plugin has no $f"; exit 1; }
+          done
+
+      # The job's temporary directory is emptied when the job ends: a failed run's test report and logs go with the
+      # run as an artifact (the logs and screenshots only, not the game's user data or a packaged archive).
+      - name: Keep the test report and the e2e logs of a failed run
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unreal-logs
+          path: |
+            ${{ runner.temp }}/unreal-tests
+            ${{ runner.temp }}/scfg-unreal-*/*.log
+            ${{ runner.temp }}/scfg-unreal-*/*.png
+            ${{ runner.temp }}/buildplugin/*.log
+          if-no-files-found: ignore

@@ -1,0 +1,407 @@
+/* The package's look for the payment sheet, the restore screen and the toast: the "Margin" look of Godot's
+   ui/theme.gd and Ren'Py's scfg_* styles. A light sheet docked on the right, ink text, outlined buttons and options
+   with rounded corners, and the accent for the selected option, the pinned forward button and the progress.
+   Override with a style sheet of your own (ScfgDefaultSheetHost.SheetStyle), for example
+     .scfg-screen { --scfg-accent: #7a5cff; --scfg-ink: #101010; }
+   Sizes are design pixels of a 960x720 reference resolution (the panel scales with the screen). */
+
+.scfg-screen {
+    --scfg-ink: #17202e;
+    --scfg-sheet: #fbfcfd;
+    --scfg-muted: #5b6676;
+    --scfg-line: #cfd5dd;
+    --scfg-rule: #e4e8ed;
+    --scfg-hover: #eef1f4;
+    --scfg-ok: #17804f;
+    --scfg-warn: #9a5b00;
+    --scfg-error: #c0392b;
+    background-color: rgba(10, 12, 24, 0.4);
+    flex-direction: row;
+    justify-content: flex-end;
+}
+
+.scfg-sheet {
+    width: 520px;
+    height: 100%;
+    background-color: var(--scfg-sheet);
+    padding: 24px 28px 20px 28px;
+}
+
+.scfg-sheet--full {
+    width: 100%;
+}
+
+.scfg-layout {
+    flex-grow: 1;
+    flex-direction: column;
+}
+
+.scfg-header {
+    flex-shrink: 0;
+    margin-bottom: 10px;
+}
+
+.scfg-nav {
+    flex-direction: row;
+    align-items: center;
+    height: 36px;
+}
+
+.scfg-step {
+    flex-grow: 1;
+    flex-direction: column;
+}
+
+.scfg-body {
+    flex-grow: 1;
+}
+
+.scfg-footer {
+    flex-shrink: 0;
+    margin-top: 12px;
+}
+
+.scfg-row {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.scfg-actions {
+    flex-direction: row;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.scfg-grid {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.scfg-list,
+.scfg-group {
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.scfg-grow {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.scfg-text {
+    color: var(--scfg-ink);
+    font-size: 15px;
+    white-space: normal;
+    margin: 2px 0;
+    padding: 0;
+}
+
+.scfg-title {
+    font-size: 24px;
+    -unity-font-style: bold;
+    margin-top: 6px;
+}
+
+.scfg-heading {
+    font-size: 19px;
+    -unity-font-style: bold;
+    margin-top: 6px;
+}
+
+.scfg-price {
+    flex-direction: row;
+    align-items: flex-end;
+}
+
+.scfg-amount {
+    font-size: 30px;
+    -unity-font-style: bold;
+    margin-right: 8px;
+}
+
+.scfg-amount-token {
+    font-size: 16px;
+    color: var(--scfg-muted);
+    margin-bottom: 5px;
+}
+
+.scfg-label {
+    font-size: 14px;
+    -unity-font-style: bold;
+    margin-top: 10px;
+}
+
+.scfg-note,
+.scfg-muted {
+    color: var(--scfg-muted);
+    font-size: 14px;
+}
+
+.scfg-warning {
+    color: var(--scfg-warn);
+    -unity-font-style: bold;
+}
+
+.scfg-error {
+    color: var(--scfg-error);
+}
+
+.scfg-ok {
+    color: var(--scfg-ok);
+    -unity-font-style: bold;
+}
+
+.scfg-dev {
+    color: var(--scfg-warn);
+    font-size: 12px;
+}
+
+.scfg-mono {
+    font-size: 13px;
+    background-color: var(--scfg-hover);
+    padding: 4px 6px;
+    border-radius: 6px;
+    white-space: normal;
+}
+
+.scfg-button {
+    color: var(--scfg-ink);
+    background-color: var(--scfg-sheet);
+    border-width: 1.5px;
+    border-color: var(--scfg-line);
+    border-radius: 10px;
+    font-size: 15px;
+    min-height: 40px;
+    padding: 6px 16px;
+    margin: 4px;
+    white-space: normal;
+}
+
+.scfg-button:hover,
+.scfg-option:hover {
+    background-color: var(--scfg-hover);
+}
+
+.scfg-button:focus,
+.scfg-option:focus,
+.scfg-field:focus {
+    border-color: var(--scfg-ink);
+    border-width: 2px;
+}
+
+.scfg-button:disabled {
+    opacity: 0.45;
+}
+
+.scfg-button--accent,
+.scfg-button--primary {
+    background-color: var(--scfg-accent, #0e7c74);
+    border-color: var(--scfg-accent, #0e7c74);
+    color: #ffffff;
+    -unity-font-style: bold;
+}
+
+.scfg-button--accent:hover,
+.scfg-button--primary:hover {
+    background-color: var(--scfg-accent, #0e7c74);
+    opacity: 0.9;
+}
+
+.scfg-button--accent {
+    margin-top: 10px;
+    min-height: 46px;
+}
+
+.scfg-button--small {
+    min-height: 32px;
+    font-size: 13px;
+    padding: 2px 12px;
+}
+
+.scfg-onramp {
+    margin-top: 8px;
+    white-space: normal;
+}
+
+.scfg-button--back {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+    font-size: 20px;
+    border-width: 0;
+    border-radius: 18px;
+}
+
+.scfg-option {
+    background-color: var(--scfg-sheet);
+    border-width: 1.5px;
+    border-color: var(--scfg-line);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin: 4px;
+    flex-direction: column;
+    align-items: flex-start;
+    min-height: 44px;
+}
+
+.scfg-option--half {
+    width: 46%;
+    flex-grow: 1;
+}
+
+.scfg-option--selected {
+    border-color: var(--scfg-accent, #0e7c74);
+    border-width: 2.5px;
+}
+
+.scfg-option__text {
+    -unity-font-style: bold;
+    margin: 0;
+}
+
+.scfg-option__sub {
+    color: var(--scfg-muted);
+    font-size: 13px;
+    margin: 0;
+}
+
+.scfg-field {
+    min-height: 36px;
+    margin: 4px;
+    font-size: 14px;
+}
+
+.scfg-rule {
+    height: 1px;
+    background-color: var(--scfg-rule);
+    margin: 6px 0;
+}
+
+.scfg-dots {
+    flex-direction: row;
+    align-items: center;
+}
+
+.scfg-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    margin-left: 6px;
+    background-color: var(--scfg-line);
+}
+
+.scfg-dot--on {
+    background-color: var(--scfg-accent, #0e7c74);
+}
+
+.scfg-status {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.scfg-status__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 5px;
+    margin-right: 8px;
+}
+
+.scfg-tone--accent {
+    background-color: var(--scfg-accent, #0e7c74);
+}
+
+.scfg-tone--ok {
+    background-color: var(--scfg-ok);
+}
+
+.scfg-tone--warn {
+    background-color: var(--scfg-warn);
+}
+
+.scfg-tone--error {
+    background-color: var(--scfg-error);
+}
+
+.scfg-tone-text--ok {
+    color: var(--scfg-ok);
+}
+
+.scfg-tone-text--warn {
+    color: var(--scfg-warn);
+}
+
+.scfg-tone-text--error {
+    color: var(--scfg-error);
+}
+
+.scfg-tone-text--accent {
+    color: var(--scfg-ink);
+}
+
+.scfg-progress {
+    height: 8px;
+    border-radius: 4px;
+    background-color: var(--scfg-rule);
+    margin: 8px 0;
+    overflow: hidden;
+}
+
+.scfg-progress__fill {
+    height: 100%;
+}
+
+.scfg-logo {
+    height: 48px;
+    width: 160px;
+    margin-bottom: 6px;
+}
+
+.scfg-qr-row {
+    flex-direction: row;
+    align-items: center;
+    margin: 8px 0;
+}
+
+.scfg-qr-frame {
+    background-color: #ffffff;
+    border-width: 1.5px;
+    border-color: var(--scfg-line);
+    border-radius: 10px;
+    padding: 6px;
+    margin-right: 20px;
+}
+
+.scfg-qr {
+    width: 176px;
+    height: 176px;
+}
+
+.scfg-qr-steps {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.scfg-qr-step {
+    font-size: 15px;
+    margin: 4px 0;
+}
+
+.scfg-toast-layer {
+    align-items: flex-end;
+    padding: 24px;
+}
+
+.scfg-toast {
+    background-color: #17202e;
+    border-radius: 10px;
+    padding: 12px 18px;
+}
+
+.scfg-toast__text {
+    color: #ffffff;
+    font-size: 15px;
+}

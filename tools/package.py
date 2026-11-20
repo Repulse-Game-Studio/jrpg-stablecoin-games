@@ -1,6 +1,8 @@
-"""Build the drop-in release zips: dist/scfg-renpy-<version>.zip (default),
-dist/scfg-godot-<version>.zip (--engine godot) and dist/scfg-rpgmaker-mz-<version>.zip
-(--engine rpgmaker).
+"""Build the drop-in release archives: dist/scfg-renpy-<version>.zip (default),
+dist/scfg-godot-<version>.zip (--engine godot), dist/scfg-rpgmaker-mz-<version>.zip
+(--engine rpgmaker), dist/scfg-unity-<version>.tgz (--engine unity) and the Unreal zips
+dist/scfg-unreal-<version>-ue<5.x>.zip and dist/scfg-unreal-showcase-<version>.zip
+(--engine unreal).
 
 The Ren'Py zip mirrors a Ren'Py project, so developers unzip it straight into their
 project folder:
@@ -25,6 +27,12 @@ addons/ is the only top-level entry, Godot 4.3 to 4.6 strip it as well and insta
 res://scfg/. The license, guide and notices sit inside addons/scfg/ so nothing lands in the
 project root.
 
+The Unreal zips (--engine unreal, built by tools/package_unreal.py, whose docstring has the layout)
+are one per engine version, dist/scfg-unreal-<version>-ue<5.x>.zip, each holding the plugin folder
+Scfg/ (source only, without the test modules) for the developer's Plugins/ folder, and the optional
+showcase sample, dist/scfg-unreal-showcase-<version>.zip, holding the plugin folder ScfgShowcase/
+(source only) that goes next to Scfg/. The plugin zips hold Scfg/ alone, as Fab wants them.
+
 The RPG Maker MZ zip unzips into an MZ project folder:
 
     js/plugins/SCFG.js                 (the whole plugin, built by `npm run build` in rpgmaker/)
@@ -33,17 +41,36 @@ The RPG Maker MZ zip unzips into an MZ project folder:
     scfg-LICENSE.txt                   (MIT license)
     scfg-NOTICES.txt                   (notices of the third-party code SCFG.js carries)
 
-Usage: uv run python tools/package.py [--engine renpy|godot|rpgmaker]
+The Unity tarball is a UPM package as `npm pack` lays it out (Package Manager: + > Add package from
+tarball), the package folder unity/Packages/com.repulse.scfg/ under package/:
+
+    package/package.json               (its "version" must be the core's, in semver form, and so
+                                       must Runtime/Core/PackageVersion.cs's PackageVersion.Text)
+    package/Runtime/, Editor/, Samples~/, Documentation~/ ... (the package, every .meta included)
+    package/Documentation~/scfg-unity-guide.md (Unity guide, joined from docs/developers/unity/)
+    package/Third Party Notices.md     (notices of the third-party code the package ports)
+    package/CHANGELOG.md               (the repository's CHANGELOG.md: the Package Manager shows it)
+
+Tests/ ships too: Unity compiles a package's test assemblies only in a project that lists it under
+"testables" in Packages/manifest.json, so the package's own edit-mode and play-mode tests run there
+and nowhere else. The package's own LICENSE.md must be the repository's LICENSE, its CHANGELOG.md
+a copy of the repository's (for git-URL installs; tools/check_unity_changelog.py --write makes
+it), its .meta files complete and its checkout page copy current.
+
+Usage: uv run python tools/package.py [--engine renpy|godot|rpgmaker|unity|unreal]
 """
 
 from __future__ import annotations
 
 import argparse
+import gzip
+import io
 import json
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -64,6 +91,7 @@ GODOT_ADDON = ROOT / "godot" / "addons" / "scfg"
 GODOT_SKIP_PARTS = {"__pycache__", ".godot", "tests", "demo", "e2e"}
 GODOT_SKIP_SUFFIXES = {".uid", ".pyc"}
 RPGMAKER_PAGES = "developers/rpgmaker/"
+UNREAL_PAGES = "developers/unreal/"
 RPGMAKER_GUIDE_TITLE = "# Stablecoin for Games: RPG Maker MZ Developer Guide"
 RPGMAKER_DIR = ROOT / "rpgmaker"
 RPGMAKER_VERSION_SOURCE = RPGMAKER_DIR / "src" / "mz" / "version.ts"
@@ -77,6 +105,11 @@ payment sheet and on the browser checkout page.
 
 Leave the Logo parameter empty if you have no logo; this folder can then stay as it is.
 """
+UNITY_PAGES = "developers/unity/"
+UNITY_GUIDE_TITLE = "# Stablecoin for Games: Unity Developer Guide"
+UNITY_PACKAGE = ROOT / "unity" / "Packages" / "com.repulse.scfg"
+UNITY_GUIDE_NAME = "Documentation~/scfg-unity-guide.md"
+UNITY_CHANGELOG = "package/CHANGELOG.md"
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 
 
@@ -99,7 +132,10 @@ def sidebar_pages(items, level=1):
 
 
 def developer_guide(
-    prefix="developers/", skip=(GODOT_PAGES, RPGMAKER_PAGES), title=GUIDE_TITLE, intro=True
+    prefix="developers/",
+    skip=(GODOT_PAGES, RPGMAKER_PAGES, UNITY_PAGES),
+    title=GUIDE_TITLE,
+    intro=True,
 ):
     """Join the docs pages under `prefix` (minus those under `skip`), in website/sidebars.json
     order, into one file.
@@ -109,6 +145,9 @@ def developer_guide(
     page outside the joined ones fails. With `intro`, the first page is the guide's intro
     (its title line is replaced by `title`); without, every page is a section under `title`.
     """
+    # The Unreal pages are a guide of their own: a guide that would take them in skips them.
+    if not prefix.startswith(UNREAL_PAGES):
+        skip = (*skip, UNREAL_PAGES)
     sidebar = json.loads(SIDEBARS.read_text(encoding="utf-8"))["docs"]
     depth = {
         p: level
@@ -345,6 +384,161 @@ def build_rpgmaker_zip(dist, plugin=None):
     return target
 
 
+def unity_guide():
+    """The Unity developer guide (docs/developers/unity/), joined like the Godot one."""
+    return developer_guide(UNITY_PAGES, (), UNITY_GUIDE_TITLE, intro=True)
+
+
+def semver(version):
+    """The core's PEP 440 version as the semver UPM wants: 0.3.0, 0.3.0rc1 -> 0.3.0-rc.1."""
+    m = re.fullmatch(r"(\d+\.\d+\.\d+)(?:(a|b|rc)(\d+))?", version)
+    if m is None:
+        raise ValueError(f"cannot write version {version!r} as semver")
+    if m.group(2) is None:
+        return m.group(1)
+    tag = {"a": "alpha", "b": "beta", "rc": "rc"}[m.group(2)]
+    return f"{m.group(1)}-{tag}.{m.group(3)}"
+
+
+def unity_package_manifest(package=UNITY_PACKAGE):
+    return json.loads((package / "package.json").read_text(encoding="utf-8"))
+
+
+UNITY_NOTICES_NAME = "Third Party Notices.md"
+
+
+def unity_notices(package=UNITY_PACKAGE):
+    """The notices of the code the package ports, for its Third Party Notices.md (the name Unity's
+    own packages use).
+
+    The Nayuki notice is read from Runtime/Core/QrCodeGen.cs, where the port keeps it, so the two
+    cannot drift. The file is committed in the package (a git-URL install gets the folder as it
+    is), and unity_problems checks it is current.
+    """
+    lines = (package / "Runtime" / "Core" / "QrCodeGen.cs").read_text(encoding="utf-8").splitlines()
+    start = lines.index("// QR Code generator library (Python)")
+    end = next(i for i, line in enumerate(lines) if line.startswith("// Ported to C#"))
+    qr = "\n".join(line[3:] if line.startswith("// ") else "" for line in lines[start:end])
+    return (
+        "# Third-party notices\n\n"
+        "## QR Code generator (Runtime/Core/QrCodeGen.cs)\n\n"
+        "A C# port of Project Nayuki's QR Code generator library (Python). The original notice\n"
+        "follows.\n\n"
+        "```\n"
+        f"{qr.strip()}\n"
+        "```\n\n"
+        "## Keccak-256 (Runtime/Core/Keccak.cs)\n\n"
+        "A C# port of XKCP's CompactFIPS202 sponge (Gilles Van Assche, https://keccak.team/).\n"
+        "To the extent possible under law, the implementer has waived all copyright and related\n"
+        "or neighboring rights to the source code (CC0,\n"
+        "http://creativecommons.org/publicdomain/zero/1.0/).\n"
+    )
+
+
+UNITY_VERSION_CONSTANT = re.compile(r'public const string Text = "([^"]*)";')
+
+
+def unity_version_constant(package=UNITY_PACKAGE):
+    """Scfg.Core.PackageVersion.Text (Runtime/Core/PackageVersion.cs), or None when not found."""
+    source = package / "Runtime" / "Core" / "PackageVersion.cs"
+    if not source.is_file():
+        return None
+    found = UNITY_VERSION_CONSTANT.search(source.read_text(encoding="utf-8"))
+    return found.group(1) if found else None
+
+
+def unity_problems(package=UNITY_PACKAGE):
+    """What stops the Unity tarball: the version (package.json and the C# constant), the license
+    and changelog copies, .meta files, the page copy."""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import check_unity_changelog
+    import check_unity_meta
+    import check_unity_samples
+    import sync_web_page
+
+    out = []
+    manifest = unity_package_manifest(package)
+    if manifest.get("version") != semver(__version__):
+        out.append(
+            f"package.json version {manifest.get('version')} != scfg_core {__version__} "
+            f"(as semver: {semver(__version__)})"
+        )
+    constant = unity_version_constant(package)
+    if constant != semver(__version__):
+        out.append(
+            f"PackageVersion.Text {constant} (Runtime/Core/PackageVersion.cs) != scfg_core "
+            f"{__version__} (as semver: {semver(__version__)})"
+        )
+    license_copy = package / "LICENSE.md"
+    if not license_copy.is_file() or license_copy.read_text(encoding="utf-8") != (
+        ROOT / "LICENSE"
+    ).read_text(encoding="utf-8"):
+        out.append(f"{license_copy.name} is not a copy of LICENSE")
+    out += check_unity_changelog.problems(package)
+    notices = package / UNITY_NOTICES_NAME
+    if not notices.is_file() or notices.read_text(encoding="utf-8") != unity_notices(package):
+        out.append(
+            f"{UNITY_NOTICES_NAME} is missing or stale: uv run python tools/package.py "
+            "--engine unity --write-notices"
+        )
+    out += check_unity_meta.problems(package.parent)
+    out += check_unity_samples.problems(package / "Samples~", package / "package.json")
+    web = package / sync_web_page.UNITY_TARGET.relative_to(UNITY_PACKAGE)
+    out += [f"checkout page copy: {x}" for x in sync_web_page.check(sync_web_page.SRC, web)]
+    return out
+
+
+def unity_files_to_ship(package=UNITY_PACKAGE):
+    """(path, name) for the tarball's files under package/, sorted: everything in the package
+    folder but hidden entries and editor backups (files ending in ~, which the .meta check
+    skips; the Samples~ and Documentation~ folders do ship)."""
+    for path in sorted(package.rglob("*")):
+        rel = path.relative_to(package)
+        if path.is_dir() or path.name.endswith("~"):
+            continue
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        yield path, "package/" + rel.as_posix()
+
+
+def _tar_add(tar, name, data, mode=0o644):
+    info = tarfile.TarInfo(name)
+    info.size = len(data)
+    info.mode = mode
+    info.mtime = 0
+    info.uid = info.gid = 0
+    info.uname = info.gname = ""
+    tar.addfile(info, io.BytesIO(data))
+
+
+def build_unity_tgz(dist, package=UNITY_PACKAGE):
+    """dist/scfg-unity-<version>.tgz (see the module docstring). Reproducible: sorted entries, no
+    timestamps or owners."""
+    problems = unity_problems(package)
+    if problems:
+        raise ValueError("the Unity package is not ready:\n  " + "\n  ".join(problems))
+    dist.mkdir(parents=True, exist_ok=True)
+    target = dist / f"scfg-unity-{__version__}.tgz"
+    raw = io.BytesIO()
+    with tarfile.open(fileobj=raw, mode="w", format=tarfile.PAX_FORMAT) as tar:
+        for path, name in unity_files_to_ship(package):
+            if name == "package/" + UNITY_GUIDE_NAME:
+                raise ValueError(f"{path} would be overwritten by the generated guide")
+            # the repository's changelog itself (unity_problems checked that the copy is the same)
+            is_changelog = name == UNITY_CHANGELOG
+            data = (ROOT / "CHANGELOG.md").read_bytes() if is_changelog else path.read_bytes()
+            _tar_add(tar, name, data)
+            print(f"  {name}")
+        name = "package/" + UNITY_GUIDE_NAME
+        _tar_add(tar, name, unity_guide().encode("utf-8"))
+        print(f"  {name}")
+    with open(target, "wb") as out, gzip.GzipFile(
+        filename="", mode="wb", fileobj=out, mtime=0
+    ) as gz:
+        gz.write(raw.getvalue())
+    return target
+
+
 def build_renpy_zip(dist):
     dist.mkdir(exist_ok=True)
     target = dist / f"scfg-renpy-{__version__}.zip"
@@ -358,15 +552,48 @@ def build_renpy_zip(dist):
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="Build a release zip into dist/.")
-    parser.add_argument("--engine", choices=("renpy", "godot", "rpgmaker"), default="renpy")
+    parser = argparse.ArgumentParser(description="Build a release archive into dist/.")
+    parser.add_argument(
+        "--engine", choices=("renpy", "godot", "rpgmaker", "unity", "unreal"), default="renpy"
+    )
+    parser.add_argument(
+        "--write-notices",
+        action="store_true",
+        help=f"with --engine unity: (re)write the package's {UNITY_NOTICES_NAME}, then exit",
+    )
     args = parser.parse_args(argv)
+    if args.write_notices:
+        if args.engine != "unity":
+            parser.error("--write-notices goes with --engine unity")
+        target = UNITY_PACKAGE / UNITY_NOTICES_NAME
+        target.write_bytes(unity_notices().encode("utf-8"))
+        print(f"wrote {target}")
+        return 0
     dist = ROOT / "dist"
-    builders = {"renpy": build_renpy_zip, "godot": build_godot_zip, "rpgmaker": build_rpgmaker_zip}
-    build = builders[args.engine]
-    print(f"wrote {build(dist)}")
+    try:
+        if args.engine == "unreal":
+            import package_unreal
+
+            targets = package_unreal.build_all(dist)
+        else:
+            builders = {
+                "renpy": build_renpy_zip,
+                "godot": build_godot_zip,
+                "rpgmaker": build_rpgmaker_zip,
+                "unity": build_unity_tgz,
+            }
+            targets = [builders[args.engine](dist)]
+    except ValueError as error:
+        # not ready to ship (a version mismatch, a stale copy, ...): the reason, not a traceback
+        print(f"package.py --engine {args.engine}: {error}", file=sys.stderr)
+        return 1
+    for target in targets:
+        print(f"wrote {target}")
     return 0
 
 
 if __name__ == "__main__":
+    # tools/package_unreal.py imports this file as the module "package": run as a script it is
+    # "__main__", so register it under that name too, or the import would run it a second time
+    sys.modules.setdefault("package", sys.modules[__name__])
     raise SystemExit(main())

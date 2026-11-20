@@ -11,6 +11,7 @@ import { normalizeAnyTx } from "../../rpgmaker/src/core/backends/index.ts";
 import { bytesToHex, hexToBytes } from "../../rpgmaker/src/core/bytes.ts";
 import { getChains } from "../../rpgmaker/src/core/chains.ts";
 import { addItem, buildChain, buildConfig, type Config } from "../../rpgmaker/src/core/config.ts";
+import { onrampView } from "../../rpgmaker/src/core/checkout.ts";
 import { preparePayment } from "../../rpgmaker/src/core/payments.ts";
 import { Dec } from "../../rpgmaker/src/core/decimal.ts";
 import { ConfigError, ValueError } from "../../rpgmaker/src/core/errors.ts";
@@ -20,7 +21,7 @@ import {
 import { keccak256 } from "../../rpgmaker/src/core/keccak.ts";
 import type { Item } from "../../rpgmaker/src/core/models.ts";
 import { parseBuildMessage, parseTxMessage } from "../../rpgmaker/src/core/page_messages.ts";
-import { eip681TransferUri, qrMatrix, qrRects } from "../../rpgmaker/src/core/paylinks.ts";
+import { eip681TransferUri, onrampAmount, onrampUrl, qrMatrix, qrRects } from "../../rpgmaker/src/core/paylinks.ts";
 import { pyInt } from "../../rpgmaker/src/core/pystr.ts";
 import { RpcError, suggestedRange } from "../../rpgmaker/src/core/rpc.ts";
 import { SolanaRpc } from "../../rpgmaker/src/core/solana/rpc.ts";
@@ -150,6 +151,11 @@ FUNCS["eip681_transfer_uri"] = (i) => eip681TransferUri({
   token_address: field(i, "token_address", "string"), chain_id: field(i, "chain_id", "number"),
   recipient: field(i, "recipient", "string"), units: unitsIn(i.units),
 });
+FUNCS["onramp_amount"] = (i) => onrampAmount(unitsIn(i.units), field(i, "gas_is_token", "boolean"));
+FUNCS["onramp_url"] = (i) => onrampUrl(field(i, "template", "string"), {
+  chain: field(i, "chain", "string"), chainId: field(i, "chain_id", "number"), token: field(i, "token", "string"),
+  tokenAddress: field(i, "token_address", "string"), amount: field(i, "amount", "string"),
+});
 FUNCS["solana_pay_uri"] = (i) => solanaPayUri({
   recipient: field(i, "recipient", "string"), units: unitsIn(i.units), mint: field(i, "mint", "string"),
   reference: field(i, "reference", "string"), label: field(i, "label", "string"), message: field(i, "message", "string"),
@@ -274,6 +280,15 @@ FUNCS["build_chain"] = (i) => {
   return toJsonable(buildChain(key, rest));
 };
 FUNCS["build_config"] = (i) => toJsonable(configFrom(i));
+FUNCS["onramp_view"] = (i) => {
+  const amount = Dec.parse(field<string>(i, "amount", "string"));
+  if (!(amount instanceof Dec)) throw new ValueError("amount must be finite");
+  return onrampView(configFrom(i.config), {
+    token: field(i, "token", "string"), chainKey: i.chain_key === null ? null : field(i, "chain_key", "string"),
+    units: i.units === null ? null : unitsIn(i.units), amount, step: field(i, "step", "string"), path: i.path,
+    canGoBack: field(i, "can_go_back", "boolean"), optionKeys: i.option_keys,
+  });
+};
 FUNCS["add_item"] = (i) => {
   const config = withItems(i.config, i.existing ?? []);
   const { item_id, rest } = itemKwargs(i.item);

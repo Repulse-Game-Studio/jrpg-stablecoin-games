@@ -819,6 +819,21 @@ func test_mobile_offers_wallet_app_link() -> bool:
 	return T.done()
 
 
+func test_the_buy_link_opens_the_onramp_page() -> bool:
+	var env := await _make("onramp")
+	var s: Node = env["node"]
+	var host: FakeHost = env["host"]
+	var platform: FakePlatform = env["platform"]
+	_pay(s, "unlock", {"item": "chapter2"})
+	var ctl := await _session(s, host)
+	var url: Variant = ctl.onramp_url()
+	T.ok(url is String and (url as String).begins_with("https://thirdweb.com/bridge/buy-widget?chain=42161&"), "the buy page (%s)" % [url])
+	s.open_onramp(ctl)
+	T.eq(platform.opened, [url], "opened in the browser")
+	await _drop(env)
+	return T.done()
+
+
 func test_copy_and_paste_use_the_clipboard() -> bool:
 	var env := await _make("clipboard")
 	var s: Node = env["node"]

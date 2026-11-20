@@ -21,10 +21,28 @@
 ## (the chain waits for the command: deadlock); call it without await, or just use wake().
 ##
 ## A command submitted while the commands run joins them (the queue is drained until empty, as in
-## Python); one submitted during the tick is executed by the follow-up run, never inside the tick. stop()
+## Python); one submitted during the tick is executed by the follow-up run, never inside the tick
+## (but the tick yields to it: see COMMANDS COME FIRST). stop()
 ## cancels the timer and queued jobs and prevents loop and follow-up runs (a pass already in flight
 ## finishes); a submit after stop() is cancelled at once, before the first start() it queues.
 ## An explicit run_once() after stop() still runs one pass.
+##
+## ABANDONING. Commands run one at a time, so a session start the player moved away from (another
+## network, another amount, Cancel) would hold up the start that replaced it until its RPC requests
+## ran out. `ScfgJob.abandon()` prevents that: a job that has not started is cancelled, and a
+## running one ends with an Abandoned ScfgErr (not a TransportError: no endpoint cools down) at
+## once, its request in flight included (ScfgEngine.refuse_in_flight: the transport is told to stop
+## it, and its answer is dropped).
+##
+## COMMANDS COME FIRST. A tick is background work (watching pending payments), and every command is
+## the player's (a start they are waiting on, a hint, a restore): a command submitted while
+## Engine.tick runs makes the tick yield the same way, its request in flight ending with Abandoned
+## and every further one refused while a command waits. The tick keeps the outcomes it already has
+## (ScfgEngine.tick stops between or inside a session's step, as a network failure would; the
+## interrupted session is stepped again by the next tick), and the command runs next, in the
+## follow-up run, whose tick comes after it. Only the tick yields, never the first run's reverify,
+## and a yielded tick is no error (on_error never hears of it). Both need an Engine with
+## `refuse_requests` (ScfgEngine's); another engine's jobs and ticks just run to their end.
 ##
 ## Options: `interval` (Callable -> seconds, default 15.0), `on_error` (Callable taking the ScfgErr
 ## a timer-driven run failed with), `scheduler` (an object with schedule(callable, seconds) ->
@@ -47,6 +65,7 @@ var _tree: Variant = null
 var _commands: Array = []  # [{"fn": Callable, "job": ScfgJob}]
 var _outcomes: Array = []
 var _first := true
+var _ticking := false  # Engine.tick runs, refusing its requests while a command waits
 var _in_flight := false  # a run (plus its follow-ups) is in progress
 var _again := false  # a wake()/submit()/run_once() landed mid-run
 var _chain_failure: Variant = null
@@ -75,6 +94,8 @@ func submit(fn: Callable) -> ScfgJob:
 		job.cancel()
 		return job
 	_commands.append({"fn": fn, "job": job})
+	if _ticking:
+		_refuse_in_flight()  # commands come first (see the header)
 	wake()
 	return job
 
@@ -129,7 +150,14 @@ func _pass() -> Variant:
 		if not fn.is_valid():
 			job._fail(ScfgErr.make("RuntimeError", "command is not a valid Callable"))
 			continue
+		var refusing: bool = "refuse_requests" in engine
+		if refusing:
+			engine.refuse_requests = func() -> bool: return job.abandoned  # this job's requests, refused once abandoned
+			job._on_abandon = _refuse_in_flight
 		var value: Variant = await fn.call(engine)
+		if refusing:
+			job._on_abandon = Callable()
+			engine.refuse_requests = Callable()
 		if value is ScfgErr:
 			job._fail(value)
 		else:
@@ -139,7 +167,16 @@ func _pass() -> Variant:
 		var removed: Variant = await engine.reverify()
 		if removed is ScfgErr:
 			return removed
+	var yields: bool = "refuse_requests" in engine
+	if yields:
+		engine.refuse_requests = func() -> bool: return not _commands.is_empty()  # commands come first
+		_ticking = true
 	var outcomes: Variant = await engine.tick()
+	if outcomes is ScfgErr and (outcomes as ScfgErr).is_a("Abandoned"):
+		outcomes = []  # an engine whose tick does not keep its outcomes when it yields: no error
+	if yields:
+		_ticking = false
+		engine.refuse_requests = Callable()
 	if outcomes is ScfgErr:
 		return outcomes
 	for o: Variant in outcomes:
@@ -152,6 +189,12 @@ func _pass() -> Variant:
 		return snap
 	snapshot = snap
 	return null
+
+
+## The running job was abandoned, or a command came in during the tick: end the request in flight.
+func _refuse_in_flight() -> void:
+	if engine.has_method("refuse_in_flight"):
+		engine.refuse_in_flight()
 
 
 func start() -> void:

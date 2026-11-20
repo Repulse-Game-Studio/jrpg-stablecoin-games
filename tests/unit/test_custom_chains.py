@@ -49,6 +49,12 @@ def test_build_chain_allows_plain_http_on_this_computer(url):
     assert avalanche(rpc=url).rpc == (url,)
 
 
+@pytest.mark.parametrize("url", ["http://127.0.0.1:4000/tx/{}", "http://localhost/tx/{}"])
+def test_build_chain_allows_a_plain_http_explorer_on_this_computer(url):
+    c = avalanche(rpc="http://127.0.0.1:8545", explorer_tx=url)
+    assert c.explorer_url("0xab") == url.format("0xab")
+
+
 @pytest.mark.parametrize("kw", [
     dict(key="Avalanche"), dict(key="a:b"), dict(key=""), dict(key="x" * 33),
     dict(name=""), dict(name="x" * 33), dict(name=None),
@@ -60,6 +66,7 @@ def test_build_chain_allows_plain_http_on_this_computer(url):
     dict(tokens=[("USDC", AVAX_USDC)]),
     dict(confirmations=0), dict(confirmations=None),
     dict(explorer_tx="https://snowtrace.io/tx/"), dict(explorer_tx="http://snowtrace.io/tx/{}"),
+    dict(explorer_tx="http://127.0.0.1.evil.com/tx/{}"),
     dict(explorer_tx="https://x.example/{}/{}"), dict(explorer_tx="https://x.example/{0}{}"),
     dict(explorer_tx="https://x.example/{tx}?{}"),
     dict(native_symbol=""), dict(native_symbol="A V"), dict(native_symbol="AVAX\n"),

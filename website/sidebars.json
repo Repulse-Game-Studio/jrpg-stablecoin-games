@@ -47,10 +47,24 @@
     },
     {
       "type": "category",
+      "label": "For Unity developers",
+      "collapsed": false,
+      "link": {"type": "doc", "id": "developers/unity/README"},
+      "items": ["developers/unity/install", "developers/unity/api"]
+    },
+    {
+      "type": "category",
       "label": "For RPG Maker MZ developers",
       "collapsed": false,
       "link": {"type": "doc", "id": "developers/rpgmaker/README"},
       "items": ["developers/rpgmaker/install", "developers/rpgmaker/api"]
+    },
+    {
+      "type": "category",
+      "label": "For Unreal developers",
+      "collapsed": false,
+      "link": {"type": "doc", "id": "developers/unreal/README"},
+      "items": ["developers/unreal/install", "developers/unreal/api"]
     }
   ]
 }

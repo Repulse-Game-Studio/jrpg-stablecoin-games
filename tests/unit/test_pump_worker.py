@@ -9,7 +9,7 @@ from scfg_core.config import add_item, build_config
 from scfg_core.engine import Engine, Snapshot
 from scfg_core.pump_worker import PumpWorker
 from scfg_core.watcher import StepOutcome
-from scfg_core.worker import Worker
+from scfg_core.worker import Abandoned, Worker, abandon
 
 from fakes import FakeClock, FakeTransport, transfer_log
 
@@ -24,6 +24,7 @@ class FakeBridge:
     def __init__(self):
         self.sent = {}       # id -> payload
         self.answers = {}    # id -> envelope
+        self.cancelled = []  # ids the worker cancelled (bridge.cancel)
         self.next = 1
 
     def start(self, url, body, timeout):
@@ -34,6 +35,10 @@ class FakeBridge:
 
     def poll(self, rid):
         return self.answers.pop(rid, None)
+
+    def cancel(self, rid):
+        self.cancelled.append(rid)
+        self.answers.pop(rid, None)
 
     def answer(self, rid, result=None, *, error=None):
         self.answers[rid] = ({"error": error} if error else
@@ -98,21 +103,41 @@ def test_answers_resume_the_job_and_publish_outcomes_and_snapshot():
     assert w.drain_outcomes() == []
 
 
-def test_a_command_submitted_mid_tick_waits_for_the_tick():
+def test_a_command_submitted_mid_tick_makes_the_tick_yield():
+    """The player's command does not wait behind a background tick. The tick's request in
+    flight is cancelled (its answer is never kept), the command runs next, and the next tick
+    comes after it. No error is reported for the yield."""
     engine, bridge, w, _ = make()
+    errors = []
+    w.on_error = errors.append
     w.pump()
     bridge.answer(1, "ok")
     w.pump()                                            # tick in flight (id 2)
     fut = w.submit(lambda e: e.command("choose"))
     w.pump()
-    assert bridge.last() == (2, "tick") and not fut.done()
-    bridge.answer(2, 1)
-    w.pump()
+    assert bridge.cancelled == [2]
     assert bridge.last() == (3, "choose")
     bridge.answer(3, "chosen")
     w.pump()
     assert fut.result(timeout=0) == "chosen"
-    assert engine.log == ["reverify:ok", "tick:1", "choose:chosen"]
+    assert bridge.last() == (4, "tick")                 # woken by the command
+    bridge.answer(4, 1)
+    w.pump()
+    assert engine.log == ["reverify:ok", "choose:chosen", "tick:1"]
+    assert errors == []
+
+
+def test_the_first_run_reverify_does_not_yield():
+    """Only Engine.tick_co yields: the launch reverify (run once) finishes first."""
+    engine, bridge, w, _ = make()
+    w.pump()                                            # reverify in flight (id 1)
+    fut = w.submit(lambda e: e.command("choose"))
+    w.pump()
+    assert bridge.cancelled == [] and bridge.last() == (1, "reverify") and not fut.done()
+    bridge.answer(1, "ok")
+    w.pump()                                            # the tick yields before its request
+    assert bridge.cancelled == [] and bridge.last() == (2, "choose")
+    assert engine.log == ["reverify:ok"]
 
 
 def test_commands_run_before_a_due_tick_and_plain_results_resolve_at_once():
@@ -333,3 +358,20 @@ def test_unreachable_endpoints_surface_network_unavailable():
     w.wake()
     w.pump()                          # returns: the game never waits on the network
     assert [o.error for o in w.drain_outcomes()] == ["network_unavailable"]
+
+
+def test_an_abandoned_job_stops_waiting_for_its_request_and_the_next_one_starts():
+    engine, bridge, w, _ = make()
+    first = w.submit(lambda e: e.command("start_a"))
+    w.pump()
+    assert bridge.last() == (1, "start_a")
+    second = w.submit(lambda e: e.command("start_b"))
+    abandon(first)                              # the player picked another network
+    w.pump()
+    with pytest.raises(Abandoned):
+        first.result(timeout=0)
+    assert bridge.last() == (2, "start_b")      # not behind the fetch still in flight
+    bridge.answer(1, result="late")             # the abandoned fetch's late answer is ignored
+    bridge.answer(2, result="b")
+    w.pump()
+    assert second.result(timeout=0) == "b"

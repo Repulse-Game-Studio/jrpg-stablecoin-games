@@ -1,0 +1,6 @@
+{
+    "name": "Scfg.Core",
+    "rootNamespace": "Scfg.Core",
+    "noEngineReferences": true,
+    "autoReferenced": true
+}

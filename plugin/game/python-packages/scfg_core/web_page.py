@@ -50,6 +50,10 @@ class WebPage:
         text = self.js.run_script_string(f"scfgBridge.result({int(request_id)})")
         return json.loads(text) if text else None
 
+    def cancel(self, request_id: int) -> None:
+        """Abort a request nobody waits for any more; its answer is never kept."""
+        self.js.run_script(f"scfgBridge.cancel({int(request_id)})")
+
     # --- wallets ---------------------------------------------------------------------------
 
     def has_wallet(self, chain) -> bool:

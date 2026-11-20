@@ -15,6 +15,7 @@ from .chains import DISPLAY_ORDER, Chain, Token, get_chains
 from .errors import ConfigError
 from .evm import normalize_address
 from .models import Item
+from .paylinks import ONRAMP_FIELDS, ONRAMP_PLACEHOLDER, ONRAMP_URL
 from .rpc import MIN_LOG_RANGE
 from .solana.base58 import b58decode, normalize_pubkey
 from .solana.ed25519 import is_on_curve
@@ -25,6 +26,10 @@ DEFAULT_METHODS = {
     "qr": {"enabled": True, "wallet_button": True, "chains": None},
     "manual": {"enabled": True, "allow_tx_paste": True},
 }
+# The "No USDC yet? Buy some with a card" link. chains=None: the built-in EVM chains of a
+# mainnet game (card purchases don't exist on test networks); a list chooses the chains.
+DEFAULT_ONRAMP = {"enabled": True, "url": ONRAMP_URL, "chains": None}
+ONRAMP_URL_LIMIT = 2048
 # Used with fullmatch: the whole string (`$` would also match before a trailing newline).
 _ITEM_ID = re.compile(r"[a-z0-9_-]{1,64}")
 _CHAIN_KEY = re.compile(r"[a-z0-9_-]{1,32}")
@@ -56,6 +61,9 @@ class Config:
     logo: str | None = None          # Ren'Py image path, shown on the screens and the checkout page
     accent: str = DEFAULT_ACCENT     # #rrggbb used for selected options
     custom_chains: dict[str, Chain] = field(default_factory=dict)  # add_chain(), this network
+    # {"enabled": bool, "url": template, "chains": the chain keys the buy link is offered on}
+    onramp: dict = field(default_factory=lambda: {"enabled": False, "url": ONRAMP_URL,
+                                                  "chains": ()})
     items: dict[str, Item] = field(default_factory=dict)
 
     @property
@@ -155,9 +163,12 @@ def build_chain(key, *, name, chain_id, rpc, tokens, confirmations, explorer_tx,
                               code="chain.unknown_token")
         parsed[symbol] = Token(_address(address, f"{what}: {symbol} address"))
     confirmations = _positive_int(confirmations, f"{what}: confirmations")
-    if (not isinstance(explorer_tx, str) or not explorer_tx.startswith("https://")
+    # http:// only for an explorer on this machine (a local devnet's), as for the rpc urls.
+    if (not isinstance(explorer_tx, str)
+            or not (explorer_tx.startswith("https://") or _LOCAL_HTTP.match(explorer_tx))
             or explorer_tx.count("{}") != 1):
-        raise ConfigError(f"{what}: explorer_tx must be an https:// URL with {{}} where the "
+        raise ConfigError(f"{what}: explorer_tx must be an https:// URL (http:// only on "
+                          f"127.0.0.1 or localhost) with {{}} where the "
                           f"transaction hash goes, like 'https://snowtrace.io/tx/{{}}'",
                           code="chain.bad_explorer_tx")
     try:
@@ -281,9 +292,70 @@ def _merge_methods(methods: dict | None, chains: tuple[str, ...]) -> dict[str, d
     return merged
 
 
+_HTTPS = "https://"
+
+
+def _onramp_url(value) -> str:
+    """An https:// URL of printable ASCII (no spaces) whose only braces are placeholders
+    from ONRAMP_FIELDS, like '{chain_id}'. A host must follow https://: its first character is
+    not a brace, '/', '?' or '#' ('https://', 'https:///buy' and 'https://{amount}' are refused)."""
+    if (not isinstance(value, str) or not value.startswith(_HTTPS)
+            or len(value) > ONRAMP_URL_LIMIT or any(not "!" <= ch <= "~" for ch in value)
+            or value[len(_HTTPS):][:1] in ("", "{", "}", "/", "?", "#")):
+        raise ConfigError("onramp url must be an https:// URL with a host, without spaces, "
+                          f"at most {ONRAMP_URL_LIMIT} characters: {value!r}",
+                          code="onramp.bad_url")
+    for name in ONRAMP_PLACEHOLDER.findall(value):
+        if name not in ONRAMP_FIELDS:
+            raise ConfigError(f"onramp url: unknown placeholder {{{name}}} (use "
+                              + ", ".join(f"{{{f}}}" for f in ONRAMP_FIELDS) + ")",
+                              code="onramp.unknown_placeholder")
+    rest = ONRAMP_PLACEHOLDER.sub("", value)
+    if "{" in rest or "}" in rest:
+        raise ConfigError(f"onramp url: unmatched brace in {value!r}",
+                          code="onramp.unmatched_brace")
+    return value
+
+
+def _merge_onramp(onramp, chains: tuple[str, ...], registry: dict[str, Chain],
+                  testnet: bool) -> dict:
+    if onramp is not None and not isinstance(onramp, dict):
+        raise ConfigError("onramp must be a dict like {'enabled': False}",
+                          code="onramp.not_a_dict")
+    merged = dict(DEFAULT_ONRAMP)
+    for key, value in (onramp or {}).items():
+        if key not in merged:
+            raise ConfigError(f"unknown option {key!r} for onramp", code="onramp.unknown_option")
+        merged[key] = value
+    if not isinstance(merged["enabled"], bool):
+        raise ConfigError("onramp.enabled must be True or False", code="onramp.enabled_not_bool")
+    url = _onramp_url(merged["url"])
+    keys = merged["chains"]
+    if keys is None:
+        builtin = get_chains(testnet)
+        keys = () if testnet else tuple(
+            k for k in chains if k in builtin and registry[k].family == "evm")
+    else:
+        if not isinstance(keys, (list, tuple)):
+            raise ConfigError("onramp.chains must be a list of chain keys",
+                              code="onramp.chains_not_a_list")
+        keys = tuple(keys)
+        for c in keys:
+            if not isinstance(c, str) or c not in chains:
+                raise ConfigError(f"onramp.chains contains disabled chain {c!r}",
+                                  code="onramp.disabled_chain")
+            if registry[c].family != "evm":
+                raise ConfigError(f"onramp.chains: {c!r} is not an EVM chain; the buy link "
+                                  "is offered on EVM chains only", code="onramp.not_evm")
+        if len(set(keys)) != len(keys):
+            raise ConfigError("duplicate chain in onramp.chains", code="onramp.duplicate_chain")
+    return {"enabled": merged["enabled"], "url": url, "chains": keys}
+
+
 def build_config(wallet=None, *, testnet=False, chains=None, tokens=None, methods=None,
                  rpc_urls=None, confirmations=None, previous_wallets=None,
-                 logo=None, accent=None, custom_chains=None, solana_wallet=None) -> Config:
+                 logo=None, accent=None, custom_chains=None, solana_wallet=None,
+                 onramp=None) -> Config:
     """custom_chains: Chains from build_chain(); those of the other network are ignored."""
     testnet = bool(testnet)
     custom, other_network = _custom_chains(custom_chains, testnet)
@@ -330,6 +402,7 @@ def build_config(wallet=None, *, testnet=False, chains=None, tokens=None, method
             raise ConfigError(f"unknown token: {t!r}", code="tokens.unknown")
 
     merged = _merge_methods(methods, chains)
+    buy = _merge_onramp(onramp, chains, registry, testnet)
 
     urls: dict[str, tuple[str, ...]] = {}
     for c, lst in (rpc_urls or {}).items():
@@ -354,7 +427,7 @@ def build_config(wallet=None, *, testnet=False, chains=None, tokens=None, method
     cfg = Config(wallet=wallet, testnet=testnet, chains=chains, tokens=tokens,
                  methods=merged, rpc_urls=urls, confirmations=confs, previous_wallets=tuple(prev),
                  solana_wallet=sol, previous_solana_wallets=tuple(prev_sol),
-                 logo=_logo(logo), accent=_accent(accent), custom_chains=custom)
+                 logo=_logo(logo), accent=_accent(accent), custom_chains=custom, onramp=buy)
     if not enabled_chains(cfg):
         raise ConfigError("no enabled chain supports any enabled token",
                           code="config.no_usable_token")

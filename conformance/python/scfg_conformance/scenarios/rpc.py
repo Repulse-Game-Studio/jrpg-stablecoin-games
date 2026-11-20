@@ -18,6 +18,7 @@ from ..scenario import scenario
 from .fixtures import AVALANCHE, AVAX_USDC, CHAPTER2, DEV_EVM, PAYER_EVM, covers, tx_hash
 
 A, B, C = "https://rpc-a.example", "https://rpc-b.example", "https://rpc-c.example"
+D = "https://rpc-d.example"
 _RANGE_ERROR = "block range too large"
 COOLDOWN_START, COOLDOWN_MAX = int(_START), int(_MAX)     # the scenario clock counts whole seconds
 
@@ -72,6 +73,76 @@ def _healthy(s):
     assert (call["url"], call["method"], call["params"]) == (A, "eth_blockNumber", [])
     assert '"0x1b4"' in call["response_text"]
     assert rec["start_block"] == 431
+
+
+@scenario("rpc/a_call_spends_at_most_its_budget", covers=covers(
+    "rpc_client", "a_call_spends_at_most_its_budget_across_endpoints",
+    "each_attempt_waits_at_most_what_is_left_of_the_budget"))
+def _call_budget(s):
+    """Four endpoints that never answer: a session start asks A for its full 10 s timeout, B for
+    the 5 s left of the 15 s budget, and gives up without asking C or D (not cooled down, so the
+    next call asks C first). The replaying port must make the same requests with the same
+    timeouts (each hanging call's `elapsed`), its clock moving by them."""
+    s.config(wallet=DEV_EVM, chains=["avalanche"])
+    s.custom_chain(**dict(AVALANCHE, rpc=[A, B, C, D]))
+    s.item(**CHAPTER2)
+    node = s.evm("avalanche")
+    for url in (A, B, C, D):
+        node.endpoint(url).hangs = True
+    started = s.now
+    s.expect("other").start_session("unlock", "avalanche", item="chapter2")
+    calls = s.steps[-1]["calls"]
+    assert [(c["url"], c["elapsed"]) for c in calls] == [(A, 10), (B, 5)]
+    assert s.now == started + 15
+    node.endpoint(C).hangs = False
+    rec = s.start_session("unlock", "avalanche", item="chapter2")
+    assert _urls(s) == [C] and rec["start_block"] == 995
+
+
+@scenario("rpc/an_endpoint_is_not_asked_with_less_than_the_floor_left", covers=covers(
+    "rpc_client", "an_endpoint_is_not_asked_with_less_than_the_floor_left"))
+def _call_floor(s):
+    """A hangs (its 10 s), B takes 4 s to say it is rate limited: 1 s of the 15 s budget is
+    left, under the 2 s floor, so C is not asked with it, nor cooled down. The next start asks
+    C first (A and B cool down). The replaying port moves its clock by each call's `elapsed`
+    and `took`."""
+    s.config(wallet=DEV_EVM, chains=["avalanche"])
+    s.custom_chain(**dict(AVALANCHE, rpc=[A, B, C]))
+    s.item(**CHAPTER2)
+    node = s.evm("avalanche")
+    node.endpoint(A).hangs = True
+    node.endpoint(B).slow = 4
+    node.endpoint(B).rate_limited = True
+    started = s.now
+    s.expect("other").start_session("unlock", "avalanche", item="chapter2")
+    calls = s.steps[-1]["calls"]
+    timing = [(c["url"], c.get("elapsed"), c.get("took")) for c in calls]
+    assert timing == [(A, 10, None), (B, None, 4)]
+    assert s.now == started + 14
+    rec = s.start_session("unlock", "avalanche", item="chapter2")
+    assert _urls(s) == [C] and rec["start_block"] == 995
+
+
+@scenario("rpc/an_endpoint_is_asked_with_exactly_the_floor_left", covers=covers(
+    "rpc_client", "the_floor_is_asked_at_exactly_min_attempt_left"))
+def _call_floor_boundary(s):
+    """The floor's boundary: A hangs (10 s), B takes 3 s to say it is rate limited, so exactly
+    the 2 s floor is left: C is asked, with a 2 s timeout (it hangs, so the replay checks that
+    timeout through its `elapsed`), and D is not. (rpc/an_endpoint_is_not_asked_with_less_than_
+    the_floor_left is the side just under it.)"""
+    s.config(wallet=DEV_EVM, chains=["avalanche"])
+    s.custom_chain(**dict(AVALANCHE, rpc=[A, B, C, D]))
+    s.item(**CHAPTER2)
+    node = s.evm("avalanche")
+    node.endpoint(A).hangs = True
+    node.endpoint(B).slow = 3
+    node.endpoint(B).rate_limited = True
+    node.endpoint(C).hangs = True
+    started = s.now
+    s.expect("other").start_session("unlock", "avalanche", item="chapter2")
+    timing = [(c["url"], c.get("elapsed"), c.get("took")) for c in s.steps[-1]["calls"]]
+    assert timing == [(A, 10, None), (B, None, 3), (C, 2, None)]
+    assert s.now == started + 15
 
 
 @scenario("rpc/receipt_and_block_hash_requests", covers=covers(

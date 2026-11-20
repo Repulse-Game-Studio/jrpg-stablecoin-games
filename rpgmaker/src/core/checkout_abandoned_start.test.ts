@@ -67,10 +67,32 @@ test("test_cancel_while_starting_leaves_no_session_to_expire", async () => {
 test("test_a_failed_abandoned_start_needs_no_discard", async () => {
   const { ctl, engine, submit } = setup();
   ctl.chooseNetwork("arbitrum");
-  ctl.cancel();
   const { job } = submit.queue.shift()!;
-  job._start();
+  assert.ok(job._start()); // the start is running when the player cancels
+  ctl.cancel();
   job._fail(new Error("rpc down"));
   await submit.run();
   assert.deepEqual(engine.pending, {});
+});
+
+test("test_a_superseded_start_that_has_not_run_is_cancelled_and_never_runs", async () => {
+  const { ctl, engine, submit } = setup();
+  ctl.chooseNetwork("arbitrum");
+  const first = submit.queue[0]!.job;
+  ctl.chooseNetwork("base");
+  assert.ok(first.cancelled(), "the new pick does not queue behind it");
+  await submit.run();
+  ctl.poll();
+  assert.ok(ctl.state === "waiting" && ctl.chain_key === "base");
+  assert.equal(submit.queue.length, 0, "nothing ran for arbitrum, so nothing is left to discard");
+  assert.deepEqual(Object.values(engine.pending).map((r) => r["chain"]), ["base"]);
+});
+
+test("test_a_running_superseded_start_is_marked_abandoned", () => {
+  const { ctl, submit } = setup();
+  ctl.chooseNetwork("arbitrum");
+  const first = submit.queue[0]!.job;
+  assert.ok(first._start());
+  ctl.chooseNetwork("base");
+  assert.ok(!first.cancelled() && first.abandoned, "its next RPC request is refused (worker.test.ts)");
 });

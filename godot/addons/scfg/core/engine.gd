@@ -51,6 +51,94 @@ var unready: Dictionary = {}
 var init_error: Variant = null
 var _rpc_factory: Callable
 var _rpcs: Dictionary = {}
+## While it returns true, the default RPC clients' requests are refused with an Abandoned ScfgErr:
+## the worker points it at the job it runs (worker.py's per-job transport: refused once the job is
+## abandoned) and, during a tick, at its command queue (a tick yields to a command), and calls
+## refuse_in_flight() the moment it may have turned true.
+var refuse_requests: Callable = Callable()
+var _refusing: RefusingTransport = null
+
+
+## The Engine's transport, refusing requests while refuse_requests says so; a request in flight
+## ends with Abandoned when refuse_in_flight() finds it refused. It holds the Engine weakly: the
+## Engine holds its RPC clients, which hold this.
+class RefusingTransport:
+	extends ScfgCoio.Transport
+
+	var _engine: WeakRef
+	var _flights: Array = []  # the _Flights in flight
+
+	func _init(engine_: Object) -> void:
+		_engine = weakref(engine_)
+
+	## @fallible
+	## @coroutine
+	func post_json(url: String, payload: Dictionary, timeout: float) -> Variant:
+		var e: Variant = _engine.get_ref()
+		if e == null or e.transport == null:
+			return ScfgErr.make("RuntimeError", "no transport to reach %s" % url)
+		if _refused(e):
+			return ScfgErr.make("Abandoned", "abandoned before its request to %s" % url)
+		var flight := _Flight.new(url)
+		_flights.append(flight)
+		flight.run.call(e.transport, payload, timeout)  # not awaited: it ends the flight with the answer
+		if not flight.done:
+			await flight.finished
+		_flights.erase(flight)
+		return flight.result
+
+	## See ScfgEngine.refuse_in_flight.
+	func end_refused() -> void:
+		var e: Variant = _engine.get_ref()
+		if e == null or not _refused(e):
+			return
+		var flights := _flights
+		_flights = []
+		for flight: _Flight in flights:
+			flight.abandon()
+
+	static func _refused(e: Variant) -> bool:
+		var refuse: Callable = e.refuse_requests
+		return refuse.is_valid() and bool(refuse.call())
+
+
+## One request in flight through the RefusingTransport: ended by the inner transport's answer or,
+## first, by abandon(), which stops the inner request where the transport can (post_json_cancellable)
+## and drops its answer either way. The waiting caller resumes deferred (at the end of the frame,
+## like an answer), never inside the abandon()/submit() call that refused it.
+class _Flight:
+	extends RefCounted
+	signal finished
+	var url: String
+	var done := false
+	var result: Variant = null
+	var _cancel := ScfgCoio.Cancel.new()
+
+	func _init(url_: String) -> void:
+		url = url_
+
+	func run(transport: Variant, payload: Dictionary, timeout: float) -> void:
+		var answer: Variant
+		if transport.has_method("post_json_cancellable"):
+			answer = await transport.post_json_cancellable(url, payload, timeout, _cancel)  # err-ok: handed on as the result
+		else:
+			answer = await transport.post_json(url, payload, timeout)  # err-ok: handed on as the result
+		if not done:  # else abandoned: the answer is dropped
+			done = true
+			result = answer
+			finished.emit()
+
+	func abandon() -> void:
+		if done:
+			return
+		done = true
+		result = _abandoned(url)  # err-ok: the result its caller gets
+		_cancel.cancel()
+		(func() -> void: finished.emit()).call_deferred()
+
+	## @fallible
+	static func _abandoned(url_: String) -> Variant:
+		return ScfgErr.make("Abandoned", "abandoned while its request to %s was in flight" % url_)
 
 
 func _init(config_: Dictionary, opts: Dictionary = {}) -> void:
@@ -119,6 +207,16 @@ static func _hashable(key: Variant) -> Variant:
 	return null
 
 
+## If refuse_requests now says so, every request in flight through the default RPC clients ends
+## at once with an Abandoned ScfgErr (its caller resumes at the end of the frame) and its transport
+## is told to stop it (ScfgCoio's CANCELLING; otherwise its late answer is dropped). The worker
+## calls it when the running job is abandoned or a command arrives while a tick runs, so a job
+## never waits on a request nobody needs any more. Nothing happens otherwise.
+func refuse_in_flight() -> void:
+	if _refusing != null:
+		_refusing.end_refused()
+
+
 # --- chains & RPC -----------------------------------------------------------------------------
 
 
@@ -170,7 +268,9 @@ func _default_rpc_factory(c: Dictionary) -> Variant:
 	if backend is ScfgErr:
 		return backend
 	var typed: ScfgBaseBackend = backend
-	return typed.make_rpc(c, transport, Callable())
+	if _refusing == null:
+		_refusing = RefusingTransport.new(self)
+	return typed.make_rpc(c, _refusing, Callable())
 
 
 # --- payments ---------------------------------------------------------------------------------
@@ -315,6 +415,9 @@ func discard_session(sid: Variant) -> Variant:
 
 ## Step every session, one after another in pending order (never concurrently), then report the
 ## payment windows that closed. Returns the StepOutcomes. A coroutine.
+## A tick whose requests are refused (Abandoned: a command the player waits on came in, worker.gd)
+## stops stepping there: the sessions not stepped yet, and the one interrupted (as by a network
+## failure), wait for the next tick; the outcomes so far are kept and the expiry still runs.
 ## @fallible
 func tick() -> Variant:
 	if init_error != null:
@@ -327,6 +430,8 @@ func tick() -> Variant:
 	for pair: Array in items:
 		var outcome: Variant = await _advance(pair[0], pair[1], now)
 		if outcome is ScfgErr:
+			if (outcome as ScfgErr).is_a("Abandoned"):
+				break  # the tick yields (see above)
 			return outcome  # not an Exception (a CancelledError): Python does not contain it
 		if outcome != null:
 			outcomes.append(outcome)
@@ -340,7 +445,8 @@ func tick() -> Variant:
 ## One session's step. A session this build can no longer watch (its chain left the registry, or
 ## the game stopped accepting that family) is kept until its scan horizon (null: no outcome),
 ## then closed. A failure in one session never stops the others: see _contained.
-## @fallible: only a CancelledError, which Python does not contain either
+## @fallible: only a CancelledError, which Python does not contain either, or an Abandoned (the
+## tick yields)
 func _advance(sid: Variant, rec: Variant, now: Variant) -> Variant:
 	var key: Variant = ScfgPy.py_get(rec, "chain")
 	if key is ScfgErr:
@@ -379,15 +485,16 @@ func _advance(sid: Variant, rec: Variant, now: Variant) -> Variant:
 ## Python's `except Exception as e: self.on_error(e); return StepOutcome(sid, "waiting",
 ## error="internal_error")`. A step's StepOutcome passes through. A returned ScfgErr is
 ## contained, and so is a step that returned anything else (null: a coroutine a script error
-## aborted), as a RuntimeError. A CancelledError (not an Exception) is returned uncontained.
-## @fallible: only a CancelledError
+## aborted), as a RuntimeError. A CancelledError (not an Exception) is returned uncontained, and so
+## is an Abandoned: no crash, the tick yields (tick).
+## @fallible: only a CancelledError or an Abandoned
 func _contained(sid: Variant, result: Variant) -> Variant:
 	if result is Dictionary:
 		return result
 	var err: ScfgErr
 	if result is ScfgErr:
 		err = result
-		if not err.is_a("Exception"):
+		if not err.is_a("Exception") or err.is_a("Abandoned"):
 			return err
 	else:
 		err = ScfgErr.make("RuntimeError", "the session step returned %s (aborted by a script error?)" % ScfgPy.py_type(result))

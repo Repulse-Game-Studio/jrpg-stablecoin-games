@@ -1,9 +1,39 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { eip681TransferUri, qrMatrix, qrRects } from "./paylinks.ts";
+import { ONRAMP_URL, eip681TransferUri, onrampAmount, onrampUrl, qrMatrix, qrRects } from "./paylinks.ts";
 import { solanaPayUri } from "./solana/paylinks.ts";
 import { asUnits } from "./amounts.ts";
 import { ValueError } from "./errors.ts";
+
+const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
+test("test_onramp_amount", () => {
+  for (const [units, gasIsToken, expected] of [
+    [4_993_742n, false, "5.00"], // rounded up to whole cents
+    [4_993_742n, true, "5.01"], // plus a cent for the fee where the token is the gas coin
+    [5_000_000n, false, "5.00"], // already whole cents
+    [5_000_001n, false, "5.01"],
+    [1_230_017n, true, "1.25"],
+    [0n, false, "0.00"],
+    [1n, false, "0.01"],
+    [10n ** 12n + 9999n, false, "1000000.01"],
+  ] as const) {
+    assert.equal(onrampAmount(asUnits(units), gasIsToken), expected, `${units} ${gasIsToken}`);
+  }
+});
+
+test("test_default_onramp_url_is_thirdwebs_buy_page_locked_to_the_token", () => {
+  const url = onrampUrl(ONRAMP_URL, { chain: "base", chainId: 8453, token: "USDC", tokenAddress: USDC_BASE, amount: "5.00" });
+  assert.equal(url, "https://thirdweb.com/bridge/buy-widget?chain=8453"
+    + `&tokenAddress=${USDC_BASE}&amount=5.00&tokenEditable=false&paymentMethods=card`);
+});
+
+test("test_onramp_url_fills_every_placeholder_each_time_it_appears", () => {
+  const arc = { chain: "arc", chainId: 5042, token: "USDC", tokenAddress: "0x3600000000000000000000000000000000000000", amount: "1.25" };
+  const url = onrampUrl("https://x.example/{chain}/{chain}?id={chain_id}&t={token}&a={amount}&c={token_address}", arc);
+  assert.equal(url, "https://x.example/arc/arc?id=5042&t=USDC&a=1.25&c=0x3600000000000000000000000000000000000000");
+  assert.equal(onrampUrl("https://x.example/buy", { ...arc, tokenAddress: "0x36" }), "https://x.example/buy");
+});
 
 test("test_eip681_uri", () => {
   const uri = eip681TransferUri({

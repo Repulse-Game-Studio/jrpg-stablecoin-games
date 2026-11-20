@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- .NET 8 left support in November 2026: run on a newer runtime when a machine (or a CI image) has no 8.0 one -->
+    <RollForward>Major</RollForward>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Scfg.Core.Driver</RootNamespace>
+    <AssemblyName>Scfg.Core.Driver</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="HttpClientTransport.cs" />
+    <!-- The test project's NUnit-free helpers, linked rather than referenced (the driver must not load NUnit). -->
+    <Compile Include="../core-tests/Tier2.cs" Link="Tier2.cs" />
+    <Compile Include="../core-tests/JsonEq.cs" Link="JsonEq.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../core/Scfg.Core.csproj" />
+  </ItemGroup>
+</Project>

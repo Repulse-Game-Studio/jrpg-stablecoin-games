@@ -59,6 +59,7 @@ These take JSON text. Empty means the defaults.
 | **Chains** | `["base", "arbitrum"]`: only these networks |
 | **Tokens** | `["USDC"]`: only these tokens |
 | **Methods** | `{"manual": {"allow_tx_paste": false}}`: payment method options |
+| **Buy Link** | `{"enabled": false}`: hides the sheet's "No USDC yet? Buy some with a card" link. The link opens a buy page for the network the player picked, where they buy the token with a card into their own wallet and then pay as usual. It sits on the method step (or on the only payment page when there is one method). On a network it isn't offered on, like Solana, the sheet says "No USDC yet? Pick another network to buy some with a card" there instead, which goes back to the network step, when another network the player can pick has the link. The default page is thirdweb's hosted Buy widget, locked to the network and token, with the payment rounded up to cents (plus a cent for the fee on Arc) as the suggested amount. Options: `enabled` (default `true`); `chains`, the networks it is offered on, like `["base", "arc"]` (EVM networks only; left out: the built-in EVM networks on mainnet and none on testnet, since cards don't buy test tokens); `url`, your own `https://` page, where `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in (no spaces, at most 2048 characters) |
 | **RPC URLs** | `{"base": ["https://..."]}`: your own RPC URLs per network |
 | **Confirmations** | `{"base": 12}`: blocks to wait before a payment counts, per EVM network (Solana's are fixed) |
 | **Previous Wallets** | `["0x..."]`: wallets you were paid to before, so Restore Purchases still finds those payments |
@@ -166,6 +167,7 @@ interface ConfigureOptions {
   solana_wallet?: string;
   testnet?: boolean;
   chains?: string[];  tokens?: string[];  methods?: object;
+  onramp?: { enabled?: boolean; url?: string; chains?: string[] };  // the Buy Link parameter
   rpc_urls?: Record<string, string[]>;
   confirmations?: Record<string, number>;
   previous_wallets?: string[];
@@ -175,7 +177,7 @@ interface ConfigureOptions {
 interface ItemOptions { code: number; price: string; token: "USDC" | "USDT"; title: string; min_price?: string }
 interface ChainOptions {                 // addChain(key, opts), before configure()
   name: string; chain_id: number; rpc: string[]; tokens: Record<string, string>;
-  confirmations: number; explorer_tx: string;     // an https URL with {} where the hash goes
+  confirmations: number; explorer_tx: string;     // an https URL with {} where the hash goes (http only on 127.0.0.1/localhost)
   native_symbol?: string; fee_hint?: string; testnet?: boolean; max_log_range?: number;
 }
 interface PayOptions {
@@ -322,8 +324,9 @@ engines. From least to most work:
    The handle's `closed` promise resolves once, when the player is done: `"cancel"`, `"keep_playing"` (only
    once a session exists) or `"finish"` (after a final state). Read the controller's fields and call its
    methods; never call `poll()` (the plugin does, every frame). Buttons that leave the game call the plugin's
-   actions: `SCFG.openBrowser(ctl)`, `SCFG.openWalletApp(ctl)`, `SCFG.openExplorer(url)`, `SCFG.copy(text)` and
-   `SCFG.pasteInto(ctl)`. A host that returns `null` shows nothing, and `pay()` resolves `failed` with the `error`
+   actions: `SCFG.openBrowser(ctl)`, `SCFG.openWalletApp(ctl)`, `SCFG.openExplorer(url)`, `SCFG.openOnramp(ctl)`
+   (the buy link, shown while `ctl.showsOnramp`; while `ctl.showsOnrampHint` show the "Pick another network"
+   button there instead, which calls `ctl.back()`), `SCFG.copy(text)` and `SCFG.pasteInto(ctl)`. A host that returns `null` shows nothing, and `pay()` resolves `failed` with the `error`
    `sheet.unavailable`.
    The controllers' fields are those of the core in `rpgmaker/src/core/checkout.ts`; `rpgmaker/src/mz/sheet_host.ts`
    holds the full contract.
@@ -440,6 +443,8 @@ The built-in English of every text. `%s` is where an argument goes.
 | `solana_opens_browser_note` | Opens a checkout page in your browser for Phantom, Solflare, Backpack and other wallet extensions. |
 | `evm_opens_here_note` | Opens your wallet right here, over the game: MetaMask, Rabby, Coinbase Wallet and other wallet extensions. |
 | `solana_opens_here_note` | Opens your wallet right here, over the game: Phantom, Solflare, Backpack and other wallet extensions. |
+| `onramp_link` | No %s yet? Buy some with a card |
+| `onramp_hint` | No %s yet? Pick another network to buy some with a card |
 | `preparing_payment` | Preparing the payment... |
 | `qr_step_open` | 1. Open your wallet app |
 | `qr_step_scan` | 2. Scan the code |
@@ -516,6 +521,7 @@ The built-in English of every text. `%s` is where an argument goes.
 | `invalid_amount` | Enter an amount of at least 0.50 with up to 2 decimals. |
 | `browser_unavailable` | Couldn't start the browser checkout. Use another method. |
 | `start_failed` | Couldn't start the payment. Check your connection and try again. |
+| `start_unreachable` | Can't reach the network. Pick a network to try again. |
 | `solana_unavailable` | Payments on Solana aren't available right now. |
 | `internal_error` | Something went wrong while checking the payment. Retrying... |
 | `paste_blocked` | Your browser blocked pasting. Type it instead: the game also finds the payment without it. |

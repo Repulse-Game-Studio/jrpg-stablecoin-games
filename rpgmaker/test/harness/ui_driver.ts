@@ -23,6 +23,7 @@ import { DEFAULT_TEXTS } from "../../src/mz/texts.ts";
 import { FakeChain, transferLog } from "../chain_fakes.ts";
 import { FakeServer } from "../checkout_fakes.ts";
 import { FakeClock, FakeTransport } from "../rpc_fakes.ts";
+import { FakeSolanaChain } from "../solana_fakes.ts";
 import { HeadlessHost } from "../e2e/headless_host.ts";
 
 const w = globalThis as any;
@@ -36,7 +37,16 @@ installAssets(embedded);
 
 const chains: Record<string, FakeChain> = {};
 const clock = new FakeClock();
-const chainFor = (chain: Chain): FakeChain => {
+/** Solana with every token account in place, so `solana_wallet` routes are ready. */
+class ReadySolanaChain extends FakeSolanaChain {
+  override async accountExists(address: string): Promise<boolean> {
+    await super.accountExists(address);
+    return true;
+  }
+}
+const solana = new ReadySolanaChain(1000);
+const chainFor = (chain: Chain): FakeChain | FakeSolanaChain => {
+  if (chain.family === "solana") return solana;
   chains[chain.key] ??= new FakeChain(1000);
   chains[chain.key]!.chain_obj = chain;
   return chains[chain.key]!;
@@ -182,7 +192,7 @@ w.scfgTest = {
       step: c.step, state: c.state, canGoBack: c.canGoBack, txSeen: c.txSeen, dots: c.stepDots(), method: c.method,
       chainKey: c.chain_key, chainOptions: c.chainOptions(), methods: c.methods(), session: c.sessionId, hint: c.hint_tx,
       txInput: c.tx_input, error: c.error, uri: c.paymentUri(), payAmount: c.payAmountText, recipient: c.recipient,
-      tokenAddress: c.tokenAddress,
+      tokenAddress: c.tokenAddress, onramp: c.onrampUrl(),
     };
   },
 

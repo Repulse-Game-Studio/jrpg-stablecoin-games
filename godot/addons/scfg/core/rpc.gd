@@ -3,7 +3,10 @@
 ##
 ## Public RPC endpoints are free but unreliable: they rate-limit, go down, and cap eth_getLogs
 ## block ranges. The client therefore:
-##   * tries endpoints in order on every call, skipping ones in cooldown,
+##   * tries endpoints in order on every call, skipping ones in cooldown, within a total budget of
+##     CALL_BUDGET seconds per call (each attempt waits at most what is left of it, so a chain with
+##     four dead endpoints says so after 15 s, not 40; an endpoint is not asked with less than
+##     MIN_ATTEMPT seconds left),
 ##   * puts a failing endpoint in cooldown (30 s, doubling to 10 min),
 ##   * remembers, per endpoint, the largest eth_getLogs range it accepts (public providers allow
 ##     anything from 50 to 2000+ blocks), shrinking it when a provider says a range is too large.
@@ -19,15 +22,26 @@
 ## - `RpcClient(urls, ...)` raising ValueError is `create(urls, opts)` returning it; `new(urls,
 ##   opts)` keeps it in `init_error`, and every coroutine then returns that error;
 ## - keyword arguments are `opts`: `transport`, `log_range` (1000), `clock` (a Callable returning
-##   seconds, monotonic by default) and `timeout` (10.0); an unknown key is a TypeError;
+##   seconds, monotonic by default), `timeout` (10.0) and `budget` (CALL_BUDGET); an unknown key is
+##   a TypeError;
 ## - urls must be a list of str (Array or PackedStringArray of String), `log_range` an int,
-##   `timeout` a number and `clock` a Callable, or it is a TypeError (Python would take any
+##   `timeout` and `budget` numbers and `clock` a Callable, or it is a TypeError (Python would take any
 ##   iterable and fail later).
 class_name ScfgRpcClient
 extends RefCounted
 
 const COOLDOWN_START := 30.0
 const COOLDOWN_MAX := 600.0
+## The most seconds one call_rpc() spends across a chain's endpoints: the first attempt gets the
+## full per-request timeout (10 s), each later one min(timeout, what is left); once nothing is left
+## the endpoints not tried yet are skipped (not cooled down) and the call is RpcUnavailable.
+## Measured on the client's clock, so a session start on a chain whose endpoints all hang fails
+## after 15 s whatever the number of urls.
+const CALL_BUDGET := 15.0
+## The least of the budget an endpoint is asked with (the floor): under it the endpoints left are
+## skipped (not cooled down) and the call is RpcUnavailable, so no endpoint is cooled down for
+## failing a request it was given a sliver of time for.
+const MIN_ATTEMPT := 2.0
 ## The smallest eth_getLogs block range (also the smallest max_log_range a chain may declare:
 ## ScfgConfig.MIN_LOG_RANGE is this constant).
 const MIN_LOG_RANGE := 10
@@ -36,13 +50,14 @@ const _RATE_HINTS := ["rate limit", "too many requests", "rate-limit"]
 ## (publicnode answers wide ranges with "Archive requests require a personal token").
 const _RANGE_HINTS := ["range", "too many", "limit", "exceed", "max results", "response size", "too large",
 	"archive"]
-const _OPTS := ["transport", "log_range", "clock", "timeout"]
+const _OPTS := ["transport", "log_range", "clock", "timeout", "budget"]
 
 ## The endpoints, in preference order (Python's tuple).
 var urls: Array[String] = []
 ## Python's `clock`: a Callable returning seconds. The Tier 2 runner replaces it.
 var clock: Callable
 var timeout: float = 10.0
+var budget: float = CALL_BUDGET
 ## The transport (see ScfgCoio); null makes every request a RuntimeError, as run_sync does.
 var transport: Variant = null
 ## The construction error (ValueError or TypeError), or null.
@@ -71,12 +86,14 @@ func _init(urls_: Variant, opts: Dictionary = {}) -> void:
 		urls.append(str(u))
 	var range_: int = opts.get("log_range", 1000)
 	var timeout_: float = opts.get("timeout", 10.0)
+	var budget_: float = opts.get("budget", CALL_BUDGET)
 	for u in urls:
 		_ranges[u] = range_
 		_state[u] = {"delay": 0.0, "until": 0.0}
 	if opts.has("clock"):
 		clock = opts["clock"]
 	timeout = timeout_
+	budget = budget_
 	transport = opts.get("transport")
 
 
@@ -99,6 +116,9 @@ static func _check_args(urls_: Variant, opts: Dictionary) -> Variant:
 	var timeout_: Variant = opts.get("timeout", 10.0)
 	if typeof(timeout_) != TYPE_INT and typeof(timeout_) != TYPE_FLOAT:
 		return ScfgErr.make("TypeError", "timeout must be a number, not %s" % ScfgPy.py_type(timeout_))
+	var budget_: Variant = opts.get("budget", CALL_BUDGET)
+	if typeof(budget_) != TYPE_INT and typeof(budget_) != TYPE_FLOAT:
+		return ScfgErr.make("TypeError", "budget must be a number, not %s" % ScfgPy.py_type(budget_))
 	if opts.has("clock") and not opts["clock"] is Callable:
 		return ScfgErr.make("TypeError", "clock must be a Callable")
 	return null
@@ -264,16 +284,17 @@ func call_rpc(method: String, params: Array) -> Variant:
 	return res[0]
 
 
-## ["ok", result] | ["error", RpcError] | null when the endpoint failed (cooled down).
+## ["ok", result] | ["error", RpcError] | null when the endpoint failed (cooled down). The request
+## waits `timeout_` seconds (Python's None, the client's `timeout`, is a negative value here).
 ## @fallible: the transport's non-TransportError errors, a KeyError for a body without `result`
-func _attempt(url: String, method: String, params: Array, now: float) -> Variant:
+func _attempt(url: String, method: String, params: Array, now: float, timeout_: float = -1.0) -> Variant:
 	if init_error != null:
 		return init_error
 	var payload := {"jsonrpc": "2.0", "id": _next_id, "method": method, "params": params}
 	_next_id += 1
 	if transport == null:
 		return ScfgErr.make("RuntimeError", "no transport to reach %s" % url)
-	var resp: Variant = await transport.post_json(url, payload, timeout)
+	var resp: Variant = await transport.post_json(url, payload, timeout if timeout_ < 0 else timeout_)
 	if resp is ScfgErr:
 		if not (resp as ScfgErr).is_a("TransportError"):
 			return resp
@@ -317,10 +338,14 @@ func _call(method: String, params: Array) -> Variant:
 	if init_error != null:
 		return init_error
 	var now: float = clock.call()
+	var deadline: float = now + budget
 	for url in urls:
 		if _state[url]["until"] > now:
 			continue
-		var res: Variant = await _attempt(url, method, params, now)
+		var left: float = deadline - (clock.call() as float)
+		if left < MIN_ATTEMPT:
+			break  # CALL_BUDGET spent: the rest are not tried (nor cooled down)
+		var res: Variant = await _attempt(url, method, params, now, minf(timeout, left))
 		if res is ScfgErr:
 			return res
 		if res == null:

@@ -1,5 +1,12 @@
+import gzip
 import importlib.util
+import io
+import json
 import re
+import shutil
+import sys
+import tarfile
+import types
 from pathlib import Path
 
 import pytest
@@ -110,6 +117,28 @@ def test_renpy_developer_guide_does_not_include_the_godot_pages():
     assert "res://" not in guide
 
 
+def test_renpy_developer_guide_does_not_include_the_unreal_pages():
+    guide = package.developer_guide()
+    assert "UScfgSubsystem" not in guide
+    assert "For Unreal developers" not in guide and "Install (Unreal)" not in guide
+
+
+def test_unreal_pages_join_into_a_guide_whose_links_resolve():
+    guide = package.developer_guide(package.UNREAL_PAGES, (), "# Unreal guide", intro=True)
+    lines = guide.splitlines()
+    assert lines[0] == "# Unreal guide"
+    tops = [h for h in headings(guide) if h.startswith("## ")]
+    assert tops[:2] == ["## Install (Unreal)", "## API reference (Unreal)"], tops
+    anchors = {package.slug(h) for h in headings(guide)}
+    links = re.findall(r"\]\(([^)\s]+)\)", guide)
+    assert links
+    for target in links:
+        if target.startswith(("http://", "https://")):
+            continue  # the showcase's README and the release page are on GitHub
+        assert not target.endswith(".md") and ".md#" not in target, target
+        assert target.startswith("#") and target[1:] in anchors, target
+
+
 def test_build_godot_zip_writes_the_versioned_archive(tmp_path):
     target = package.build_godot_zip(tmp_path)
     assert target.name == f"scfg-godot-{package.__version__}.zip"
@@ -184,7 +213,7 @@ def test_rpgmaker_zip_has_the_plugin_and_img_scfg_at_its_root(tmp_path, fake_plu
 
 def test_rpgmaker_zip_refuses_a_plugin_version_that_differs_from_the_core(tmp_path, fake_plugin, monkeypatch):
     monkeypatch.setattr(package, "__version__", "9.9.9")
-    with pytest.raises(ValueError, match="0.2.0|!= scfg_core 9.9.9"):
+    with pytest.raises(ValueError, match="0.3.0|!= scfg_core 9.9.9"):
         package.build_rpgmaker_zip(tmp_path / "dist", plugin=fake_plugin)
     assert not (tmp_path / "dist" / "scfg-rpgmaker-mz-9.9.9.zip").exists()
 
@@ -269,3 +298,116 @@ def test_rpgmaker_api_page_lists_every_text_id_with_its_english():
     page = (package.DOCS / "developers" / "rpgmaker" / "api.md").read_text(encoding="utf-8")
     for text_id, english in check.default_texts().items():
         assert f"| `{text_id}` | {english.replace('|', chr(92) + '|')} |" in page, text_id
+
+
+# --- Unity ------------------------------------------------------------------------------------
+
+
+def test_semver_of_the_core_version():
+    assert package.semver("0.3.0") == "0.3.0"
+    assert package.semver("0.3.0rc1") == "0.3.0-rc.1"
+    assert package.semver("1.2.10b2") == "1.2.10-beta.2"
+    assert package.semver("0.4.0a1") == "0.4.0-alpha.1"
+    with pytest.raises(ValueError):
+        package.semver("0.3")
+
+
+def test_the_unity_package_is_ready_to_ship():
+    assert package.unity_problems() == []
+    manifest = package.unity_package_manifest()
+    assert manifest["version"] == package.semver(package.__version__)
+    assert manifest["name"] == "com.repulse.scfg"
+
+
+def test_unity_tgz_is_the_package_under_package_tests_included(tmp_path):
+    target = package.build_unity_tgz(tmp_path)
+    assert target.name == f"scfg-unity-{package.__version__}.tgz"
+    with tarfile.open(target, "r:gz") as tar:
+        names = tar.getnames()
+        manifest = json.loads(tar.extractfile("package/package.json").read())
+        guide = tar.extractfile("package/" + package.UNITY_GUIDE_NAME).read().decode()
+        changelog = tar.extractfile("package/CHANGELOG.md").read()
+    assert all(n.startswith("package/") for n in names)
+    assert names[:-1] == sorted(names[:-1], key=lambda n: n.split("/")), "sorted by path"
+    assert names[-1] == "package/" + package.UNITY_GUIDE_NAME, "the generated guide last"
+    for must in ("package/package.json", "package/package.json.meta", "package/LICENSE.md",
+                 "package/LICENSE.md.meta", "package/Runtime/link.xml",
+                 "package/Runtime/Unity/SCFG.cs", "package/Runtime/Unity/Web/ScfgWeb.jslib",
+                 "package/Runtime/Unity/Resources/ScfgWeb/bridge.js.bytes",
+                 "package/Editor/ScfgSettingsEditor.cs", "package/Samples~/Showcase/ScfgShowcase.cs",
+                 "package/Samples~/Demo/ScfgDemo.cs", "package/Documentation~/index.md",
+                 "package/CHANGELOG.md", "package/CHANGELOG.md.meta"):
+        assert must in names, must
+    assert changelog == (package.ROOT / "CHANGELOG.md").read_bytes(), "the repository's changelog"
+    # maintainer tools live in the dev project, not in the package
+    assert not [n for n in names if "Maintenance" in n]
+    # the package's own tests ship: they compile only where the project lists the package under
+    # "testables"
+    for must in ("package/Tests.meta", "package/Tests/Editor/Scfg.Tests.Editor.asmdef",
+                 "package/Tests/Runtime/Scfg.Tests.Runtime.asmdef"):
+        assert must in names, must
+    assert not [n for n in names if "/." in n]
+    assert manifest["version"] == package.semver(package.__version__)
+    assert guide.startswith(package.UNITY_GUIDE_TITLE)
+    # every shipped asset (outside ~ folders) has its .meta: Unity ignores an asset without one
+    # in an immutable package
+    assets = [n for n in names if not n.endswith(".meta") and "~/" not in n]
+    for n in assets:
+        assert n + ".meta" in names, n
+
+
+def test_unity_tgz_is_reproducible(tmp_path):
+    a = package.build_unity_tgz(tmp_path / "a").read_bytes()
+    b = package.build_unity_tgz(tmp_path / "b").read_bytes()
+    assert a == b
+    with tarfile.open(fileobj=io.BytesIO(gzip.decompress(a))) as tar:
+        assert {(m.uid, m.gid, m.mtime) for m in tar.getmembers()} == {(0, 0, 0)}
+
+
+def test_unity_tgz_refuses_a_package_that_is_not_ready(tmp_path, monkeypatch):
+    copy = tmp_path / "Packages" / "com.repulse.scfg"
+    shutil.copytree(package.UNITY_PACKAGE, copy)
+    manifest = json.loads((copy / "package.json").read_text())
+    manifest["version"] = "9.9.9"
+    (copy / "package.json").write_text(json.dumps(manifest))
+    (copy / "LICENSE.md").write_text("not the license")
+    (copy / "Runtime" / "Unity" / "SCFG.cs.meta").unlink()
+    found = package.unity_problems(copy)
+    assert any("package.json version 9.9.9" in p for p in found)
+    assert any("LICENSE.md is not a copy of LICENSE" in p for p in found)
+    assert any("missing .meta" in p and "SCFG.cs" in p for p in found)
+    with pytest.raises(ValueError, match="not ready"):
+        package.build_unity_tgz(tmp_path / "dist", copy)
+
+
+def test_unity_guide_is_joined_from_its_docs():
+    guide = package.unity_guide()
+    assert guide.startswith(package.UNITY_GUIDE_TITLE)
+    assert "SCFG.Pay(" in guide
+
+
+def test_the_other_guides_do_not_include_the_unity_pages():
+    for guide in (package.developer_guide(), package.godot_guide(), package.rpgmaker_guide()):
+        assert "SCFG.Configure(new ScfgOptions" not in guide
+
+
+def test_main_says_why_a_package_is_not_ready_and_exits_1(monkeypatch, capsys):
+    def not_ready(dist):
+        raise ValueError("the Unity package is not ready:\n  LICENSE.md is not a copy of LICENSE")
+
+    monkeypatch.setattr(package, "build_unity_tgz", not_ready)
+    assert package.main(["--engine", "unity"]) == 1
+    captured = capsys.readouterr()
+    assert captured.err.startswith("package.py --engine unity: the Unity package is not ready:")
+    assert "Traceback" not in captured.err
+    assert "wrote" not in captured.out
+
+
+def test_main_says_why_the_unreal_plugin_is_not_ready_the_same_way(monkeypatch, capsys):
+    def not_ready(dist):
+        raise ValueError("the Unreal plugin is not ready:\n  Scfg.uplugin VersionName 9.9.9")
+
+    monkeypatch.setitem(sys.modules, "package_unreal", types.SimpleNamespace(build_all=not_ready))
+    assert package.main(["--engine", "unreal"]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("package.py --engine unreal: the Unreal plugin is not ready:")

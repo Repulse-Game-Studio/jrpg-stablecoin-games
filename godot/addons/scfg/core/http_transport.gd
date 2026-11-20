@@ -27,6 +27,11 @@
 ## it instead of cooling down a healthy endpoint. A request abandoned by a removed (not freed)
 ## host is cancelled and freed.
 ##
+## CANCELLING. `post_json_cancellable` (ScfgCoio's CANCELLING) is post_json with a Cancel: when
+## it fires, the HTTPRequest is stopped (cancel_request) and freed at once, so its answer is never
+## read, and the call returns an Abandoned ScfgErr (unread: the Engine's refusing transport has
+## already ended the request for its caller). A web export's fetch() is aborted with it.
+##
 ## CLOSING. `close()` is for the host going away for good (the game quitting): every request in
 ## flight ends with HostGone at once, and every later post_json returns HostGone. At a real quit
 ## the tree is torn down with no further frame, so the deferred tree_exiting never runs: without
@@ -62,6 +67,12 @@ func close() -> void:
 		(waiter as _Waiter).left_tree()
 
 
+## The waiter's own result codes, beside HTTPRequest's (never negative): the host left the tree
+## (or close() ended the request), or the request's Cancel fired.
+const _GONE := -1
+const _CANCELLED := -2
+
+
 ## One finished request, whichever comes first: HTTPRequest's request_completed, or the
 ## HTTPRequest leaving the tree before it (its host was removed or freed), which would otherwise
 ## leave the caller suspended forever. `left_tree` is connected deferred (see the header).
@@ -78,7 +89,12 @@ class _Waiter:
 	func left_tree() -> void:
 		if not done:
 			done = true
-			finished.emit([-1, 0, PackedStringArray(), PackedByteArray()])
+			finished.emit([_GONE, 0, PackedStringArray(), PackedByteArray()])
+
+	func cancelled() -> void:
+		if not done:
+			done = true
+			finished.emit([_CANCELLED, 0, PackedStringArray(), PackedByteArray()])
 
 
 ## The HostGone error (Godot only, see the header): the host Node is not there to carry a request.
@@ -89,6 +105,14 @@ static func host_gone(url: String) -> Variant:
 
 ## @fallible
 func post_json(url: String, payload: Dictionary, timeout: float) -> Variant:
+	return await post_json_cancellable(url, payload, timeout, null)
+
+
+## post_json that `cancel` (when not null) stops: see CANCELLING in the header.
+## @fallible
+func post_json_cancellable(url: String, payload: Dictionary, timeout: float, cancel: ScfgCoio.Cancel) -> Variant:
+	if cancel != null and cancel.is_cancelled:
+		return _cancelled(url)
 	if _closed or host == null or not is_instance_valid(host) or not host.is_inside_tree() or host.is_queued_for_deletion():
 		return host_gone(url)
 	var req := HTTPRequest.new()
@@ -108,10 +132,21 @@ func post_json(url: String, payload: Dictionary, timeout: float) -> Variant:
 		req.queue_free()
 		return ScfgCoio.transport_error("cannot start the request to %s: %s" % [url, error_string(started)])
 	_waiting.append(waiter)
+	if cancel != null:
+		cancel.cancelled.connect(waiter.cancelled)
 	var got: Array = await waiter.finished
 	_waiting.erase(waiter)
+	if cancel != null and cancel.cancelled.is_connected(waiter.cancelled):
+		cancel.cancelled.disconnect(waiter.cancelled)
 	var result: int = got[0]
-	if result == -1:
+	if result == _CANCELLED:
+		# Nobody waits for the answer any more: stop the request and free it now.
+		if is_instance_valid(req):
+			req.tree_exiting.disconnect(waiter.left_tree)
+			req.cancel_request()
+			req.queue_free()
+		return _cancelled(url)
+	if result == _GONE:
 		# The host left the tree (or was freed with the request), or close() ended the request. A
 		# host still holding the HTTPRequest: stop it and free it, so it never answers later.
 		if is_instance_valid(req):
@@ -123,6 +158,12 @@ func post_json(url: String, payload: Dictionary, timeout: float) -> Variant:
 	if result != HTTPRequest.RESULT_SUCCESS:
 		return ScfgCoio.transport_error(_result_message(result))
 	return ScfgCoio.response_for(got[1], ScfgCoio.parse_rpc_body(got[3]))
+
+
+## What a cancelled request returns (never read: see CANCELLING in the header).
+## @fallible
+static func _cancelled(url: String) -> Variant:
+	return ScfgErr.make("Abandoned", "the request to %s was cancelled" % url)
 
 
 static func _result_message(result: int) -> String:

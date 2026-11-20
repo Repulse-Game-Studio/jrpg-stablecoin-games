@@ -1,7 +1,7 @@
 # Install (RPG Maker MZ)
 
 Accept **USDC** and **USDT** tips and unlock purchases in your RPG Maker MZ game, paid **directly to your own
-wallet**. There is no server, no account and no middleman: the plugin watches the blockchain itself. It is one
+wallet**. There is no server, no account and no middleman in the payment: the plugin watches the blockchain itself. It is one
 plugin file, `js/plugins/SCFG.js`, with no dependencies. It works in desktop builds (NW.js) and in web
 deployments. Mobile is best effort and unverified (see [Mobile](api.md#mobile-unverified)).
 

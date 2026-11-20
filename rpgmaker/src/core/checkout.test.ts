@@ -97,7 +97,7 @@ test("test_start_failure_returns_to_choose_with_error", async () => {
   ctl.selectChain("arbitrum");
   await submit.idle();
   ctl.poll();
-  assert.ok(ctl.state === "choose" && ctl.error === "network_unavailable");
+  assert.ok(ctl.state === "choose" && ctl.error === "start_unreachable");
   assert.ok(ctl.message());
 });
 

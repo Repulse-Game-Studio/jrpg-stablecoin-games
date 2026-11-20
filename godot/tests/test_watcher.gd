@@ -194,6 +194,29 @@ func test_hint_reverted() -> bool:
 	return T.done()
 
 
+## A FakeChain whose eth_blockNumber fails (Python's `chain.block_number = down`).
+class HeadDownChain:
+	extends F.FakeChain
+
+	## @fallible
+	func block_number() -> Variant:
+		calls.append("block_number")
+		return ScfgErr.make("RpcUnavailable", "fake outage")
+
+
+## The EVM twin of Solana's rule: the hint was judged and cleared, then the scan's
+## eth_blockNumber fails. The verdict is reported, not replaced by network_unavailable: the next
+## step has no hint, so it would never be.
+func test_hint_verdict_survives_a_network_failure_later_in_the_step() -> bool:
+	var s := _setup()
+	s[2] = HeadDownChain.new()
+	_hinted(s, _receipt_with([], "0x0"))
+	var out: Variant = await _step(s)
+	T.eq([out["error"], out["hint_tx"], s[3]["hint_tx"]], ["tx_reverted", TX, null], "the verdict is kept")
+	T.eq((s[2] as F.FakeChain).calls, ["get_transaction_receipt", "block_number"], "the scan was asked, and failed")
+	return T.done()
+
+
 func test_hint_not_a_payment() -> bool:
 	var s := _setup()
 	_hinted(s, _receipt_with([_log(USDT, UNITS, 998)]))

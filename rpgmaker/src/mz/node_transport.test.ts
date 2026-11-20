@@ -3,13 +3,15 @@
  * the twin of scfg_core.rpc.UrllibTransport's timeouts and error mapping. The Anvil run is
  * tests/integration/test_js_core.py::test_node_transport_against_anvil.
  */
-import { afterEach, test } from "node:test";
+import { afterEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import https from "node:https";
 import type { AddressInfo } from "node:net";
 import { TransportError } from "../core/index.ts";
-import { NodeHttpsTransport } from "./node_transport.ts";
+import { Abandoned, CancelSource } from "../core/coio.ts";
+import { RpcClient, RpcUnavailable, CALL_BUDGET } from "../core/rpc.ts";
+import { MIN_FALLBACK, NodeHttpsTransport } from "./node_transport.ts";
 
 interface Seen { method: string; url: string; headers: http.IncomingHttpHeaders; body: string }
 
@@ -317,7 +319,8 @@ test("aTlsTrustOrProxyFailureIsRetriedOnceThroughTheFallback", async () => {
   for (const code of codes) {
     const { module, requests } = failingModule({ code });
     const fallback = fallbackTransport({ result: "0x1" });
-    const t = new NodeHttpsTransport({ https: module, fallback });
+    // (a clock that stands still: the fallback is given all of the timeout, nothing being spent)
+    const t = new NodeHttpsTransport({ https: module, fallback, clock: () => 0 });
     const payload = { jsonrpc: "2.0", id: 1, method: "eth_blockNumber", params: [] };
     assert.deepEqual(await t.postJson("https://rpc.example/x", payload, 7), { result: "0x1" }, code);
     assert.deepEqual([requests(), fallback.calls], [1, [["https://rpc.example/x", payload, 7]]], `${code}: once through Node, once through fetch`);
@@ -418,4 +421,219 @@ test("anOversizedErrorAnswerIsTooLarge", async () => {
   });
   await assert.rejects(new NodeHttpsTransport({ https, http, max_response_bytes: 100 }).postJson(url, {}, 5),
     isTransportError(null, /^response too large$/));
+});
+
+// A DNS server that never answers. Node's request timeout starts only once
+// the socket connects, so the lookup needs a timer of its own (rpc.py's resolve_within).
+test("aNameLookupThatNeverAnswersIsBoundedByTheTimeout", async () => {
+  const stuck = {
+    request() {
+      const req = {
+        on() { return req; },
+        setTimeout() { return req; }, // Node's socket timer: never armed while the lookup hangs
+        destroy() { return req; },
+        end() { return req; },
+      };
+      return req;
+    },
+  };
+  const t = new NodeHttpsTransport({ https: stuck, http: stuck });
+  const started = Date.now();
+  await assert.rejects(within(t.postJson("https://never-resolves.example/", {}, 0.2), 3000),
+    (e: unknown) => e instanceof TransportError && /timed out resolving never-resolves.example/.test(e.message));
+  const ms = Date.now() - started;
+  assert.ok(ms >= 150 && ms < 2000, `at the timeout (${ms} ms)`);
+});
+
+/** Node's https whose name lookup never answers (no socket, no "error"). */
+const stuckLookup = {
+  request() {
+    const req = {
+      on() { return req; },
+      setTimeout() { return req; }, // Node's socket timer: never armed while the lookup hangs
+      destroy() { return req; },
+      end() { return req; },
+    };
+    return req;
+  },
+};
+
+/**
+ * Runs `body` with setTimeout and Date mocked (no real wait, so no wall-clock slack to tune) and a
+ * clock in seconds read from the mocked Date.
+ */
+async function onMockedTimers(body: (clock: () => number) => Promise<void>): Promise<void> {
+  mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1_000_000 });
+  try {
+    await body(() => Date.now() / 1000);
+  } finally {
+    mock.timers.reset();
+  }
+}
+
+/** Inside onMockedTimers: `promise`, the mocked time moved on in 50 ms steps until it settles. */
+async function settled<T>(promise: Promise<T>): Promise<T> {
+  let done = false;
+  const watched = promise.finally(() => { done = true; });
+  watched.catch(() => undefined);
+  for (let i = 0; i < 1000 && !done; i++) {
+    await new Promise((r) => setImmediate(r));
+    if (!done) mock.timers.tick(50);
+  }
+  return watched;
+}
+
+/** A fallback that never answers: fails "timed out" after its `timeout`, as FetchTransport's abort. Records [url, timeout]. */
+function hangingFallback() {
+  const calls: Array<[string, number]> = [];
+  return {
+    calls,
+    postJson(url: string, _payload: object, timeout: number): Promise<unknown> {
+      calls.push([url, timeout]);
+      return new Promise((_r, reject) => setTimeout(() => reject(new TransportError("timed out")), timeout * 1000));
+    },
+  };
+}
+
+// Behind a proxy only the fallback (Chromium's fetch, which uses the OS proxy)
+// reaches the RPC. A lookup Node could not finish in time is a DNS failure, retried through it.
+// The retry shares the request's timeout: the lookup has half of it, the fallback what
+// is left (not the whole timeout again).
+test("aLookupThatTimesOutGoesOnceMoreThroughTheFallback", async () => {
+  const asked: Array<[string, number]> = [];
+  const fallback = {
+    postJson(url: string, _payload: object, timeout: number) {
+      asked.push([url, timeout]);
+      return Promise.resolve({ jsonrpc: "2.0", id: 1, result: "0x1" });
+    },
+  };
+  await onMockedTimers(async (clock) => {
+    const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback, clock });
+    const started = clock();
+    const answer = await settled(t.postJson("https://behind-a-proxy.example/", {}, 1.0));
+    assert.deepEqual(answer, { jsonrpc: "2.0", id: 1, result: "0x1" });
+    assert.equal(clock() - started, 0.5, "the lookup had half of the timeout");
+    assert.deepEqual(asked, [["https://behind-a-proxy.example/", 0.5]],
+      "the fallback gets what is left of the timeout, not all of it");
+  });
+});
+
+test("aLookupTimeoutAndItsFallbackStayWithinTheRequestsTimeout", async () => {
+  // A DNS that never answers and a fallback that hangs too end together at `timeout`,
+  // not at twice it.
+  const fallback = hangingFallback();
+  await onMockedTimers(async (clock) => {
+    const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback, clock });
+    const started = clock();
+    await assert.rejects(settled(t.postJson("https://nowhere.example/", {}, 0.8)),
+      (e: unknown) => e instanceof TransportError && /timed out/.test(e.message));
+    const took = clock() - started;
+    assert.equal(fallback.calls.length, 1, "the fallback was asked");
+    assert.ok(Math.abs(fallback.calls[0]![1] - 0.4) < 1e-9, `with the half left (${fallback.calls[0]![1]} s)`);
+    assert.ok(Math.abs(took - 0.8) < 1e-9, `the attempt took its timeout, not more (${took} s)`);
+  });
+});
+
+test("theFallbackIsNotAskedWithLessThanTheFloorLeft", async () => {
+  // half of 0.4 s is left after the lookup's 0.2 s: under MIN_FALLBACK, so the lookup's failure is the answer
+  assert.equal(MIN_FALLBACK, 0.25);
+  const fallback = hangingFallback();
+  const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback });
+  await assert.rejects(within(t.postJson("https://nowhere.example/", {}, 0.4), 3000),
+    (e: unknown) => e instanceof TransportError && /timed out resolving nowhere.example/.test(e.message)
+      && (e as TransportError & { code?: string }).code === "EAI_AGAIN");
+  assert.deepEqual(fallback.calls, []);
+  // a trust failure with too little left (the clock says 0.9 s of 1 s went by) is not retried either
+  let now = 0;
+  const late = fallbackTransport({ result: "never" });
+  const failing = failingModule({ code: "CERT_HAS_EXPIRED" }).module;
+  const lateT = new NodeHttpsTransport({ https: failing, fallback: late, clock: () => (now += 0.9) - 0.9 });
+  await assert.rejects(lateT.postJson("https://rpc.example/", {}, 1.0),
+    (e: unknown) => e instanceof TransportError && (e as TransportError & { code?: string }).code === "CERT_HAS_EXPIRED");
+  assert.equal(late.calls.length, 0);
+});
+
+test("aCallOverFourEndpointsWhoseLookupsAndFallbackHangEndsWithinTheCallBudget", async () => {
+  // Over the real RpcClient (CALL_BUDGET, MIN_ATTEMPT) and transport, on mocked timers:
+  // A's attempt is 10 s (5 s lookup, 5 s fallback), B's the 5 s left (2.5 + 2.5); C and D are not
+  // asked. Before, A's attempt alone took 20 s (a full timeout twice).
+  await onMockedTimers(async (clock) => {
+    const fallback = hangingFallback();
+    const t = new NodeHttpsTransport({ https: stuckLookup, http: stuckLookup, fallback, clock });
+    const urls = ["https://a.example/", "https://b.example/", "https://c.example/", "https://d.example/"];
+    const rpc = new RpcClient(urls, { transport: t, clock });
+    const started = clock();
+    await assert.rejects(settled(rpc.blockNumber()), RpcUnavailable);
+    const took = clock() - started;
+    assert.ok(took <= CALL_BUDGET + 0.1, `the call ended within its ${CALL_BUDGET} s budget (${took} s)`);
+    assert.deepEqual(fallback.calls, [[urls[0], 5], [urls[1], 2.5]]);
+  });
+});
+
+// A request on a kept-alive socket (Node 19+ keeps them by default) never sees "connect",
+// so the lookup timer must stop at once; else an answer streamed for longer than `timeout` in
+// total, every read well inside it, failed as "timed out resolving".
+test("aKeptAliveSocketStopsTheLookupTimer", async () => {
+  let n = 0;
+  const { url } = await serve((_req, res) => {
+    n += 1;
+    if (n === 1) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "first" }));
+      return;
+    }
+    // the second answer streams for 1.2 s in all, each part 0.3 s after the last (timeout 0.8 s)
+    res.writeHead(200, { "Content-Type": "application/json" });
+    const text = JSON.stringify({ jsonrpc: "2.0", id: 2, result: "second" });
+    const parts = [text.slice(0, 5), text.slice(5, 10), text.slice(10, 15), text.slice(15)];
+    let i = 0;
+    const next = () => {
+      res.write(parts[i]);
+      i += 1;
+      if (i < parts.length) setTimeout(next, 300);
+      else res.end();
+    };
+    setTimeout(next, 300);
+  });
+  const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+  const keptAlive = { request: (o: Record<string, unknown>, cb: (res: any) => void) => http.request({ ...o, agent }, cb) };
+  const t = new NodeHttpsTransport({ https: keptAlive, http: keptAlive });
+  try {
+    assert.deepEqual(await t.postJson(url, {}, 0.8), { jsonrpc: "2.0", id: 1, result: "first" });
+    assert.deepEqual(await within(t.postJson(url, {}, 0.8), 5000), { jsonrpc: "2.0", id: 2, result: "second" });
+  } finally {
+    agent.destroy();
+  }
+});
+
+// A request nobody waits for any more (the job was abandoned, or the tick yields to a command) is
+// destroyed at once and fails with Abandoned, never retried through the fallback; one cancelled
+// before it starts never reaches the server.
+test("aCancelledRequestIsDestroyedAtOnceAndNeverRetried", async () => {
+  let closed!: () => void;
+  const serverSawClose = new Promise<void>((r) => { closed = r; });
+  const { url, seen } = await serve((req) => {
+    req.socket.on("close", () => closed()); // never answers
+  });
+  const asked: string[] = [];
+  const fallback = {
+    postJson(u: string) {
+      asked.push(u);
+      return Promise.resolve({ jsonrpc: "2.0", id: 1, result: "0x1" });
+    },
+  };
+  const t = new NodeHttpsTransport({ https, http, fallback });
+  const cancel = new CancelSource();
+  const answer = t.postJson(url, { jsonrpc: "2.0", id: 1, method: "eth_blockNumber", params: [] }, 10, cancel);
+  for (let i = 0; i < 100 && seen.length === 0; i++) await new Promise((r) => setTimeout(r, 10));
+  assert.equal(seen.length, 1, "the request reached the server");
+  const t0 = performance.now();
+  cancel.cancel();
+  const isCancelled = (e: unknown) => e instanceof Abandoned && e.message === `the request to ${url} was cancelled`;
+  await assert.rejects(within(answer, 3000), isCancelled);
+  assert.ok(performance.now() - t0 < 1000, "at once");
+  await within(serverSawClose, 3000);
+  assert.deepEqual(asked, [], "a cancelled request never goes through the fallback");
+  await assert.rejects(within(t.postJson(url, {}, 10, cancel), 3000), isCancelled);
+  assert.equal(seen.length, 1, "one cancelled already is never sent");
 });

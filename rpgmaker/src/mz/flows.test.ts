@@ -25,7 +25,7 @@ import { FakeClock, FakeTransport } from "../../test/rpc_fakes.ts";
 import { installDiskAssets } from "../../test/mz_assets.ts";
 import { MemoryStorage, bootShim, installShim, resetShim, type Shim } from "../../test/mz_shim/index.ts";
 import {
-  ConfigError, FetchTransport, MAINNET, makePaymentResult, type Chain, type CheckoutController, type PaymentResult, type RestoreController,
+  ConfigError, FetchTransport, MAINNET, TransportError, makePaymentResult, type Chain, type CheckoutController, type PaymentResult, type RestoreController,
   type RestoreResult, type ServerArgs,
 } from "../core/index.ts";
 import { addReceipt } from "../core/receipts.ts";
@@ -295,6 +295,81 @@ function restore(s: Scfg, opts: Record<string, unknown> = {}) {
 const pendingById = (s: Scfg, sid: string) => s.pending().find((r) => r["id"] === sid);
 
 // --- pay -------------------------------------------------------------------------------------
+
+// The plugin builds its own RPC clients (its rpc_factory); they must post through the
+// Engine's refusing transport, so a running start the player moved away from is refused its next
+// request instead of trying the rest of its endpoints while the new pick waits behind it.
+test("aRunningStartThePlayerLeftIsRefusedItsNextRequest", async () => {
+  const asked: string[] = [];
+  const held: { url: string; reject: (e: unknown) => void }[] = [];
+  const transport = {
+    postJson(url: string, payload: any) {
+      asked.push(url);
+      if (/arb/.test(url)) {
+        return new Promise((_resolve, reject) => held.push({ url, reject }));
+      }
+      return Promise.resolve({ jsonrpc: "2.0", id: payload.id, result: "0x3e8" });
+    },
+  };
+  const clock = new FakeClock();
+  // no rpc_factory in engine_opts: the plugin's own factory, over this transport
+  const env = await make({ hooks: { transport, engine_opts: { clock: clock.call } } });
+  const box = pay(env.s, "unlock", { item: "chapter2" });
+  env.shim.frame();
+  const ctl = env.host.last.ctl;
+  ctl.chooseNetwork("arbitrum");
+  const running = env.s._worker!.runOnce();
+  for (let i = 0; i < 20 && held.length === 0; i++) await tick();
+  assert.equal(held.length, 1, "the start asked Arbitrum's first endpoint");
+  ctl.chooseNetwork("base"); // the player moves on while the Arbitrum start runs
+  held[0]!.reject(new TransportError("timed out"));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([running, new Promise((_r, reject) => {
+    timer = setTimeout(() => reject(new Error(`the left start kept asking: ${asked.join(", ")}`)), 3000);
+  })]).finally(() => clearTimeout(timer));
+  await pass(env);
+  ctl.poll();
+  assert.equal(asked.filter((u) => /arb/.test(u)).length, 1, "no other Arbitrum endpoint was asked");
+  assert.ok(ctl.state === "waiting" && ctl.chain_key === "base", `the new pick started (${ctl.state})`);
+  assert.equal(box.result, undefined, "the payment is still open");
+});
+
+// On the plugin's own rpc_factory, the left start's request in flight is never
+// answered (a host that hangs), yet the new pick starts at once; the transport is told to stop it.
+test("aRunningStartThePlayerLeftStopsWaitingForItsRequestInFlight", async () => {
+  const asked: string[] = [];
+  const cancels: { cancelled: boolean }[] = [];
+  const transport = {
+    postJson(url: string, payload: any, _timeout: number, cancel?: { cancelled: boolean }) {
+      asked.push(url);
+      if (/arb/.test(url)) {
+        if (cancel) cancels.push(cancel);
+        return new Promise(() => {}); // never answers
+      }
+      return Promise.resolve({ jsonrpc: "2.0", id: payload.id, result: "0x3e8" });
+    },
+  };
+  const clock = new FakeClock();
+  const env = await make({ hooks: { transport, engine_opts: { clock: clock.call } } });
+  const box = pay(env.s, "unlock", { item: "chapter2" });
+  env.shim.frame();
+  const ctl = env.host.last.ctl;
+  ctl.chooseNetwork("arbitrum");
+  const running = env.s._worker!.runOnce();
+  for (let i = 0; i < 20 && cancels.length === 0; i++) await tick();
+  assert.equal(cancels.length, 1, "the start asked Arbitrum's first endpoint");
+  ctl.chooseNetwork("base"); // the player moves on while the Arbitrum request hangs
+  assert.ok(cancels[0]!.cancelled, "the request in flight was cancelled at once");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([running, new Promise((_r, reject) => {
+    timer = setTimeout(() => reject(new Error(`the left start kept waiting: ${asked.join(", ")}`)), 3000);
+  })]).finally(() => clearTimeout(timer));
+  await pass(env);
+  ctl.poll();
+  assert.equal(asked.filter((u) => /arb/.test(u)).length, 1, "no other Arbitrum endpoint was asked");
+  assert.ok(ctl.state === "waiting" && ctl.chain_key === "base", `the new pick started (${ctl.state})`);
+  assert.equal(box.result, undefined, "the payment is still open");
+});
 
 test("payAlreadyOwnedShortCircuits", async () => {
   const env = await make();
@@ -657,13 +732,18 @@ test("mobileOffersWalletAppLink", async () => {
   const uri = ctl.paymentUri();
   assert.ok(typeof uri === "string" && uri.startsWith("ethereum:"), `an EIP-681 link (${uri})`);
   s.openWalletApp(ctl);
-  assert.deepEqual(world.opened, [["window", uri, "_blank", "noopener"]], "Open wallet app opens it with window.open");
+  assert.deepEqual(world.opened, [["window", uri, "_blank", "noopener,noreferrer"]], "Open wallet app opens it with window.open");
   s.openExplorer("https://arbiscan.io/tx/" + TX);
   s.openExplorer(null);
   s.openExplorer("");
   assert.equal(world.opened.length, 2, "openExplorer opens a URL, and nothing for none");
   s.openWalletApp({ paymentUri: () => "ethereum:0xevil" } as any);
+  s.openOnramp({ onrampUrl: () => "https://evil.example" } as any);
   assert.equal(world.opened.length, 2, "only an open sheet's controller");
+  const buy = ctl.onrampUrl();
+  assert.ok(buy !== null && buy.startsWith("https://thirdweb.com/"), `the buy page (${buy})`);
+  s.openOnramp(ctl);
+  assert.deepEqual(world.opened[2], ["window", buy, "_blank", "noopener,noreferrer"], "the buy link opens with window.open");
 });
 
 test("linksOpenWithNwShellOnDesktopAndNeverThrowWithoutIt", async () => {
@@ -673,14 +753,17 @@ test("linksOpenWithNwShellOnDesktopAndNeverThrowWithoutIt", async () => {
   const ctl = await session(env);
   s.openWalletApp(ctl);
   s.openExplorer("https://arbiscan.io/tx/" + TX);
-  assert.deepEqual(world.opened, [["nw", ctl.paymentUri()], ["nw", "https://arbiscan.io/tx/" + TX]], "nw.Shell.openExternal on desktop");
+  s.openOnramp(ctl);
+  assert.deepEqual(world.opened, [["nw", ctl.paymentUri()], ["nw", "https://arbiscan.io/tx/" + TX], ["nw", ctl.onrampUrl()]],
+    "nw.Shell.openExternal on desktop");
   world.nwAvailable = false; // NW.js without its `nw` object: the page's window.open
   s.openExplorer("https://arbiscan.io/tx/1");
-  assert.deepEqual(world.opened[2], ["window", "https://arbiscan.io/tx/1", "_blank", "noopener"]);
+  assert.deepEqual(world.opened[3], ["window", "https://arbiscan.io/tx/1", "_blank", "noopener,noreferrer"]);
   delete world.win.open; // and with neither: nothing, never an exception
   assert.doesNotThrow(() => s.openExplorer("https://arbiscan.io/tx/2"));
+  assert.doesNotThrow(() => s.openOnramp(ctl));
   assert.doesNotThrow(() => s.copy("x"));
-  assert.equal(world.opened.length, 3);
+  assert.equal(world.opened.length, 4);
   assert.equal(host.closes, 0);
 });
 

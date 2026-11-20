@@ -81,8 +81,17 @@ test("paramsAdvancedConfirmationsPreviousWalletsAndCustomChainsParse", () => {
   assert.deepEqual(parseParams({ customChains: JSON.stringify({ myl2: MYL2 }) }).customChains, [["myl2", MYL2]]);
 });
 
+test("paramsBuyLinkIsTheOnrampOption", () => {
+  // Ren'Py's configure(onramp=...): passed on as written, for the core to check
+  const p = parseParams({ wallet: DEV, onramp: "{\"enabled\": false, \"chains\": [\"base\"]}" });
+  assert.deepEqual(p.configure, { testnet: false, wallet: DEV, onramp: { enabled: false, chains: ["base"] } });
+  assert.deepEqual(parseParams({ wallet: DEV, onramp: "" }).configure, { testnet: false, wallet: DEV }, "empty: the defaults");
+  assert.deepEqual(parseParams({ wallet: DEV, onramp: "false" }).configure, { testnet: false, wallet: DEV, onramp: false },
+    "not an object: the core's onramp.not_a_dict");
+});
+
 test("paramsAdvancedBadJsonNamesItsParameter", () => {
-  for (const param of ["confirmations", "previousWallets", "customChains"]) {
+  for (const param of ["confirmations", "previousWallets", "customChains", "onramp"]) {
     assert.throws(() => parseParams({ wallet: DEV, [param]: "{base: 12" }),
       (e: unknown) => isParamsError(e) && (e as Error).message.startsWith(`plugin parameter ${param} is not valid JSON`), param);
   }

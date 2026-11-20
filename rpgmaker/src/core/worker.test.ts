@@ -5,6 +5,11 @@ import type { Engine, Snapshot } from "./engine.ts";
 import { Dec } from "./decimal.ts";
 import { makeStepOutcome, type StepOutcome } from "./watcher.ts";
 import { CancelledError, Job, Worker } from "./worker.ts";
+import { Abandoned, TransportError, type Cancel } from "./coio.ts";
+import { TESTNET } from "./chains.ts";
+import { addItem, buildConfig } from "./config.ts";
+import { Engine as RealEngine } from "./engine.ts";
+import { FakeTransport } from "../../test/rpc_fakes.ts";
 
 const tick = (): Promise<void> => new Promise((r) => setImmediate(r));
 const settle = async (): Promise<void> => {
@@ -32,9 +37,68 @@ class FakeEngine {
   snapshot(): Snapshot {
     return { pending: {}, receipts: {}, owned: new Set([`tick${this.ticks}`]), tip_total: Dec.parse("0") as Dec, unready: new Set() };
   }
+  refuseRequests: (() => boolean) | null = null;
+  refuseInFlight(): void {} // its jobs make no requests
 }
 
-const asEngine = (e: FakeEngine): Engine => e as unknown as Engine;
+/**
+ * Twin of test_pump_worker.py's CoopEngine over its FakeBridge: each job makes one request named
+ * after it and records the answer. A request ends only when the test answers it, or when the
+ * Worker refuses it (refuseRequests, refuseInFlight), as the real Engine's `requests` does.
+ */
+class CoopEngine {
+  log: string[] = [];
+  sent: string[] = [];
+  cancelled: string[] = []; // the requests in flight that refuseInFlight ended
+  refuseRequests: (() => boolean) | null = null;
+  private _held: { name: string; resolve: (v: unknown) => void; reject: (e: unknown) => void }[] = [];
+
+  snapshot(): Snapshot {
+    return { pending: {}, receipts: {}, owned: new Set(this.log), tip_total: Dec.parse("0") as Dec, unready: new Set() };
+  }
+
+  refuseInFlight(): void {
+    if (this.refuseRequests === null || !this.refuseRequests()) return;
+    for (const h of this._held.splice(0)) {
+      this.cancelled.push(h.name);
+      h.reject(new Abandoned(`abandoned while its request to ${h.name} was in flight`));
+    }
+  }
+
+  last(): string | undefined {
+    return this.sent[this.sent.length - 1];
+  }
+
+  answer(name: string, result: unknown): void {
+    const i = this._held.findIndex((h) => h.name === name);
+    assert.ok(i >= 0, `${name} is in flight`);
+    this._held.splice(i, 1)[0]!.resolve(result);
+  }
+
+  private async _one(name: string): Promise<unknown> {
+    if (this.refuseRequests !== null && this.refuseRequests()) throw new Abandoned(`abandoned before its request to ${name}`);
+    this.sent.push(name);
+    const r = await new Promise((resolve, reject) => this._held.push({ name, resolve, reject }));
+    this.log.push(`${name}:${String(r)}`);
+    return r;
+  }
+
+  async reverify(): Promise<string[]> {
+    await this._one("reverify");
+    return [];
+  }
+
+  async tick(): Promise<StepOutcome[]> {
+    await this._one("tick");
+    return [makeStepOutcome("ps_1", "paid"), makeStepOutcome("ps_2", "waiting")];
+  }
+
+  command(name: string): Promise<unknown> {
+    return this._one(name);
+  }
+}
+
+const asEngine = (e: FakeEngine | CoopEngine): Engine => e as unknown as Engine;
 
 /** A manual timer: schedule() records, fire() runs the pending callback. */
 function fakeTimer() {
@@ -197,27 +261,57 @@ test("test_async_commands_are_awaited", async () => {
 
 // --- test_pump_worker.py: the semantics that are not frame pumping -----------------------
 
-test("pump: a command submitted mid-tick waits for the tick", async () => {
-  const e = new FakeEngine();
-  const gate = deferred();
-  e.tickImpl = async () => {
-    await gate.promise;
-    return [];
-  };
+// The player's command does not wait behind a background tick. The tick's request in flight is
+// ended (its answer is never kept), the command runs next, and the next tick comes after it. No
+// error is reported for the yield.
+test("test_a_command_submitted_mid_tick_makes_the_tick_yield", async () => {
+  const e = new CoopEngine();
+  const errors: unknown[] = [];
+  const t = fakeTimer();
+  const w = new Worker(asEngine(e), { interval: () => 10, on_error: (x) => errors.push(x), schedule: t.schedule, cancel: t.cancel });
+  w.start();
+  t.fire();
+  await settle();
+  e.answer("reverify", "ok");
+  await settle();
+  assert.equal(e.last(), "tick"); // tick in flight
+  const job = w.submit((x) => (x as unknown as CoopEngine).command("choose"));
+  await settle();
+  assert.deepEqual(e.cancelled, ["tick"]);
+  assert.equal(e.last(), "choose");
+  e.answer("choose", "chosen");
+  await settle();
+  assert.equal(job.result(), "chosen");
+  assert.deepEqual(e.sent, ["reverify", "tick", "choose", "tick"]); // the follow-up tick, at once
+  e.answer("tick", 1);
+  await settle();
+  assert.deepEqual(e.log, ["reverify:ok", "choose:chosen", "tick:1"]);
+  assert.deepEqual(w.drainOutcomes().map((o) => o.session_id), ["ps_1"]);
+  assert.deepEqual(errors, []);
+  assert.equal(t.pending!.ms, 10_000);
+  w.stop();
+});
+
+// Only Engine.tick yields: the launch reverify (run once) finishes first.
+test("test_the_first_run_reverify_does_not_yield", async () => {
+  const e = new CoopEngine();
   const w = new Worker(asEngine(e));
   const run = w.runOnce();
   await settle();
-  const job = w.submit(() => {
-    e.log.push("choose");
-    return "chosen";
-  });
+  assert.equal(e.last(), "reverify"); // reverify in flight
+  const job = w.submit((x) => (x as unknown as CoopEngine).command("choose"));
   await settle();
-  assert.equal(job.done(), false);
-  gate.resolve();
-  e.tickImpl = null;
-  await run;
+  assert.ok(e.cancelled.length === 0 && e.last() === "reverify" && !job.done());
+  e.answer("reverify", "ok");
+  await settle();
+  // the tick yields before its request
+  assert.ok(e.cancelled.length === 0 && e.last() === "choose", String(e.sent));
+  assert.deepEqual(e.log, ["reverify:ok"]);
+  e.answer("choose", "chosen");
+  await settle();
+  e.answer("tick", 1);
+  await run; // no failure: yielding is no error
   assert.equal(job.result(), "chosen");
-  assert.deepEqual(e.log, ["reverify", "tick", "choose", "tick"]);
 });
 
 test("pump: commands run before a due tick and plain results resolve", async () => {
@@ -531,4 +625,72 @@ test("test_timer_firing_during_a_wake_triggered_run_yields_one_follow_up", async
   assert.equal(maxLive, 1);
   assert.equal(e.ticks, 2);
   w.stop();
+});
+
+// test_worker.py's test_an_abandoned_running_job_is_refused_its_next_request, with the real Engine:
+// the player picks another network while a start waits on its first endpoint, which fails.
+test("test_an_abandoned_running_job_is_refused_its_next_request", async () => {
+  const cfg = buildConfig({ wallet: "0x52908400098527886E0F7030069857D2E4169EE7", chains: ["base"], testnet: true });
+  addItem(cfg, "chapter2", { code: 37, price: "4.99", token: "USDC", title: "Chapter 2" });
+  const urls = TESTNET["base"]!.rpc;
+  assert.ok(urls.length >= 2, "Base Sepolia has a second endpoint to fall back to");
+  let start: Job<any> | null = null;
+  const handlers: Record<string, (m: string) => unknown> = {};
+  for (const u of urls) handlers[u] = () => ({ jsonrpc: "2.0", id: 1, result: "0x10" });
+  handlers[urls[0]!] = () => {
+    start!.abandon(); // while its first request is in flight
+    throw new TransportError("timed out");
+  };
+  const transport = new FakeTransport(handlers as never);
+  const engine = new RealEngine(cfg, { transport, clock: () => 1700000000 });
+  const w = new Worker(engine);
+  const job = w.submit((e) => e.startSession("unlock", "base", { item: "chapter2" }));
+  start = job;
+  await w.runOnce();
+  assert.ok(job.exception() instanceof Abandoned, String(job.exception()));
+  assert.deepEqual(transport.calls.filter((c) => c[1] === "eth_blockNumber").map((c) => c[0]), [urls[0]]);
+  assert.equal(engine.refuseRequests, null, "cleared after the job");
+});
+
+// A superseded start whose request is in flight (a host that never answers) ends at
+// once when abandoned, not at the request's 10 s timeout. The transport is told (Cancel).
+test("test_an_abandoned_job_stops_waiting_for_its_request_in_flight", async () => {
+  const cfg = buildConfig({ wallet: "0x52908400098527886E0F7030069857D2E4169EE7", chains: ["base"], testnet: true });
+  addItem(cfg, "chapter2", { code: 37, price: "4.99", token: "USDC", title: "Chapter 2" });
+  const cancels: Cancel[] = [];
+  let release!: () => void;
+  const released = new Promise<void>((r) => { release = r; });
+  const hanging = {
+    async postJson(_url: string, _payload: object, timeout: number, cancel?: Cancel): Promise<unknown> {
+      if (cancel) cancels.push(cancel);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([released, new Promise((r) => { timer = setTimeout(r, timeout * 1000); })]);
+      clearTimeout(timer);
+      return { jsonrpc: "2.0", id: 1, result: "0x10" };
+    },
+  };
+  const engine = new RealEngine(cfg, { transport: hanging, clock: () => 1700000000 });
+  const w = new Worker(engine);
+  const job = w.submit((e) => e.startSession("unlock", "base", { item: "chapter2" }));
+  const timer = setTimeout(() => job.abandon(), 200);
+  const t = performance.now();
+  try {
+    await w.runOnce();
+    assert.ok(performance.now() - t < 2000, `the job waited ${performance.now() - t} ms`);
+    assert.ok(job.exception() instanceof Abandoned, String(job.exception()));
+    assert.match(String((job.exception() as Error).message), /in flight/);
+    assert.ok(cancels.length === 1 && cancels[0]!.cancelled, "the transport was told to stop the request");
+  } finally {
+    clearTimeout(timer);
+    release();
+  }
+});
+
+test("test_abandoning_a_queued_job_cancels_it", async () => {
+  const w = new Worker(asEngine(new FakeEngine()));
+  let ran = false;
+  const job = w.submit(async () => { ran = true; });
+  job.abandon();
+  await w.runOnce();
+  assert.ok(job.cancelled() && !ran && !job.abandoned);
 });

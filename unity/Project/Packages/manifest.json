@@ -1,0 +1,17 @@
+{
+  "dependencies": {
+    "com.repulse.scfg": "file:../../Packages/com.repulse.scfg",
+    "com.unity.sdk.linux-x86_64": "1.1.1",
+    "com.unity.test-framework": "1.8.0",
+    "com.unity.toolchain.linux-x86_64-linux": "1.1.1",
+    "com.unity.modules.imageconversion": "1.0.0",
+    "com.unity.modules.imgui": "1.0.0",
+    "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.ui": "1.0.0",
+    "com.unity.modules.uielements": "1.0.0",
+    "com.unity.modules.unitywebrequest": "1.0.0"
+  },
+  "testables": [
+    "com.repulse.scfg"
+  ]
+}

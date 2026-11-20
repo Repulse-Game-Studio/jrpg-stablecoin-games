@@ -19,15 +19,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from decimal import Decimal
 
-from .amounts import format_units, parse_amount
+from .amounts import decimal_to_units, format_units, parse_amount
 from .backends import backend_for
 from .chains import Chain
 from .config import Config, enabled_chains, text_on
 from .models import PaymentResult
-from .paylinks import eip681_transfer_uri
+from .paylinks import ONRAMP_EXACT_UNITS, eip681_transfer_uri, onramp_amount, onramp_url
 from .payments import MIN_TIP, TIP_PRESETS, PaymentSpec
 from .rpc import RpcUnavailable
 from .solana.paylinks import solana_pay_uri
+from .worker import abandon
 
 FINAL_STATES = ("paid", "underpaid", "expired")
 # Errors that judge the reported transaction (the hint) and drop it.
@@ -45,11 +46,48 @@ MESSAGES = {
     "invalid_amount": f"Enter an amount of at least {MIN_TIP} with up to 2 decimals.",
     "browser_unavailable": "Couldn't start the browser checkout. Use another method.",
     "start_failed": "Couldn't start the payment. Check your connection and try again.",
+    # A start every endpoint failed: back on the network step, nothing retries until the player
+    # picks a network again (network_unavailable is the waiting state's, which the worker retries).
+    "start_unreachable": "Can't reach the network. Pick a network to try again.",
     "solana_unavailable": "Payments on Solana aren't available right now.",
     "internal_error": "Something went wrong while checking the payment. Retrying...",
     "paste_blocked": ("Your browser blocked pasting. Type it instead: "
                       "the game also finds the payment without it."),
 }
+
+
+ONRAMP_PAGES = ("browser", "qr", "manual")
+
+
+def onramp_view(config: Config, *, token: str, chain_key: str | None, units: int | None,
+                amount: Decimal, step: str, path: list[str], can_go_back: bool,
+                option_keys: list[str]) -> dict:
+    """The buy link's state on a checkout step, as the controller and every port decide it
+    (pinned by the tier1 vectors, fn onramp_view):
+
+    - url: configure(onramp=...)'s page for the chosen network when it is offered there, else
+      None. The suggested amount is the session's exact `units`, or before a session the
+      payment `amount` plus the most the item code and nonce add (ONRAMP_EXACT_UNITS); plus a
+      cent where the token is the network's gas coin (Arc); rounded up to whole cents.
+    - The step it goes on: the method step, or the payment page the sheet opens on when the
+      method step is skipped (a single method: "method" is not in `path`).
+    - shows_onramp: on that step, with a url.
+    - shows_onramp_hint: on that step, without a url (Solana), while the player can go back
+      and another network they can pick (`option_keys`) has the link.
+    """
+    opts = config.onramp
+    chain = enabled_chains(config).get(chain_key) if chain_key else None
+    url = None
+    if opts["enabled"] and chain is not None and chain.key in opts["chains"]:
+        if units is None:
+            units = decimal_to_units(amount) + ONRAMP_EXACT_UNITS
+        url = onramp_url(opts["url"], chain=chain.key, chain_id=chain.chain_id, token=token,
+                         token_address=chain.tokens[token].address,
+                         amount=onramp_amount(units, chain.native_token == token))
+    here = step == "method" or (step in ONRAMP_PAGES and "method" not in path)
+    hint = (opts["enabled"] and here and url is None and can_go_back
+            and any(key in opts["chains"] for key in option_keys))
+    return {"url": url, "shows_onramp": here and url is not None, "shows_onramp_hint": hint}
 
 
 class CheckoutController:
@@ -160,6 +198,31 @@ class CheckoutController:
                                   label=self.game_name, message=self.spec.title)
         return eip681_transfer_uri(token_address=self.token_address, chain_id=self.chain.chain_id,
                                    recipient=self.recipient, units=self.session["units"])
+
+    def _onramp(self) -> dict:
+        return onramp_view(self.config, token=self.spec.token, chain_key=self.chain_key,
+                           units=self.session["units"] if self.session else None,
+                           amount=self.amount, step=self.step, path=self.step_path(),
+                           can_go_back=self.can_go_back,
+                           option_keys=[key for key, _name, _fee in self.chain_options()])
+
+    def onramp_url(self) -> str | None:
+        """The page where a player without the token buys some with a card, for the chosen
+        network, with the payment (plus a cent for the fee on Arc) suggested as the amount.
+        None when configure(onramp=...) doesn't offer it on this network (see onramp_view)."""
+        return self._onramp()["url"]
+
+    @property
+    def shows_onramp(self) -> bool:
+        """Whether this step offers the buy link."""
+        return self._onramp()["shows_onramp"]
+
+    @property
+    def shows_onramp_hint(self) -> bool:
+        """Whether this step points to the buy link instead ("Pick another network"), because
+        the chosen network has none (Solana) but another one the player can pick has it. Its
+        button goes back to the network step (``back()``)."""
+        return self._onramp()["shows_onramp_hint"]
 
     def explorer_url(self) -> str | None:
         tx = self.result.tx_hash if self.result and self.result.tx_hash else self.hint_tx
@@ -411,7 +474,7 @@ class CheckoutController:
             self.state = "choose"
             self.chain_key = None
             network = isinstance(exc, RpcUnavailable)
-            self.error = "network_unavailable" if network else "start_failed"
+            self.error = "start_unreachable" if network else "start_failed"
             if self.step not in ("amount", "network"):
                 self._go("network", -1)
             return
@@ -491,6 +554,7 @@ class CheckoutController:
         fut, self._future = self._future, None
         if fut is None:
             return
+        abandon(fut)  # a queued start never runs; a running one makes no further request
         submit = self.submit
 
         def discard(f) -> None:

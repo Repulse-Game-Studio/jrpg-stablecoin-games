@@ -4,7 +4,7 @@ limit arrived in CPython 3.11 and in the 3.10.7 / 3.9.14 security releases, and 
 interpreters, such as some Ren'Py builds, lack it). Converting a very long digit string costs
 quadratic time; the TypeScript and GDScript cores apply the same limit (pystr.ts, pystr.gd).
 Also: json_loads (an RPC answer's integer literals through int_from) and digit_run_value (a
-number in a node's error message, at most 18 significant digits), Ruling 6."""
+number in a node's error message, at most 18 significant digits)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import json
 # CPython's default sys.get_int_max_str_digits().
 INT_MAX_STR_DIGITS = 4300
 # A digit run read out of a node's error message (an EVM range limit, a Solana transaction
-# version) is a number only up to this many significant digits (Ruling 6): every range or version
+# version) is a number only up to this many significant digits: every range or version
 # a request can carry is below 10**18, and the TypeScript and GDScript cores read the same.
 DIGIT_RUN_LIMIT = 18
 

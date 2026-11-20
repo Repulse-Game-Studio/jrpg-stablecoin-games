@@ -1,27 +1,45 @@
 """The shared localhost checkout server security suite: every test runs against the Python server
-(scfg_core/local_server.py), the GDScript one (godot/addons/scfg/local_server.gd) and the Node one
-(rpgmaker/src/mz/local_server.ts, RPG Maker MZ's desktop page).
+(scfg_core/local_server.py), the GDScript one (godot/addons/scfg/local_server.gd), the Node one
+(rpgmaker/src/mz/local_server.ts, RPG Maker MZ's desktop page) and the C# one
+(unity/Packages/com.repulse.scfg/Runtime/Desktop/LocalServer.cs, Unity's desktop page).
 
-The `godot` half (marked `godot_server`) needs a Godot 4.3+ binary in SCFG_GODOT and an imported
+The `godot` part (marked `godot_server`) needs a Godot 4.3+ binary in SCFG_GODOT and an imported
 project (`$SCFG_GODOT --headless --path godot --import`). Without one it skips; with
-SCFG_REQUIRE_GD=1 it fails instead. CI's godot-core job runs only this half, once per Godot
+SCFG_REQUIRE_GD=1 it fails instead. CI's godot-core job runs only this part, once per Godot
 version: `pytest tests/server_security -m godot_server`.
 
-The `node` half needs Node 22.18+ on PATH and rpgmaker/node_modules (`cd rpgmaker && npm ci`).
-Without them it skips; with SCFG_REQUIRE_JS=1 it fails instead. The node half is marked
+Every test also runs against the C++ server of the Unreal core
+(unreal/Plugins/Scfg/Source/ScfgCore, LocalServer.h, through unreal/core-driver's
+scfg_server_driver): the `cpp` part (marked `cpp_server`) needs cmake 3.25+, a C++20 compiler and
+ninja or make (tests/integration/cpp_driver.py
+builds the driver once per session into unreal/build/integration). Without them it skips; with
+SCFG_REQUIRE_CPP=1 it fails instead. pyproject's addopts deselect it; CI's cpp-core job runs it: `SCFG_REQUIRE_CPP=1 pytest tests/server_security -m
+cpp_server`.
+
+The `node` part needs Node 22.18+ on PATH and rpgmaker/node_modules (`cd rpgmaker && npm ci`).
+Without them it skips; with SCFG_REQUIRE_JS=1 it fails instead. The node part is marked
 `node_server` and deselected by default; CI's rpgmaker-ui job runs it: `pytest -m node_server`.
+
+The `cs` part (marked `cs_server`) needs the .NET 8 SDK (`dotnet` on PATH, in $DOTNET_ROOT or in
+~/.dotnet); the first cs test builds unity/server-driver (`dotnet build -c Release`). Without
+dotnet it skips; with SCFG_REQUIRE_CS=1 it fails instead (a failed build always fails). It runs in
+the default run; CI's cs-core job runs it alone: `pytest tests/server_security -m cs_server`.
 """
 import os
 from pathlib import Path
 
 import pytest
 
+import server_handles
 from server_handles import (
+    CsDriver,
+    CsServer,
     GodotDriver,
     GodotServer,
     NodeDriver,
     NodeServer,
     PythonServer,
+    cs_binary,
     godot_binary,
     node_binary,
 )
@@ -37,6 +55,13 @@ def _engine_errors(text):
 def _node_errors(text):
     """Every line Node wrote to stderr: the driver writes nothing there, so a line is an uncaught
     exception or a warning from a socket handler."""
+    return [line for line in text.splitlines() if line.strip()]
+
+
+def _cs_errors(text):
+    """Every line the C# driver wrote to stderr: it writes there only for a real fault (Pump()
+    letting an exception escape, which the server promises it never does; a job's done callback
+    that throws; a failure reading stdin) or when the runtime itself fails."""
     return [line for line in text.splitlines() if line.strip()]
 
 
@@ -58,16 +83,32 @@ def node_driver():
     assert not errors, "the Node server driver logged errors:\n" + "\n".join(errors)
 
 
+@pytest.fixture(scope="session")
+def cs_driver():
+    driver = CsDriver(cs_binary())
+    yield driver
+    driver.close()
+    errors = _cs_errors(driver.stderr_text())
+    assert not errors, "the C# server driver logged errors:\n" + "\n".join(errors)
+
+
 @pytest.fixture(params=["python", pytest.param("godot", marks=pytest.mark.godot_server),
-                        pytest.param("node", marks=pytest.mark.node_server)])
+                        pytest.param("node", marks=pytest.mark.node_server),
+                        pytest.param("cs", marks=pytest.mark.cs_server),
+                        "cpp"])  # marked cpp_server in pytest_collection_modifyitems (see there)
 def make_server(request, monkeypatch):
     """make_server(**config) -> a started server handle (see server_handles.py)."""
     made = []
     driver, handle_class, errors_in = None, None, None
+    if request.param == "cpp":
+        driver, handle_class, errors_in = (request.getfixturevalue("cpp_server_driver"),
+                                           server_handles.CppServer, _cpp_errors)
     if request.param == "godot":
         driver, handle_class, errors_in = request.getfixturevalue("godot_driver"), GodotServer, _engine_errors
     elif request.param == "node":
         driver, handle_class, errors_in = request.getfixturevalue("node_driver"), NodeServer, _node_errors
+    elif request.param == "cs":
+        driver, handle_class, errors_in = request.getfixturevalue("cs_driver"), CsServer, _cs_errors
     seen = len(driver.stderr_text()) if driver is not None else 0
 
     def make(**config):
@@ -111,6 +152,39 @@ def pytest_configure(config):
             named = True
     if named or os.environ.get("SCFG_REQUIRE_JS") == "1":
         config.option.markexpr = config.option.markexpr.replace(term, "")
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(config, items):
+    """Marks the `cpp` items `cpp_server`, then deselects them unless the `-m` expression names
+    the marker: pyproject's addopts (`and not cpp_server`) do that for the default run, but a `-m`
+    on the command line replaces theirs, and a negative one (`-m "not node_server"`) must not
+    build the C++ driver either. tryfirst: before pytest's own `-m` deselection reads the marks."""
+    for item in items:
+        callspec = getattr(item, "callspec", None)
+        if callspec is not None and callspec.params.get("make_server") == "cpp":
+            item.add_marker("cpp_server")
+    if "cpp_server" in (config.option.markexpr or ""):
+        return
+    dropped = [item for item in items if item.get_closest_marker("cpp_server") is not None]
+    if dropped:
+        config.hook.pytest_deselected(items=dropped)
+        items[:] = [item for item in items if item.get_closest_marker("cpp_server") is None]
+
+
+def _cpp_errors(text):
+    """Every line the C++ driver wrote to stderr: it writes nothing there unless something failed
+    (a socket call it did not expect to fail, a sanitizer report)."""
+    return [line for line in text.splitlines() if line.strip()]
+
+
+@pytest.fixture(scope="session")
+def cpp_server_driver():
+    driver = server_handles.CppDriver(server_handles.cpp_server_binary())
+    yield driver
+    driver.close()
+    errors = _cpp_errors(driver.stderr_text())
+    assert not errors, "the C++ server driver logged errors:\n" + "\n".join(errors)
 
 
 def pytest_terminal_summary(terminalreporter, config):

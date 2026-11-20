@@ -268,6 +268,9 @@
   "tests/unit/test_config.py::test_bad_methods": [
    "tier1/config"
   ],
+  "tests/unit/test_config.py::test_bad_onramp": [
+   "tier1/config"
+  ],
   "tests/unit/test_config.py::test_bad_rpc_urls": [
    "tier1/config"
   ],
@@ -312,6 +315,27 @@
    "tier1/config"
   ],
   "tests/unit/test_config.py::test_no_chain_supports_token": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_onramp_chains_must_be_evm": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_onramp_default_follows_the_enabled_chains_and_skips_custom_ones": [
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_config.py::test_onramp_defaults_to_the_builtin_evm_chains_on_mainnet": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_onramp_is_not_offered_on_testnet_unless_chains_are_listed": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_onramp_options_merge": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_onramp_url_limit_is_inclusive": [
+   "tier1/config"
+  ],
+  "tests/unit/test_config.py::test_onramp_url_needs_a_host": [
    "tier1/config"
   ],
   "tests/unit/test_config.py::test_qr_chains_subset_ok": [
@@ -365,6 +389,9 @@
    "tier1/custom_chains"
   ],
   "tests/unit/test_custom_chains.py::test_build_chain_accepts_single_rpc_string_and_lowercase_token": [
+   "tier1/custom_chains"
+  ],
+  "tests/unit/test_custom_chains.py::test_build_chain_allows_a_plain_http_explorer_on_this_computer": [
    "tier1/custom_chains"
   ],
   "tests/unit/test_custom_chains.py::test_build_chain_allows_plain_http_on_this_computer": [
@@ -565,7 +592,16 @@
   "tests/unit/test_paylinks.py::test_a_version_32_payment_link_matrix": [
    "tier1/qr"
   ],
+  "tests/unit/test_paylinks.py::test_default_onramp_url_is_thirdwebs_buy_page_locked_to_the_token": [
+   "tier1/paylinks"
+  ],
   "tests/unit/test_paylinks.py::test_eip681_uri": [
+   "tier1/paylinks"
+  ],
+  "tests/unit/test_paylinks.py::test_onramp_amount": [
+   "tier1/paylinks"
+  ],
+  "tests/unit/test_paylinks.py::test_onramp_url_fills_every_placeholder_each_time_it_appears": [
    "tier1/paylinks"
   ],
   "tests/unit/test_paylinks.py::test_qr_alignment_patterns_sit_where_the_standard_puts_them": [
@@ -730,8 +766,14 @@
    "tier2/reverify/token_or_chain_unknown",
    "tier2/custom_chains/removed_chain_receipt_kept"
   ],
+  "tests/unit/test_rpc_client.py::test_a_call_spends_at_most_its_budget_across_endpoints": [
+   "tier2/rpc/a_call_spends_at_most_its_budget"
+  ],
   "tests/unit/test_rpc_client.py::test_all_endpoints_down_raises_unavailable": [
    "tier2/rpc/all_endpoints_fail"
+  ],
+  "tests/unit/test_rpc_client.py::test_an_endpoint_is_not_asked_with_less_than_the_floor_left": [
+   "tier2/rpc/an_endpoint_is_not_asked_with_less_than_the_floor_left"
   ],
   "tests/unit/test_rpc_client.py::test_an_overlong_number_in_a_range_error_does_not_break_get_logs": [
    "tier1/rpc_errors"
@@ -750,6 +792,9 @@
   ],
   "tests/unit/test_rpc_client.py::test_cooldown_doubles_and_caps": [
    "tier2/rpc/cooldown_doubles_to_the_cap_and_recovers"
+  ],
+  "tests/unit/test_rpc_client.py::test_each_attempt_waits_at_most_what_is_left_of_the_budget": [
+   "tier2/rpc/a_call_spends_at_most_its_budget"
   ],
   "tests/unit/test_rpc_client.py::test_failed_endpoint_cools_down_then_is_retried": [
    "tier2/rpc/endpoint_cools_down_then_is_retried"
@@ -812,6 +857,9 @@
    "tier2/rpc/getlogs_range_halves_without_a_stated_limit",
    "tier2/rpc/getlogs_range_shrinks_to_a_stated_limit",
    "tier2/rpc/getlogs_gives_up_at_the_minimum_range"
+  ],
+  "tests/unit/test_rpc_client.py::test_the_floor_is_asked_at_exactly_min_attempt_left": [
+   "tier2/rpc/an_endpoint_is_asked_with_exactly_the_floor_left"
   ],
   "tests/unit/test_sessions.py::test_bad_tx_hash": [
    "tier1/tx_ids",
@@ -1143,6 +1191,9 @@
   ],
   "tests/unit/test_watcher_awaiting.py::test_hint_underpaid_unlock_is_final": [
    "tier2/evm/underpaid_hint_is_final"
+  ],
+  "tests/unit/test_watcher_awaiting.py::test_hint_verdict_survives_a_network_failure_later_in_the_step": [
+   "tier2/evm/hint_verdict_survives_a_network_failure"
   ],
   "tests/unit/test_watcher_awaiting.py::test_hint_with_several_transfers_takes_largest_qualifying": [
    "tier2/evm/hint_picks_largest_transfer"

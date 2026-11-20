@@ -111,7 +111,7 @@ func test_start_failure_returns_to_choose_with_error() -> bool:
 	ctl.select_chain("arbitrum")
 	ctl.poll()
 	T.eq(ctl.state, "choose")
-	T.eq(ctl.error, "network_unavailable")
+	T.eq(ctl.error, "start_unreachable")
 	T.ok(ctl.message() != null and ctl.message() != "", "a message")
 	return T.done()
 
@@ -416,7 +416,7 @@ func test_poll_a_failure_that_is_not_rpc_unavailable_is_start_failed() -> bool:
 		var job := ScfgJob.new()
 		job._start()
 		job._fail(ScfgErr.make("RpcUnavailable", "down"))
-		return job), "network_unavailable", "RpcUnavailable")
+		return job), "start_unreachable", "RpcUnavailable")
 	return T.done()
 
 

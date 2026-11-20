@@ -2,8 +2,10 @@ import pytest
 
 from scfg_core.coio import Sync
 from scfg_core.rpc import (
+    CALL_BUDGET,
     COOLDOWN_MAX,
     COOLDOWN_START,
+    MIN_ATTEMPT,
     MIN_LOG_RANGE,
     RpcClient,
     RpcError,
@@ -97,6 +99,73 @@ def test_all_endpoints_down_raises_unavailable():
     c, _, _ = client({A: down, B: down})
     with pytest.raises(RpcUnavailable):
         c.block_number()
+
+
+class TimedTransport:
+    """Each url takes `costs[url]` seconds of the clock (None: its whole timeout, a hang) and then
+    fails, or answers when it is in `answers`. Records (url, timeout)."""
+
+    def __init__(self, clock, costs, answers=()):
+        self.clock, self.costs, self.answers = clock, costs, set(answers)
+        self.calls = []
+
+    def post_json(self, url, payload, timeout):
+        self.calls.append((url, timeout))
+        cost = self.costs.get(url)
+        self.clock.advance(timeout if cost is None else min(cost, timeout))
+        if url in self.answers:
+            return ok("0x7")
+        raise TransportError(f"timed out after {timeout:g}s")
+
+
+def test_a_call_spends_at_most_its_budget_across_endpoints():
+    C, D = "https://c.rpc", "https://d.rpc"
+    clock = FakeClock()
+    t = TimedTransport(clock, {})  # every endpoint hangs
+    rpc = RpcClient([A, B, C, D], clock=clock)
+    assert CALL_BUDGET == 15.0
+    with pytest.raises(RpcUnavailable):
+        Sync(rpc, t).block_number()
+    assert t.calls == [(A, 10.0), (B, 5.0)]  # the rest of the 15 s, then nothing is left for C, D
+    assert clock.now == 1000.0 + CALL_BUDGET
+    assert rpc.live_urls() == [C, D]          # skipped, not cooled down: the next call asks C
+
+
+def test_each_attempt_waits_at_most_what_is_left_of_the_budget():
+    C = "https://c.rpc"
+    clock = FakeClock()
+    t = TimedTransport(clock, {A: 3, B: 10, C: 1}, answers=[C])
+    assert Sync(RpcClient([A, B, C], clock=clock), t).block_number() == 7
+    assert t.calls == [(A, 10.0), (B, 10.0), (C, 2.0)]
+
+
+def test_an_endpoint_is_not_asked_with_less_than_the_floor_left():
+    """A hangs (10 s), B fails after 4 s: 1 s is left, under MIN_ATTEMPT, so C is not
+    asked with a sliver of time, nor cooled down for failing it."""
+    C = "https://c.rpc"
+    clock = FakeClock()
+    t = TimedTransport(clock, {B: 4})
+    rpc = RpcClient([A, B, C], clock=clock)
+    assert MIN_ATTEMPT == 2.0
+    with pytest.raises(RpcUnavailable):
+        Sync(rpc, t).block_number()
+    assert t.calls == [(A, 10.0), (B, 5.0)]
+    assert rpc.live_urls() == [C]
+
+
+@pytest.mark.parametrize("b_takes, asked", [(3, True), (3.1, False)])
+def test_the_floor_is_asked_at_exactly_min_attempt_left(b_takes, asked):
+    """The floor's boundary: with exactly MIN_ATTEMPT left C is asked, with that
+    timeout; with less (1.9 s) it is not, and stays live."""
+    C = "https://c.rpc"
+    clock = FakeClock()
+    t = TimedTransport(clock, {B: b_takes})
+    rpc = RpcClient([A, B, C], clock=clock)
+    with pytest.raises(RpcUnavailable):
+        Sync(rpc, t).block_number()
+    expected = [(A, 10.0), (B, 5.0)] + ([(C, MIN_ATTEMPT)] if asked else [])
+    assert t.calls == expected
+    assert (C in rpc.live_urls()) is (not asked)
 
 
 @pytest.mark.parametrize("bad", ["not a dict", {"jsonrpc": "2.0", "id": 1}])

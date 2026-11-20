@@ -28,6 +28,7 @@ from ..solana.tx import (
 )
 from ..transfers import Transfer
 from ..watcher import StepOutcome, min_amount, result_from_match
+from ..worker import Abandoned
 
 FINAL_CONFIRMATIONS = 32  # Solana's "finalized" corresponds to 32 confirmed blocks
 SCAN_TX_BUDGET = 5        # getTransaction calls per step for the token-account scan
@@ -192,6 +193,12 @@ class SolanaBackend:
             if out.error is None:
                 out.error = "network_unavailable"
             return out
+        except Abandoned:
+            # The tick yields to a command (worker.py): a verdict reached earlier in this step is
+            # reported now (as above); the rest of the step waits for the next tick.
+            if out.error is not None:
+                return out
+            raise
 
     def _qualifies(self, t, rec, chain, receipts) -> bool:
         return (t is not None and t.block_number >= rec["start_block"]

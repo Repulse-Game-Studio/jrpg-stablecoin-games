@@ -71,22 +71,34 @@ package = false
 
 [tool.pytest.ini_options]
 pythonpath = ["plugin/game/python-packages", "installer", "conformance/python"]
-# tests/server_security runs in the default run: its Python third always, its Godot third (marker
-# godot_server) when SCFG_GODOT names a Godot 4.3+ binary (skipped otherwise; SCFG_REQUIRE_GD=1
-# makes that a failure). Its Node third (marker node_server) and tests/rpgmaker_ui (marker
-# rpgmaker_ui) need Node 22.18+ and rpgmaker/node_modules: the default run deselects them. Naming
-# their directory on the command line, or SCFG_REQUIRE_JS=1, selects them again (unless -m is given
-# on the command line). CI: unit runs the default (the Python third); godot-core runs
-# `-m godot_server` per Godot version; rpgmaker-ui runs tests/rpgmaker_ui and `-m node_server` once.
+# tests/server_security runs every test against five servers, one part per server. The default run
+# runs its Python part always, its Godot part (marker godot_server) when SCFG_GODOT names a Godot
+# 4.3+ binary (skipped otherwise; SCFG_REQUIRE_GD=1 makes that a failure) and its C# part (marker
+# cs_server) when dotnet (the .NET 8 SDK) is on PATH, in $DOTNET_ROOT or in ~/.dotnet (skipped
+# otherwise; SCFG_REQUIRE_CS=1 makes that a failure). It deselects the Node part (marker
+# node_server) and tests/rpgmaker_ui (marker rpgmaker_ui), which need Node 22.18+ and
+# rpgmaker/node_modules: naming their directory on the command line, or SCFG_REQUIRE_JS=1, selects
+# them again (unless -m is given on the command line). It also deselects the C++ part (marker
+# cpp_server), which builds the Unreal core's server driver, and the Unreal e2e and showcase tests
+# (unreal_e2e, unreal_showcase), which build and start Unreal: only a -m that names one runs it. CI: test.yml's unit job and release.yml's test gate run the default (the Python part, and the
+# C# one with the runner image's preinstalled dotnet; the drivers roll forward to a newer runtime
+# than 8.0); godot-core runs `-m godot_server` per Godot version; rpgmaker-ui runs
+# tests/rpgmaker_ui and `-m node_server` once; cs-core runs `-m cs_server` with SCFG_REQUIRE_CS=1;
+# cpp-core runs `-m cpp_server` with SCFG_REQUIRE_CPP=1. release.yml runs each of the four parts
+# but the Python one on its own too, with its SCFG_REQUIRE_* set.
 testpaths = ["tests", "conformance/tests"]
 markers = [
     "integration: needs a local Anvil node (Foundry); run with -m integration",
     "live: reads real public chains (read-only, no key); run with -m live",
     "rpgmaker_ui: the RPG Maker sheet in headless Chrome (needs Node and rpgmaker/node_modules); run with -m rpgmaker_ui",
-    "node_server: the Node third of tests/server_security (needs Node and rpgmaker/node_modules); run with -m node_server",
-    "godot_server: the Godot third of tests/server_security (needs SCFG_GODOT); run alone with -m godot_server",
+    "node_server: the Node part of tests/server_security (needs Node and rpgmaker/node_modules); run with -m node_server",
+    "godot_server: the Godot part of tests/server_security (needs SCFG_GODOT); run alone with -m godot_server",
+    "cs_server: the C# part of tests/server_security (needs the .NET 8 SDK); run alone with -m cs_server",
+    "cpp_server: the C++ (Unreal core) part of tests/server_security (needs cmake 3.25+, a C++20 compiler, ninja or make); run alone with -m cpp_server",
+    "unreal_e2e: the Unreal desktop e2e under xvfb-run (needs UE 5.8, Xvfb, lavapipe, a chain node); run with -m unreal_e2e",
+    "unreal_showcase: the Unreal showcase's boot test under xvfb-run (needs UE 5.8, Xvfb, lavapipe); run with -m unreal_showcase",
 ]
-addopts = "-m 'not integration and not live and not rpgmaker_ui and not node_server'"
+addopts = "-m 'not integration and not live and not rpgmaker_ui and not node_server and not cpp_server and not unreal_e2e and not unreal_showcase'"
 
 [tool.ruff]
 target-version = "py39"

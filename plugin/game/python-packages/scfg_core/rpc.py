@@ -2,7 +2,10 @@
 
 Public RPC endpoints are free but unreliable: they rate-limit, go down, and cap
 eth_getLogs block ranges. The client therefore:
-  * tries endpoints in order on every call, skipping ones in cooldown,
+  * tries endpoints in order on every call, skipping ones in cooldown, within a total budget
+    of CALL_BUDGET seconds per call (each attempt waits at most what is left of it, so a chain
+    with four dead endpoints says so after 15 s, not 40; an endpoint is not asked with less
+    than MIN_ATTEMPT seconds left),
   * puts a failing endpoint in cooldown (30 s, doubling to 10 min),
   * remembers, per endpoint, the largest eth_getLogs range it accepts (public
     providers allow anything from 50 to 2000+ blocks), shrinking it when a
@@ -13,11 +16,15 @@ network itself.
 
 from __future__ import annotations
 
+import ipaddress
 import itertools
 import json
 import re
+import socket
+import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Callable
@@ -30,6 +37,16 @@ if TYPE_CHECKING:
 
 COOLDOWN_START = 30.0
 COOLDOWN_MAX = 600.0
+# The most seconds one call() spends across a chain's endpoints: the first attempt gets the full
+# per-request timeout (10 s), each later one min(timeout, what is left); once nothing is left the
+# endpoints not tried yet are skipped (not cooled down) and the call is RpcUnavailable. Measured
+# on the RpcClient's clock, so a session start on a chain whose endpoints all hang fails after
+# 15 s whatever the number of urls.
+CALL_BUDGET = 15.0
+# The least of the budget an endpoint is asked with (the floor): under it the endpoints left are
+# skipped (not cooled down) and the call is RpcUnavailable, so no endpoint is cooled down for
+# failing a request it was given a sliver of time for.
+MIN_ATTEMPT = 2.0
 MIN_LOG_RANGE = 10
 _RATE_HINTS = ("rate limit", "too many requests", "rate-limit")
 # Phrases providers use for "your eth_getLogs block range is too wide". Some say "archive"
@@ -61,7 +78,7 @@ def suggested_range(err: RpcError, tried: int) -> int:
     """Next eth_getLogs range to try after `err` rejected a `tried`-block request.
 
     Uses the limit when the provider states one ("limited to 0 - 50 blocks range"),
-    otherwise halves. A number of more than 18 significant digits is ignored (Ruling 6: it is
+    otherwise halves. A number of more than 18 significant digits is ignored (it is
     above any range, and converting a long digit run would cost quadratic time).
     """
     stated = [digit_run_value(n) for n in _NUMBER.findall(err.message)]
@@ -103,17 +120,75 @@ def _ssl_context() -> ssl.SSLContext:
         return ssl.create_default_context()
 
 
+def _proxied(url: str) -> bool:
+    """urllib sends this url through a proxy (the environment's, or the Windows / macOS system
+    setting): the proxy resolves the name, and this machine may well not be able to. Asked as
+    urllib's ProxyHandler asks it: proxy_bypass of the request's host as the url gives it, with
+    its port (a no_proxy entry such as rpc.example:8545 matches only that port)."""
+    try:
+        request = urllib.request.Request(url)
+        proxy = urllib.request.getproxies().get(request.type)
+        return bool(proxy) and not urllib.request.proxy_bypass(request.host)
+    except Exception:
+        return False  # an unreadable proxy setting: urllib's own handler decides
+
+
+def resolve_within(url: str, timeout: float) -> float:
+    """Look the url's host up, giving up after ``timeout`` seconds (TransportError): the seconds
+    the lookup took. The socket timeout urlopen gets covers the connection and each read, not the
+    name lookup: with a DNS server that never answers, getaddrinfo waits for the resolver's own
+    timeout (about 20 s per endpoint measured), far past ``timeout``. The lookup runs on a daemon
+    thread.
+
+    Only a lookup that does not answer in time fails the request. One that fails (an unknown
+    name, no network) is left to urlopen, which tries the same lookup and fails by itself, or
+    succeeds where this one could not. Nothing is looked up for a literal address, or when urllib
+    goes through a proxy for this url (the proxy resolves the name: on a proxy-only network this
+    machine cannot). urlopen's own lookup that follows is answered from the OS's cache where it
+    has one (Windows, macOS, a caching resolver on Linux); without one (plain glibc) that second
+    lookup is not bounded by this."""
+    host = urllib.parse.urlsplit(url).hostname
+    if not host:
+        return 0.0
+    try:
+        ipaddress.ip_address(host)
+        return 0.0  # a literal address: nothing to resolve
+    except ValueError:
+        pass
+    if _proxied(url):
+        return 0.0
+    started = time.monotonic()
+
+    def lookup() -> None:
+        try:
+            socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+        except OSError:
+            pass  # left to urlopen (see above)
+
+    thread = threading.Thread(target=lookup, name="scfg-dns", daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        raise TransportError(f"timed out resolving {host} after {timeout:g}s")
+    return time.monotonic() - started
+
+
 class UrllibTransport:
     def __init__(self, user_agent: str = "scfg/0.1"):
         self._ctx = _ssl_context()
         self._ua = user_agent
 
     def post_json(self, url: str, payload: dict, timeout: float):
+        # The lookup counts inside the request's timeout, never on top of it: urlopen gets what
+        # is left of it (for the connection and each read).
+        left = timeout - resolve_within(url, timeout)
+        if left <= 0:
+            raise TransportError(f"timed out after {timeout:g}s")
         body = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=body, method="POST", headers={
             "Content-Type": "application/json", "User-Agent": self._ua})
         try:
-            with urllib.request.urlopen(req, timeout=timeout, context=self._ctx) as resp:
+            with urllib.request.urlopen(req, timeout=left, context=self._ctx) as resp:
                 raw = resp.read()
         except urllib.error.HTTPError as e:
             # Some providers send JSON-RPC errors (e.g. "range too large") with a 4xx
@@ -143,13 +218,15 @@ class _EndpointState:
 
 class RpcClient:
     def __init__(self, urls: Sequence[str], *, log_range: int = 1000,
-                 clock: Callable[[], float] = time.monotonic, timeout: float = 10.0):
+                 clock: Callable[[], float] = time.monotonic, timeout: float = 10.0,
+                 budget: float = CALL_BUDGET):
         if not urls:
             raise ValueError("at least one RPC url required")
         self.urls = tuple(urls)
         self._ranges: dict[str, int] = {u: log_range for u in self.urls}
         self.clock = clock
         self.timeout = timeout
+        self.budget = budget
         self._ids = itertools.count(1)
         self._state: dict[str, _EndpointState] = {u: _EndpointState() for u in self.urls}
 
@@ -183,11 +260,12 @@ class RpcClient:
     def call(self, method: str, params: list):
         return (yield from self._call(method, params))[0]
 
-    def _attempt(self, url: str, method: str, params: list, now: float):
+    def _attempt(self, url: str, method: str, params: list, now: float,
+                 timeout: float | None = None):
         """("ok", result) | ("error", RpcError) | None when the endpoint failed (cooled down)."""
         payload = {"jsonrpc": "2.0", "id": next(self._ids), "method": method, "params": params}
         try:
-            resp = yield Request(url, payload, self.timeout)
+            resp = yield Request(url, payload, self.timeout if timeout is None else timeout)
         except TransportError:
             self._fail(url, now)
             return None
@@ -208,10 +286,14 @@ class RpcClient:
     def _call(self, method: str, params: list):
         """Like call(), but also returns which endpoint answered."""
         now = self.clock()
+        deadline = now + self.budget
         for url in self.urls:
             if self._state[url].until > now:
                 continue
-            res = yield from self._attempt(url, method, params, now)
+            left = deadline - self.clock()
+            if left < MIN_ATTEMPT:
+                break  # CALL_BUDGET spent: the rest are not tried (nor cooled down)
+            res = yield from self._attempt(url, method, params, now, min(self.timeout, left))
             if res is None:
                 continue
             kind, value = res

@@ -3,7 +3,10 @@
  *
  * Public RPC endpoints are free but unreliable: they rate-limit, go down, and cap
  * eth_getLogs block ranges. The client tries endpoints in order on every call, skipping
- * ones in cooldown (30 s doubling to 10 min), and remembers per endpoint the largest
+ * ones in cooldown (30 s doubling to 10 min), within a total budget of CALL_BUDGET seconds
+ * per call (each attempt waits at most what is left of it, so a chain with four dead
+ * endpoints says so after 15 s, not 40; an endpoint is not asked with less than MIN_ATTEMPT
+ * seconds left), and remembers per endpoint the largest
  * eth_getLogs range it accepts. Network access is an injected `Transport`; methods are
  * async where Python's are cooperative generators.
  */
@@ -14,6 +17,20 @@ import { PY_DIGIT, digitRunValue, hasOwn, pyGet, pyTruthy } from "./pystr.ts";
 
 export const COOLDOWN_START = 30.0;
 export const COOLDOWN_MAX = 600.0;
+/**
+ * The most seconds one call() spends across a chain's endpoints: the first attempt gets the full
+ * per-request timeout (10 s), each later one min(timeout, what is left); once nothing is left the
+ * endpoints not tried yet are skipped (not cooled down) and the call is RpcUnavailable. Measured
+ * on the RpcClient's clock, so a session start on a chain whose endpoints all hang fails after
+ * 15 s whatever the number of urls.
+ */
+export const CALL_BUDGET = 15.0;
+/**
+ * The least of the budget an endpoint is asked with (the floor): under it the endpoints left are
+ * skipped (not cooled down) and the call is RpcUnavailable, so no endpoint is cooled down for
+ * failing a request it was given a sliver of time for.
+ */
+export const MIN_ATTEMPT = 2.0;
 /** The smallest eth_getLogs block range a chain may be configured with. */
 export const MIN_LOG_RANGE = 10;
 const RATE_HINTS = ["rate limit", "too many requests", "rate-limit"];
@@ -129,18 +146,20 @@ export class RpcClient {
   readonly urls: readonly string[];
   clock: () => number;
   timeout: number;
+  budget: number;
   private readonly transport: Transport;
   private readonly _ranges: Map<string, number>;
   private readonly _state: Map<string, EndpointState>;
   private _nextId = 1;
 
-  constructor(urls: readonly string[], opts: { transport: Transport; log_range?: number; clock?: () => number; timeout?: number }) {
+  constructor(urls: readonly string[], opts: { transport: Transport; log_range?: number; clock?: () => number; timeout?: number; budget?: number }) {
     if (!urls || urls.length === 0) throw new ValueError("at least one RPC url required");
     this.urls = [...urls];
     const logRange = opts.log_range ?? 1000;
     this._ranges = new Map(this.urls.map((u) => [u, logRange]));
     this.clock = opts.clock ?? (() => Date.now() / 1000);
     this.timeout = opts.timeout ?? 10.0;
+    this.budget = opts.budget ?? CALL_BUDGET;
     this.transport = opts.transport;
     this._state = new Map(this.urls.map((u) => [u, { delay: 0.0, until: 0.0 }]));
   }
@@ -182,11 +201,11 @@ export class RpcClient {
   }
 
   /** ["ok", result] | ["error", RpcError] | null when the endpoint failed (cooled down). */
-  private async _attempt(url: string, method: string, params: unknown[], now: number): Promise<Attempt> {
+  private async _attempt(url: string, method: string, params: unknown[], now: number, timeout?: number): Promise<Attempt> {
     const payload = { jsonrpc: "2.0", id: this._nextId++, method, params };
     let resp: unknown;
     try {
-      resp = await this.transport.postJson(url, payload, this.timeout);
+      resp = await this.transport.postJson(url, payload, timeout ?? this.timeout);
     } catch (e) {
       if (e instanceof TransportError) {
         this._fail(url, now);
@@ -219,9 +238,12 @@ export class RpcClient {
   /** Like call(), but also returns which endpoint answered. */
   private async _call(method: string, params: unknown[]): Promise<[any, string]> {
     const now = this.clock();
+    const deadline = now + this.budget;
     for (const url of this.urls) {
       if (this._state.get(url)!.until > now) continue;
-      const res = await this._attempt(url, method, params, now);
+      const left = deadline - this.clock();
+      if (left < MIN_ATTEMPT) break; // CALL_BUDGET spent: the rest are not tried (nor cooled down)
+      const res = await this._attempt(url, method, params, now, Math.min(this.timeout, left));
       if (res === null) continue;
       const [kind, value] = res;
       if (kind === "error") throw value;

@@ -5,7 +5,7 @@
  * throws when NW.js's `nw` object or a browser API is missing.
  *
  * - Links: desktop (NW.js) `nw.Shell.openExternal(url)`, the player's own browser or wallet app;
- *   in a browser (web, phones) `window.open(url, "_blank", "noopener")`. NW.js without `nw` falls
+ *   in a browser (web, phones) `window.open(url, "_blank", "noopener,noreferrer")`. NW.js without `nw` falls
  *   back to `window.open`.
  * - Copy: NW.js `nw.Clipboard.get().set(text, "text")`; a browser `navigator.clipboard.writeText`,
  *   which the browser may refuse (the glue then tells the player).
@@ -80,7 +80,7 @@ export function openExternal(p: Platform, url: string): boolean {
   try {
     const w = p.window();
     if (w && typeof w.open === "function") {
-      w.open(url, "_blank", "noopener");
+      w.open(url, "_blank", "noopener,noreferrer");
       return true;
     }
   } catch {

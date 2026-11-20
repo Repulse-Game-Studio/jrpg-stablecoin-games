@@ -1,6 +1,6 @@
 """The localhost checkout server's behaviour and hardening, over real HTTP, against the Python
-server, the GDScript one and the Node one (the `server` / `make_server` fixtures in conftest.py
-run each test three times). Ports every test of tests/unit/test_local_server.py, plus
+server, the GDScript one, the Node one and the C# one (the `server` / `make_server` fixtures in
+conftest.py run each test four times). Ports every test of tests/unit/test_local_server.py, plus
 test_solana_build.py::test_build_route and test_checkout_solana.py::
 test_local_server_accepts_a_signature_hint, under their own names."""
 import http.client

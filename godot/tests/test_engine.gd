@@ -143,7 +143,15 @@ func test_default_rpc_factory_builds_an_rpc_client_on_a_monotonic_clock() -> boo
 	if rpc is ScfgRpcClient:
 		var c: ScfgRpcClient = rpc
 		_assert_monotonic_clock(c, clock, "EVM")
-		T.ok(is_same(c.transport, transport), "with the Engine's transport")
+		# the Engine's transport, behind the wrapper that refuses an abandoned job's requests
+		T.ok(c.transport is ScfgEngine.RefusingTransport, "through the refusing wrapper")
+		var answer: Variant = await c.transport.post_json("http://node/", {"method": "eth_blockNumber", "params": []}, 1.0)
+		T.eq(transport.calls.size(), 1, "which posts through the Engine's transport (%s)" % str(answer))
+		e.refuse_requests = func() -> bool: return true
+		var refused: Variant = await c.transport.post_json("http://node/", {"method": "eth_blockNumber", "params": []}, 1.0)
+		T.ok(refused is ScfgErr and (refused as ScfgErr).kind == "Abandoned", "and refuses while told to")
+		T.eq(transport.calls.size(), 1, "without posting")
+		e.refuse_requests = Callable()
 		T.eq(Array(c.urls), ScfgChains.MAINNET["arbitrum"]["rpc"], "the chain's urls")
 		T.eq(c.log_range, ScfgChains.MAINNET["arbitrum"]["max_log_range"], "the chain's log range")
 	var sol: Variant = e.rpc("solana")

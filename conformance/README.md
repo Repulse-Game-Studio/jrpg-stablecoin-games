@@ -1,7 +1,7 @@
 # Conformance vectors
 
-Language-neutral JSON recorded from the Python reference core (`scfg_core`). The JS and GDScript
-cores replay these files and must agree with them. Vectors are generated, never hand-written.
+Language-neutral JSON recorded from the Python reference core (`scfg_core`). The JS, GDScript, C#
+and C++ cores replay these files and must agree with them. Vectors are generated, never hand-written.
 
 ## Regenerate / check
 
@@ -37,7 +37,8 @@ Generation is deterministic: running twice yields byte-identical files.
 `{"fn": str, "in": {...}, "out": ...}`, or `{"fn", "in", "error": <code>}` when the function must fail.
 Config, item and payment validation is compared by **error code, never message text**. A port calls its own
 function for `fn` with `in` and compares the result to `out`. The TypeScript runner
-(`conformance/js/tier1.test.ts`) and the GDScript runner (`godot/tests/test_tier1.gd`) replay every topic.
+(`conformance/js/tier1.test.ts`), the GDScript runner (`godot/tests/test_tier1.gd`), the C# runner
+(`unity/core-tests/Tier1.cs`) and the C++ runner (`unreal/core-tests/support/Tier1.cpp`) replay every topic.
 
 Encodings: see "Integer encodings" and "Error encodings" below.
 
@@ -72,15 +73,15 @@ Encodings: see "Integer encodings" and "Error encodings" below.
 
 `vectors/tier2/<scenario id>.json`, recorded by running `scfg_core.engine.Engine` against simulated
 JSON-RPC nodes (`python/scfg_conformance/simnode.py`) and replayed without them
-(`python/scfg_conformance/replay.py`, the template for the JS and GDScript runners).
+(`python/scfg_conformance/replay.py`, the template for the other ports' runners).
 
     {"tier": 2, "id": "smoke/evm_unlock_paid", "covers": ["tests/unit/test_x.py::test_y", ...],
      "setup": {"clock": 1700000000, "config": {build_config kwargs}, "custom_chains": [{build_chain kwargs}],
                "items": [{add_item kwargs incl. item_id}], "pending": {...}, "receipts": {...}},
      "steps": [{"at": int, "action": str, "args": {...},
                 "entropy": [{"fn": "token_hex" | "randbelow" | "token_bytes", "n": int, "value": str | int}],
-                "calls": [{"url", "method", "params", "response_text"} |
-                          {"url", "method", "params", "transport_error": {"message", "status"}}],
+                "calls": [{"url", "method", "params", "response_text", "took"?: int} |
+                          {"url", "method", "params", "transport_error": {"message", "status"}, "elapsed"?: int}],
                 "returns": ..., "raises": null | {"type": "ConfigError" | "RestoreError", "code"} | {"type": "other"},
                 "internal_errors": int,
                 "snapshot": {"pending", "receipts", "owned", "tip_total", "unready"}}]}
@@ -99,7 +100,12 @@ A runner, per vector:
   `json.dumps(params, sort_keys=True)`. That is the same rule for everything the Python core sends: it
   never sends floats, so the only case where it could differ (`1` vs `1.0`) cannot arise. `response_text` is parsed with the port's JSON reader; a
   `transport_error` is raised as the transport's failure (`invalid JSON response` is one: parsing belongs
-  to the transport). An unrecorded request, an unused recorded call, a draw that differs from `entropy`
+  to the transport). A call with `elapsed` is a request that hung (`simnode.Endpoint.hangs`): it must
+  have been made with exactly that timeout (seconds; RpcClient's CALL_BUDGET gives the second endpoint
+  only what is left of the call's 15 s), and the clock moves forward by it before its `transport_error`
+  is raised, so `at` is the clock when a step starts, not when it ends. A call with `took` is a slow
+  answer (`simnode.Endpoint.slow`): the clock moves forward by it before the answer is returned, and the
+  request's timeout must be greater than it. An unrecorded request, an unused recorded call, a draw that differs from `entropy`
   (by `fn` and `n`, in order) or an unused draw fails the step.
 - Feeds `entropy` to the core's randomness (`token_bytes` values are hex).
 - Runs the action with `args`: `start_session(kind, chain, **rest)`, `build_solana_payment(sid, account)`,
@@ -134,6 +140,8 @@ and is not written to the vector.
   `SCFG_GODOT=<binary>`). The wrapper fails a run without a `<n> passed, 0 failed` summary (n > 0), since Godot can exit 0 when
   the runner does not compile.
 - **JavaScript:** `cd rpgmaker && npm test` runs `conformance/js/` under `node --test` (Node 22.18 or newer; the TypeScript runs directly, no build). `tier1.ts` replays Tier 1: `FUNCS` maps each Python `fn` to a JS adapter, and a topic only counts once it is listed in `IMPLEMENTED`; cases of other topics are reported as skipped, never as passed. A case expecting `"invalid"` passes only if the adapter throws `ValueError` or `TypeError`, and any other throw fails it. `json.ts` is the JSON equality used for outputs and call params (key order ignored, `true` is not `1`). `tier2.ts` replays every Tier 2 vector (`ReplayTransport`, `ScriptedEntropy`, `replay`) and exports the `returns` / `snapshot` encoders that `rpgmaker/test/integration/engine_driver.ts` reuses. The same Engine also runs against Anvil and solana-test-validator through that driver (`tests/integration/test_js_core.py`, see `rpgmaker/README.md`).
+- **C#:** `dotnet test unity/Scfg.sln -c Release` (.NET 8 SDK) runs `unity/core-tests/`. `Tier1.cs` replays Tier 1: `Funcs` maps each Python `fn` to a C# adapter, and every topic runs: an `fn` with no adapter fails its case. A case expecting `"invalid"` passes only if the adapter throws `ValueError` or `TypeError` (not a `ConfigError`). `JsonEq.cs` is the JSON equality used for outputs and call params (key order ignored, `true` is not `1`). `Tier2.cs` replays every Tier 2 vector (`ReplayTransport`, `ScriptedEntropy`, `Replay`) and exports the `EncodeReturns` / `SnapshotJson` encoders that `unity/core-driver` reuses: the same Engine also runs against Anvil and solana-test-validator through that driver (`tests/integration/test_cs_core.py`). `CultureTests` replays both tiers again under `tr-TR` and `de-DE`, and `Tier2SingleThreadTest` runs Tier 2 on one thread with incomplete transport tasks. The runner also checks the Engine's stores against `schema/state.json` after every step (`StateFile.Check` and a strict `Parse(Serialize(...))` round trip), and `StateFileTests` checks that the C# schema table equals `schema/state.json`. See `unity/README.md`.
+- **C++:** `cmake --preset release && cmake --build --preset release && ctest --preset release` in `unreal/` (CMake 3.25+, Ninja, a C++20 compiler; the `asan` preset runs the same under AddressSanitizer and UBSan) runs `unreal/core-tests/`, one ctest test per group. `core-tests/support/Tier1.cpp` replays Tier 1 (ctest group `Tier1`): each topic's adapters live in `core-tests/tier1/<Topic>.cpp`, and every topic runs: an `fn` with no adapter fails its case. A case expecting `"invalid"` passes only if the adapter returns an `Err` that is a `ValueError` or `TypeError` (not a `ConfigError`). `support/JsonEq.cpp` is the JSON equality used for outputs and call params (key order ignored, `true` is not `1`). `support/Tier2.cpp` replays every Tier 2 vector (group `Tier2`; `ReplayTransport`, `ScriptedEntropy`, `replay`) and exports the `encode_returns` / `snapshot_json` encoders that `unreal/core-driver` reuses: the same Engine also runs against Anvil and solana-test-validator through that driver (`tests/integration/test_cpp_core.py`). `LocaleTests` replays both tiers again under `tr_TR.UTF-8` and `de_DE.UTF-8`, and `Tier2Deferred` replays every vector again with each request completed later, from the runner's pump loop, so every networked step must suspend and resume. See `unreal/README.md`.
 
 ## Adding a scenario
 
@@ -197,19 +205,21 @@ and a runner must feed exactly those draws, in order. At generation time entropy
     number (a str, null, a bool, a list) is `"invalid"`.
   - Numbers in a node's error message (`tier1/rpc_errors`): the eth_getLogs range a provider states
     (`suggested_range`) and the transaction version a Solana -32015 names (`named_version`) are runs of any
-    Unicode decimal digit (Python's `\d`: CPython 3.9's set, Unicode 13.0.0, which `pystr.gd` and `pystr.ts`
-    hold as a table rather than trusting the engine's own, newer, `\p{Nd}`; `named_version` matches `version (N)` with Python's IGNORECASE, so
+    Unicode decimal digit (Python's `\d`: CPython 3.9's set, Unicode 13.0.0, which every port holds as a
+    table rather than trusting its engine's own, newer, `\p{Nd}`: `pystr.gd`, `pystr.ts`, `Py.cs`, `Py.cpp`;
+    `named_version` matches `version (N)` with Python's IGNORECASE, so
     `ſ` matches s and `İ`, `ı` match i). A run of more than 18 significant digits (`DIGIT_RUN_LIMIT`;
     leading zeros do not count) is no number: `suggested_range` ignores it, and `named_version` finds no
     version (the node's error is raised), so no long run is ever converted. JS numbers hold such values
     exactly only below 2**53, so no vector names a range or version above that.
   - An RPC answer whose JSON holds an integer literal (no fraction, no exponent) of more than 4300 digits
     is `invalid JSON response` (a 2xx) or `HTTP <status>` (an error status), as CPython's json refuses
-    it: the Python core reads integers with `ints.int_from` (`ints.json_loads`), and the TS (`jsonLoads`)
-    and GDScript (`ScfgCoio.parse_rpc_body`) transports refuse it before JSON.parse. Tested natively in each
-    transport, not by vectors (Tier 2 replays parsed answers). A shorter integer beyond a float's range
-    (309 to 4300 digits) is still a float (Infinity) in TS and GDScript where Python reads an int: a port
-    difference only a malicious node can reach.
+    it: the Python core reads integers with `ints.int_from` (`ints.json_loads`), the TS (`jsonLoads`)
+    and GDScript (`ScfgCoio.parse_rpc_body`) transports refuse it before JSON.parse, and the C# (`Json.Loads`)
+    and C++ (`json::loads`) readers refuse it while parsing. Tested natively in each port, not by vectors
+    (Tier 2 replays parsed answers). A shorter integer beyond a float's range (309 to 4300 digits) is still
+    a float (Infinity) in TS and GDScript where Python reads an int (C# and C++ keep it an exact big
+    integer): a port difference only a malicious node can reach.
   - `parse_transfer_log` needs `data` to be exactly `0x` and 64 hex digits; anything else (empty, short,
     long, malformed, missing) is not a transfer (`null`), never an error.
   - Amounts read back from storage (`stored_amount`: receipt amounts, session prices), `parse_amount`
@@ -231,7 +241,7 @@ and a runner must feed exactly those draws, in order. At generation time entropy
   - A Decimal zero at 6 decimals is `"0.000000"`.
 - **QR.** The longest-URI QR input assumes a 64-character label; the Python code has no such cap. The
   `version_32` input (1453 bytes) pins version 32's alignment-pattern step (26, not the 28 a naive
-  formula gives); all three encoders get it right.
+  formula gives); every port's encoder gets it right.
 - **GDScript runner.** Run `godot --headless --path godot --import` once per fresh checkout (it registers the
   `class_name` globals; re-run after adding one). Every test method must end with `return T.done()`: a runtime
   script error only aborts the erroring function, so the runner fails any method that does not return `true`.

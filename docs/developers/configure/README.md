@@ -28,6 +28,7 @@ init python:
 | `previous_wallets` | none | Wallets used by earlier versions of your game, EVM (`0x…`) and Solana addresses can be mixed. Keeps old purchases valid after you change wallets |
 | `logo` | none | An image in your game folder, e.g. `"images/logo.png"` (`.png`, `.jpg` or `.webp`). Shown at the top of the payment screens and the browser checkout page, fitted into 240 × 64 (at 1280 × 720). A wide wordmark works best |
 | `accent` | `"#0e7c74"` | Color of selected options and the main browser button, e.g. `accent=gui.accent_color`. Text on it switches between white and dark automatically |
+| `onramp` | on, built-in EVM chains on mainnet | The "Buy some with a card" link for players without stablecoin, see [below](#the-buy-link) |
 
 ## Payment methods
 
@@ -41,6 +42,53 @@ init python:
 scfg.configure(wallet="0x...", methods={"browser": {"enabled": False},
                                               "qr": {"chains": ["base", "polygon"]}})
 ```
+
+## The buy link
+
+Players who have no USDC or USDT yet see a **No USDC yet? Buy some with a card** link (with
+the payment's token) on the method step, or on the only payment page when there is one
+method. It opens a buy page for the network they picked in their browser (a new tab in a
+web build). They buy the token with a card into their own wallet, come back and pay as usual:
+the payment itself is unchanged and still goes straight to your wallet.
+
+The default page is [thirdweb's hosted Buy widget](https://portal.thirdweb.com/bridge/buy-widget/iframe).
+It needs no account or key on your side. The link locks it to the network and token, offers card
+payment only, and suggests the payment rounded up to whole cents (plus a cent on Arc, where the fee
+is paid in USDC) as the amount; before the payment's exact amount is known it suggests the most it
+can be (the price plus 0.009999), so the player never buys too little. The link itself carries
+only the network, the token's contract and that amount: no wallet address and nothing about the
+item. A web build opens it with `noopener,noreferrer`, so the page is not told the game's address,
+and a desktop game hands it to the player's browser, which sends no referrer for a link opened
+from outside. What the provider learns after that is up to the player and the provider: the player
+connects their wallet there, and thirdweb's card partners handle the purchase and the identity
+checks, with their own regions, minimum amounts and fees (the player pays the fees).
+
+**On by default.** A game that upgrades to 0.3.0 shows the link on mainnet without changing its
+configuration. If linking to an outside purchase flow matters for your store or region, turn it
+off with `onramp={"enabled": False}`.
+
+```renpy
+scfg.configure(wallet="0x...", onramp={"enabled": False})            # hide it
+scfg.configure(wallet="0x...", onramp={"chains": ["base", "arc"]})   # only on these networks
+scfg.configure(wallet="0x...", onramp={"url": "https://buy.example/?net={chain_id}&a={amount}"})
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `enabled` | `True` | `False` hides the link |
+| `chains` | built-in EVM chains | The networks it is offered on, from `chains=` (EVM only). Left out: the built-in EVM chains of a mainnet game, and none on testnet, where cards buy no test tokens; list chains to see the link while testing. Chains you added with `add_chain()` are only offered when listed |
+| `url` | thirdweb | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}` (the chain key), `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused |
+
+A mistake raises a `ConfigError` at startup with a code such as `onramp.unknown_option`,
+`onramp.bad_url` (also for a url without a host after `https://`), `onramp.unknown_placeholder`,
+`onramp.disabled_chain` or `onramp.not_evm`. The other engines take the same option in their own
+spelling: `"onramp"` in Godot's `configure()`, the **Buy Link** parameter in RPG Maker MZ,
+`ScfgOptions.Onramp` (and the SCFG Settings asset's onramp fields) in Unity, and `FScfgOptions.Onramp`
+(and the project settings) in Unreal; see each engine's API page.
+Solana isn't offered yet: thirdweb's page buys on EVM networks only. A player who picked
+Solana (or another network without the link) sees **No USDC yet? Pick another network to buy
+some with a card** in its place instead, which goes back to the network step, as long as
+another network they can pick has the link.
 
 ## Your own RPC endpoints and chains
 
@@ -103,10 +151,10 @@ init python:
 | `key` | Your name for the chain: lowercase letters, digits, `_`, `-`. It is stored in players' receipts, so **never change it after release**. It can't reuse a built-in key (`"arc"` is built in now: if your game added Arc itself, delete that `add_chain()` call; purchases it recorded stay valid, see [Arc](arc.md#upgrading-to-the-version-with-arc-built-in)) |
 | `name` | Shown to players on the network button (at most 32 characters) |
 | `chain_id` | The EVM chain id (see [chainlist.org](https://chainlist.org)). Wallets use it to switch networks, and QR codes carry it |
-| `rpc` | One URL or a list, tried in order. `https://` only, except `http://127.0.0.1` / `http://localhost` for a local test node. The **last** one is also handed to the player's browser wallet if it needs to add the network, so put a public endpoint last |
+| `rpc` | One URL or a list, tried in order. `https://` only, except `http://127.0.0.1` / `http://localhost`, with or without a port (e.g. `http://127.0.0.1:8545`), for a local test node. The same goes for `rpc_urls`. The **last** one is also handed to the player's browser wallet if it needs to add the network, so put a public endpoint last |
 | `tokens` | `{"USDC": "0x…"}` and/or `"USDT"`. Copy addresses from Circle's / Tether's official lists, never from a block explorer search |
 | `confirmations` | Blocks to wait before a payment counts. Use the chain's finality: a few for fast-finality chains, more for chains that reorg |
-| `explorer_tx` | Transaction page with `{}` where the hash goes |
+| `explorer_tx` | Transaction page with `{}` where the hash goes. `https://` only, except `http://127.0.0.1` / `http://localhost` (with any port, e.g. `http://127.0.0.1:4000/tx/{}`) for a local test chain's explorer |
 | `native_symbol` | The gas token (`"AVAX"`, `"ETH"`, …), named in "you need gas" warnings. Default `"ETH"` |
 | `fee_hint` | `"lowest"`, `"low"` (default) or `"high"`, shown under the network name |
 | `testnet` | `False` (default) adds the chain for real-money games; `True` for `configure(testnet=True)` games. Add it twice with the same key to have both |

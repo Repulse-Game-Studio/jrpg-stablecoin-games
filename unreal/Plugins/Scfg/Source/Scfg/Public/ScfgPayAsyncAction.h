@@ -1,0 +1,84 @@
+// Copyright 2026 Repulse
+// No Python twin: the Blueprint forms of `await Scfg.pay(...)` and `await Scfg.restore()` (godot/addons/scfg/scfg.gd):
+// async nodes that show the screen and fire OnResolved once, when the player closes it (or at once: AlreadyOwned,
+// Failed). They are UScfgSubsystem::PayAsync and RestoreAsync.
+//
+// A Pay node has no callback, so a cancel and every later result of the payment (the Paid result of a payment the
+// player kept playing through) also reach the subsystem's OnPaymentResolved: a handler of both must be idempotent.
+//
+// When the game instance shuts down with the screen open, the call resolves without delivering anything: OnResolved
+// does not fire (no Blueprint runs during the teardown, garbage collection included), and the node is released.
+// A node made without any subsystem (no game instance) resolves Failed "RuntimeError" at once.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Kismet/BlueprintAsyncActionBase.h"
+
+#include "ScfgTypes.h"
+
+#include "ScfgPayAsyncAction.generated.h"
+
+class UScfgSubsystem;
+
+// The Pay (SCFG) async node: shows the payment sheet and fires OnResolved once, when the player closes it.
+UCLASS()
+class SCFG_API UScfgPayAsyncAction : public UBlueprintAsyncActionBase
+{
+	GENERATED_BODY()
+
+public:
+	// Show the payment sheet; OnResolved fires once with this call's result.
+	UFUNCTION(BlueprintCallable, Category = "SCFG",
+		meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject", DisplayName = "Pay (SCFG)"))
+	static UScfgPayAsyncAction* Pay(UObject* WorldContextObject, EScfgPayKind Kind, FScfgPayRequest Request);
+	// The same on a given subsystem (C++ and the tests; Pay finds it from the world context's game instance).
+	static UScfgPayAsyncAction* PayWith(UScfgSubsystem* Subsystem, EScfgPayKind Kind, const FScfgPayRequest& Request);
+
+	// The call's result, once: when the sheet closes, or at once (AlreadyOwned, Failed).
+	UPROPERTY(BlueprintAssignable, Category = "SCFG")
+	FOnScfgPaymentResolved OnResolved;
+
+	virtual void Activate() override;
+
+private:
+	void Finish(const FScfgPaymentResult& Result);
+
+	TWeakObjectPtr<UScfgSubsystem> Subsystem;
+	// It was made with a subsystem: one gone by the time the result comes means the game instance went away (no pin),
+	// not "no subsystem" (a Failed pin).
+	bool bHadSubsystem = false;
+	// Made on a dedicated server, which has no subsystem (its log says so).
+	bool bOnDedicatedServer = false;
+	EScfgPayKind Kind = EScfgPayKind::Unlock;
+	FScfgPayRequest Request;
+};
+
+// The Restore (SCFG) async node: shows the restore screen and fires OnResolved once, when the player closes it.
+UCLASS()
+class SCFG_API UScfgRestoreAsyncAction : public UBlueprintAsyncActionBase
+{
+	GENERATED_BODY()
+
+public:
+	// Show the restore screen; OnResolved fires once, when it is closed: Restored, NothingFound, Cancelled (closed
+	// before a restore finished) or Failed.
+	UFUNCTION(BlueprintCallable, Category = "SCFG",
+		meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject", DisplayName = "Restore (SCFG)"))
+	static UScfgRestoreAsyncAction* Restore(UObject* WorldContextObject);
+	// The same on a given subsystem (C++ and the tests; Restore finds it from the world context's game instance).
+	static UScfgRestoreAsyncAction* RestoreWith(UScfgSubsystem* Subsystem);
+
+	// The call's result, once, when the restore screen closes (or at once: Failed).
+	UPROPERTY(BlueprintAssignable, Category = "SCFG")
+	FOnScfgRestoreResolved OnResolved;
+
+	virtual void Activate() override;
+
+private:
+	void Finish(const FScfgRestoreResult& Result);
+
+	TWeakObjectPtr<UScfgSubsystem> Subsystem;
+	bool bHadSubsystem = false;
+	// Made on a dedicated server, which has no subsystem (its log says so).
+	bool bOnDedicatedServer = false;
+};

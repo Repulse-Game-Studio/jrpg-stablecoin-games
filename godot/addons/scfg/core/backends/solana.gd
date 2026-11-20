@@ -478,7 +478,8 @@ func start(opts: Dictionary) -> Variant:
 ## Move one pending session forward; returns a StepOutcome (see ScfgWatcher). `opts`: rpc, chain,
 ## wallet, items, now. Python's `except (RpcUnavailable, RpcError)` around the step: network
 ## trouble keeps a verdict on the hint from earlier in this step, else sets network_unavailable;
-## any other error is returned for the Engine to contain.
+## an Abandoned (the tick yields to a command) returns that verdict too, else is returned for the
+## tick to stop at; any other error is returned for the Engine to contain.
 ## @fallible
 func advance(pending: Dictionary, receipts: Dictionary, sid: Variant, opts: Dictionary) -> Variant:
 	var rec: Variant = pending.get(sid)
@@ -497,6 +498,10 @@ func advance(pending: Dictionary, receipts: Dictionary, sid: Variant, opts: Dict
 		# later steps are plain "waiting", so it would never be reported.
 		if out["error"] == null:
 			out["error"] = "network_unavailable"
+		return out
+	if result is ScfgErr and (result as ScfgErr).is_a("Abandoned") and out["error"] != null:
+		# The tick yields to a command (worker.gd): a verdict reached earlier in this step is
+		# reported now (as above); the rest of the step waits for the next tick.
 		return out
 	return result
 

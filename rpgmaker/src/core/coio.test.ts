@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
-import { FetchTransport, MAX_RESPONSE_BYTES, TransportError } from "./coio.ts";
+import { Abandoned, CancelSource, FetchTransport, MAX_RESPONSE_BYTES, TransportError } from "./coio.ts";
 import { jsonLoads } from "./pystr.ts";
 
 type Handler = (body: string, res: http.ServerResponse) => void;
@@ -95,6 +95,40 @@ test("a timeout aborts the request as a TransportError", async () => {
     });
     assert.ok(Date.now() - t0 < 3000);
   });
+});
+
+// A request nobody waits for any more (worker.ts) is aborted at once, and fails with Abandoned
+// (as Godot's ScfgHttpTransport): not a TransportError, so no endpoint cools down.
+test("a cancelled request is aborted at once, and one cancelled already is never sent", async () => {
+  let sent = 0;
+  await withServer(() => { sent++; /* never answers */ }, async (url) => {
+    const cancel = new CancelSource();
+    const answer = new FetchTransport().postJson(url, {}, 10, cancel);
+    for (let i = 0; i < 100 && sent === 0; i++) await new Promise((r) => setTimeout(r, 10));
+    assert.equal(sent, 1);
+    const t0 = Date.now();
+    cancel.cancel();
+    const isCancelled = (e: unknown) => e instanceof Abandoned && e.message === `the request to ${url} was cancelled`;
+    await assert.rejects(answer, isCancelled);
+    assert.ok(Date.now() - t0 < 1000, "at once, not at the 10 s timeout");
+    await assert.rejects(new FetchTransport().postJson(url, {}, 10, cancel), isCancelled);
+    assert.equal(sent, 1);
+  });
+});
+
+test("CancelSource runs each callback once, a late one at once, and a throwing one stops no other", () => {
+  const ran: string[] = [];
+  const errors: unknown[] = [];
+  const c = new CancelSource();
+  c.onCancel(() => { ran.push("a"); throw new Error("broken"); });
+  c.onCancel(() => ran.push("b"));
+  assert.equal(c.cancelled, false);
+  c.cancel((e) => errors.push(e));
+  c.cancel();
+  c.onCancel(() => ran.push("late"));
+  assert.ok(c.cancelled);
+  assert.deepEqual(ran, ["a", "b", "late"]);
+  assert.equal(errors.length, 1);
 });
 
 test("TransportError defaults status to null", () => {

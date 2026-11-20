@@ -1,0 +1,6 @@
+{
+    "name": "Scfg.E2E",
+    "rootNamespace": "Scfg.E2E",
+    "references": ["Scfg.Core", "Scfg.Desktop", "Scfg.Unity"],
+    "autoReferenced": false
+}

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the IL2CPP linker must keep for SCFG. Unity ignores a link.xml inside a package, so the package's Editor
+  code hands this file to the linker (Editor/ScfgLinkXml.cs, an IUnityLinkerProcessor).
+  Scfg.Core and Scfg.Desktop are kept whole (Scfg.Desktop is not built for WebGL, hence ignoreIfMissing: the linker
+  fails on an assembly it cannot resolve); the core draws randomness from RNGCryptoServiceProvider, which it
+  constructs directly (Runtime/Core/Sessions.cs), and keeps that type too. A WebGL player sets
+  UnityEngine.WebGLInput.captureAllKeyboardInput through reflection (Runtime/Unity/Web/ScfgBrowserJs.cs: a direct use
+  does not compile when WebGL is built from another active platform), so that type is kept as well (WebGL only).
+-->
+<linker>
+  <assembly fullname="Scfg.Core" preserve="all" />
+  <assembly fullname="Scfg.Desktop" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="UnityEngine.WebGLModule" ignoreIfMissing="1">
+    <type fullname="UnityEngine.WebGLInput" preserve="all" />
+  </assembly>
+  <assembly fullname="mscorlib">
+    <type fullname="System.Security.Cryptography.RNGCryptoServiceProvider" preserve="all" />
+  </assembly>
+</linker>

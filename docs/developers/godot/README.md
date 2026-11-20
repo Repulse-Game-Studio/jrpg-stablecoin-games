@@ -1,7 +1,7 @@
 # For Godot developers
 
 Stablecoin for Games for **Godot 4.3 or newer**: accept **USDC** and **USDT** tips and unlock purchases in
-your game, paid **directly to your own wallet**. There is no server, no account and no middleman: the addon
+your game, paid **directly to your own wallet**. There is no server, no account and no middleman in the payment: the addon
 watches the blockchain itself. It is pure GDScript (no GDExtension, no C#) and works in desktop builds and
 web exports (mobile is best effort and unverified). It is a **preview**: tested on Godot 4.3 and 4.7.2,
 desktop and web, against local test chains. A real-wallet testnet payment is the last check before it leaves

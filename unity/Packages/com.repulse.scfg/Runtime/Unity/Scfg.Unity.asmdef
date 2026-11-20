@@ -1,0 +1,6 @@
+{
+    "name": "Scfg.Unity",
+    "rootNamespace": "Scfg",
+    "references": ["Scfg.Core", "Scfg.Desktop"],
+    "autoReferenced": true
+}

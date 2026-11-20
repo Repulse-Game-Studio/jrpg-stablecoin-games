@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { FakeChain, transferLog } from "../../test/chain_fakes.ts";
 import { FakeClock } from "../../test/rpc_fakes.ts";
 import { MAINNET, type Chain } from "./chains.ts";
-import type { Transport } from "./coio.ts";
+import { Abandoned, type Transport } from "./coio.ts";
 import { addItem, buildChain, buildConfig, type BuildConfigOptions } from "./config.ts";
 import { Dec } from "./decimal.ts";
 import { MIN_TIP, START_BLOCK_MARGIN, Engine } from "./engine.ts";
@@ -388,6 +388,36 @@ test("test_tick_contains_a_session_crash", async () => {
   assert.ok(b.id in e.pending);
 });
 
+// Commands come first (worker.ts): a step whose request is refused (Abandoned)
+// stops the tick there. The outcomes so far are kept, the rest wait for the next tick, the expiry
+// still runs, and the yield is no crash (no internal_error, nothing reported).
+test("test_a_refused_tick_stops_keeping_its_outcomes", async () => {
+  const { e, chains, clock } = makeEngine();
+  const errors: unknown[] = [];
+  e.on_error = (x) => errors.push(x);
+  const a = await e.startSession("unlock", "arbitrum", { item: "chapter2" });
+  const b = await e.startSession("tip", "base", { amount: "3", token: "USDC" });
+  const c = await e.startSession("unlock", "arbitrum", { item: "chapter2" });
+  clock.now += 31 * 60; // the payment windows closed
+  const asked: string[] = [];
+  for (const key of ["arbitrum", "base"]) {
+    const fake = chains[key]!;
+    const original = fake.blockNumber.bind(fake);
+    fake.blockNumber = async () => {
+      asked.push(key);
+      if (key === "base") throw new Abandoned("abandoned before its request to base");
+      return original();
+    };
+  }
+  const out = await e.tick();
+  assert.deepEqual(asked, ["arbitrum", "base"], "c is not stepped");
+  assert.deepEqual(out.map((o) => [o.session_id, o.status]),
+    [[a.id, "waiting"], [a.id, "expired"], [b.id, "expired"], [c.id, "expired"]]);
+  assert.ok(out.every((o) => o.error === null));
+  assert.deepEqual(errors, []);
+  assert.ok(b.id in e.pending && c.id in e.pending);
+});
+
 test("test_tick_never_runs_sessions_concurrently", async () => {
   const { e, chains } = makeEngine();
   await e.startSession("unlock", "arbitrum", { item: "chapter2" });
@@ -440,4 +470,12 @@ test("test_restore_lookup_keeps_integer_like_chain_keys_in_order", async () => {
   }
   await assert.rejects(e.restoreLookup(TX), (x: unknown) => x instanceof RestoreError && x.code === "tx_not_found");
   assert.deepEqual(asked, ["zeta", "10", "ethereum", "arbitrum", "polygon", "base", "arc"]);
+});
+
+// A request with no transport fails as worker.py's gate and Godot's engine.gd do: an Error that
+// names the url it could not reach (not the RPC-client builder's TypeError).
+test("test_a_request_without_a_transport_names_its_url", async () => {
+  const e = new Engine(buildConfig({ wallet: DEV }), {});
+  await assert.rejects(e.requests.postJson("https://a.rpc", {}, 5),
+    (x: unknown) => x instanceof Error && !(x instanceof TypeError) && x.message === "no transport to reach https://a.rpc");
 });

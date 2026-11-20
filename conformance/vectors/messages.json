@@ -8,6 +8,7 @@
   "paste_blocked": "Your browser blocked pasting. Type it instead: the game also finds the payment without it.",
   "solana_unavailable": "Payments on Solana aren't available right now.",
   "start_failed": "Couldn't start the payment. Check your connection and try again.",
+  "start_unreachable": "Can't reach the network. Pick a network to try again.",
   "tx_not_a_payment": "That transaction isn't a payment for this purchase.",
   "tx_not_landed": "That transaction didn't reach the network. You can pay again.",
   "tx_reverted": "That transaction failed on-chain; no funds were sent."

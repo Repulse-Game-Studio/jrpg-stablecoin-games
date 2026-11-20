@@ -7,7 +7,7 @@
  */
 import { backendFor } from "./backends/index.ts";
 import type { Chain } from "./chains.ts";
-import type { Transport } from "./coio.ts";
+import { Abandoned, CancelSource, type Transport } from "./coio.ts";
 import { acceptedWalletsFor, enabledChains, registry, walletFor, type Config } from "./config.ts";
 import { deepCopy } from "./copy.ts";
 import type { Dec } from "./decimal.ts";
@@ -58,7 +58,11 @@ export interface EngineOptions {
   pending?: SessionStore | null;
   receipts?: Record<string, any> | null;
   clock?: () => number;
-  rpc_factory?: (chain: Chain) => any;
+  /**
+   * A chain's RPC object. `requests` is the Engine's transport behind its refusal (refuseRequests):
+   * build the clients on it, so an abandoned job's requests are refused whoever made the factory.
+   */
+  rpc_factory?: (chain: Chain, requests: Transport) => any;
   on_error?: (e: unknown) => void;
   entropy?: Entropy;
 }
@@ -77,10 +81,23 @@ export class Engine {
   receipts: Record<string, any>;
   clock: () => number;
   transport: Transport | undefined;
+  /**
+   * While it returns true, the requests of the Engine's own RPC clients are refused with Abandoned:
+   * the Worker points it at the job it runs (worker.py's per-job transport), and calls
+   * refuseInFlight() the moment it may have turned true.
+   */
+  refuseRequests: (() => boolean) | null = null;
   entropy: Entropy;
   unready: Set<string>;
-  private _rpc_factory: (chain: Chain) => any;
+  private _rpc_factory: (chain: Chain, requests: Transport) => any;
+  /**
+   * The transport the RPC clients post through: `transport`, refused while refuseRequests says so.
+   * A request in flight ends with Abandoned when refuseInFlight() finds it refused.
+   */
+  readonly requests: Transport;
   private _rpcs: Map<string, any>;
+  /** One per request in flight through `requests`. */
+  private readonly _inFlight = new Set<CancelSource>();
 
   constructor(config: Config, opts: EngineOptions = {}) {
     this.config = config;
@@ -90,12 +107,51 @@ export class Engine {
     this.clock = opts.clock ?? (() => Date.now() / 1000);
     this.transport = opts.transport;
     this.entropy = opts.entropy ?? defaultEntropy;
-    this._rpc_factory = opts.rpc_factory ?? ((chain) => {
+    this.requests = {
+      postJson: (url, payload, timeout) => {
+        if (this.refuseRequests !== null && this.refuseRequests()) {
+          return Promise.reject(new Abandoned(`abandoned before its request to ${url}`));
+        }
+        const transport = this.transport;
+        if (transport === undefined) {
+          // worker.py's RuntimeError, as Godot's engine.gd
+          return Promise.reject(new Error(`no transport to reach ${url}`));
+        }
+        const cancel = new CancelSource();
+        this._inFlight.add(cancel);
+        return new Promise<unknown>((resolve, reject) => {
+          // first, so the job's Abandoned wins over the transport's own failure on a cancel
+          cancel.onCancel(() => reject(new Abandoned(`abandoned while its request to ${url} was in flight`)));
+          let answer: Promise<unknown>;
+          try {
+            answer = Promise.resolve(transport.postJson(url, payload, timeout, cancel));
+          } catch (e) {
+            reject(e);
+            return;
+          }
+          answer.then(resolve, reject); // after a cancel the answer, or failure, goes unread
+        }).finally(() => this._inFlight.delete(cancel));
+      },
+    };
+    this._rpc_factory = opts.rpc_factory ?? ((chain, requests) => {
       if (this.transport === undefined) throw new TypeError("Engine needs a transport to build RPC clients");
-      return backendFor(chain).makeRpc(chain, this.transport, this.clock);
+      return backendFor(chain).makeRpc(chain, requests, this.clock);
     });
     this._rpcs = new Map();
     this.unready = new Set();
+  }
+
+  /**
+   * If refuseRequests now says so, every request in flight through `requests` ends at once with
+   * Abandoned, and the transport is told to stop it (Cancel). The Worker calls it when it abandons
+   * the running job or a command arrives while a tick runs: the job never waits on a request it
+   * no longer needs.
+   */
+  refuseInFlight(): void {
+    if (this.refuseRequests === null || !this.refuseRequests()) return;
+    const inFlight = [...this._inFlight];
+    this._inFlight.clear();
+    for (const cancel of inFlight) cancel.cancel((e) => this._report(e));
   }
 
   // --- chains & RPC ---------------------------------------------------------
@@ -112,7 +168,7 @@ export class Engine {
   }
 
   rpc(key: string): any {
-    if (!this._rpcs.has(key)) this._rpcs.set(key, this._rpc_factory(this.chain(key)));
+    if (!this._rpcs.has(key)) this._rpcs.set(key, this._rpc_factory(this.chain(key), this.requests));
     return this._rpcs.get(key);
   }
 
@@ -171,12 +227,24 @@ export class Engine {
     }
   }
 
-  /** Every session, one after another in pending order (never concurrently), then the expiries. */
+  /**
+   * Every session, one after another in pending order (never concurrently), then the expiries.
+   * A tick whose requests are refused (Abandoned: a command the player waits on came in,
+   * worker.ts) stops there: the sessions not stepped yet, and the one interrupted (as by a network
+   * failure), wait for the next tick; the outcomes so far are kept, and so is a hint verdict the
+   * interrupted step reached before it was refused (its backend returns it).
+   */
   async tick(): Promise<StepOutcome[]> {
     const now = this.clock();
     const outcomes: StepOutcome[] = [];
     for (const [sid, rec] of Object.entries(this.pending)) {
-      const outcome = await this._advance(sid, rec, now);
+      let outcome: StepOutcome | null;
+      try {
+        outcome = await this._advance(sid, rec, now);
+      } catch (e) {
+        if (e instanceof Abandoned) break;
+        throw e;
+      }
       if (outcome !== null) outcomes.push(outcome);
     }
     outcomes.push(...this._expire(now));
@@ -186,7 +254,7 @@ export class Engine {
   /**
    * One session's step. A session this build can no longer watch (its chain left the registry,
    * or the game stopped accepting that family) is kept until its scan horizon, then closed.
-   * A crash in one session never stops the others.
+   * A crash in one session never stops the others; Abandoned is no crash (the tick yields).
    */
   private async _advance(sid: string, rec: SessionRecord, now: number): Promise<StepOutcome | null> {
     try {
@@ -203,6 +271,7 @@ export class Engine {
         rpc: this.rpc(key), chain, wallet: walletFor(this.config, chain)!, items: this.config.items, now,
       });
     } catch (e) {
+      if (e instanceof Abandoned) throw e; // not a crash: the tick yields (tick)
       this.on_error(e);
       return makeStepOutcome(sid, "waiting", { error: "internal_error" });
     }

@@ -27,6 +27,17 @@
 ## Extending Transport below is optional (the contract is duck-typed); it documents the method
 ## and gives fakes and ScfgHttpTransport a common base. ScfgHttpTransport is the real one.
 ##
+## CANCELLING. A transport that can stop a request in flight also offers
+##
+##     func post_json_cancellable(url: String, payload: Dictionary, timeout: float, cancel: ScfgCoio.Cancel) -> Variant
+##
+## which is post_json plus a Cancel: once it fires (nobody waits for the answer any more: the job
+## was abandoned, or a tick yields to a command; ScfgEngine.refuse_in_flight), the transport stops
+## the exchange and frees what it holds, and what it returns then is never read. A transport
+## without it is simply not waited for, and its late answer is dropped. (The TS core passes the
+## Cancel as an optional fourth argument of postJson; GDScript's duck-typed fakes have a fixed
+## three-argument post_json, so here it is a method of its own.)
+##
 ## Not ported: run_sync, Sync and synced (await replaces them), and response_from_envelope (Ren'Py's
 ## web build reaches fetch() through bridge.js; Godot's HTTPRequest uses fetch itself in a web
 ## export, so ScfgHttpTransport applies response_for directly).
@@ -44,6 +55,19 @@ class Transport:
 	## @coroutine
 	func post_json(url: String, _payload: Dictionary, _timeout: float) -> Variant:
 		return ScfgErr.make("RuntimeError", "no transport to reach %s" % url)
+
+
+## A request's cancellation (see CANCELLING above): `cancelled` fires once, when cancel() is
+## first called. `is_cancelled` tells a transport that it fired before the request started.
+class Cancel:
+	extends RefCounted
+	signal cancelled
+	var is_cancelled := false
+
+	func cancel() -> void:
+		if not is_cancelled:
+			is_cancelled = true
+			cancelled.emit()
 
 
 ## Python's `TransportError(message, status=status)`. Always an ScfgErr.

@@ -22,6 +22,7 @@
 
   let nextRequest = 1;
   const results = new Map();          // id -> null while in flight, then the envelope
+  const aborts = new Map();           // id -> its fetch's AbortController while in flight
 
   // What a thrown value says, without ever throwing itself (a null-prototype object, a
   // hostile toString or getter).
@@ -43,6 +44,7 @@
     const id = nextRequest++;
     results.set(id, null);
     const abort = new AbortController();
+    aborts.set(id, abort);
     const timer = setTimeout(() => abort.abort(), timeoutMs);
     fetch(url, {
       method: "POST", body, signal: abort.signal, cache: "no-store", credentials: "omit",
@@ -52,9 +54,19 @@
       .catch((err) => ({ error: abort.signal.aborted ? "timed out" : errorText(err) }))
       .then((envelope) => {
         clearTimeout(timer);
+        aborts.delete(id);
         if (results.has(id)) results.set(id, envelope);
       });
     return id;
+  }
+
+  // A request nobody waits for any more (a job the game abandoned, a tick that yielded): its
+  // fetch is aborted and its answer never kept, so results holds only requests still polled.
+  function cancel(id) {
+    const abort = aborts.get(id);
+    aborts.delete(id);
+    results.delete(id);
+    if (abort) abort.abort();
   }
 
   // "" while the request is in flight; its envelope as JSON once, then it is forgotten.
@@ -298,7 +310,7 @@
   }
 
   function openUrl(url) {
-    window.open(url, "_blank", "noopener");
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   // Ren'Py's run_script* is a bare eval: an exception here would unwind through the game's
@@ -326,6 +338,7 @@
   window.scfgBridge = {
     post: safe("post", post, failedRequest),
     result: safe("result", result, unknownRequest),
+    cancel: safe("cancel", cancel),
     hasWallet: safe("hasWallet", hasWallet, 0),
     setPage: safe("setPage", setPage),
     openCheckout: safe("openCheckout", openCheckout),

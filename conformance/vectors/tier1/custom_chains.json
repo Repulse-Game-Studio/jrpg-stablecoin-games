@@ -133,6 +133,86 @@
    "in": {
     "chain_id": 43114,
     "confirmations": 5,
+    "explorer_tx": "http://127.0.0.1:4000/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "http://127.0.0.1:8545",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   },
+   "out": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://127.0.0.1:4000/tx/{}",
+    "family": "evm",
+    "fee_hint": "low",
+    "key": "avalanche",
+    "max_log_range": 1000,
+    "min_fee_wei": 0,
+    "name": "Avalanche",
+    "native_symbol": "ETH",
+    "native_token": "",
+    "rpc": [
+     "http://127.0.0.1:8545"
+    ],
+    "testnet": false,
+    "tokens": {
+     "USDC": {
+      "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+      "decimals": 6,
+      "log_address": "",
+      "log_decimals": 0
+     }
+    },
+    "wallet_chain": ""
+   }
+  },
+  {
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://localhost/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   },
+   "out": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://localhost/tx/{}",
+    "family": "evm",
+    "fee_hint": "low",
+    "key": "avalanche",
+    "max_log_range": 1000,
+    "min_fee_wei": 0,
+    "name": "Avalanche",
+    "native_symbol": "ETH",
+    "native_token": "",
+    "rpc": [
+     "https://api.avax.network/ext/bc/C/rpc"
+    ],
+    "testnet": false,
+    "tokens": {
+     "USDC": {
+      "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+      "decimals": 6,
+      "log_address": "",
+      "log_decimals": 0
+     }
+    },
+    "wallet_chain": ""
+   }
+  },
+  {
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
     "explorer_tx": "https://snowtrace.io/tx/{}",
     "key": "avalanche",
     "name": "Avalanche",
@@ -631,6 +711,216 @@
    "in": {
     "chain_id": 43114,
     "confirmations": 5,
+    "explorer_tx": "http://127.0.0.1.evil.org/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "chain.bad_explorer_tx",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://localhost:4000\n/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "chain.bad_explorer_tx",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://localhost@evil.com/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "chain.bad_explorer_tx",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://LOCALHOST/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "chain.bad_explorer_tx",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "HTTP://127.0.0.1/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "chain.bad_explorer_tx",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://localhost./tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "chain.bad_explorer_tx",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://[::1]/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "chain.bad_explorer_tx",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "http://0.0.0.0/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "rpc.not_https",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "https://snowtrace.io/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "http://localhost@evil.com",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "rpc.not_https",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "https://snowtrace.io/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "http://LOCALHOST:8545",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "rpc.not_https",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "https://snowtrace.io/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "HTTP://127.0.0.1:8545",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "rpc.not_https",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "https://snowtrace.io/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "http://localhost.:8545",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "rpc.not_https",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "https://snowtrace.io/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "http://[::1]:8545",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "rpc.not_https",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
+    "explorer_tx": "https://snowtrace.io/tx/{}",
+    "key": "avalanche",
+    "name": "Avalanche",
+    "rpc": "http://0.0.0.0:8545",
+    "tokens": {
+     "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+    }
+   }
+  },
+  {
+   "error": "chain.bad_explorer_tx",
+   "fn": "build_chain",
+   "in": {
+    "chain_id": 43114,
+    "confirmations": 5,
     "explorer_tx": "https://snowtrace.io/tx/",
     "key": "avalanche",
     "name": "Avalanche",
@@ -916,6 +1206,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -1001,6 +1302,13 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "base"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1090,6 +1398,13 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "base"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1214,6 +1529,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -1307,6 +1633,17 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1407,6 +1744,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -1495,6 +1843,11 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -1583,6 +1936,11 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -1642,6 +2000,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -1700,6 +2069,11 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1797,6 +2171,11 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -1892,6 +2271,13 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "base"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -1991,6 +2377,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -2036,6 +2433,17 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2117,6 +2525,11 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2206,6 +2619,17 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [
+      "arbitrum",
+      "base",
+      "arc",
+      "polygon",
+      "ethereum"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -2293,6 +2717,11 @@
       "enabled": true,
       "wallet_button": true
      }
+    },
+    "onramp": {
+     "chains": [],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
     },
     "previous_solana_wallets": [],
     "previous_wallets": [],
@@ -2383,6 +2812,11 @@
       "wallet_button": true
      }
     },
+    "onramp": {
+     "chains": [],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
     "previous_solana_wallets": [],
     "previous_wallets": [],
     "rpc_urls": {},
@@ -2390,6 +2824,302 @@
     "testnet": true,
     "tokens": [
      "USDC"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "base",
+     "avalanche",
+     "arc"
+    ],
+    "custom_chains": [
+     {
+      "chain_id": 43114,
+      "confirmations": 5,
+      "explorer_tx": "https://snowtrace.io/tx/{}",
+      "key": "avalanche",
+      "name": "Avalanche",
+      "rpc": "https://api.avax.network/ext/bc/C/rpc",
+      "tokens": {
+       "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+      }
+     }
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "base",
+     "avalanche",
+     "arc"
+    ],
+    "confirmations": {},
+    "custom_chains": {
+     "avalanche": {
+      "chain_id": 43114,
+      "confirmations": 5,
+      "explorer_tx": "https://snowtrace.io/tx/{}",
+      "family": "evm",
+      "fee_hint": "low",
+      "key": "avalanche",
+      "max_log_range": 1000,
+      "min_fee_wei": 0,
+      "name": "Avalanche",
+      "native_symbol": "ETH",
+      "native_token": "",
+      "rpc": [
+       "https://api.avax.network/ext/bc/C/rpc"
+      ],
+      "testnet": false,
+      "tokens": {
+       "USDC": {
+        "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+        "decimals": 6,
+        "log_address": "",
+        "log_decimals": 0
+       }
+      },
+      "wallet_chain": ""
+     }
+    },
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "base",
+      "arc"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "custom_chains": [
+     {
+      "chain_id": 43114,
+      "confirmations": 5,
+      "explorer_tx": "https://snowtrace.io/tx/{}",
+      "key": "avalanche",
+      "name": "Avalanche",
+      "rpc": "https://api.avax.network/ext/bc/C/rpc",
+      "tokens": {
+       "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+      }
+     }
+    ],
+    "onramp": {
+     "chains": [
+      "avalanche",
+      "base"
+     ]
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum",
+     "avalanche"
+    ],
+    "confirmations": {},
+    "custom_chains": {
+     "avalanche": {
+      "chain_id": 43114,
+      "confirmations": 5,
+      "explorer_tx": "https://snowtrace.io/tx/{}",
+      "family": "evm",
+      "fee_hint": "low",
+      "key": "avalanche",
+      "max_log_range": 1000,
+      "min_fee_wei": 0,
+      "name": "Avalanche",
+      "native_symbol": "ETH",
+      "native_token": "",
+      "rpc": [
+       "https://api.avax.network/ext/bc/C/rpc"
+      ],
+      "testnet": false,
+      "tokens": {
+       "USDC": {
+        "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+        "decimals": 6,
+        "log_address": "",
+        "log_decimals": 0
+       }
+      },
+      "wallet_chain": ""
+     }
+    },
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "avalanche",
+      "base"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": false,
+    "tokens": [
+     "USDC",
+     "USDT"
+    ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "fn": "build_config",
+   "in": {
+    "custom_chains": [
+     {
+      "chain_id": 43113,
+      "confirmations": 5,
+      "explorer_tx": "https://snowtrace.io/tx/{}",
+      "key": "fuji",
+      "name": "Avalanche Fuji",
+      "rpc": "https://api.avax.network/ext/bc/C/rpc",
+      "testnet": true,
+      "tokens": {
+       "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+      }
+     }
+    ],
+    "onramp": {
+     "chains": [
+      "fuji"
+     ]
+    },
+    "testnet": true,
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "out": {
+    "accent": "#0e7c74",
+    "chains": [
+     "arbitrum",
+     "base",
+     "arc",
+     "polygon",
+     "ethereum",
+     "fuji"
+    ],
+    "confirmations": {},
+    "custom_chains": {
+     "fuji": {
+      "chain_id": 43113,
+      "confirmations": 5,
+      "explorer_tx": "https://snowtrace.io/tx/{}",
+      "family": "evm",
+      "fee_hint": "low",
+      "key": "fuji",
+      "max_log_range": 1000,
+      "min_fee_wei": 0,
+      "name": "Avalanche Fuji",
+      "native_symbol": "ETH",
+      "native_token": "",
+      "rpc": [
+       "https://api.avax.network/ext/bc/C/rpc"
+      ],
+      "testnet": true,
+      "tokens": {
+       "USDC": {
+        "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+        "decimals": 6,
+        "log_address": "",
+        "log_decimals": 0
+       }
+      },
+      "wallet_chain": ""
+     }
+    },
+    "items": {},
+    "logo": null,
+    "methods": {
+     "browser": {
+      "enabled": true,
+      "timeout_min": 30
+     },
+     "manual": {
+      "allow_tx_paste": true,
+      "enabled": true
+     },
+     "qr": {
+      "chains": null,
+      "enabled": true,
+      "wallet_button": true
+     }
+    },
+    "onramp": {
+     "chains": [
+      "fuji"
+     ],
+     "enabled": true,
+     "url": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card"
+    },
+    "previous_solana_wallets": [],
+    "previous_wallets": [],
+    "rpc_urls": {},
+    "solana_wallet": null,
+    "testnet": true,
+    "tokens": [
+     "USDC",
+     "USDT"
     ],
     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
    }
@@ -2717,6 +3447,60 @@
     "tokens": [
      "USDT"
     ],
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.disabled_chain",
+   "fn": "build_config",
+   "in": {
+    "chains": [
+     "base"
+    ],
+    "custom_chains": [
+     {
+      "chain_id": 43114,
+      "confirmations": 5,
+      "explorer_tx": "https://snowtrace.io/tx/{}",
+      "key": "avalanche",
+      "name": "Avalanche",
+      "rpc": "https://api.avax.network/ext/bc/C/rpc",
+      "tokens": {
+       "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+      }
+     }
+    ],
+    "onramp": {
+     "chains": [
+      "avalanche"
+     ]
+    },
+    "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "error": "onramp.disabled_chain",
+   "fn": "build_config",
+   "in": {
+    "custom_chains": [
+     {
+      "chain_id": 43113,
+      "confirmations": 5,
+      "explorer_tx": "https://snowtrace.io/tx/{}",
+      "key": "fuji",
+      "name": "Avalanche Fuji",
+      "rpc": "https://api.avax.network/ext/bc/C/rpc",
+      "testnet": true,
+      "tokens": {
+       "USDC": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+      }
+     }
+    ],
+    "onramp": {
+     "chains": [
+      "fuji"
+     ]
+    },
     "wallet": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
    }
   }

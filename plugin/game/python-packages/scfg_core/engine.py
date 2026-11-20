@@ -39,6 +39,7 @@ from .sessions import (
     set_ui_status,
 )
 from .watcher import StepOutcome
+from .worker import Abandoned
 
 __all__ = ["MIN_TIP", "START_BLOCK_MARGIN", "Engine", "Snapshot"]
 
@@ -96,9 +97,10 @@ class Engine:
 
     # --- cooperative jobs -------------------------------------------------------
 
-    def run(self, gen):
-        """Drive a cooperative job to completion with this Engine's transport."""
-        return run_sync(gen, self.transport)
+    def run(self, gen, transport=None):
+        """Drive a cooperative job to completion with this Engine's transport (or `transport`,
+        which the Worker uses to refuse an abandoned job's requests)."""
+        return run_sync(gen, transport if transport is not None else self.transport)
 
     # --- payments ---------------------------------------------------------------
 
@@ -155,7 +157,13 @@ class Engine:
         now = self.clock()
         outcomes = []
         for sid, rec in list(self.pending.items()):
-            outcome = yield from self._advance(sid, rec, now)
+            try:
+                outcome = yield from self._advance(sid, rec, now)
+            except Abandoned:
+                # A command the player waits on came in (worker.py): the sessions not stepped
+                # yet, and the one interrupted (as by a network failure), wait for the next tick;
+                # the outcomes so far are kept.
+                break
             if outcome is not None:
                 outcomes.append(outcome)
         outcomes.extend(self._expire(now))
@@ -176,6 +184,8 @@ class Engine:
             return (yield from backend_for(chain).advance(
                 self.pending, self.receipts, sid, rpc=self.rpc(key), chain=chain,
                 wallet=self.config.wallet_for(chain), items=self.config.items, now=now))
+        except Abandoned:
+            raise  # not a crash: the tick yields (tick_co)
         except Exception as e:
             self.on_error(e)
             return StepOutcome(sid, "waiting", error="internal_error")

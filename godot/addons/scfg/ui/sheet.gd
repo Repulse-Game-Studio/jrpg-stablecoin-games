@@ -120,6 +120,7 @@ func _build() -> void:
 	var body := scrolling_body(step)
 	_layout.add_child(step)
 	var forward := _build_step(body)
+	_onramp_link(step)
 	if forward.is_empty():
 		var none := Button.new()  # the key exists on every step; hidden when the step has none
 		none.visible = false
@@ -260,6 +261,20 @@ func _step_method(body: VBoxContainer) -> void:
 	for m: String in ctl.methods():
 		list.add_child(option("method_" + m, _method_label(m), _method_hint(m), ctl.method == m, _choose_method.bind(m)))
 	body.add_child(list)
+
+
+## "No USDC yet? Buy some with a card": opens configure's onramp page for the chosen network,
+## pinned below the scrolling body (above the forward button) so it stays in view. On the method
+## step, or on the payment page the sheet opens on when there is a single method
+## (ScfgCheckoutController.shows_onramp). On a network without a buy page (Solana), when another
+## one has it, it points there instead and goes back to the network step (shows_onramp_hint).
+func _onramp_link(step: VBoxContainer) -> void:
+	if controller.shows_onramp:
+		step.add_child(button("onramp", tr("No %s yet? Buy some with a card") % controller.spec["token"], "ScfgSmall",
+			_open_onramp))
+	elif controller.shows_onramp_hint:
+		step.add_child(button("onramp_hint", tr("No %s yet? Pick another network to buy some with a card")
+			% controller.spec["token"], "ScfgSmall", _back))
 
 
 func _step_browser(body: VBoxContainer) -> void:
@@ -611,6 +626,11 @@ func _open_wallet_app() -> void:
 func _open_explorer(url: Variant) -> void:
 	if scfg != null:
 		scfg.open_explorer(url)
+
+
+func _open_onramp() -> void:
+	if scfg != null:
+		scfg.open_onramp(controller)
 
 
 func _copy(text: String) -> void:

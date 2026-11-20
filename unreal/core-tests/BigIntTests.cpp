@@ -1,0 +1,357 @@
+// Copyright 2026 Repulse
+// No Python twin: tests of scfg::BigInt (Python's int) and scfg::bytes (bytes.hex / bytes.fromhex / base64).
+#include "support/Test.h"
+
+#include "Scfg/BigInt.h"
+#include "Scfg/Bytes.h"
+
+#include <cstdint>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+using scfg::BigInt;
+using scfg_test::Ctx;
+
+// A literal the test trusts; a parse failure is a test failure (and the value is then 0).
+static BigInt dec(Ctx& t, std::string_view s) {
+    scfg::Result<BigInt> r = BigInt::from_decimal(s);
+    if (!t.check(r.ok(), "from_decimal failed on " + std::string(s))) return BigInt();
+    return r.take();
+}
+static BigInt hex(Ctx& t, std::string_view s) {
+    scfg::Result<BigInt> r = BigInt::from_hex(s);
+    if (!t.check(r.ok(), "from_hex failed on " + std::string(s))) return BigInt();
+    return r.take();
+}
+static std::string str(const scfg::Result<BigInt>& r) { return r.ok() ? r.value().to_decimal() : "<" + r.err().str() + ">"; }
+
+SCFG_TEST(BigIntTests, SmallValuesAndSign) {
+    SCFG_CHECK_EQ(t, BigInt().to_decimal(), "0");
+    SCFG_CHECK_EQ(t, BigInt(0).sign(), 0);
+    SCFG_CHECK(t, BigInt(0).is_zero());
+    SCFG_CHECK_EQ(t, BigInt(-12345).to_decimal(), "-12345");
+    SCFG_CHECK_EQ(t, BigInt(-12345).sign(), -1);
+    SCFG_CHECK_EQ(t, BigInt(7).sign(), 1);
+    SCFG_CHECK_EQ(t, BigInt(INT64_MIN).to_decimal(), "-9223372036854775808");
+    SCFG_CHECK_EQ(t, BigInt(INT64_MAX).to_decimal(), "9223372036854775807");
+    SCFG_CHECK_EQ(t, BigInt::from_uint64(UINT64_MAX).to_decimal(), "18446744073709551615");
+    SCFG_CHECK_EQ(t, (-BigInt(5)).to_decimal(), "-5");
+    SCFG_CHECK_EQ(t, (-BigInt(0)).sign(), 0);
+    SCFG_CHECK_EQ(t, BigInt(-5).abs().to_decimal(), "5");
+    SCFG_CHECK_EQ(t, (BigInt(3) - BigInt(5)).to_decimal(), "-2");
+    SCFG_CHECK_EQ(t, (BigInt(-3) + BigInt(5)).to_decimal(), "2");
+    SCFG_CHECK_EQ(t, (BigInt(-3) * BigInt(5)).to_decimal(), "-15");
+    SCFG_CHECK_EQ(t, (BigInt(-3) * BigInt(0)).sign(), 0);
+    SCFG_CHECK_EQ(t, (BigInt(5) - BigInt(5)).sign(), 0);
+    BigInt acc(10);
+    acc += 5;
+    acc -= 20;
+    acc *= -3;
+    SCFG_CHECK_EQ(t, acc.to_decimal(), "15");
+    SCFG_CHECK_EQ(t, BigInt(10).pow(30).to_decimal(), "1000000000000000000000000000000");
+    SCFG_CHECK_EQ(t, BigInt(-2).pow(3).to_decimal(), "-8");
+    SCFG_CHECK_EQ(t, BigInt(0).pow(0).to_decimal(), "1");
+}
+
+SCFG_TEST(BigIntTests, Comparisons) {
+    SCFG_CHECK(t, BigInt(-5) < BigInt(3));
+    SCFG_CHECK(t, BigInt(-5) < BigInt(-3));
+    SCFG_CHECK(t, BigInt(5) > BigInt(3));
+    SCFG_CHECK(t, BigInt(3) == 3);
+    SCFG_CHECK(t, BigInt(3) != -3);
+    SCFG_CHECK(t, (BigInt(1) << 64) > BigInt(INT64_MAX));
+    SCFG_CHECK(t, -(BigInt(1) << 64) < BigInt(INT64_MIN));
+    SCFG_CHECK(t, BigInt(0) == -BigInt(0));
+    SCFG_CHECK(t, BigInt(2) <= 2);
+    SCFG_CHECK(t, BigInt(2) >= -2);
+}
+
+SCFG_TEST(BigIntTests, Int64Bounds) {
+    SCFG_CHECK(t, BigInt(INT64_MIN).fits_int64());
+    SCFG_CHECK(t, BigInt(INT64_MAX).fits_int64());
+    SCFG_CHECK(t, !(BigInt(INT64_MAX) + 1).fits_int64());
+    SCFG_CHECK(t, !(BigInt(INT64_MIN) - 1).fits_int64());
+    scfg::Result<int64_t> lo = BigInt(INT64_MIN).to_int64();
+    SCFG_CHECK(t, lo.ok() && lo.value() == INT64_MIN);
+    scfg::Result<int64_t> hi = dec(t, "9223372036854775807").to_int64();
+    SCFG_CHECK(t, hi.ok() && hi.value() == INT64_MAX);
+    scfg::Result<int64_t> over = (BigInt(INT64_MAX) + 1).to_int64();
+    SCFG_CHECK(t, !over.ok() && over.err().is_a("OverflowError"));
+}
+
+// Python's int(s) for 4300 digits (its default str-digits limit; the limit itself is py::py_int's):
+//   s = "1234567890" * 430; v = int(s); v.bit_length() == 14282; v % 1000000007 == 816191493
+SCFG_TEST(BigIntTests, DecimalRoundTripOf4300Digits) {
+    std::string s;
+    for (int i = 0; i < 430; ++i) s += "1234567890";
+    SCFG_CHECK_EQ(t, s.size(), 4300);
+    BigInt v = dec(t, s);
+    SCFG_CHECK_EQ(t, v.to_decimal(), s);
+    SCFG_CHECK_EQ(t, v.bit_length(), 14282);
+    SCFG_CHECK_EQ(t, str(v.mod(1000000007)), "816191493");
+    SCFG_CHECK_EQ(t, (-v).to_decimal(), "-" + s);
+    SCFG_CHECK_EQ(t, dec(t, "-" + s).to_decimal(), "-" + s);
+    SCFG_CHECK_EQ(t, dec(t, "000123").to_decimal(), "123");
+    SCFG_CHECK_EQ(t, dec(t, "-0").to_decimal(), "0");
+    SCFG_CHECK_EQ(t, (BigInt(10).pow(4299)).to_decimal(), "1" + std::string(4299, '0'));
+}
+
+SCFG_TEST(BigIntTests, MalformedLiteralsAreValueErrors) {
+    for (std::string_view s : {"", "-", "+1", " 1", "1 ", "1_000", "12a", "0x10", "--1"}) {
+        scfg::Result<BigInt> r = BigInt::from_decimal(s);
+        t.check(!r.ok() && r.err().is_a("ValueError"), "from_decimal accepted " + std::string(s));
+    }
+    for (std::string_view s : {"", "-", "0x", "-0x", "0xg", "fg", " ff", "0o7", "x10", "0x-1"}) {
+        scfg::Result<BigInt> r = BigInt::from_hex(s);
+        t.check(!r.ok() && r.err().is_a("ValueError"), "from_hex accepted " + std::string(s));
+    }
+}
+
+// 2**256 - 1: hex(n)[2:] == "f" * 64; n.to_bytes(32, "big") == b"\xff" * 32; n.to_bytes(31, "big") raises
+// OverflowError ("int too big to convert"); (-1).to_bytes(1, "big") raises OverflowError.
+SCFG_TEST(BigIntTests, Max256HexAndBytes) {
+    BigInt n = (BigInt(1) << 256) - 1;
+    SCFG_CHECK_EQ(t, n.to_hex(), std::string(64, 'f'));
+    SCFG_CHECK_EQ(t, n.bit_length(), 256);
+    SCFG_CHECK_EQ(t, n.to_decimal(),
+                  "115792089237316195423570985008687907853269984665640564039457584007913129639935");
+    SCFG_CHECK(t, hex(t, std::string(64, 'F')) == n);
+    SCFG_CHECK(t, hex(t, "0x" + std::string(64, 'f')) == n);
+    SCFG_CHECK(t, hex(t, "0X" + std::string(64, 'f')) == n);
+    scfg::Result<std::vector<uint8_t>> b = n.to_bytes_be(32);
+    SCFG_CHECK(t, b.ok() && b.value() == std::vector<uint8_t>(32, 0xff));
+    if (b) SCFG_CHECK(t, BigInt::from_bytes_be(b.value()) == n);
+    scfg::Result<std::vector<uint8_t>> small = n.to_bytes_be(31);
+    SCFG_CHECK(t, !small.ok() && small.err().is_a("OverflowError"));
+    scfg::Result<std::vector<uint8_t>> neg = BigInt(-1).to_bytes_be(1);
+    SCFG_CHECK(t, !neg.ok() && neg.err().is_a("OverflowError"));
+
+    scfg::Result<std::vector<uint8_t>> padded = BigInt(0x1234).to_bytes_be(4);
+    SCFG_CHECK(t, padded.ok() && padded.value() == std::vector<uint8_t>({0, 0, 0x12, 0x34}));
+    scfg::Result<std::vector<uint8_t>> zero = BigInt(0).to_bytes_be(0);
+    SCFG_CHECK(t, zero.ok() && zero.value().empty());
+    std::vector<uint8_t> lead = {0, 0, 1, 2, 3};
+    SCFG_CHECK_EQ(t, BigInt::from_bytes_be(lead).to_hex(), "10203");
+    SCFG_CHECK_EQ(t, BigInt::from_bytes_be({}).to_hex(), "0");
+    SCFG_CHECK_EQ(t, BigInt(-255).to_hex(), "-ff");  // format(-255, "x")
+    SCFG_CHECK(t, hex(t, "-0xff") == -255);
+    SCFG_CHECK(t, hex(t, "-FF") == -255);
+    SCFG_CHECK(t, hex(t, "0b1") == 0xb1);  // int("0b1", 16) == 177: b is a hex digit
+}
+
+// Python: -7 // 2 == -4, -7 % 2 == 1, 7 // -2 == -4, 7 % -2 == -1, -7 // -2 == 3, -7 % -2 == -1, 7 // 2 == 3.
+SCFG_TEST(BigIntTests, FloorDivisionAndModuloAsPython) {
+    struct Case {
+        int64_t a, b, q, r;
+    };
+    for (Case c : {Case{-7, 2, -4, 1}, Case{7, -2, -4, -1}, Case{-7, -2, 3, -1}, Case{7, 2, 3, 1}, Case{-8, 2, -4, 0},
+                   Case{0, -3, 0, 0}, Case{-1, 1000, -1, 999}, Case{1, -1000, -1, -999}}) {
+        std::string what = std::to_string(c.a) + ", " + std::to_string(c.b);
+        SCFG_CHECK_EQ(t, str(BigInt(c.a).floordiv(c.b)), BigInt(c.q).to_decimal());
+        SCFG_CHECK_EQ(t, str(BigInt(c.a).mod(c.b)), BigInt(c.r).to_decimal());
+        scfg::Result<BigInt::DivMod> dm = BigInt(c.a).divmod(c.b);
+        t.check(dm.ok() && dm.value().quot == c.q && dm.value().rem == c.r, "divmod(" + what + ")");
+    }
+    BigInt big = (BigInt(1) << 200) + 1;
+    SCFG_CHECK_EQ(t, str((-big).mod(3)), "1");                  // -(2**200 + 1) % 3
+    SCFG_CHECK_EQ(t, str((-big).floordiv(1 << 30)),             // -(2**200 + 1) // 2**30
+                  "-1496577676626844588240573268701473812127674924007425");
+    for (const BigInt& zero : {BigInt(0), -BigInt(0)}) {
+        SCFG_CHECK(t, !BigInt(1).floordiv(zero).ok() && BigInt(1).floordiv(zero).err().is_a("ZeroDivisionError"));
+        SCFG_CHECK(t, !BigInt(1).mod(zero).ok() && BigInt(1).mod(zero).err().is_a("ZeroDivisionError"));
+        SCFG_CHECK(t, !big.divmod(zero).ok() && big.divmod(zero).err().is_a("ZeroDivisionError"));
+    }
+}
+
+// Knuth D edge cases (Hacker's Delight's divmnu64 tests, 32-bit limbs): qhat overestimates, the add-back step,
+// a divisor with a top bit set (no normalization shift) and a multi-limb remainder. Hex, from Python's // and %.
+SCFG_TEST(BigIntTests, KnuthDivisionEdgeCases) {
+    struct Case {
+        const char *u, *v, *q, *r;
+    };
+    static const Case CASES[] = {
+        {"7fffffff800000000000000000000000", "800000000000000000000001", "fffffffe", "7fffffffffffffff00000002"},
+        {"800000000000000000000003", "200000000000000000000001", "3", "200000000000000000000000"},
+        {"800000000000000000000000", "800000000000000000000001", "0", "800000000000000000000000"},
+        {"8000000000000000fffffffe00000000", "80000000000000000000ffff", "100000000", "fffeffff00000000"},
+        {"ffffffffffffffff0123456789abcdef", "ffffffff00000001", "100000000ffffffff", "123456589abcdf0"},
+        {"ffffffffffffffffffffffffffffffff", "ffffffffffffffffffffffff", "100000000", "ffffffff"},
+    };
+    for (const Case& c : CASES) {
+        BigInt u = hex(t, c.u), v = hex(t, c.v);
+        scfg::Result<BigInt::DivMod> dm = u.divmod(v);
+        if (!t.check(dm.ok(), std::string("divmod failed: ") + c.u)) continue;
+        SCFG_CHECK_EQ(t, dm.value().quot.to_hex(), c.q);
+        SCFG_CHECK_EQ(t, dm.value().rem.to_hex(), c.r);
+    }
+}
+
+SCFG_TEST(BigIntTests, ShiftsAndBitLength) {
+    SCFG_CHECK_EQ(t, BigInt(0).bit_length(), 0);
+    SCFG_CHECK_EQ(t, BigInt(1).bit_length(), 1);
+    SCFG_CHECK_EQ(t, BigInt(-1).bit_length(), 1);  // (-1).bit_length() == 1
+    SCFG_CHECK_EQ(t, BigInt(255).bit_length(), 8);
+    SCFG_CHECK_EQ(t, BigInt(256).bit_length(), 9);
+    SCFG_CHECK_EQ(t, BigInt(INT64_MIN).bit_length(), 64);
+    SCFG_CHECK_EQ(t, (BigInt(1) << 100).bit_length(), 101);
+    SCFG_CHECK_EQ(t, (BigInt(1) << 100).to_hex(), "1" + std::string(25, '0'));
+    SCFG_CHECK_EQ(t, (BigInt(0xabc) << 4).to_hex(), "abc0");
+    SCFG_CHECK_EQ(t, (BigInt(0xabc) << 32).to_hex(), "abc00000000");
+    SCFG_CHECK_EQ(t, (BigInt(0xabc) << 0).to_hex(), "abc");
+    SCFG_CHECK_EQ(t, ((BigInt(1) << 100) >> 99).to_decimal(), "2");
+    SCFG_CHECK_EQ(t, ((BigInt(1) << 100) >> 101).to_decimal(), "0");
+    SCFG_CHECK_EQ(t, ((BigInt(1) << 100) >> 1000).to_decimal(), "0");
+    SCFG_CHECK_EQ(t, (BigInt(0xabcdef) >> 8).to_hex(), "abcd");
+    SCFG_CHECK_EQ(t, (BigInt(0xabcdef) >> 32).to_hex(), "0");
+    // Python's >> floors: -5 >> 1 == -3, -4 >> 1 == -2, -1 >> 100 == -1, -(2**64) >> 64 == -1, -(2**64+1) >> 64 == -2
+    SCFG_CHECK_EQ(t, (BigInt(-5) >> 1).to_decimal(), "-3");
+    SCFG_CHECK_EQ(t, (BigInt(-4) >> 1).to_decimal(), "-2");
+    SCFG_CHECK_EQ(t, (BigInt(-1) >> 100).to_decimal(), "-1");
+    SCFG_CHECK_EQ(t, (-(BigInt(1) << 64) >> 64).to_decimal(), "-1");
+    SCFG_CHECK_EQ(t, ((-(BigInt(1) << 64) - 1) >> 64).to_decimal(), "-2");
+    SCFG_CHECK_EQ(t, (BigInt(-3) << 2).to_decimal(), "-12");
+}
+
+// ed25519's square root: p = 2**255 - 19, x = pow(a, (p + 3) // 8, p) for a known square a = k*k % p, with
+//   k = 0x1234567890abcdef1234567890abcdef1234567890abcdef  (Python: x == p - k and x * x % p == a)
+SCFG_TEST(BigIntTests, PowModForEd25519) {
+    BigInt p = (BigInt(1) << 255) - 19;
+    SCFG_CHECK_EQ(t, p.to_decimal(),
+                  "57896044618658097711785492504343953926634992332820282019728792003956564819949");
+    BigInt e = (p + 3).floordiv(8).take();
+    SCFG_CHECK_EQ(t, e.to_decimal(), "7237005577332262213973186563042994240829374041602535252466099000494570602494");
+    BigInt k = hex(t, "1234567890abcdef1234567890abcdef1234567890abcdef");
+    BigInt a = (k * k).mod(p).take();
+    SCFG_CHECK_EQ(t, a.to_decimal(), "36384589506169261034389689004408444885338646201534790730135857721022313873405");
+    scfg::Result<BigInt> x = a.pow_mod(e, p);
+    SCFG_CHECK_EQ(t, str(x), "57896044618658097711339120825440593801973245214193515557756480401706054857214");
+    if (x) {
+        SCFG_CHECK(t, x.value() == p - k);
+        SCFG_CHECK(t, (x.value() * x.value()).mod(p).take() == a);
+    }
+    // pow(3, 0, 7) == 1, pow(3, 0, 1) == 0, pow(-2, 3, 5) == 2, pow(3, 2, -5) == -1, pow(0, 5, 7) == 0
+    SCFG_CHECK_EQ(t, str(BigInt(3).pow_mod(0, 7)), "1");
+    SCFG_CHECK_EQ(t, str(BigInt(3).pow_mod(0, 1)), "0");
+    SCFG_CHECK_EQ(t, str(BigInt(-2).pow_mod(3, 5)), "2");
+    SCFG_CHECK_EQ(t, str(BigInt(3).pow_mod(2, -5)), "-1");
+    SCFG_CHECK_EQ(t, str(BigInt(0).pow_mod(5, 7)), "0");
+    // pow(3, 2, 0) raises ValueError ("pow() 3rd argument cannot be 0"); a negative exponent (Python's modular
+    // inverse) is not needed by the core and is a ValueError here.
+    SCFG_CHECK(t, !BigInt(3).pow_mod(2, 0).ok() && BigInt(3).pow_mod(2, 0).err().is_a("ValueError"));
+    SCFG_CHECK(t, !BigInt(3).pow_mod(-1, 7).ok() && BigInt(3).pow_mod(-1, 7).err().is_a("ValueError"));
+}
+
+// Generated once with Python 3 (paste the output below to regenerate):
+//   import random
+//   r = random.Random(20261116)
+//   def n(maxbits):
+//       v = r.getrandbits(r.randint(1, maxbits))
+//       return -v if r.random() < 0.5 else v
+//   for _ in range(50):
+//       a = n(320); b = n(256) or 1
+//       print(f'    {{"{a}", "{b}", "{a * b}", "{a // b}", "{a % b}"}},')
+SCFG_TEST(BigIntTests, DifferentialAgainstPython) {
+    struct Row {
+        const char *a, *b, *product, *quot, *rem;
+    };
+    static const Row ROWS[] = {
+    {"131252182197086359380636059891867", "-6056482011737496124467685152924534422303967951576474", "-794926480477945967900581089512024413917198557467168048394133373485510885544621136958", "-1", "-6056482011737496124336432970727448062923331891684607"},
+    {"12", "85743513278517888552262913240853815114486596331258603566", "1028922159342214662627154958890245781373839155975103242792", "0", "12"},
+    {"-50120913999456857986076410851812225277785868096274735686579112118734877487326574856460", "4299222546794616531", "-215480963532418862420857603989925867764685902593311160141417112927738211618911408345538985123712068140260", "-11658134337992260733852464106106980297732445762347198220326120110399", "1427619342015549409"},
+    {"-22945779788744038110985409542", "-204782041512223725556014487017592", "4698883629228925760127746938439692000885370619428490278662864", "0", "-22945779788744038110985409542"},
+    {"1267789229226500541211", "-1346126569045873695424563817975773980032788114357921322531419", "-1706604765411981874381085542352815114019151135186230918962125361604274292051808409", "-1", "-1346126569045873695424563817975773980031520325128694821990208"},
+    {"1", "-25089232767457140117199920056", "-25089232767457140117199920056", "-1", "-25089232767457140117199920055"},
+    {"97767467227558109331330593873841780899216332435760656399622423510", "-222183822074843891", "-21722349543195902118854327023380142556333563546266701286338704482016248326338277410", "-440029639937621466080775251346752153682559349626", "-211014736816811256"},
+    {"-74539707828610730175541460975926396530756412737309531345331906070450791967718345867034824293861", "401052009833781733744696951432658098", "-29894299637087207842020040355996185052862121060789292936727865304045083730243101177023625261975680037125907826109462696557093336378", "-185860452013453647257982013110126781094260381418686821633749", "156597037526375195955037987270655541"},
+    {"300062285494378649339480870162243947994049524686", "-353352601", "-106027789041443266622972497461572191020206132070611808286", "-849186576369303842592857750500169511966", "-37198880"},
+    {"79883221060840968153846343430556087575872356273", "21", "1677547642277660331230773212041677839093319481733", "3803962907659093721611730639550289884565350298", "15"},
+    {"8", "153399", "1227192", "0", "8"},
+    {"213853154667962753", "-1286784473049", "-275182918939280745681464343897", "-166192", "-130476996655"},
+    {"0", "12802127872684883479600849067622954352768843356504644476492974580", "0", "0", "0"},
+    {"-20529776338758202678733134284431743887849540832557", "153797284585641491811681871924506689627517", "-3157423854051564346301202807841055775382678893461543064957548306963284428696255788396670969", "-133485949", "147779223629524949675507487933928022426076"},
+    {"-894098360640929210135490209511307502124206506234340737286672988464277399", "3644191204859583897546906559850144301", "-3258265382127046583592450676464404764787438383343153581255606976088119634925781076897091794102104213842953099", "-245348915679461486603388270117271352", "979581459659935793435371621109087553"},
+    {"88208655979157569072583286673118487426705456932581076325956673", "106753892453757693427183175093210235249273636872682538753926058540116097251", "9416617373889497657171544704251885777653220683400850349202031066916026877671032902764732120161330910758700622632064324997702169680405923", "0", "88208655979157569072583286673118487426705456932581076325956673"},
+    {"-2115533475797546356842579", "-17437542504741880690746", "36889704904424043332673792513944144312104073934", "121", "-5590832723778793262313"},
+    {"-607003007289653622498214210058589270075911307420825425302668", "75562387230685504348790291747853784", "-45866596287011422997008144845155603428154391826729609651973389214044718179239909512397609095712", "-8033136981717178500036903", "67951456974972546359743989622888284"},
+    {"54705705222662877003354507", "-13807102262495773185578281913789351429761057608165208835942305017466133231690", "-755327266351255444483989823812168759720674245042731791335850702096250223460704580660628238318636726830", "-1", "-13807102262495773185578281913789351429761057608165154130237082354589129877183"},
+    {"186655854364237851878169571928", "-1541967532596168971149791226505826", "-287817267198653698176975648216485435333908644567117305618052528", "-1", "-1541780876741804733297913056933898"},
+    {"18852492137056148768618987487332981268485843160166238320680500211240999901084801091", "-1165940154", "-21980877585563035201930532638305089229457499320984070573214923801091363955784797751099908014", "-16169348034184050212082315407873825802285426015241463517415234514035786353", "-843117271"},
+    {"92925358627458448207354719405100246371548311778376838", "-343832269509355654018927614655620017168550545", "-31950736951849820768986251285232067122395626419475991851287990782505237126223995206041581260276710", "-270263634", "-16607407846247362514679277991566549026003692"},
+    {"-115818293242127529170020965966129147977530808136369302679966707674809419", "71575", "-8289694338805277900344250639025693766491767592360632839318617101824484164925", "-1618138920602550180510247516117766650052823026704426163883572583651", "10906"},
+    {"709420082318462941732828081150069205878490436669414814591907595753", "-524663486930733719717888", "-372206814087892921230193781872998307368594679535962354500790073116202261275293655506929664", "-1352143040234322348677573775837030578776303", "-200792128353805512012311"},
+    {"-74917926490662070095805144508677256169564615742727726992194712539055837617641400477314084687188", "-31904777633515425403414093460414", "2390239785448627999838519038290283448136263200250012839810393555681835609751939948990752939717623909860074184469222727650975832", "2348172657751485612944646127046044218543823218592177589624769916", "-8815519177385481730989080581964"},
+    {"-31179421408930783676953259460224140993722949643255", "-9558062090077098328631899793013251266117998790744250410515625", "298014845759239592175015993572501310740741230860068854604752587748527793485828302799619207059740283394353359375", "0", "-31179421408930783676953259460224140993722949643255"},
+    {"261204696236637246663348753378086687120000506410881173299553279357905397713335108425291924085306", "-3205705018572266156716180587046910695756504758425736060", "-837345205600432344705958651592800209579399309546905854386876561985180653563111955180973903313646725427855688443574992338738470377835374995845280334360", "-81481201396680819836884048200826092535811", "-1671410642393446323368391291944577068987844837659959354"},
+    {"-1005", "588630265191", "-591573416516955", "-1", "588630264186"},
+    {"-22201529947957544751250027603175738336720871050694344242624", "-2208087866588841614853388156187107079061", "49022928897793850795158353644361034159107322176292073150380314325194033367149164768494198934096064", "10054640616387932242", "-1535315942930524435327106688444139257862"},
+    {"163052907451363517176464889313886644184", "-233501242502520740388186496256178293281537103458760586686993485408364682", "-38073056483541903629098530332632615726658933916375077335011404520078638783487401223480198815751658876246309488", "-1", "-233501242502520740388186496256178130228629652095243410222104171521720498"},
+    {"232132744151964518263959052", "-35875524954445051279586011032337582085119149837645656541", "-8327884055567611617919895657116025991666723318167776841351713053237513650479959132", "-1", "-35875524954445051279586011032105449340967185319381697489"},
+    {"-20645690377271148284508186453689390859999332576763044702933043863680862170983295735", "-43018", "888136308649450256902973164864810216015451288787192657030773680927823328871359415928230", "479931432825123164361620402010539561578858444761798426308360311118156636082181", "-33477"},
+    {"100095643983668180304117248172187", "-390063420788349752412438100", "-39043649298282410706688973118974662590093614760989279124700", "-256614", "-90678513403061448142421213"},
+    {"93364", "-80362426644805824241239759639581509724634690274006671814136", "-7502957601265650974459108918989888073930793222742358907254993504", "-1", "-80362426644805824241239759639581509724634690274006671720772"},
+    {"19978293006333657961682893678516845080359812206185814217193", "235389918050099107452501944455334938315267880327439009138018", "4702688753541747876282461525176951069530109373730429320431389310676495989423869250340497919882983899049140388365543474", "0", "19978293006333657961682893678516845080359812206185814217193"},
+    {"-21101598433460507534080449966143816929047564269130230946103", "-479388042139", "10115853959020022173340085726985833233316555312985113889669226801834317", "44017782211059064770629468398434353983458746902", "-306119242725"},
+    {"-3415733224525959282254438231", "1325432144329377160716604534665396", "-4527322612240540106394933950597060172951795340532513535154476", "-1", "1325428728596152634757322280227165"},
+    {"-86934168598178974920084568396057929742485", "-3824367606639250074559738366181525132245717335", "332468218296990776032832637633777475488800691343283307928943816776565894634960650477475", "0", "-86934168598178974920084568396057929742485"},
+    {"83160383951752032653876", "-374637988809983212486", "-31155038992350385533167716078554854599495736", "-222", "-9249564064240518016"},
+    {"2920441999825731486645697224521280470843168501702474781791724578468823672939500175304", "-754914011887561883293123602280743479012079520900880795609409", "-2204682586573377259006358617035468610478638813552305368006336622812758923352256964674934605064588189097422902646647830606252444612894749011835336", "-3868575697149342158946655", "-339412056643108383779003245091839983164439738701792746901591"},
+    {"-60983554072276978002856015830711246785444061081584033335175779893913024744807280173794", "-429", "26161944697006823563225230791375124870955502203999550300790409574488687615522323194557626", "142152806695284331008988381889769806026676133057305439009733752666463927144072914158", "-12"},
+    {"13717118412811", "1197926563039631837446710869470149570277520604682350099036253496204", "16432100515066331005766810156618799869987957137692707165317602218597662093469444", "0", "13717118412811"},
+    {"13", "-364978168672786960525409559833765593737951790189845267", "-4744716192746230486830324277838952718593373272467988471", "-1", "-364978168672786960525409559833765593737951790189845254"},
+    {"69355332062216551312491025420705", "3467", "240454936259704783400406385133584235", "20004422285035059507496690343", "1524"},
+    {"320147", "9789359338679474633063630535663188181568470392", "3134034024200217765351422125100962706764601090587624", "0", "320147"},
+    {"62142991684179999", "19103487837", "1187147885793524756215172163", "3252965", "14372493294"},
+    {"-76422253581256277", "-812667146278597122020746692", "62105854730058837630253142873631014951985684", "0", "-76422253581256277"},
+    {"-64983767699040519566086735274282244762972343218800389622862925", "-7806825162102436274753950233106985027944324755059", "507316912801089066488645037817935385634238567461839482840580971584626477693732904545108992422847772036957287575", "8323968623570", "-3060960779457811986413955362024300838847998722295"},
+    {"-314998341116593739402468876009000654340", "740949760420033708016816", "-233397945383048184466110597881360139339510661235823847723381440", "-425127799404411", "739953755016951771921036"},
+    {"58788832044907898661946673289525708564938894890890304619012342", "-4762963434885479640085011", "-280009057409520081064772739477262132434502159643522819886274492747805289435683738205762", "-12342910637171711403346963524416916645", "-1025815316008509681895753"},
+    };
+    for (const Row& row : ROWS) {
+        BigInt a = dec(t, row.a), b = dec(t, row.b);
+        SCFG_CHECK_EQ(t, a.to_decimal(), row.a);
+        SCFG_CHECK_EQ(t, (a * b).to_decimal(), row.product);
+        SCFG_CHECK_EQ(t, (b * a).to_decimal(), row.product);
+        SCFG_CHECK_EQ(t, str(a.floordiv(b)), row.quot);
+        SCFG_CHECK_EQ(t, str(a.mod(b)), row.rem);
+        scfg::Result<BigInt::DivMod> dm = a.divmod(b);
+        if (t.check(dm.ok(), std::string("divmod failed: ") + row.a)) {
+            SCFG_CHECK(t, dm.value().quot * b + dm.value().rem == a);
+            SCFG_CHECK(t, (a * b - a) == a * (b - 1));
+        }
+    }
+}
+
+SCFG_TEST(BytesTests, HexRoundTrip) {
+    std::vector<uint8_t> b = {0x00, 0xab, 0xff, 0x10};
+    SCFG_CHECK_EQ(t, scfg::bytes::to_hex(b), "00abff10");
+    SCFG_CHECK_EQ(t, scfg::bytes::to_hex({}), "");
+    scfg::Result<std::vector<uint8_t>> back = scfg::bytes::from_hex("00ABff10");
+    SCFG_CHECK(t, back.ok() && back.value() == b);
+    scfg::Result<std::vector<uint8_t>> empty = scfg::bytes::from_hex("");
+    SCFG_CHECK(t, empty.ok() && empty.value().empty());
+    for (std::string_view s : {"abc", "0", "zz", "0g", "0x00", " 00", "00 ", "-1"}) {
+        scfg::Result<std::vector<uint8_t>> r = scfg::bytes::from_hex(s);
+        t.check(!r.ok() && r.err().is_a("ValueError"), "from_hex accepted " + std::string(s));
+    }
+}
+
+// RFC 4648 section 10's vectors and every byte value, as base64.b64encode(...).decode("ascii") gives them.
+SCFG_TEST(BytesTests, Base64) {
+    const std::pair<std::string_view, std::string_view> rows[] = {
+        {"", ""},           {"f", "Zg=="},         {"fo", "Zm8="},        {"foo", "Zm9v"},
+        {"foob", "Zm9vYg=="}, {"fooba", "Zm9vYmE="}, {"foobar", "Zm9vYmFy"},
+    };
+    for (const auto& [plain, encoded] : rows) {
+        std::vector<uint8_t> b(plain.begin(), plain.end());
+        SCFG_CHECK_EQ(t, scfg::bytes::b64encode(b), std::string(encoded));
+    }
+    std::vector<uint8_t> all;
+    for (int i = 0; i < 256; ++i) all.push_back(uint8_t(i));
+    // python3 -c 'import base64; t = base64.b64encode(bytes(range(256))).decode(); print(len(t), t[:12], t[-8:])'
+    const std::string text = scfg::bytes::b64encode(all);
+    SCFG_CHECK_EQ(t, text.size(), size_t{344});
+    SCFG_CHECK_EQ(t, text.substr(0, 12), "AAECAwQFBgcI");
+    SCFG_CHECK_EQ(t, text.substr(text.size() - 8), "/P3+/w==");
+}

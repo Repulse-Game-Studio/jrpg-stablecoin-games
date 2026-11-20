@@ -14,9 +14,10 @@ static var USDC_ARB: String = ScfgChains.MAINNET["arbitrum"]["tokens"]["USDC"]["
 
 
 ## {ctl, engine, fakes, clock} (test_checkout_steps.py `setup`). `opts`: kind, chains, methods,
-## browser_wallet.
+## browser_wallet, onramp.
 func _setup(opts: Dictionary = {}) -> Dictionary:
-	var cfg: Variant = ScfgConfig.build_config({"wallet": DEV, "chains": opts.get("chains"), "methods": opts.get("methods")})
+	var cfg: Variant = ScfgConfig.build_config({"wallet": DEV, "chains": opts.get("chains"), "methods": opts.get("methods"),
+		"onramp": opts.get("onramp")})
 	ScfgConfig.add_item(cfg, "chapter2", {"code": 37, "price": "4.99", "token": "USDC", "title": "Chapter 2"})
 	var fakes := {}
 	var factory := func(chain: Dictionary) -> Variant:
@@ -367,7 +368,7 @@ func test_start_failure_returns_to_network_with_the_message() -> bool:
 	ctl.choose_network("arbitrum")
 	ctl.poll()
 	T.eq(ctl.step, "network")
-	T.eq(ctl.error, "network_unavailable")
+	T.eq(ctl.error, "start_unreachable")
 	return T.done()
 
 
@@ -380,7 +381,7 @@ func test_start_failure_on_a_skipped_network_shows_the_network_step() -> bool:
 	ctl.next_step()
 	ctl.poll()
 	T.eq(ctl.step, "network")
-	T.eq(ctl.error, "network_unavailable")
+	T.eq(ctl.error, "start_unreachable")
 	T.eq(ctl.can_go_back, true)
 	down.down = false
 	ctl.choose_network("base")
@@ -445,4 +446,63 @@ func test_the_controller_pumps_and_reopens_an_overlay_page() -> bool:
 	T.eq(ctl._server.pumps, 1)
 	ctl.open_browser()
 	T.eq(ctl._server.reopens, 1)
+	return T.done()
+
+
+# --- the buy link (configure's onramp) ----------------------------------------------
+
+func test_the_method_step_offers_the_buy_page_for_the_chosen_network() -> bool:
+	var ctl: ScfgCheckoutController = _setup()["ctl"]
+	T.eq([ctl.onramp_url(), ctl.shows_onramp], [null, false], "no network yet")
+	ctl.choose_network("arbitrum")
+	ctl.poll()
+	T.eq([ctl.step, ctl.shows_onramp], ["method", true])
+	var units: int = ctl.session["units"]
+	T.ok(units >= 4_990_000 and units < 5_000_000, "the session's amount")
+	T.eq(ctl.onramp_url(), "https://thirdweb.com/bridge/buy-widget?chain=42161&tokenAddress=%s&amount=5.00&tokenEditable=false&paymentMethods=card" % USDC_ARB)
+	return T.done()
+
+
+func test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee() -> bool:
+	var ctl: ScfgCheckoutController = _setup({"chains": ["base", "arc"]})["ctl"]
+	ctl.choose_network("arc")
+	ctl.poll()
+	T.ok(str(ctl.onramp_url()).ends_with("&amount=5.01&tokenEditable=false&paymentMethods=card"), str(ctl.onramp_url()))
+	return T.done()
+
+
+func test_the_buy_link_moves_to_the_only_payment_page() -> bool:
+	var ctl: ScfgCheckoutController = _on_method_step({"methods": ONLY_MANUAL})["ctl"]
+	T.eq([ctl.step, ctl.shows_onramp], ["manual", true], "the only method")
+	ctl = _on_method_step()["ctl"]
+	ctl.choose_method("qr")
+	T.eq([ctl.step, ctl.shows_onramp], ["qr", false], "the method step showed it")
+	ctl.mark_sent()
+	T.eq(ctl.shows_onramp, false, "waiting")
+	return T.done()
+
+
+func test_the_buy_link_follows_the_onramp_option() -> bool:
+	var ctl: ScfgCheckoutController = _on_method_step({"onramp": {"enabled": false}})["ctl"]
+	T.eq([ctl.onramp_url(), ctl.shows_onramp], [null, false], "disabled")
+	ctl = _on_method_step({"onramp": {"chains": ["base"]}})["ctl"]
+	T.eq([ctl.chain_key, ctl.onramp_url()], ["arbitrum", null], "another network")
+	ctl = _on_method_step({"onramp": {"url": "https://buy.example/{chain}/{token}?a={amount}"}})["ctl"]
+	T.eq(ctl.onramp_url(), "https://buy.example/arbitrum/USDC?a=5.00", "a custom page")
+	return T.done()
+
+
+func test_before_a_session_the_buy_link_suggests_the_most_the_payment_can_be() -> bool:
+	var cfg: Variant = ScfgConfig.build_config({"wallet": DEV, "chains": ["arbitrum", "arc"]})
+	if not T.ok(cfg is Dictionary, "build_config"):
+		return T.done()
+	var path := ["network", "method", "browser", "waiting"]
+	var keys := ["arbitrum", "arc"]
+	# 4.99 plus at most 0.009999 of item code and nonce: the session's 4.993742 also gives 5.00
+	var arb: Variant = ScfgCheckoutController.onramp_view(cfg, "USDC", "arbitrum", null, "4.99", "method", path, true, keys)
+	T.ok(str(arb["url"]).contains("&amount=5.00&"), str(arb))
+	var arc: Variant = ScfgCheckoutController.onramp_view(cfg, "USDC", "arc", null, "4.99", "method", path, true, keys)
+	T.ok(str(arc["url"]).contains("&amount=5.01&"), str(arc))
+	var none: Variant = ScfgCheckoutController.onramp_view(cfg, "USDC", null, null, "4.99", "method", path, true, keys)
+	T.eq(none, {"url": null, "shows_onramp": false, "shows_onramp_hint": true}, "no network chosen")
 	return T.done()

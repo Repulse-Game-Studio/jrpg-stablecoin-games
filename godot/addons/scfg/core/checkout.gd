@@ -49,6 +49,8 @@ const HINT_VERDICTS := ["tx_reverted", "tx_not_a_payment", "tx_not_landed"]
 ## Order of the steps; the three method pages share a place.
 const STEP_ORDER := {"amount": 0, "network": 1, "method": 2, "browser": 3, "qr": 3, "manual": 3,
 	"waiting": 4, "done": 5}
+## The three method pages.
+const ONRAMP_PAGES := ["browser", "qr", "manual"]
 
 static var MESSAGES := {
 	"network_unavailable": "Can't reach the network. Retrying...",
@@ -59,6 +61,9 @@ static var MESSAGES := {
 	"invalid_amount": "Enter an amount of at least %s with up to 2 decimals." % str(ScfgPayments.MIN_TIP),
 	"browser_unavailable": "Couldn't start the browser checkout. Use another method.",
 	"start_failed": "Couldn't start the payment. Check your connection and try again.",
+	# A start every endpoint failed: back on the network step, nothing retries until the player
+	# picks a network again (network_unavailable is the waiting state's, which the worker retries).
+	"start_unreachable": "Can't reach the network. Pick a network to try again.",
 	"solana_unavailable": "Payments on Solana aren't available right now.",
 	"internal_error": "Something went wrong while checking the payment. Retrying...",
 	"paste_blocked": "Your browser blocked pasting. Type it instead: the game also finds the payment without it.",
@@ -145,6 +150,24 @@ var can_go_back: bool:
 			return false
 		return _previous_step() != null
 
+## Whether this step offers the buy link.
+var shows_onramp: bool:
+	get:
+		var view: Variant = _onramp()
+		if view is ScfgErr:
+			return false
+		return view["shows_onramp"]
+
+## Whether this step points to the buy link instead ("Pick another network"), because the chosen
+## network has none (Solana) but another one the player can pick has it. Its button goes back to
+## the network step (`back()`).
+var shows_onramp_hint: bool:
+	get:
+		var view: Variant = _onramp()
+		if view is ScfgErr:
+			return false
+		return view["shows_onramp_hint"]
+
 
 func _init(opts: Dictionary) -> void:
 	config = opts.get("config")
@@ -228,6 +251,61 @@ func payment_uri() -> Variant:
 			"mint": token_address, "reference": session["reference"], "label": game_name, "message": spec["title"]})
 	return ScfgPaylinks.eip681_transfer_uri({"token_address": token_address, "chain_id": chain["chain_id"],
 		"recipient": recipient, "units": session["units"]})
+
+
+## The buy link's state on a checkout step, as the controller and every port decide it (Python's
+## checkout.onramp_view, pinned by the tier1 vectors): {"url", "shows_onramp", "shows_onramp_hint"}.
+## url: configure's onramp page for the chosen network when it is offered there, else null; the
+## suggested amount is the session's exact `pay_units`, or before a session (null) the payment
+## `pay_amount` plus the most the item code and nonce add (ONRAMP_EXACT_UNITS); plus a cent where the
+## token is the network's gas coin (Arc); rounded up to whole cents. The link goes on the method
+## step, or on the payment page the sheet opens on when `path` has no method step. The hint shows
+## there instead, without a url, while the player can go back and another network in
+## `option_keys` has the link.
+## @fallible
+static func onramp_view(cfg: Dictionary, pay_token: String, pay_chain: Variant, pay_units: Variant, pay_amount: Variant,
+		at_step: String, path: Array, go_back: bool, option_keys: Array) -> Variant:
+	var opts: Variant = cfg.get("onramp")
+	var on: bool = opts is Dictionary and opts["enabled"]
+	var c: Variant = ScfgConfig.enabled_chains(cfg).get(pay_chain) if ScfgPy.py_truthy(pay_chain) else null
+	var url: Variant = null
+	if on and c != null and (opts["chains"] as Array).has(c["key"]):
+		var u: Variant = pay_units
+		if u == null:
+			u = ScfgAmounts.decimal_to_units(pay_amount)
+			if u is ScfgErr:
+				return u
+			u = int(u) + ScfgPaylinks.ONRAMP_EXACT_UNITS
+		url = ScfgPaylinks.onramp_url(opts["url"], c["key"], c["chain_id"], pay_token, c["tokens"][pay_token]["address"],
+			ScfgPaylinks.onramp_amount(int(u), c["native_token"] == pay_token))
+		if url is ScfgErr:
+			return url
+	var here := at_step == "method" or (at_step in ONRAMP_PAGES and not path.has("method"))
+	var hint := false
+	if on and here and url == null and go_back:
+		for key: Variant in option_keys:
+			if (opts["chains"] as Array).has(key):
+				hint = true
+				break
+	return {"url": url, "shows_onramp": here and url != null, "shows_onramp_hint": hint}
+
+
+## @fallible
+func _onramp() -> Variant:
+	var keys := []
+	for o: Array in chain_options():
+		keys.append(o[0])
+	return onramp_view(config, spec["token"], chain_key, session["units"] if ScfgPy.py_truthy(session) else null,
+		amount, step, step_path(), can_go_back, keys)
+
+
+## The page where a player without the token buys some with a card, for the chosen network, with
+## the payment (plus a cent for the fee on Arc) suggested as the amount. Null when configure's
+## `onramp` doesn't offer it on this network (see onramp_view).
+## @fallible
+func onramp_url() -> Variant:
+	var view: Variant = _onramp()
+	return view if view is ScfgErr else view["url"]
 
 
 ## @fallible
@@ -540,7 +618,7 @@ func poll() -> void:
 		state = "choose"
 		chain_key = null
 		var network: bool = exc is ScfgErr and (exc as ScfgErr).is_a("RpcUnavailable")
-		error = "network_unavailable" if network else "start_failed"
+		error = "start_unreachable" if network else "start_failed"
 		if step != "amount" and step != "network":
 			_go("network", -1)
 		return
@@ -636,6 +714,7 @@ func _abandon_start() -> void:
 	_future = null
 	if not fut is ScfgJob:
 		return
+	(fut as ScfgJob).abandon()  # a queued start never runs; a running one makes no further request
 	var sub := submit
 	# Future.add_done_callback: runs at once when the job is done, else when it settles. The
 	# callback holds the job weakly, so a start that never finishes leaves no cycle behind.

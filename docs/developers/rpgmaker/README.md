@@ -1,7 +1,7 @@
 # For RPG Maker MZ developers
 
 Stablecoin for Games for **RPG Maker MZ**: accept **USDC** and **USDT** tips and unlock purchases in your
-game, paid **directly to your own wallet**. There is no server, no account and no middleman: the plugin
+game, paid **directly to your own wallet**. There is no server, no account and no middleman in the payment: the plugin
 watches the blockchain itself. It is one plugin file, `js/plugins/SCFG.js`, with no dependencies. It works
 in desktop builds (NW.js) and web deployments. Mobile is best effort and unverified.
 

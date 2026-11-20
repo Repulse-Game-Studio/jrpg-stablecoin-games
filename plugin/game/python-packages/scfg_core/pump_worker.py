@@ -6,7 +6,11 @@ current job until it waits on a request that is still in flight, then returns at
 Requests go out through a bridge: in the game, web_page.WebPage, which uses the browser's
 fetch(). Jobs never interleave: a command or a tick runs to completion before the next
 starts, exactly like the desktop Worker's single thread. The interface matches
-worker.Worker, so the rest of the plugin can't tell them apart.
+worker.Worker, so the rest of the plugin can't tell them apart. A job the caller abandoned
+(worker.abandon) stops waiting for its request in flight at the next pump, and is refused any
+further one, with worker.Abandoned. A tick yields the same way to a command submitted while it
+runs (worker.py: commands come first), once its first-run reverify is done. The bridge's request
+in flight is cancelled then (bridge.cancel: the fetch is aborted and its answer never kept).
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ from concurrent.futures import Future
 from typing import Callable
 
 from .coio import TransportError, response_from_envelope
+from .worker import Abandoned, abandoned
 
 MAX_STEPS_PER_PUMP = 50  # bounds the work done in one frame
 
@@ -40,6 +45,7 @@ class PumpWorker:
         self._in_flight = None    # bridge id of the request the job waits on
         self._next_tick = clock()
         self._woken = False       # wake() since the running tick started
+        self._yields = False      # the running tick is in Engine.tick_co: a command makes it yield
         self._first = True
         self._stopped = False
 
@@ -91,6 +97,11 @@ class PumpWorker:
                     return
                 self._step()
                 continue
+            if self._refused():
+                # stop waiting: the fetch is cancelled, its late answer never kept
+                self._cancel_in_flight()
+                self._step(throw=Abandoned("abandoned while its request was in flight"))
+                continue
             try:
                 envelope = self.bridge.poll(self._in_flight)
                 if envelope is None:
@@ -132,9 +143,30 @@ class PumpWorker:
         if self._first:
             self._first = False
             yield from self.engine.reverify_co()
-        for o in (yield from self.engine.tick_co()):
+        self._yields = True
+        try:
+            outcomes = yield from self.engine.tick_co()
+        finally:
+            self._yields = False
+        for o in outcomes:
             if o.status != "waiting" or o.error:
                 self._outcomes.append(o)
+
+    def _refused(self) -> bool:
+        """The running job's requests are refused: it was abandoned, or it is a tick and a
+        command waits (see the module docstring)."""
+        if self._job_future is not None:
+            return abandoned(self._job_future)
+        return self._yields and bool(self._commands)
+
+    def _cancel_in_flight(self) -> None:
+        request_id, self._in_flight = self._in_flight, None
+        cancel = getattr(self.bridge, "cancel", None)
+        if request_id is not None and cancel is not None:
+            try:
+                cancel(request_id)
+            except Exception as e:  # a broken bridge must not leave the job stuck
+                self.on_error(e)
 
     def _step(self, send=None, throw=None) -> None:
         """Resume the job; it either finishes or yields its next Request."""
@@ -146,6 +178,9 @@ class PumpWorker:
         except BaseException as e:
             self._finish(error=e)
             return
+        if self._refused():
+            self._step(throw=Abandoned(f"abandoned before its request to {request.url}"))
+            return
         try:
             self._in_flight = self.bridge.start(request.url, json.dumps(request.payload),
                                                 request.timeout)
@@ -156,7 +191,7 @@ class PumpWorker:
         fut = self._job_future
         self._job = self._job_future = self._in_flight = None
         if fut is None:                                  # a tick
-            if error is not None:
+            if error is not None and not isinstance(error, Abandoned):  # yielding is no error
                 self.on_error(error)
             # A wake() or submit() that landed mid-tick must not wait a full interval.
             self._next_tick = self.clock() + (0.0 if self._woken else self.interval())

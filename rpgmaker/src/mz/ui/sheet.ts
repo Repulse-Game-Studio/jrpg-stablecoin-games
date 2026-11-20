@@ -12,8 +12,8 @@
  *
  * The sheet reads only the CheckoutController's fields and getters and calls its methods; SCFG
  * polls it every frame. Buttons that leave the game go through SCFG (openBrowser, openWalletApp,
- * openExplorer, copy, pasteInto). `closed` resolves "cancel", "keep_playing" or "finish", Ren'Py's
- * _close_checkout hows.
+ * openExplorer, openOnramp, copy, pasteInto). `closed` resolves "cancel", "keep_playing" or
+ * "finish", Ren'Py's _close_checkout hows.
  *
  * Keyboard and gamepad (screen.ts): each step focuses its primary control (the selected option,
  * the forward button, the first Copy, Continue); cancel goes back, or closes as Cancel on the
@@ -64,7 +64,7 @@ export class PaymentSheet extends Screen {
   protected signature(): unknown[] {
     const c = this.ctl;
     return [c.step, c.state, c.error, c.canGoBack, c.hint_tx, c.confirmations, c.required, c.method, c.chain_key,
-      c.priceText, c.sessionId, c.browser_failed, c.chainOptions(), c.methods(), c.result?.tx_hash ?? null, c.message(),
+      c.priceText, c.sessionId, c.browser_failed, c.chainOptions(), c.methods(), c.result?.tx_hash ?? null, c.message(), c.showsOnramp, c.showsOnrampHint,
       [...c.unready()].sort(), this.env.logo()];
   }
 
@@ -128,6 +128,7 @@ export class PaymentSheet extends Screen {
     this.body = body;
     this.sheet.append(body);
     const forward = this.step(body);
+    this.onrampLink();
     if (forward !== null) this.sheet.append(this.button("forward", forward[0], "accent forward", forward[1]));
     this.sheet.append(this.footer());
   }
@@ -247,6 +248,20 @@ export class PaymentSheet extends Screen {
     body.append(list);
   }
 
+  /**
+   * "No USDC yet? Buy some with a card" (Ren'Py's scfg_onramp_link): the configure({onramp}) page
+   * for the chosen network, pinned below the scrolling body (above the forward button) so it stays
+   * in view. On the method step, or the payment page the sheet opens on when there is a single
+   * method (the controller's showsOnramp). On a network without a buy page (Solana), when another
+   * one has it, "No USDC yet? Pick another network to buy some with a card" goes back to the
+   * network step instead (showsOnrampHint).
+   */
+  private onrampLink(): void {
+    const c = this.ctl;
+    if (c.showsOnramp) this.sheet.append(this.button("onramp", this.text("onramp_link", c.spec.token), "small", () => this.scfg.openOnramp(c)));
+    else if (c.showsOnrampHint) this.sheet.append(this.button("onramp_hint", this.text("onramp_hint", c.spec.token), "small", () => c.back()));
+  }
+
   private stepBrowser(body: HTMLElement): void {
     const c = this.ctl;
     const solana = c.family === "solana";
@@ -302,7 +317,12 @@ export class PaymentSheet extends Screen {
       const copy = this.button(`copy_${key}`, this.text("copy"), "small", () => this.scfg.copy(value.split(" ")[0]));
       body.append(this.div("stack tight", this.label(label, "label"), this.div("value-row", this.value(value, "mono grow", `value_${key}`), copy)));
     }
-    if (!c.config.methods["manual"]?.["allow_tx_paste"]) return;
+    if (c.config.methods["manual"]?.["allow_tx_paste"]) this.txPaste(body);
+  }
+
+  /** The manual step's "Sent from an exchange? Paste the transaction hash:" field. */
+  private txPaste(body: HTMLElement): void {
+    const c = this.ctl;
     body.append(this.label(this.text("sent_from_exchange_paste", this.txWord()), "label"));
     const field = this.field("tx_input", c.tx_input, PASTE_MAX, TX_CHARS, (t) => {
       c.tx_input = t;

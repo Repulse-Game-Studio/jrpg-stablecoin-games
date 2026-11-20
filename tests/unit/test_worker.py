@@ -3,10 +3,10 @@ from decimal import Decimal
 
 import pytest
 
-from scfg_core.coio import run_sync
+from scfg_core.coio import Request, run_sync
 from scfg_core.engine import Snapshot
 from scfg_core.watcher import StepOutcome
-from scfg_core.worker import Worker
+from scfg_core.worker import Abandoned, Worker, abandon
 
 
 class FakeEngine:
@@ -135,9 +135,9 @@ def test_generator_commands_are_driven_by_the_engine():
     e = FakeEngine()
     driven = []
 
-    def run(gen):
+    def run(gen, transport=None):
         driven.append(True)
-        return run_sync(gen, None)
+        return run_sync(gen, transport)
     e.run = run
 
     def job(engine):
@@ -147,3 +147,74 @@ def test_generator_commands_are_driven_by_the_engine():
     fut = w.submit(job)
     w.run_once()
     assert fut.result(timeout=0) == 42 and driven == [True]
+
+
+class RecordingTransport:
+    def __init__(self, on_post=None):
+        self.urls = []
+        self.on_post = on_post
+
+    def post_json(self, url, payload, timeout):
+        self.urls.append(url)
+        if self.on_post:
+            self.on_post()
+        return {"result": 1}
+
+
+def test_an_abandoned_running_job_is_refused_its_next_request():
+    """The player picks another network while a start waits on its first endpoint: the start is
+    refused the next one with Abandoned, so the start that replaced it does not wait for it."""
+    e = FakeEngine()
+    holder = {}
+    e.transport = RecordingTransport(on_post=lambda: abandon(holder["fut"]))
+    e.run = lambda gen, transport=None: run_sync(gen, transport)
+
+    def start(engine):
+        yield Request("http://first/", {}, 10.0)
+        yield Request("http://second/", {}, 10.0)
+        return "started"
+    w = Worker(e)
+    holder["fut"] = w.submit(start)
+    w.run_once()
+    with pytest.raises(Abandoned):
+        holder["fut"].result(timeout=0)
+    assert e.transport.urls == ["http://first/"]
+
+
+def test_abandoning_a_queued_job_cancels_it():
+    w = Worker(FakeEngine())
+    ran = []
+    fut = w.submit(lambda engine: ran.append(1))
+    abandon(fut)
+    w.run_once()
+    assert fut.cancelled() and ran == []
+
+
+def test_an_abandoned_job_stops_waiting_for_its_request_in_flight():
+    """A superseded start whose request is in flight (a host that never answers)
+    ends at once when abandoned, not at the request's 10 s timeout."""
+    import time
+    release = threading.Event()
+
+    class Hanging:
+        def post_json(self, url, payload, timeout):
+            release.wait(10)
+            return {"result": 1}
+    e = FakeEngine()
+    e.transport = Hanging()
+    e.run = lambda gen, transport=None: run_sync(gen, transport)
+
+    def start(engine):
+        yield Request("http://first/", {}, 10.0)
+        return "started"
+    w = Worker(e)
+    fut = w.submit(start)
+    threading.Timer(0.2, lambda: abandon(fut)).start()
+    t = time.monotonic()
+    try:
+        w.run_once()
+        assert time.monotonic() - t < 2.0
+        with pytest.raises(Abandoned, match="in flight"):
+            fut.result(timeout=0)
+    finally:
+        release.set()

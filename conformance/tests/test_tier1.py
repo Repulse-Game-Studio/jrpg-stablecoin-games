@@ -333,7 +333,7 @@ def test_chains_vectors_are_the_registry():
 
 
 def test_config_valid_cases_present():
-    outs = [c["out"] for c in _cases("config") if "out" in c]
+    outs = [c["out"] for c in _cases("config") if "out" in c and c["fn"] == "build_config"]
     assert any(o["wallet"] and not o["solana_wallet"] for o in outs)
     assert any(o["solana_wallet"] and not o["wallet"] for o in outs)
     assert any(o["wallet"] and o["solana_wallet"] for o in outs)
@@ -347,3 +347,13 @@ def test_payment_cases_include_float_and_unknown_item():
     errs = {c.get("error") for c in _cases("payments")}
     assert {"tip.below_minimum", "item.unknown", "token.not_enabled"} <= errs
     assert any(isinstance(c["in"].get("amount"), dict) for c in _cases("payments"))
+
+
+def test_onramp_view_cases_cover_the_link_the_hint_and_the_session_less_amount():
+    outs = [(c["in"], c["out"]) for c in _cases("config") if c["fn"] == "onramp_view"]
+    assert any(o["shows_onramp"] for _, o in outs)
+    assert any(o["shows_onramp_hint"] for _, o in outs)
+    assert any(o["url"] and not o["shows_onramp"] for _, o in outs), "a url off the link's step"
+    assert any(i["units"] is None and o["url"] for i, o in outs), "before a session"
+    assert any(i["chain_key"] == "arc" and o["url"] for i, o in outs), "the Arc cent"
+    assert not any(o["shows_onramp"] and o["shows_onramp_hint"] for _, o in outs)

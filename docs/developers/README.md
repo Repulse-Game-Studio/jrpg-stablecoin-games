@@ -1,8 +1,9 @@
 # Developer guide
 
 Accept **USDC** and **USDT** tips and unlock purchases in your Ren'Py game, paid
-**directly to your own wallet**. There is no server, no account, and no middleman:
-the plugin watches the blockchain itself.
+**directly to your own wallet**. There is no server, no account, and no middleman in the payment:
+the plugin watches the blockchain itself. Players who have no stablecoin yet get an optional link to
+buy some with a card from a third-party provider ([the buy link](configure/README.md#the-buy-link)).
 
 - Chains: Ethereum, Arbitrum, Polygon (USDC + USDT), Base (USDC), **Arc (USDC, also its gas coin)**, **Solana (USDC + USDT; devnet USDC)**, plus any EVM chain you add yourself (see [Your own RPC endpoints and chains](configure/README.md#your-own-rpc-endpoints-and-chains), [Arc](configure/arc.md) and [Solana](configure/solana.md))
 - Platforms: Windows, macOS, Linux, Android and the web (HTML5) build, on your own site or on itch.io

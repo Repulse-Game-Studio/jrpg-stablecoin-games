@@ -98,7 +98,7 @@ func test_accepted_wallets_and_previous_wallets() -> bool:
 func test_defaults() -> bool:
 	var c := _good()
 	T.eq(c.keys(), ["wallet", "testnet", "chains", "tokens", "methods", "rpc_urls", "confirmations",
-		"previous_wallets", "solana_wallet", "previous_solana_wallets", "logo", "accent", "custom_chains", "items"],
+		"previous_wallets", "solana_wallet", "previous_solana_wallets", "logo", "accent", "custom_chains", "onramp", "items"],
 		"Config fields in Python's order")
 	T.eq(c["testnet"], false, "testnet")
 	T.eq(c["chains"], ["arbitrum", "base", "arc", "polygon", "ethereum"], "chains")
@@ -261,6 +261,85 @@ func test_text_on_accent_stays_readable() -> bool:
 			["#000000", "#ffffff"]]:
 		T.eq(ScfgConfig.text_on(pair[0]), pair[1], "text on %s" % pair[0])
 	T.eq(ScfgConfig.INK, "#17202e", "INK")
+	return T.done()
+
+
+# --- onramp (the "Buy some with a card" link) -------------------------------------------------
+
+
+func test_onramp_defaults_to_the_builtin_evm_chains_on_mainnet() -> bool:
+	T.eq(_good({"solana_wallet": SOL})["onramp"], {"enabled": true, "url": ScfgPaylinks.ONRAMP_URL,
+		"chains": ["arbitrum", "base", "arc", "polygon", "ethereum"]})
+	return T.done()
+
+
+func test_onramp_is_not_offered_on_testnet_unless_chains_are_listed() -> bool:
+	T.eq(_good({"testnet": true})["onramp"]["chains"], [], "the default")
+	T.eq(_good({"testnet": true, "onramp": {"chains": ["base"]}})["onramp"]["chains"], ["base"], "listed")
+	return T.done()
+
+
+func test_onramp_default_follows_the_enabled_chains_and_skips_custom_ones() -> bool:
+	var c := _good({"chains": ["base", "avalanche", "arc"], "custom_chains": [_avax()]})
+	T.eq(c["onramp"]["chains"], ["base", "arc"], "the default")
+	c = _good({"chains": ["base", "avalanche"], "custom_chains": [_avax()], "onramp": {"chains": ["avalanche"]}})
+	T.eq(c["onramp"]["chains"], ["avalanche"], "listed")
+	return T.done()
+
+
+func test_onramp_options_merge() -> bool:
+	var url := "https://example.com/buy?net={chain}&id={chain_id}&t={token}@{token_address}&a={amount}"
+	T.eq(_good({"onramp": {"enabled": false, "url": url, "chains": ["arc"]}})["onramp"],
+		{"enabled": false, "url": url, "chains": ["arc"]}, "every option")
+	T.eq(_good({"onramp": {}})["onramp"], _good()["onramp"], "none")
+	T.eq(ScfgConfig.DEFAULT_ONRAMP["chains"], null, "DEFAULT_ONRAMP is untouched")
+	return T.done()
+
+
+func test_bad_onramp() -> bool:
+	for pair: Array in [
+			[false, "onramp.not_a_dict"],
+			["", "onramp.not_a_dict"],
+			[{"enable": false}, "onramp.unknown_option"],
+			[{"enabled": "no"}, "onramp.enabled_not_bool"],
+			[{"enabled": 0}, "onramp.enabled_not_bool"],
+			[{"enabled": 0.0}, "onramp.enabled_not_bool"],
+			[{"url": "http://example.com/buy"}, "onramp.bad_url"],
+			[{"url": "https://example.com/buy?a={amount} "}, "onramp.bad_url"],
+			[{"url": "https://example.com/café"}, "onramp.bad_url"],
+			[{"url": "https://example.com/" + "a".repeat(2029)}, "onramp.bad_url"],
+			[{"url": null}, "onramp.bad_url"],
+			[{"url": "https://example.com/?w={wallet}"}, "onramp.unknown_placeholder"],
+			[{"url": "https://example.com/?w={}"}, "onramp.unknown_placeholder"],
+			[{"url": "https://example.com/?a={amount"}, "onramp.unmatched_brace"],
+			[{"url": "https://example.com/?a=amount}"}, "onramp.unmatched_brace"],
+			[{"url": "https://example.com/?a={{amount}}"}, "onramp.unmatched_brace"],
+			[{"chains": "base"}, "onramp.chains_not_a_list"],
+			[{"chains": ["tron"]}, "onramp.disabled_chain"],
+			[{"chains": [5]}, "onramp.disabled_chain"],
+			[{"chains": [5.0]}, "onramp.disabled_chain"],
+			[{"chains": ["base", "base"]}, "onramp.duplicate_chain"],
+			[{"chains": ["base", "base", "tron"]}, "onramp.disabled_chain"]]:
+		_bad({"onramp": pair[0]}, pair[1], "onramp")
+	return T.done()
+
+
+func test_onramp_url_limit_is_inclusive() -> bool:
+	var url := "https://example.com/" + "a".repeat(2028)
+	T.eq(url.length(), 2048, "2048 characters")
+	T.eq(_good({"onramp": {"url": url}})["onramp"]["url"], url, "accepted")
+	return T.done()
+
+
+func test_onramp_url_needs_a_host() -> bool:
+	for url: String in ["https://", "https:///buy", "https://{amount}", "https://?a=1", "https://#top", "https://}"]:
+		_bad({"onramp": {"url": url}}, "onramp.bad_url")
+	T.eq(_good({"onramp": {"url": "https://x"}})["onramp"]["url"], "https://x", "the shortest host")
+	return T.done()
+
+
+func test_onramp_chains_must_be_evm() -> bool:
+	_bad({"solana_wallet": SOL, "onramp": {"chains": ["base", "solana"]}}, "onramp.not_evm")
 	return T.done()
 
 
