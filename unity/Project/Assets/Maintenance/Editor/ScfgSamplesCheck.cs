@@ -44,8 +44,9 @@ namespace Scfg.Maintenance
 
         private static string ScenePath(string name) => "Assets/Samples/" + name + "/" + name + ".unity";
 
+        /// <summary>A sample's component type by full name, from Unity's TypeCache (the loaded assemblies only, as UAC0005 asks).</summary>
         private static Type? Find(string fullName) =>
-            AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(fullName, false)).FirstOrDefault(t => t != null);
+            TypeCache.GetTypesDerivedFrom<MonoBehaviour>().FirstOrDefault(t => t.FullName == fullName);
 
         public static void Check()
         {
