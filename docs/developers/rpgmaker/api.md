@@ -59,7 +59,7 @@ These take JSON text. Empty means the defaults.
 | **Chains** | `["base", "arbitrum"]`: only these networks |
 | **Tokens** | `["USDC"]`: only these tokens |
 | **Methods** | `{"manual": {"allow_tx_paste": false}}`: payment method options |
-| **Buy Link** | `{"enabled": false}`: hides the sheet's "No USDC yet? Buy some with a card" link. The link opens a buy page for the network the player picked, where they buy the token with a card into their own wallet and then pay as usual. It sits on the method step (or on the only payment page when there is one method). On a network it isn't offered on, like Solana, the sheet says "No USDC yet? Pick another network to buy some with a card" there instead, which goes back to the network step, when another network the player can pick has the link. The default page is thirdweb's hosted Buy widget, locked to the network and token, with the payment rounded up to cents (plus a cent for the fee on Arc) as the suggested amount. Options: `enabled` (default `true`); `chains`, the networks it is offered on, like `["base", "arc"]` (EVM networks only; left out: the built-in EVM networks on mainnet and none on testnet, since cards don't buy test tokens); `url`, your own `https://` page, where `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in (no spaces, at most 2048 characters) |
+| **Buy Link** | The **Pay with card** button under each network on the network step, on by default on mainnet; `{"enabled": false}` hides it. It skips the payment-method step for a card page whose **Open card checkout** button opens a card checkout for that network in the player's browser (a new tab in a web build), paying the session's exact amount straight to your wallet there; the sheet then waits for the payment as usual. Never on Solana. The default page is thirdweb's hosted Checkout widget. Options: `enabled` (default `true`); `chains`, the networks it is offered on, like `["base", "arc"]` (EVM networks only; left out: the built-in EVM networks on mainnet and none on testnet, since cards don't buy test tokens); `url`, your own `https://` page, where `{chain}`, `{chain_id}`, `{token}`, `{token_address}`, `{amount}` (the exact amount, 6 decimals) and `{recipient}` (your wallet on that network) are filled in (no spaces, at most 2048 characters). Not yet checked with a real card: make one small real card payment on mainnet before you rely on it |
 | **RPC URLs** | `{"base": ["https://..."]}`: your own RPC URLs per network |
 | **Confirmations** | `{"base": 12}`: blocks to wait before a payment counts, per EVM network (Solana's are fixed) |
 | **Previous Wallets** | `["0x..."]`: wallets you were paid to before, so Restore Purchases still finds those payments |
@@ -324,9 +324,10 @@ engines. From least to most work:
    The handle's `closed` promise resolves once, when the player is done: `"cancel"`, `"keep_playing"` (only
    once a session exists) or `"finish"` (after a final state). Read the controller's fields and call its
    methods; never call `poll()` (the plugin does, every frame). Buttons that leave the game call the plugin's
-   actions: `SCFG.openBrowser(ctl)`, `SCFG.openWalletApp(ctl)`, `SCFG.openExplorer(url)`, `SCFG.openOnramp(ctl)`
-   (the buy link, shown while `ctl.showsOnramp`; while `ctl.showsOnrampHint` show the "Pick another network"
-   button there instead, which calls `ctl.back()`), `SCFG.copy(text)` and `SCFG.pasteInto(ctl)`. A host that returns `null` shows nothing, and `pay()` resolves `failed` with the `error`
+   actions: `SCFG.openBrowser(ctl)`, `SCFG.openWalletApp(ctl)`, `SCFG.openExplorer(url)`, `SCFG.openCard(ctl)`
+   (the card step's **Open card checkout**; the network step lays out its tiles, the **More networks** toggle
+   and the **Pay with card** links from `ctl.networkLayout()`, `ctl.toggleMoreNetworks()` and
+   `ctl.payWithCard(key)`), `SCFG.copy(text)` and `SCFG.pasteInto(ctl)`. A host that returns `null` shows nothing, and `pay()` resolves `failed` with the `error`
    `sheet.unavailable`.
    The controllers' fields are those of the core in `rpgmaker/src/core/checkout.ts`; `rpgmaker/src/mz/sheet_host.ts`
    holds the full contract.
@@ -443,8 +444,12 @@ The built-in English of every text. `%s` is where an argument goes.
 | `solana_opens_browser_note` | Opens a checkout page in your browser for Phantom, Solflare, Backpack and other wallet extensions. |
 | `evm_opens_here_note` | Opens your wallet right here, over the game: MetaMask, Rabby, Coinbase Wallet and other wallet extensions. |
 | `solana_opens_here_note` | Opens your wallet right here, over the game: Phantom, Solflare, Backpack and other wallet extensions. |
-| `onramp_link` | No %s yet? Buy some with a card |
-| `onramp_hint` | No %s yet? Pick another network to buy some with a card |
+| `more_networks` | More networks |
+| `fewer_networks` | Fewer networks |
+| `pay_with_card` | Pay with card |
+| `card_opens_browser_note` | Opens a card checkout page in your browser. You pay by card there, and the payment goes straight to the game's developer. |
+| `card_pays_on` | Pays %s on %s. |
+| `open_card_checkout` | Open card checkout |
 | `preparing_payment` | Preparing the payment... |
 | `qr_step_open` | 1. Open your wallet app |
 | `qr_step_scan` | 2. Scan the code |
