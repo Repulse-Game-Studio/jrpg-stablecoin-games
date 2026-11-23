@@ -27,8 +27,8 @@ says so in its log: it never pays a placeholder address.
 
 The screen is built with UI Toolkit in code (`ScfgShowcase.cs`). If your project has an SCFG Settings asset with a
 wallet, it is applied first, and the showcase's own `SCFG.Configure` call replaces it. That call starts from the
-asset's options (its accent, logo and buy link, so what you set there shows here), with the asset's wallets when the
-component's are blank, and adds only testnet and the showcase's own items. The showcase always runs on the test
+asset's options (its accent, logo and Pay with card, so what you set there shows here), with the asset's wallets when
+the component's are blank, and adds only testnet and the showcase's own items. The showcase always runs on the test
 networks, so it takes the asset's networks and tokens only from an asset set to testnet, and of those networks only
 the ones it has a wallet for. That works only before payments start, so play this scene first: loaded from another
 scene after payments started there, the showcase says so and stays idle. Loaded a second time in the same run, it

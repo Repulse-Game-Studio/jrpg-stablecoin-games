@@ -50,10 +50,10 @@ be called again until payments have started, on the frame after a successful cal
 | `Wallet` | Your EVM payout address (`0x...`). At least one of `Wallet` and `SolanaWallet` is required |
 | `SolanaWallet` | Your Solana payout address (base58) |
 | `Testnet` | `true` uses the test networks (Sepolia, Arbitrum Sepolia, Polygon Amoy, Base Sepolia, Arc Testnet, and Solana Devnet with USDC only), so no real money moves. Default `false`: set it to `true` while you develop |
-| `Chains` | The networks offered, in order, by key (`"ethereum"`, `"arbitrum"`, `"polygon"`, `"base"`, `"arc"`, `"solana"`, or your own). Default: every network the wallets can receive on |
+| `Chains` | The networks offered, in order, by key (`"ethereum"`, `"solana"`, `"arc"`, `"base"`, `"arbitrum"`, `"polygon"`, or your own). Default: every network the wallets can receive on, in that order, then your own. The network step shows Ethereum and Solana as tiles and the others under **More networks** |
 | `Tokens` | `"USDC"`, `"USDT"`. Default both |
 | `Methods` | A `ScfgMethods`: which payment methods the sheet offers. Default: all of them |
-| `Onramp` | A `ScfgOnramp`: the "Buy some with a card" link, see [The buy link](#the-buy-link-onramp). Default: on, on mainnet |
+| `Onramp` | A `ScfgOnramp`: the "Pay with card" button under each network, see [Pay with card](#pay-with-card-onramp). Default: on, on mainnet |
 | `RpcUrls` | Your own RPC endpoints per chain key (`IDictionary<string, IList<string>>`, https URLs, or `http://127.0.0.1` / `http://localhost` with a port for a local node), tried before the built-in public ones |
 | `Confirmations` | Confirmations required per chain key (`IDictionary<string, int>`) |
 | `PreviousWallets` | Wallets you were paid to before (EVM and Solana addresses can be mixed). Their receipts stay valid |
@@ -71,16 +71,17 @@ be called again until payments have started, on the frame after a successful cal
 | `Manual` | The address and exact amount to send by hand, from an exchange or any wallet. Default `true` |
 | `ManualAllowTxPaste` | Whether the player may paste the transaction hash on the manual page. Default `true` |
 
-### The buy link (`Onramp`)
+### Pay with card (`Onramp`)
 
-Players who have no USDC or USDT yet see **No USDC yet? Buy some with a card** (with the payment's token) on the
-method step, or on the only payment page when there is one method. It opens a buy page for the network they picked
-in their browser (a new tab with `noopener,noreferrer` in a WebGL build), where they buy the token with a card into
-their own wallet and then pay as usual: the payment itself still goes straight to your wallet. The default page is
-thirdweb's hosted Buy widget, card payment only, locked to the network and token, suggesting the payment rounded up to
-cents (plus a cent for the fee on Arc). The link carries only the network, the token's contract and that amount. On
-a network it isn't offered on, like Solana, the sheet says **No USDC yet? Pick another network to buy some with a
-card** instead, which goes back to the network step, when another network the player can pick has the link.
+On the network step, each network that takes cards has a small **Pay with card** link under its tile. It skips the
+payment-method step for a card page that names the exact amount and the network; its **Open card checkout** button
+opens a card checkout page in the player's browser (a new tab with `noopener,noreferrer` in a WebGL build), and the
+sheet moves on to waiting for the payment. The player pays by card there, and the provider sends the token straight
+to your wallet on that network; the game finds that payment by its exact amount, as it finds any other. The default
+page is thirdweb's hosted Checkout widget, card payment only; the link carries the network, the token's contract, the
+payment's exact amount and your wallet there. Solana has no card link. See
+[Pay with card](https://jrpg.com/stablecoinforgames/docs/developers/configure/#pay-with-card) for what the page is
+and the check to make before you rely on it.
 
 It is **on by default on mainnet**. Turn it off, or change it, with `ScfgOptions.Onramp` (or the SCFG Settings
 asset's **Onramp Enabled**, **Onramp Url** and **Onramp Chains**):
@@ -88,20 +89,22 @@ asset's **Onramp Enabled**, **Onramp Url** and **Onramp Chains**):
 ```csharp
 SCFG.Configure(new ScfgOptions { Wallet = "0x...", Onramp = new ScfgOnramp { Enabled = false } });          // hide it
 SCFG.Configure(new ScfgOptions { Wallet = "0x...", Onramp = new ScfgOnramp { Chains = new[] { "base", "arc" } } });
-SCFG.Configure(new ScfgOptions { Wallet = "0x...", Onramp = new ScfgOnramp { Url = "https://buy.example/?net={chain_id}&a={amount}" } });
+SCFG.Configure(new ScfgOptions { Wallet = "0x...", Onramp = new ScfgOnramp { Url = "https://pay.example/?net={chain_id}&a={amount}&to={recipient}" } });
 ```
 
 | `ScfgOnramp` field | Meaning (a `null` field keeps the default) |
 |---|---|
 | `Enabled` | `true` (default) or `false` |
-| `Chains` | The networks it is offered on (enabled EVM networks only). Default: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens). Name testnet networks here (for example `base`, `arbitrum`) to see the link and the Solana hint before mainnet |
-| `Url` | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused |
+| `Chains` | The networks it is offered on (enabled EVM networks only). Default: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens). Name testnet networks here (for example `base`, `arbitrum`) to see the link before mainnet |
+| `Url` | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}`, `{chain_id}`, `{token}`, `{token_address}`, `{amount}` (the exact amount, with 6 decimals: `4.993742`) and `{recipient}` (your wallet on that network) are filled in; any other brace is refused. The page must pay `{recipient}` exactly `{amount}` |
 
 A mistake is reported with its code: `onramp.bad_url` (also a url with no host after `https://`),
 `onramp.unknown_placeholder`, `onramp.unmatched_brace`, `onramp.disabled_chain`, `onramp.not_evm` or
-`onramp.duplicate_chain`. A replacement sheet shows the link while the controller's
-`Core.ShowsOnramp` is true and opens it with `OpenOnramp()`; while `Core.ShowsOnrampHint` is true it shows the "Pick
-another network" button there instead, which calls `Core.Back()`.
+`onramp.duplicate_chain`. A network the game offers alone, without a card link, is still chosen for the player and the
+network step skipped; with a card link the step stays. A replacement sheet lays out the network step with
+`Core.NetworkLayout()` (`Main`, `More`, `Expanded`, `Card`), calls `Core.PayWithCard(key)` from a card link and
+`Core.ToggleMoreNetworks()` from **More networks**, and on the `"card"` step opens the page with the wrapper's
+`OpenCard()`.
 
 ### SCFG.AddItem
 
@@ -143,7 +146,7 @@ asset's configuration in place, as a failing `Configure` does.
 The **SCFG Settings** asset (**Assets > Create > SCFG Settings**) configures the package without code. Its serialized
 fields are lowerCamel, as code that reads the asset names them: `wallet`, `solanaWallet`, `testnet` (on by default),
 `chains`, `tokens`, `accent`, a `logo` sprite and `webStorageId` (`ScfgOptions`' `Wallet`, `SolanaWallet`, ...), the
-buy link's `onrampEnabled`, `onrampUrl` and `onrampChains` (`ScfgOptions.Onramp`), plus a list of `items` (`id`,
+Pay with card's `onrampEnabled`, `onrampUrl` and `onrampChains` (`ScfgOptions.Onramp`), plus a list of `items` (`id`,
 `code`, `price`, `token`, `title`, `minPrice`). Blank fields keep the defaults. The [install page](install.md#without-code-the-scfg-settings-asset) walks through them.
 
 - It is applied before the first scene loads, with `SCFG.Configure` and then `SCFG.AddItem` for each item. A build
@@ -390,11 +393,12 @@ The screen contract (`Runtime/Unity/ScfgScreens.cs`):
   cancel and is not handed to `Close`.
 - The package polls the controllers every frame, so a screen only reads their fields and calls their methods.
   `ScfgCheckoutController.Core` is the payment's state: show `Step` (`"amount"`, `"network"`, `"method"`,
-  `"browser"`, `"qr"`, `"manual"`, `"waiting"`, `"done"`), `State`, `Message()`, `ChainOptions()`, `Methods()`,
+  `"browser"`, `"qr"`, `"manual"`, `"card"`, `"waiting"`, `"done"`), `State`, `Message()`, `ChainOptions()`, `Methods()`,
   `PayAmountText`, `Recipient`, `PaymentUri()` (the QR code's text), `ExplorerUrl()`, `Confirmations` and
   `Required`, and call `ChooseNetwork`, `ChooseMethod`, `NextStep`, `SetTipAmount`, `MarkSent`, `SubmitHash` and
-  `Back` from your buttons; show the buy link while `ShowsOnramp` (or its hint while `ShowsOnrampHint`, a button that
-  calls `Back`). The wrapper's `OpenBrowser()`, `OpenWalletApp()`, `OpenOnramp()`, `OpenExplorer(url)`, `Copy(text)`
+  `Back` from your buttons; on the network step, `NetworkLayout()` says which networks are tiles, which sit under
+  **More networks** (`ToggleMoreNetworks`) and which have a **Pay with card** link (`PayWithCard`). The wrapper's
+  `OpenBrowser()`, `OpenWalletApp()`, `OpenCard()`, `OpenExplorer(url)`, `Copy(text)`
   and `Paste()` are the buttons that leave the game. Never call the core's `Poll()`, `Cancel()`, `KeepPlaying()`,
   `Finish()` or `Close()`: the package does.
 - `ScfgRestoreController.Core` is the restore's state (`State`: `"input"`, `"checking"`, `"choose"`, `"saving"`,
