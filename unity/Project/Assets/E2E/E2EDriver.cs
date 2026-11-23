@@ -5,9 +5,11 @@
 //
 // THE GAME. A one-screen demo: "Chapter 2" (locked, or the thank-you once owned) with an Unlock button, and a Tip
 // button (1 USDC). Unlock pauses the game (Time.timeScale = 0, as the docs tell developers) while `await SCFG.Pay(...)`
-// runs. SCFG_E2E_CONFIG is a JSON file {"configure": {wallet, solana_wallet, testnet, chains, tokens}, "items": {...}};
-// SCFG_E2E_CHAIN points one built-in chain at the local node ({"network", "key", "rpc", "confirmations", "tokens"}). A
-// config that is not that, or that Configure refuses, prints why and quits with code 1 at once.
+// runs. SCFG_E2E_CONFIG is a JSON file {"configure": {wallet, solana_wallet, testnet, chains, tokens, onramp}, "items":
+// {...}} (onramp is {enabled, url, chains}: the runner's mainnet configs turn Pay with card off, so their single network
+// is chosen automatically); SCFG_E2E_CHAIN points one built-in chain at the local node ({"network", "key", "rpc",
+// "confirmations", "tokens"}). A config that is not that, or that Configure refuses, prints why and quits with code 1 at
+// once.
 //
 // THE DRIVER. JSON lines on stdin, read on a thread of its own and run on the main thread, one per frame; each reply is
 // one line "SCFG-REPLY {"ok": ...}" or {"error": ...} on the runner's named pipe (SCFG_E2E_OUT; a player's own stdout
@@ -240,6 +242,14 @@ namespace Scfg.E2E
             {
                 options.Confirmations = new Dictionary<string, int>();
                 foreach (var kv in conf) options.Confirmations[kv.Key] = (int)(long)kv.Value!;
+            }
+            if (kw.Get("onramp") is JsonObject card)
+            {
+                options.Onramp = new ScfgOnramp
+                {
+                    Enabled = card.Get("enabled") is bool on ? on : (bool?)null, Url = card.Get("url") as string,
+                    Chains = Strings(card.Get("chains")),
+                };
             }
             if (SCFG.Configure(options) is string code) return "scfg: configure() refused the e2e config: " + code;
             foreach (var kv in items)

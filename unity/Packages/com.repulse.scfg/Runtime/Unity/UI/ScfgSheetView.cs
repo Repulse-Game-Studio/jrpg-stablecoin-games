@@ -2,10 +2,10 @@
 // plugin/game/scfg/scfg_screens.rpy), shown by ScfgDefaultSheetHost for SCFG.Pay.
 //
 // One step at a time, as the controller's Step says: amount (tips) -> network -> method -> browser | qr | manual ->
-// waiting -> done. Every step has the header (the back arrow while the controller CanGoBack, the step dots, the logo,
-// the title and the price), a scrolling body, the pinned buy link where the controller shows it (ShowsOnramp: "No USDC
-// yet? Buy some with a card"; or ShowsOnrampHint, which goes back to the network step), the pinned forward button when
-// the step has one, and the footer (the status message, the status line and Cancel / Continue playing / Continue).
+// waiting -> done, or network -> card -> waiting -> done through a network's "Pay with card" link. Every step has the
+// header (the back arrow while the controller CanGoBack, the step dots, the logo, the title and the price), a
+// scrolling body, the pinned forward button when the step has one, and the footer (the status message, the status line
+// and Cancel / Continue playing / Continue).
 // Development builds also show the developer lines (DEV MODE and the controller's DevWarnings()).
 //
 // Keyboard and gamepad: each step focuses its primary control (the selected option, the forward button, the first
@@ -60,7 +60,7 @@ namespace Scfg
             Add(c.Method); Add(c.ChainKey); Add(c.PriceText); Add(c.SessionId); Add(c.BrowserFailed);
             Add(string.Join(",", c.ChainOptions().Select(o => o.Key)));
             Add(string.Join(",", c.Methods()));
-            Add(c.Result?.TxHash); Add(c.Message()); Add(c.ShowsOnramp); Add(c.ShowsOnrampHint);
+            Add(c.Result?.TxHash); Add(c.Message()); Add(c.MoreNetworks);
             return sb.ToString();
         }
 
@@ -76,9 +76,10 @@ namespace Scfg
                     return "custom_amount";
                 case "network":
                 {
-                    var options = c.ChainOptions();
-                    if (c.ChainKey != null) return "network_" + c.ChainKey;
-                    return options.Count > 0 ? "network_" + options[0].Key : "cancel";
+                    var main = c.NetworkLayout().Main;
+                    if (c.ChainKey != null && Control("network_" + c.ChainKey) != null)
+                        return (c.Method == "card" ? "card_" : "network_") + c.ChainKey;
+                    return main.Count > 0 ? "network_" + main[0] : "cancel";
                 }
                 case "method":
                 {
@@ -88,6 +89,7 @@ namespace Scfg
                 }
                 case "browser":
                 case "qr":
+                case "card":
                     return "forward";
                 case "manual":
                     return "copy_amount";
@@ -132,7 +134,6 @@ namespace Scfg
             Layout.Add(step);
             var body = ScrollingBody(step);
             var forward = BuildStep(body);
-            OnrampLink(step);
             if (forward == null)
             {
                 var none = new Button { text = "" };
@@ -145,26 +146,6 @@ namespace Scfg
                 step.Add(Button("forward", forward.Value.Text, "scfg-button--accent", forward.Value.Action));
             }
             BuildFooter();
-        }
-
-        /// <summary>
-        /// "No USDC yet? Buy some with a card" (Godot's _onramp_link): opens configure's onramp page for the chosen network
-        /// through the sheet's external-link path (Controller.OpenOnramp), pinned below the scrolling body and above the
-        /// forward button so it stays in view, and in that place in the focus order. On a network without a buy page
-        /// (Solana), when another one has it, "Pick another network to buy some with a card" goes back to the network step.
-        /// </summary>
-        private void OnrampLink(VisualElement step)
-        {
-            var c = Ctl;
-            Button? link = null;
-            if (c.ShowsOnrampHint)
-                link = Button("onramp_hint", ScfgUiTexts.Format("onramp_hint", c.Spec.Token), "scfg-button--small", () => c.Back());
-            else if (c.ShowsOnramp)
-                link = Button("onramp", ScfgUiTexts.Format("onramp_link", c.Spec.Token), "scfg-button--small",
-                              () => Controller.OpenOnramp());
-            if (link == null) return;
-            link.AddToClassList("scfg-onramp");
-            step.Add(link);
         }
 
         private void BuildHeader()
@@ -237,6 +218,9 @@ namespace Scfg
                 case "manual":
                     StepManual(body);
                     return (ScfgUiTexts.Get("i_sent_it"), () => Ctl.MarkSent());
+                case "card":
+                    StepCard(body);
+                    return (ScfgUiTexts.Get("open_card_checkout"), () => Controller.OpenCard());
                 case "waiting":
                     StepWaiting(body);
                     return null;
@@ -270,22 +254,72 @@ namespace Scfg
             _synced["custom_amount"] = c.CustomAmount;
         }
 
+        /// <summary>
+        /// The networks (Ren'Py's scfg_step_network): the main ones (Ethereum, Solana) as tiles, the rest behind "More
+        /// networks" (the controller's NetworkLayout()). A network with a card button has a small "Pay with card" link
+        /// under its tile, which skips the method step for the card page. Every tile has the same width: half the row,
+        /// or all of it when there is a single network.
+        /// </summary>
         private void StepNetwork(VisualElement body)
         {
             var c = Ctl;
             body.Add(Text(ScfgUiTexts.Format("which_network", c.Spec.Token), "scfg-label"));
-            var options = c.ChainOptions();
-            var grid = Row("scfg-grid");
-            for (int i = 0; i < options.Count; i++)
+            var options = c.ChainOptions().ToDictionary(o => o.Key, o => o, StringComparer.Ordinal);
+            var layout = c.NetworkLayout();
+            bool full = options.Count == 1;
+            body.Add(NetworkTiles(layout.Main, options, layout.Card, full, "networks"));
+            if (layout.More.Count == 0) return;
+            var more = Button("more_networks", ScfgUiTexts.Get(layout.Expanded ? "fewer_networks" : "more_networks"),
+                              "scfg-button--small", () => Ctl.ToggleMoreNetworks());
+            more.AddToClassList("scfg-more-networks");
+            body.Add(more);
+            if (layout.Expanded) body.Add(NetworkTiles(layout.More, options, layout.Card, full, "more"));
+        }
+
+        /// <summary>
+        /// The network tiles, two to a row, and under each row the "Pay with card" links of the tiles that
+        /// <paramref name="card"/> lists, each below its tile. The tiles of a row share their height; the focus goes
+        /// through a row's tiles, then that row's links.
+        /// </summary>
+        private VisualElement NetworkTiles(IReadOnlyList<string> keys, Dictionary<string, (string Key, string Name, string FeeHint)> options,
+                                           IReadOnlyList<string> card, bool full, string rows)
+        {
+            var c = Ctl;
+            var grid = Box("scfg-network-grid");
+            for (int start = 0; start < keys.Count; start += 2)
             {
-                var o = options[i];
-                var key = o.Key;
-                var option = Option("network_" + key, o.Name, FeeLabel(o.FeeHint), c.ChainKey == key, () => Ctl.ChooseNetwork(key),
-                    "networks:" + Int(i / 2));
-                option.AddToClassList("scfg-option--half");
-                grid.Add(option);
+                var row = keys.Skip(start).Take(2).ToList();
+                var tiles = Row("scfg-network-row");
+                var links = Row("scfg-network-row");
+                foreach (var key in row)
+                {
+                    var o = options[key];
+                    var tile = Option("network_" + key, o.Name, FeeLabel(o.FeeHint), c.ChainKey == key && c.Method != "card",
+                                      () => Ctl.ChooseNetwork(key), rows + ":" + Int(start / 2));
+                    tile.AddToClassList("scfg-grow");
+                    var cell = Box("scfg-network-cell");
+                    if (full) cell.AddToClassList("scfg-network-cell--full");
+                    cell.Add(tile);
+                    tiles.Add(cell);
+                }
+                grid.Add(tiles);
+                if (!row.Any(card.Contains)) continue;
+                foreach (var key in row)
+                {
+                    var cell = Box("scfg-network-cell");
+                    if (full) cell.AddToClassList("scfg-network-cell--full");
+                    if (card.Contains(key))
+                    {
+                        var link = Button("card_" + key, ScfgUiTexts.Get("pay_with_card"), "scfg-card-link", () => Ctl.PayWithCard(key),
+                                          rows + "_card:" + Int(start / 2));
+                        if (c.ChainKey == key && c.Method == "card") link.AddToClassList("scfg-card-link--selected");
+                        cell.Add(link);
+                    }
+                    links.Add(cell);
+                }
+                grid.Add(links);
             }
-            body.Add(grid);
+            return grid;
         }
 
         private void StepMethod(VisualElement body)
@@ -308,6 +342,17 @@ namespace Scfg
             body.Add(Text(ScfgUiTexts.Get(Web ? (solana ? "solana_opens_here_note" : "evm_opens_here_note")
                                               : (solana ? "solana_opens_browser_note" : "evm_opens_browser_note"))));
             body.Add(Text(ScfgUiTexts.Format("approve_in_wallet", AmountLine(false), ChainDisplay()), "scfg-muted"));
+        }
+
+        /// <summary>
+        /// The card page (Ren'Py's scfg_step_card): what "Open card checkout" does, before it opens configure's onramp
+        /// page (thirdweb's card checkout by default) in the player's browser.
+        /// </summary>
+        private void StepCard(VisualElement body)
+        {
+            body.Add(Text(ScfgUiTexts.Get("pay_with_card"), "scfg-label"));
+            body.Add(Text(ScfgUiTexts.Get("card_opens_browser_note")));
+            body.Add(Text(ScfgUiTexts.Format("card_pays_on", AmountLine(true), ChainDisplay()), "scfg-muted"));
         }
 
         private void StepQr(VisualElement body)
@@ -541,7 +586,7 @@ namespace Scfg
         private string ExactNote()
         {
             var c = Ctl;
-            if (!Py.Truthy(c.Session) || c.Step == "manual" || c.Step == "done" || c.State == "closed") return "";
+            if (!Py.Truthy(c.Session) || c.Step == "manual" || c.Step == "card" || c.Step == "done" || c.State == "closed") return "";
             return ScfgUiTexts.Format("wallet_will_ask", AmountLine(true));
         }
 

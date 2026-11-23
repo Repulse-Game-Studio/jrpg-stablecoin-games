@@ -275,8 +275,18 @@ namespace Scfg.Core
         /// <summary>The built-in testnet chains (read-only).</summary>
         public static readonly IReadOnlyDictionary<string, Chain> Testnet = new ReadOnlyDictionary<string, Chain>(TestnetTable);
 
+        /// <summary>
+        /// The order the network step lists the built-in chains in: the main chains (Ethereum, Solana, Arc) first, then
+        /// the L2s. (Python's DISPLAY_ORDER.)
+        /// </summary>
         public static readonly IReadOnlyList<string> DisplayOrder =
-            Array.AsReadOnly(new[] { "arbitrum", "base", "arc", "polygon", "ethereum" });
+            Array.AsReadOnly(new[] { "ethereum", "solana", "arc", "base", "arbitrum", "polygon" });
+
+        /// <summary>
+        /// The networks the network step shows as tiles; every other one sits behind "More networks". (Python's
+        /// MAIN_CHAINS.)
+        /// </summary>
+        public static readonly IReadOnlyList<string> MainChains = Array.AsReadOnly(new[] { "ethereum", "solana" });
 
         public static IReadOnlyDictionary<string, Chain> GetChains(bool testnet) => testnet ? Testnet : Mainnet;
 

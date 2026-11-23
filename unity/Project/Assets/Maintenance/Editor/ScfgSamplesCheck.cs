@@ -129,7 +129,7 @@ namespace Scfg.Maintenance
             release.testnet = false;
             release.tokens = new List<string> { "USDT" };
             release.onrampChains = new List<string> { "ethereum" };
-            yield return ("a release asset with USDT and a buy link on Ethereum", release);
+            yield return ("a release asset with USDT and Pay with card on Ethereum", release);
             var solanaOnly = ScriptableObject.CreateInstance<ScfgSettings>();
             solanaOnly.testnet = true;
             solanaOnly.chains = new List<string> { "solana", "base" };

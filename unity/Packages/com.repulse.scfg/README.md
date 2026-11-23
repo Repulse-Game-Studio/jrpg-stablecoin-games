@@ -1,9 +1,9 @@
 # Stablecoin for Games (SCFG) for Unity
 
 USDC and USDT tips and unlock purchases for Unity games, paid straight to your own wallet: no server, no account, no
-middleman in the payment. The game watches the blockchain itself. An optional "Buy some with a card" link sends
-players without stablecoin to a third-party provider (ScfgOptions.Onramp turns it off). Unity 6.3 LTS or newer;
-desktop (Windows, macOS, Linux) and WebGL builds. **Preview**: tested on Unity 6000.6.9f1 with Linux (Mono and IL2CPP)
+middleman in the payment. The game watches the blockchain itself. An optional "Pay with card" link under each
+network lets a player pay by card through a third-party checkout, straight to your wallet (ScfgOptions.Onramp turns
+it off). Unity 6.3 LTS or newer; desktop (Windows, macOS, Linux) and WebGL builds. **Preview**: tested on Unity 6000.6.9f1 with Linux (Mono and IL2CPP)
 and WebGL players, and on Windows; Unity 6.3 LTS and macOS are not yet checked.
 
 ```csharp

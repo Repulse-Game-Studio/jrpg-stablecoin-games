@@ -10,7 +10,8 @@
 //                                       \-> underpaid | expired
 //
 // The sheet shows one step at a time (Step):
-// amount (tips only) -> network -> method -> browser | qr | manual -> waiting -> done.
+// amount (tips only) -> network -> method -> browser | qr | manual -> waiting -> done,
+// or, through a network's "Pay with card" button: network -> card -> waiting -> done.
 // Steps with a single option are skipped both ways. Back() works until a transaction is seen; a seen payment moves the
 // sheet to waiting and a final state to done.
 #nullable enable
@@ -25,53 +26,75 @@ using Scfg.Core.Solana;
 
 namespace Scfg.Core
 {
-    /// <summary>The buy link's state on a checkout step (Python's checkout.onramp_view).</summary>
-    public readonly struct OnrampView
+    /// <summary>
+    /// How the network step lays out the networks the player can pick (Python's checkout.network_view): the tiles always
+    /// shown, those behind "More networks", whether that is open, and the networks with a "Pay with card" button.
+    /// </summary>
+    public readonly struct NetworkView
     {
-        public string? Url { get; }
-        public bool ShowsOnramp { get; }
-        public bool ShowsOnrampHint { get; }
+        public IReadOnlyList<string> Main { get; }
+        public IReadOnlyList<string> More { get; }
+        public bool Expanded { get; }
+        public IReadOnlyList<string> Card { get; }
 
-        public OnrampView(string? url, bool showsOnramp, bool showsOnrampHint)
+        public NetworkView(IReadOnlyList<string> main, IReadOnlyList<string> more, bool expanded, IReadOnlyList<string> card)
         {
-            Url = url;
-            ShowsOnramp = showsOnramp;
-            ShowsOnrampHint = showsOnrampHint;
+            Main = main;
+            More = more;
+            Expanded = expanded;
+            Card = card;
         }
     }
 
     /// <summary>checkout.py's module tables, read-only (Unity's domain reload off keeps statics between plays).</summary>
     public static class Checkout
     {
-        private static readonly string[] OnrampPages = { "browser", "qr", "manual" }; // static-ok: private table, only read
-
         /// <summary>
-        /// The buy link's state on a checkout step, as the controller and every port decide it (Python's
-        /// checkout.onramp_view, pinned by the tier1 vectors). Url: configure's onramp page for the chosen network when it
-        /// is offered there, else null; the suggested amount is the session's exact <paramref name="units"/>, or before a
-        /// session (null) the payment <paramref name="amount"/> plus the most the item code and nonce add
-        /// (<see cref="Paylinks.OnrampExactUnits"/>); plus a cent where the token is the network's gas coin (Arc); rounded
-        /// up to whole cents. The link goes on the method step, or on the payment page the sheet opens on when
-        /// <paramref name="path"/> has no method step; the hint shows there instead, without a url, while the player can
-        /// go back and another network in <paramref name="optionKeys"/> has the link.
+        /// Whether the network gets a "Pay with card" button: configure's onramp is on and lists it (by default the
+        /// built-in EVM chains of a mainnet game; never Solana). (Python's checkout.card_offered.)
         /// </summary>
-        public static OnrampView OnrampView(ConfigData config, string token, string? chainKey, BigInteger? units, Dec amount,
-                                            string step, IReadOnlyList<string> path, bool canGoBack,
-                                            IReadOnlyList<string> optionKeys)
+        public static bool CardOffered(ConfigData config, string? chainKey)
         {
             var opts = config.Onramp;
-            Chain? chain = null;
-            if (!string.IsNullOrEmpty(chainKey)) Scfg.Core.Config.EnabledChains(config).TryGetValue(chainKey!, out chain);
-            string? url = null;
-            if (opts.Enabled && chain != null && opts.Chains.Contains(chain.Key))
+            return opts.Enabled && !string.IsNullOrEmpty(chainKey) && opts.Chains.Contains(chainKey!)
+                   && Scfg.Core.Config.EnabledChains(config).ContainsKey(chainKey!);
+        }
+
+        /// <summary>
+        /// The card checkout page for a running session (Python's checkout.card_url, pinned by the tier1 vectors):
+        /// configure's onramp template filled in for the network, the developer's wallet there and the session's exact
+        /// amount (<paramref name="units"/>, all 6 decimals). Null without a session or where the network has no card
+        /// button.
+        /// </summary>
+        public static string? CardUrl(ConfigData config, string token, string? chainKey, BigInteger? units)
+        {
+            if (units == null || !CardOffered(config, chainKey)) return null;
+            var chain = Scfg.Core.Config.EnabledChains(config)[chainKey!];
+            return Paylinks.OnrampUrl(config.Onramp.Url, chain.Key, chain.ChainId, token, chain.Tokens[token].Address,
+                                      Amounts.FormatUnits(units.Value), config.WalletFor(chain)!);
+        }
+
+        /// <summary>
+        /// How the network step lays out <paramref name="optionKeys"/>, the networks the player can pick in display order
+        /// (Python's checkout.network_view, pinned by the tier1 vectors). Main: the options among
+        /// <see cref="Chains.MainChains"/>; More: the rest, behind "More networks". When either list would be empty,
+        /// every option is main and More is empty. Expanded: "More networks" is open, as the player left it
+        /// (<paramref name="expanded"/>) or because the chosen network is behind it. Card: the options with a "Pay with
+        /// card" button (<see cref="CardOffered"/>), in display order.
+        /// </summary>
+        public static NetworkView NetworkView(ConfigData config, IReadOnlyList<string> optionKeys, string? chainKey,
+                                              bool expanded)
+        {
+            var main = optionKeys.Where(k => Chains.MainChains.Contains(k)).ToList();
+            var more = optionKeys.Where(k => !Chains.MainChains.Contains(k)).ToList();
+            if (main.Count == 0 || more.Count == 0)
             {
-                var exact = units ?? Amounts.DecimalToUnits(amount) + Paylinks.OnrampExactUnits;
-                url = Paylinks.OnrampUrl(opts.Url, chain.Key, chain.ChainId, token, chain.Tokens[token].Address,
-                                         Paylinks.OnrampAmount(exact, chain.NativeToken == token));
+                main = optionKeys.ToList();
+                more = new List<string>();
             }
-            bool here = step == "method" || (OnrampPages.Contains(step) && !path.Contains("method"));
-            bool hint = opts.Enabled && here && url == null && canGoBack && optionKeys.Any(k => opts.Chains.Contains(k));
-            return new OnrampView(url, here && url != null, hint);
+            bool open = more.Count > 0 && (expanded || (chainKey != null && more.Contains(chainKey)));
+            return new NetworkView(main.AsReadOnly(), more.AsReadOnly(), open,
+                                   optionKeys.Where(k => CardOffered(config, k)).ToList().AsReadOnly());
         }
 
         public static readonly IReadOnlyList<string> FinalStates = Array.AsReadOnly(new[] { "paid", "underpaid", "expired" });
@@ -85,7 +108,7 @@ namespace Scfg.Core
             new Dictionary<string, int>(StringComparer.Ordinal)
             {
                 { "amount", 0 }, { "network", 1 }, { "method", 2 }, { "browser", 3 }, { "qr", 3 }, { "manual", 3 },
-                { "waiting", 4 }, { "done", 5 },
+                { "card", 3 }, { "waiting", 4 }, { "done", 5 },
             });
 
         /// <summary>The English text of each checkout message id (conformance/vectors/messages.json).</summary>
@@ -159,6 +182,9 @@ namespace Scfg.Core
         private Job? _future;
         private ICheckoutServer? _server;
         private bool _pickedNetwork; // move on from the network step once the session starts
+
+        /// <summary>The player opened "More networks" on the network step.</summary>
+        public bool MoreNetworks { get; private set; }
 
         public CheckoutController(ConfigData config, PaymentSpec spec, SubmitFn submit, bool mobile = false,
                                   Func<ServerArgs, ICheckoutServer>? serverFactory = null,
@@ -282,25 +308,19 @@ namespace Scfg.Core
             return Paylinks.Eip681TransferUri(TokenAddress!, Chain!.ChainId, Recipient!, units);
         }
 
-        private OnrampView Onramp() =>
-            Checkout.OnrampView(Config, Spec.Token, ChainKey, HasSession ? Ints.IntFrom(Py.Get(Session, "units")) : (BigInteger?)null,
-                                Amount, Step, StepPath(), CanGoBack, ChainOptions().Select(o => o.Key).ToList());
+        /// <summary>The network step's layout: main tiles, "More networks", card buttons (Checkout.NetworkView).</summary>
+        public NetworkView NetworkLayout() =>
+            Checkout.NetworkView(Config, ChainOptions().Select(o => o.Key).ToList(), ChainKey, MoreNetworks);
+
+        /// <summary>Whether the network <paramref name="key"/> has a "Pay with card" button.</summary>
+        public bool CardOffered(string? key) => Checkout.CardOffered(Config, key);
 
         /// <summary>
-        /// The page where a player without the token buys some with a card, for the chosen network, with the payment
-        /// (plus a cent for the fee on Arc) suggested as the amount. Null when configure's onramp doesn't offer it on
-        /// this network (see <see cref="Checkout.OnrampView"/>).
+        /// The card checkout page for this session: thirdweb's by default, paying the exact amount to the developer's
+        /// wallet on the chosen network. Null before the session starts or where the network has no card button.
         /// </summary>
-        public string? OnrampUrl() => Onramp().Url;
-
-        /// <summary>Whether this step offers the buy link.</summary>
-        public bool ShowsOnramp => Onramp().ShowsOnramp;
-
-        /// <summary>
-        /// Whether this step points to the buy link instead ("Pick another network"), because the chosen network has none
-        /// (Solana) but another one the player can pick has it. Its button goes back to the network step (Back()).
-        /// </summary>
-        public bool ShowsOnrampHint => Onramp().ShowsOnrampHint;
+        public string? CardUrl() =>
+            Checkout.CardUrl(Config, Spec.Token, ChainKey, HasSession ? Ints.IntFrom(Py.Get(Session, "units")) : (BigInteger?)null);
 
         public string? ExplorerUrl()
         {
@@ -348,7 +368,13 @@ namespace Scfg.Core
         public List<string> StepPath()
         {
             var path = Spec.Kind == "tip" ? new List<string> { "amount" } : new List<string>();
-            if (ChainOptions().Count != 1) path.Add("network");
+            if (NetworkHasChoice()) path.Add("network");
+            if (Method == "card")
+            {
+                path.Add("card");
+                path.Add("waiting");
+                return path;
+            }
             if (Methods().Count != 1) path.Add("method");
             path.Add(Py.Truthy(Method) ? Method! : "browser");
             path.Add("waiting");
@@ -389,11 +415,32 @@ namespace Scfg.Core
                 { "item", spec.Item }, { "amount", amount }, { "token", spec.Token }, { "title", spec.Title },
             })));
             var available = Methods();
-            if (Method == null || !available.Contains(Method)) Method = available.Count > 0 ? available[0] : null;
+            if ((Method == null || !available.Contains(Method)) && !(Method == "card" && CardOffered(key)))
+                Method = available.Count > 0 ? available[0] : null;
         }
 
         /// <summary>Network step: start a session on <paramref name="key"/>, or keep the one already running.</summary>
         public void ChooseNetwork(string key)
+        {
+            if (Method == "card") Method = null; // the network's own button: pick a method as usual
+            PickNetwork(key);
+        }
+
+        /// <summary>
+        /// Network step, a network's "Pay with card" button: start a session on <paramref name="key"/> (or keep the one
+        /// running), then go to the card page, skipping the method step.
+        /// </summary>
+        public void PayWithCard(string key)
+        {
+            if (!CardOffered(key)) return;
+            Method = "card";
+            PickNetwork(key);
+        }
+
+        /// <summary>Open or close "More networks" on the network step.</summary>
+        public void ToggleMoreNetworks() => MoreNetworks = !NetworkLayout().Expanded;
+
+        private void PickNetwork(string key)
         {
             Step = "network";
             NavDir = 1;
@@ -442,6 +489,17 @@ namespace Scfg.Core
                 Error = null;
                 Go("waiting", 1);
             }
+        }
+
+        /// <summary>
+        /// Card page: returns the card checkout's URL for the sheet to open, and moves to waiting; null (staying put)
+        /// before the session has started.
+        /// </summary>
+        public string? OpenCard()
+        {
+            var url = Step == "card" ? CardUrl() : null;
+            if (url != null) Go("waiting", 1);
+            return url;
         }
 
         /// <summary>Browser page: start the browser checkout and move to waiting; returns its URL.</summary>
@@ -714,13 +772,28 @@ namespace Scfg.Core
         private void EnterNetwork()
         {
             var options = ChainOptions();
-            if (options.Count == 1) ChooseNetwork(options[0].Key);
+            if (!NetworkHasChoice()) ChooseNetwork(options[0].Key);
             else Go("network", 1);
         }
 
-        /// <summary>The session is running: go to the method step, or straight to the only method.</summary>
+        /// <summary>The network step is shown unless there is a single network without a card button.</summary>
+        private bool NetworkHasChoice()
+        {
+            var options = ChainOptions();
+            return options.Count != 1 || CardOffered(options[0].Key);
+        }
+
+        /// <summary>
+        /// The session is running: go to the method step, or straight to the only method; after "Pay with card", to the
+        /// card page.
+        /// </summary>
         private void AfterNetwork()
         {
+            if (Method == "card")
+            {
+                Go("card", 1);
+                return;
+            }
             var methods = Methods();
             if (Method == null || !methods.Contains(Method)) Method = methods.Count > 0 ? methods[0] : null;
             Go(methods.Count == 1 ? Method! : "method", 1);

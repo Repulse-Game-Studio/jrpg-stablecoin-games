@@ -8,8 +8,8 @@ not stop your own code that reads input. The twin of the Godot demo.
 
 It configures SCFG in its `Start`, which works only before payments start (the frame after the first `Configure`),
 so play this scene first. With an SCFG Settings asset in the project the demo's `Configure` replaces it, starting
-from the asset's options (accent, logo, buy link; networks and tokens only from an asset set to testnet, and only the
-networks it has a wallet for) and adding only testnet and its own item; loaded from another scene after payments
+from the asset's options (accent, logo, Pay with card; networks and tokens only from an asset set to testnet, and only
+the networks it has a wallet for) and adding only testnet and its own item; loaded from another scene after payments
 started there, the demo says so and stays idle. Loaded a second time in the same run, it carries on with the
 configuration it made the first time.
 

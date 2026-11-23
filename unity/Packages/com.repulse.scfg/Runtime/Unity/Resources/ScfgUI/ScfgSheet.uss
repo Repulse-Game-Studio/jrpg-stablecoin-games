@@ -220,9 +220,38 @@
     padding: 2px 12px;
 }
 
-.scfg-onramp {
-    margin-top: 8px;
-    white-space: normal;
+/* "More networks" / "Fewer networks" under the network tiles, the width of the grid. */
+.scfg-more-networks {
+    margin: 4px;
+}
+
+/* "Pay with card" under a network's tile: a small underlined text link, ink on hover and when chosen. */
+.scfg-card-link {
+    align-self: center;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-bottom-width: 1px;
+    border-color: var(--scfg-muted);
+    border-radius: 0;
+    color: var(--scfg-muted);
+    font-size: 13px;
+    padding: 0;
+    margin: 0 4px 6px 4px;
+    min-height: 0;
+}
+
+.scfg-card-link:hover,
+.scfg-card-link--selected {
+    background-color: rgba(0, 0, 0, 0);
+    border-color: var(--scfg-ink);
+    color: var(--scfg-ink);
+}
+
+.scfg-card-link:focus {
+    border-width: 0;
+    border-bottom-width: 2px;
+    border-color: var(--scfg-ink);
+    color: var(--scfg-ink);
 }
 
 .scfg-button--back {
@@ -245,6 +274,23 @@
     flex-direction: column;
     align-items: flex-start;
     min-height: 44px;
+}
+
+/* The network step's tiles: rows of two, each row's "Pay with card" links in a row below it. A tile's cell (and
+   its link's) is half the row, all of it for a single network; the tile fills it, the cell's height too. */
+.scfg-network-row {
+    flex-direction: row;
+    align-items: stretch;
+}
+
+.scfg-network-cell {
+    width: 50%;
+    flex-grow: 0;
+    flex-shrink: 0;
+}
+
+.scfg-network-cell--full {
+    width: 100%;
 }
 
 .scfg-option--half {

@@ -94,15 +94,15 @@ namespace Scfg
         /// <summary>The logo on the sheet and the checkout page.</summary>
         [Tooltip("The logo on the sheet and the checkout page.")]
         public Sprite? logo;
-        /// <summary>The "No USDC yet? Buy some with a card" link on the sheet (on mainnet, on the built-in EVM networks). Off hides it.</summary>
-        [Header("Buy link")]
-        [Tooltip("The \"No USDC yet? Buy some with a card\" link on the sheet (on mainnet, on the built-in EVM networks). Off hides it.")]
+        /// <summary>The "Pay with card" link under each network on the sheet (on mainnet, on the built-in EVM networks). Off hides it.</summary>
+        [Header("Pay with card")]
+        [Tooltip("The \"Pay with card\" link under each network on the sheet (on mainnet, on the built-in EVM networks). Off hides it.")]
         public bool onrampEnabled = true;
-        /// <summary>Optional: your own buy page, an https:// template with {chain}, {chain_id}, {token}, {token_address} and {amount} (empty: thirdweb's buy page).</summary>
-        [Tooltip("Optional: your own buy page, an https:// template with {chain}, {chain_id}, {token}, {token_address} and {amount} (empty: thirdweb's buy page).")]
+        /// <summary>Optional: your own card checkout page, an https:// template with {chain}, {chain_id}, {token}, {token_address}, {amount} and {recipient} (empty: thirdweb's card checkout).</summary>
+        [Tooltip("Optional: your own card checkout page, an https:// template with {chain}, {chain_id}, {token}, {token_address}, {amount} and {recipient} (empty: thirdweb's card checkout).")]
         public string onrampUrl = "";
-        /// <summary>Optional: the EVM networks the buy link is offered on (empty: the built-in EVM networks of a mainnet game; none on testnet).</summary>
-        [Tooltip("Optional: the EVM networks the buy link is offered on (empty: the built-in EVM networks of a mainnet game; none on testnet).")]
+        /// <summary>Optional: the EVM networks that get a "Pay with card" link (empty: the built-in EVM networks of a mainnet game; none on testnet).</summary>
+        [Tooltip("Optional: the EVM networks that get a \"Pay with card\" link (empty: the built-in EVM networks of a mainnet game; none on testnet).")]
         public List<string> onrampChains = new List<string>();
         /// <summary>WebGL builds: tells two games with the same product name on one web origin apart (see ScfgOptions.WebStorageId). Set it once and never change it.</summary>
         [Header("WebGL")]
@@ -135,7 +135,7 @@ namespace Scfg
             WebStorageId = Blank(webStorageId),
         };
 
-        /// <summary>The buy link's options, or null when every field keeps the default.</summary>
+        /// <summary>Pay with card's options, or null when every field keeps the default.</summary>
         private ScfgOnramp? OnrampOptions()
         {
             var url = Blank(onrampUrl);
