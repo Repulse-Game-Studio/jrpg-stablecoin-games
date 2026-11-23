@@ -20,19 +20,19 @@ def test_solana_only_game():
     assert cfg.wallet_for(MAINNET["solana"]) == SOL
 
 
-def test_both_families_default_to_evm_then_solana():
+def test_both_families_default_to_the_display_order():
     cfg = build_config(DEV, solana_wallet=SOL)
-    assert cfg.chains == DISPLAY_ORDER + ("solana",)
+    assert cfg.chains == DISPLAY_ORDER
     assert cfg.wallet_for(MAINNET["base"]) == DEV
 
 
-def test_custom_evm_chains_come_before_solana():
+def test_custom_chains_come_after_the_built_ins():
     avax = build_chain("avalanche", name="Avalanche", chain_id=43114,
                        rpc="https://api.avax.network/ext/bc/C/rpc",
                        tokens={"USDC": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"},
                        confirmations=3, explorer_tx="https://snowtrace.io/tx/{}")
     cfg = build_config(DEV, solana_wallet=SOL, custom_chains=[avax])
-    assert cfg.chains[-2:] == ("avalanche", "solana")
+    assert cfg.chains == DISPLAY_ORDER + ("avalanche",)
 
 
 def test_a_wallet_is_required():

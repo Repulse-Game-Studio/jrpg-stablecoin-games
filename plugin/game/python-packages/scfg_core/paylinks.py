@@ -12,27 +12,18 @@ import re
 
 from ._qrcodegen import QrCode
 
-# The buy page offered to players who have no stablecoin yet (configure(onramp=...)): a
-# template whose {placeholders} are filled in for the network the player picked. The default
-# is thirdweb's hosted Buy page, which needs no account or key; the player connects their own
-# wallet there and buys with a card, then pays as usual. tokenEditable=false keeps the page on
-# the network and token the game asked for, and paymentMethods=card offers card payment only
-# (thirdweb's iframe docs). tokenAddress is not in those docs, but the hosted page honours it:
-# checked in Chromium on 2026-11-18 for USDC on Base, Arbitrum and Arc and USDT on Ethereum and
-# Polygon (without it the page offers the network's native coin).
-ONRAMP_URL = ("https://thirdweb.com/bridge/buy-widget?chain={chain_id}"
-              "&tokenAddress={token_address}&amount={amount}&tokenEditable=false"
+# The "Pay with card" page (configure(onramp=...)): a template whose {placeholders} are filled
+# in for the network the player picked and the payment's session. The default is thirdweb's
+# hosted Checkout page, which needs no account or key: the player pays by card and thirdweb
+# sends the token to `seller`, the developer's wallet, on that network. {amount} is the
+# session's exact amount with all 6 decimals, so the game finds the payment as it finds any
+# other (amounts.encode). paymentMethods=card offers card payment only (thirdweb's iframe docs).
+# NOT YET CHECKED with a real card: that thirdweb delivers the amount exactly, to 6 decimals.
+ONRAMP_URL = ("https://thirdweb.com/bridge/checkout-widget?chain={chain_id}"
+              "&tokenAddress={token_address}&amount={amount}&seller={recipient}"
               "&paymentMethods=card")
-ONRAMP_FIELDS = ("amount", "chain", "chain_id", "token", "token_address")
+ONRAMP_FIELDS = ("amount", "chain", "chain_id", "recipient", "token", "token_address")
 ONRAMP_PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
-# 6-decimal units in a cent: the buy page's amount is rounded up to whole cents.
-UNITS_PER_CENT = 10_000
-# On a chain whose gas coin is the token (Arc), the payment's fee is paid in it too: a cent.
-ONRAMP_GAS_UNITS = UNITS_PER_CENT
-# Before a session exists its exact amount is not known: it is the price plus the item code and
-# nonce in the last four decimals (amounts.encode), at most 0.009999. The buy link then adds that
-# most, so it never suggests less than the payment will need.
-ONRAMP_EXACT_UNITS = 9_999
 
 
 def eip681_transfer_uri(*, token_address: str, chain_id: int, recipient: str, units: int) -> str:
@@ -40,21 +31,13 @@ def eip681_transfer_uri(*, token_address: str, chain_id: int, recipient: str, un
     return f"ethereum:{token_address}@{chain_id}/transfer?address={recipient}&uint256={units}"
 
 
-def onramp_amount(units: int, gas_is_token: bool) -> str:
-    """The amount suggested on the buy page: the payment (6-decimal units), plus a cent for
-    the fee where the token is the gas coin, rounded up to whole cents: 4993742 -> '5.00'."""
-    total = units + (ONRAMP_GAS_UNITS if gas_is_token else 0)
-    cents = -(-total // UNITS_PER_CENT)
-    return f"{cents // 100}.{cents % 100:02d}"
-
-
 def onramp_url(template: str, *, chain: str, chain_id: int, token: str, token_address: str,
-               amount: str) -> str:
+               amount: str, recipient: str) -> str:
     """Fill a validated onramp template (config._onramp_url). Every value is made of URL-safe
     characters (a chain key, digits, a 0x address, a token symbol, an amount), so none is
     escaped."""
     values = {"amount": amount, "chain": chain, "chain_id": str(chain_id), "token": token,
-              "token_address": token_address}
+              "token_address": token_address, "recipient": recipient}
     return ONRAMP_PLACEHOLDER.sub(lambda m: values[m.group(1)], template)
 
 

@@ -1,9 +1,8 @@
 """The stepped payment sheet: CheckoutController.step and its navigation."""
 
-from decimal import Decimal
 
 from scfg_core.chains import MAINNET
-from scfg_core.checkout import CheckoutController, onramp_view
+from scfg_core.checkout import CheckoutController
 from scfg_core.config import add_item, build_config
 from scfg_core.engine import Engine
 from scfg_core.payments import prepare_payment
@@ -16,6 +15,7 @@ PAYER = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
 USDC_ARB = MAINNET["arbitrum"].tokens["USDC"].address
 TX = "0x" + "ab" * 32
 ONLY_MANUAL = {"browser": {"enabled": False}, "qr": {"enabled": False}}
+NO_CARD = {"enabled": False}  # no "Pay with card" button: a single network is skipped
 
 
 class FakeServer:
@@ -164,7 +164,7 @@ def test_a_typed_amount_is_stripped_as_str_strip_does():
 # --- skipping single-option steps -------------------------------------------------------
 
 def test_single_network_is_skipped_for_unlocks():
-    ctl, engine, *_ = setup(chains=["base"])
+    ctl, engine, *_ = setup(chains=["base"], onramp=NO_CARD)
     assert ctl.state == "starting" and ctl.chain_key == "base"
     ctl.poll()
     assert ctl.step == "method" and ctl.can_go_back is False
@@ -172,7 +172,7 @@ def test_single_network_is_skipped_for_unlocks():
 
 
 def test_single_network_is_skipped_for_tips_both_ways():
-    ctl, *_ = setup(kind="tip", chains=["base"])
+    ctl, *_ = setup(kind="tip", chains=["base"], onramp=NO_CARD)
     ctl.next_step()
     ctl.poll()
     assert ctl.step == "method"
@@ -313,7 +313,7 @@ def test_start_failure_returns_to_network_with_the_message():
 
 def test_start_failure_on_a_skipped_network_shows_the_network_step():
     cfg_chains = ["base"]
-    ctl, engine, fakes, _ = setup(kind="tip", chains=cfg_chains)
+    ctl, engine, fakes, _ = setup(kind="tip", chains=cfg_chains, onramp=NO_CARD)
     fakes["base"] = FakeChain()
     fakes["base"].down = True
     ctl.next_step()
@@ -392,52 +392,92 @@ def test_the_controller_pumps_and_reopens_an_overlay_page():
     assert ctl._server.reopens == 1
 
 
-# --- the buy link (configure(onramp=...)) ------------------------------------------------
+# --- the network step: main tiles, "More networks", "Pay with card" -------------------------
 
-def test_the_method_step_offers_the_buy_page_for_the_chosen_network():
+def test_the_main_networks_are_tiles_and_the_rest_sit_behind_more_networks():
     ctl, *_ = setup()
-    assert ctl.onramp_url() is None and ctl.shows_onramp is False   # no network yet
-    ctl.choose_network("arbitrum")
-    ctl.poll()
-    assert ctl.step == "method" and ctl.shows_onramp is True
-    assert 4_990_000 <= ctl.session["units"] < 5_000_000
-    assert ctl.onramp_url() == ("https://thirdweb.com/bridge/buy-widget?chain=42161"
-                                f"&tokenAddress={USDC_ARB}&amount=5.00&tokenEditable=false&paymentMethods=card")
+    assert ctl.network_layout() == {
+        "main": ["ethereum"], "more": ["arc", "base", "arbitrum", "polygon"], "expanded": False,
+        "card": ["ethereum", "arc", "base", "arbitrum", "polygon"]}
+    ctl.toggle_more_networks()
+    assert ctl.network_layout()["expanded"] is True
+    ctl.toggle_more_networks()
+    assert ctl.network_layout()["expanded"] is False
 
 
-def test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee():
-    ctl, *_ = setup(chains=["base", "arc"])
-    ctl.choose_network("arc")
-    ctl.poll()
-    assert ctl.onramp_url().endswith("&amount=5.01&tokenEditable=false&paymentMethods=card")
-
-
-def test_the_buy_link_moves_to_the_only_payment_page():
-    ctl, *_ = on_method_step(methods={"browser": {"enabled": False}, "qr": {"enabled": False}})
-    assert ctl.step == "manual" and ctl.shows_onramp is True
+def test_more_networks_stays_open_when_the_chosen_network_is_behind_it():
     ctl, *_ = on_method_step()
-    ctl.choose_method("qr")
-    assert ctl.step == "qr" and ctl.shows_onramp is False   # the method step showed it
-    ctl.mark_sent()
-    assert ctl.shows_onramp is False
+    ctl.back()
+    assert ctl.step == "network" and ctl.network_layout()["expanded"] is True
+    ctl.toggle_more_networks()                       # closing it hides the chosen network...
+    assert ctl.network_layout()["expanded"] is True  # ...so it stays open while it's chosen
 
 
-def test_the_buy_link_follows_the_onramp_option():
-    ctl, *_ = on_method_step(onramp={"enabled": False})
-    assert ctl.onramp_url() is None and ctl.shows_onramp is False
-    ctl, *_ = on_method_step(onramp={"chains": ["base"]})
-    assert ctl.chain_key == "arbitrum" and ctl.onramp_url() is None
-    ctl, *_ = on_method_step(onramp={"url": "https://buy.example/{chain}/{token}?a={amount}"})
-    assert ctl.onramp_url() == "https://buy.example/arbitrum/USDC?a=5.00"
+def test_without_a_main_network_every_network_is_a_tile():
+    ctl, *_ = setup(chains=["base", "arc"])
+    assert ctl.network_layout() == {"main": ["base", "arc"], "more": [], "expanded": False,
+                                    "card": ["base", "arc"]}
 
 
-def test_before_a_session_the_buy_link_suggests_the_most_the_payment_can_be():
-    cfg = build_config(DEV, chains=["arbitrum", "arc"])
-    view = dict(token="USDC", units=None, amount=Decimal("4.99"), step="method",
-                path=["network", "method", "browser", "waiting"], can_go_back=True,
-                option_keys=["arbitrum", "arc"])
-    # 4.99 plus at most 0.009999 of item code and nonce: the session's 4.993742 also gives 5.00
-    assert onramp_view(cfg, chain_key="arbitrum", **view)["url"].count("&amount=5.00&") == 1
-    assert onramp_view(cfg, chain_key="arc", **view)["url"].count("&amount=5.01&") == 1
-    assert onramp_view(cfg, chain_key=None, **view) == {
-        "url": None, "shows_onramp": False, "shows_onramp_hint": True}
+def test_pay_with_card_skips_the_method_step_for_the_card_page():
+    ctl, *_ = setup()
+    assert ctl.card_url() is None
+    ctl.pay_with_card("arbitrum")
+    ctl.poll()
+    assert ctl.step == "card" and ctl.method == "card"
+    assert ctl.step_path() == ["network", "card", "waiting"] and ctl.step_dots() == (1, 3)
+    units = ctl.session["units"]
+    assert 4_990_000 <= units < 5_000_000
+    amount = f"4.99{units % 10_000:04d}"
+    assert ctl.card_url() == ("https://thirdweb.com/bridge/checkout-widget?chain=42161"
+                              f"&tokenAddress={USDC_ARB}&amount={amount}&seller={DEV}"
+                              "&paymentMethods=card")
+    assert ctl.open_card() == ctl.card_url()
+    assert ctl.step == "waiting"
+    ctl.back()
+    assert ctl.step == "card"
+    ctl.back()
+    assert ctl.step == "network" and ctl.can_go_back is False
+
+
+def test_the_networks_own_tile_still_goes_to_the_method_step():
+    ctl, *_ = setup()
+    ctl.pay_with_card("arbitrum")
+    ctl.poll()
+    ctl.back()
+    ctl.choose_network("arbitrum")                   # same network: the session is kept
+    assert ctl.step == "method" and ctl.method == "browser"
+    sid = ctl.session_id
+    ctl.back()
+    ctl.pay_with_card("arbitrum")
+    assert ctl.step == "card" and ctl.session_id == sid
+
+
+def test_pay_with_card_follows_the_onramp_option():
+    ctl, *_ = setup(onramp={"enabled": False})
+    assert ctl.network_layout()["card"] == []
+    ctl.pay_with_card("arbitrum")                    # no button: nothing happens
+    assert ctl.step == "network" and ctl.session is None
+    ctl, *_ = setup(onramp={"chains": ["base"]})
+    assert ctl.network_layout()["card"] == ["base"]
+    ctl, *_ = setup(onramp={"url": "https://pay.example/{chain}/{token}?a={amount}&to={recipient}"})
+    ctl.pay_with_card("base")
+    ctl.poll()
+    assert ctl.card_url() == f"https://pay.example/base/USDC?a={ctl.pay_amount_text}&to={DEV}"
+
+
+def test_a_single_network_with_a_card_button_keeps_the_network_step():
+    ctl, *_ = setup(chains=["base"])
+    assert ctl.step == "network" and ctl.step_path()[0] == "network"
+    ctl, *_ = setup(chains=["base"], onramp=NO_CARD)
+    ctl.poll()
+    assert ctl.step == "method"                      # nothing to choose: skipped as before
+
+
+def test_open_card_waits_for_the_session():
+    ctl, *_ = setup()
+    assert ctl.open_card() is None                   # not on the card page
+    ctl.pay_with_card("base")
+    assert ctl.step == "network" and ctl.open_card() is None
+    ctl.poll()
+    assert ctl.step == "card" and ctl.open_card() is not None and ctl.step == "waiting"

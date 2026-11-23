@@ -221,7 +221,11 @@ TESTNET: dict[str, Chain] = {
     ),
 }
 
-DISPLAY_ORDER: tuple[str, ...] = ("arbitrum", "base", "arc", "polygon", "ethereum")
+# The order the network step lists the built-in chains in: the main chains (Ethereum, Solana,
+# Arc) first, then the L2s.
+DISPLAY_ORDER: tuple[str, ...] = ("ethereum", "solana", "arc", "base", "arbitrum", "polygon")
+# The networks the network step shows as tiles; every other one sits behind "More networks".
+MAIN_CHAINS: tuple[str, ...] = ("ethereum", "solana")
 
 
 def get_chains(testnet: bool) -> dict[str, Chain]:

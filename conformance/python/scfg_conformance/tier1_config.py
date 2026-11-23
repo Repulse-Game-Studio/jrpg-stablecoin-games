@@ -13,11 +13,10 @@ Input conventions (same file shape as tier1.py):
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Callable
 
 from scfg_core import chains as chains_mod
-from scfg_core.checkout import onramp_view
+from scfg_core.checkout import card_url, network_view
 from scfg_core.config import add_item, build_chain, build_config
 from scfg_core.payments import prepare_payment
 from scfg_core.solana import pda
@@ -81,13 +80,17 @@ def _build_config(i):
     return to_jsonable(_config(i))
 
 
-@_fn("onramp_view")
-def _onramp_view(i):
+@_fn("network_view")
+def _network_view(i):
+    return network_view(_config(i["config"]), option_keys=i["option_keys"],
+                        chain_key=i["chain_key"], expanded=i["expanded"])
+
+
+@_fn("card_url")
+def _card_url(i):
     units = i["units"]
-    return onramp_view(_config(i["config"]), token=i["token"], chain_key=i["chain_key"],
-                       units=None if units is None else int(units), amount=Decimal(i["amount"]),
-                       step=i["step"], path=i["path"], can_go_back=i["can_go_back"],
-                       option_keys=i["option_keys"])
+    return card_url(_config(i["config"]), token=i["token"], chain_key=i["chain_key"],
+                    units=None if units is None else int(units))
 
 
 @_fn("add_item")
@@ -313,73 +316,86 @@ def _config_errors():
     ]
 
 
-# --- the buy link on a checkout step (scfg_core.checkout.onramp_view) --------------------------
-# The controller's onramp_url, shows_onramp and shows_onramp_hint come from onramp_view, given
-# the controller's state: the payment's token, the chosen chain, the session's exact units (None
-# before a session), the payment amount, the step, the step path, can_go_back and the keys of
-# the networks the player can pick.
+# --- the network step (scfg_core.checkout.network_view) and its card page (card_url) ----------
+# The controller's network_layout() is network_view given the keys of the networks the player
+# can pick (chain_options, in display order), the chosen one and whether the player opened
+# "More networks". Its card_url() is card_url given the payment's token, the chosen network and
+# the session's exact units (None before a session).
 
-_PATH_METHOD = ["network", "method", "browser", "waiting"]
-_PATH_ONE_METHOD = ["network", "manual", "waiting"]
-_BOTH_ARC = {"wallet": EVM, "solana_wallet": SOL, "chains": ["base", "arc", "solana"]}
-
-
-def _view(config=None, *, token="USDC", chain_key="base", units="4993742", amount="4.99",
-          step="method", path=None, can_go_back=True, option_keys=None) -> dict:
-    return {"config": config or _c(), "token": token, "chain_key": chain_key, "units": units,
-            "amount": amount, "step": step, "path": _PATH_METHOD if path is None else path,
-            "can_go_back": can_go_back,
-            "option_keys": ["base", "arc", "solana"] if option_keys is None else option_keys}
+_ALL = ["ethereum", "solana", "arc", "base", "arbitrum", "polygon"]
+_EVM_ALL = ["ethereum", "arc", "base", "arbitrum", "polygon"]
+_BOTH = {"wallet": EVM, "solana_wallet": SOL}
 
 
-_ONRAMP_VIEW = [
-    _view(),                                                              # the method step
-    _view(units="5000000"),                                               # whole cents
-    _view(units=None),                                                    # before a session
-    _view(units=None, amount="5"),
-    _view(units=None, amount="0.01"),
-    _view(_c(chains=["base", "arc"]), chain_key="arc"),                   # Arc: a cent for the fee
-    _view(_c(chains=["base", "arc"]), chain_key="arc", units=None),
-    _view(_c(chains=["base", "arc"]), chain_key="arc", units="5000000"),
-    _view(_c(tokens=["USDT"]), token="USDT", chain_key="ethereum", units="12340103"),
-    _view(chain_key=None),                                                # no network chosen yet
-    _view(chain_key=""),
-    _view(chain_key="polygon"),
-    # where it goes: the method step, or the payment page when the method step is skipped
-    _view(step="browser"),
-    _view(step="qr"),
-    _view(step="manual"),
-    _view(step="manual", path=_PATH_ONE_METHOD),
-    _view(step="browser", path=["network", "browser", "waiting"]),
-    _view(step="qr", path=["qr", "waiting"]),
-    _view(step="network"),
-    _view(step="amount", path=["amount", "network", "method", "browser", "waiting"]),
-    _view(step="waiting"),
-    _view(step="done"),
-    _view(step="waiting", path=_PATH_ONE_METHOD),
-    # the option
-    _view(_c(onramp={"enabled": False})),
-    _view(_c(onramp={"chains": ["arbitrum"]})),
-    _view(_c(onramp={"url": "https://buy.example/{chain}/{token}?a={amount}&id={chain_id}"})),
-    _view(_c(testnet=True)),                                              # testnet: offered nowhere
-    _view(_c(testnet=True, onramp={"chains": ["base"]})),
-    # the hint: Solana has no buy page, another network the player can pick does
-    _view(_BOTH_ARC, chain_key="solana"),
-    _view(_BOTH_ARC, chain_key="solana", step="manual", path=_PATH_ONE_METHOD),
-    _view(_BOTH_ARC, chain_key="solana", can_go_back=False),             # a transaction was seen
-    _view(_BOTH_ARC, chain_key="solana", option_keys=["solana"]),        # nothing else to pick
-    _view(_BOTH_ARC, chain_key="solana", option_keys=["arc", "solana"]),
-    _view(_BOTH_ARC, chain_key="solana", step="waiting"),
-    _view(_BOTH_ARC, chain_key="solana", step="qr"),
-    _view({**_BOTH_ARC, "onramp": {"enabled": False}}, chain_key="solana"),
-    _view({**_BOTH_ARC, "onramp": {"chains": []}}, chain_key="solana"),
-    _view({**_BOTH_ARC, "testnet": True}, chain_key="solana"),
-    _view({**_BOTH_ARC, "testnet": True, "onramp": {"chains": ["base"]}}, chain_key="solana"),
-    _view(_BOTH_ARC, chain_key=None, can_go_back=False),
+def _net(config=None, *, option_keys=None, chain_key=None, expanded=False) -> dict:
+    return {"config": config or _c(), "option_keys": _EVM_ALL if option_keys is None
+            else option_keys, "chain_key": chain_key, "expanded": expanded}
+
+
+_NETWORK_VIEW = [
+    _net(),                                                   # Ethereum, then the L2s behind More
+    _net(expanded=True),
+    _net(chain_key="ethereum"),
+    _net(chain_key="base"),                                   # the chosen network is behind More
+    _net(chain_key="base", expanded=True),
+    _net(chain_key="solana"),                                 # not an option here
+    _net(chain_key=""),
+    _net(_BOTH, option_keys=_ALL),
+    _net(_BOTH, option_keys=_ALL, chain_key="solana", expanded=True),
+    _net(_BOTH, option_keys=["solana", "base"]),
+    _net(_BOTH, option_keys=["solana"]),                      # a single main network
+    _net(_BOTH, option_keys=["ethereum", "solana"]),          # nothing behind More
+    _net(_c(chains=["base", "arc"]), option_keys=["base", "arc"]),        # no main network
+    _net(_c(chains=["base", "arc"]), option_keys=["base", "arc"], expanded=True),
+    _net(_c(chains=["base"]), option_keys=["base"]),
+    _net(option_keys=[]),                                     # every network unready
+    _net(option_keys=["arbitrum", "ethereum"]),               # the order given is kept
+    # the card buttons follow configure(onramp=...)
+    _net(_c(onramp={"enabled": False})),
+    _net(_c(onramp={"chains": ["arc", "ethereum"]})),
+    _net(_c(onramp={"chains": []})),
+    _net(_c(testnet=True)),                                   # testnet: none unless listed
+    _net(_c(testnet=True, onramp={"chains": ["base"]})),
+    _net(_c(custom_chains=[CHAIN]), option_keys=_EVM_ALL + ["avalanche"]),
+    _net(_c(custom_chains=[CHAIN], onramp={"chains": ["avalanche"]}),
+         option_keys=_EVM_ALL + ["avalanche"]),
+    _net(_BOTH, option_keys=_ALL, chain_key="arc"),
+    _net({**_BOTH, "onramp": {"enabled": False}}, option_keys=_ALL),
+]
+
+
+def _card(config=None, *, token="USDC", chain_key="base", units="4993742") -> dict:
+    return {"config": config or _c(), "token": token, "chain_key": chain_key, "units": units}
+
+
+_CARD_URL = [
+    _card(),
+    _card(units="5000000"),
+    _card(units="1"),
+    _card(units=str(10**12 + 9_999)),
+    _card(units=None),                                        # before a session
+    _card(chain_key="arc"),                                   # Arc: no extra cent, thirdweb pays
+    _card(chain_key="ethereum"),
+    _card(_c(tokens=["USDT"]), token="USDT", chain_key="polygon", units="12340103"),
+    _card(chain_key=None),
+    _card(chain_key=""),
+    _card(chain_key="solana"),                                # not enabled
+    _card(_BOTH, chain_key="solana"),                         # no card button on Solana
+    _card(_BOTH, chain_key="base"),
+    _card(_c(onramp={"enabled": False})),
+    _card(_c(onramp={"chains": ["arc"]})),
+    _card(_c(onramp={"chains": ["arc"]}), chain_key="arc"),
+    _card(_c(testnet=True)),
+    _card(_c(testnet=True, onramp={"chains": ["base"]})),
+    _card(_c(onramp={"url": "https://pay.example/{chain}/{token}?a={amount}&id={chain_id}"
+                            "&to={recipient}&t={token_address}"})),
+    _card(_c(onramp={"url": "https://x.example/pay"})),
+    _card(_c(custom_chains=[CHAIN], onramp={"chains": ["avalanche"]}), chain_key="avalanche"),
+    _card(_c(previous_wallets=[EVM2])),                       # pays the current wallet
 ]
 
 _topic("config", [("build_config", i) for i in _CONFIG_VALID + _config_errors()]
-       + [("onramp_view", i) for i in _ONRAMP_VIEW])
+       + [("network_view", i) for i in _NETWORK_VIEW] + [("card_url", i) for i in _CARD_URL])
 
 # --- custom chains ---------------------------------------------------------------------------
 

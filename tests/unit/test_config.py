@@ -51,7 +51,7 @@ def test_accepted_wallets_include_previous():
 def test_defaults():
     c = cfg()
     assert c.testnet is False
-    assert c.chains == ("arbitrum", "base", "arc", "polygon", "ethereum")
+    assert c.chains == ("ethereum", "arc", "base", "arbitrum", "polygon")
     assert c.tokens == ("USDC", "USDT")
     assert c.methods == DEFAULT_METHODS
     assert c.rpc_urls == {} and c.confirmations == {} and c.items == {}
@@ -120,7 +120,7 @@ def test_bad_confirmations(confs):
 
 
 def test_chains_for_token():
-    assert chains_for_token(cfg(), "USDT") == ["arbitrum", "polygon", "ethereum"]
+    assert chains_for_token(cfg(), "USDT") == ["ethereum", "arbitrum", "polygon"]
 
 
 # --- methods ----------------------------------------------------------------
@@ -275,7 +275,7 @@ AVAX = dict(name="Avalanche", chain_id=43114, rpc="https://api.avax.network/ext/
 def test_onramp_defaults_to_the_builtin_evm_chains_on_mainnet():
     c = build_config(DEV, solana_wallet=SOL)
     assert c.onramp == {"enabled": True, "url": ONRAMP_URL,
-                        "chains": ("arbitrum", "base", "arc", "polygon", "ethereum")}
+                        "chains": ("ethereum", "arc", "base", "arbitrum", "polygon")}
 
 
 def test_onramp_is_not_offered_on_testnet_unless_chains_are_listed():

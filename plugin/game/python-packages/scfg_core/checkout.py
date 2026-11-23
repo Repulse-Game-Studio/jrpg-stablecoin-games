@@ -9,7 +9,8 @@ States: choose -> starting -> waiting -> confirming -> paid
                                      \\-> underpaid | expired
 
 The sheet shows one step at a time (``step``):
-amount (tips only) -> network -> method -> browser | qr | manual -> waiting -> done.
+amount (tips only) -> network -> method -> browser | qr | manual -> waiting -> done,
+or, through a network's "Pay with card" button: network -> card -> waiting -> done.
 Steps with a single option are skipped both ways. ``back()`` works until a transaction
 is seen; a seen payment moves the sheet to waiting and a final state to done.
 """
@@ -19,12 +20,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from decimal import Decimal
 
-from .amounts import decimal_to_units, format_units, parse_amount
+from .amounts import format_units, parse_amount
 from .backends import backend_for
-from .chains import Chain
+from .chains import MAIN_CHAINS, Chain
 from .config import Config, enabled_chains, text_on
 from .models import PaymentResult
-from .paylinks import ONRAMP_EXACT_UNITS, eip681_transfer_uri, onramp_amount, onramp_url
+from .paylinks import eip681_transfer_uri, onramp_url
 from .payments import MIN_TIP, TIP_PRESETS, PaymentSpec
 from .rpc import RpcUnavailable
 from .solana.paylinks import solana_pay_uri
@@ -35,7 +36,7 @@ FINAL_STATES = ("paid", "underpaid", "expired")
 HINT_VERDICTS = ("tx_reverted", "tx_not_a_payment", "tx_not_landed")
 # Order of the steps; the three method pages share a place.
 STEP_ORDER = {"amount": 0, "network": 1, "method": 2, "browser": 3, "qr": 3, "manual": 3,
-              "waiting": 4, "done": 5}
+              "card": 3, "waiting": 4, "done": 5}
 
 MESSAGES = {
     "network_unavailable": "Can't reach the network. Retrying...",
@@ -56,38 +57,44 @@ MESSAGES = {
 }
 
 
-ONRAMP_PAGES = ("browser", "qr", "manual")
-
-
-def onramp_view(config: Config, *, token: str, chain_key: str | None, units: int | None,
-                amount: Decimal, step: str, path: list[str], can_go_back: bool,
-                option_keys: list[str]) -> dict:
-    """The buy link's state on a checkout step, as the controller and every port decide it
-    (pinned by the tier1 vectors, fn onramp_view):
-
-    - url: configure(onramp=...)'s page for the chosen network when it is offered there, else
-      None. The suggested amount is the session's exact `units`, or before a session the
-      payment `amount` plus the most the item code and nonce add (ONRAMP_EXACT_UNITS); plus a
-      cent where the token is the network's gas coin (Arc); rounded up to whole cents.
-    - The step it goes on: the method step, or the payment page the sheet opens on when the
-      method step is skipped (a single method: "method" is not in `path`).
-    - shows_onramp: on that step, with a url.
-    - shows_onramp_hint: on that step, without a url (Solana), while the player can go back
-      and another network they can pick (`option_keys`) has the link.
-    """
+def card_offered(config: Config, chain_key: str | None) -> bool:
+    """Whether the network gets a "Pay with card" button: configure(onramp=...) is on and lists it
+    (by default the built-in EVM chains of a mainnet game; never Solana)."""
     opts = config.onramp
-    chain = enabled_chains(config).get(chain_key) if chain_key else None
-    url = None
-    if opts["enabled"] and chain is not None and chain.key in opts["chains"]:
-        if units is None:
-            units = decimal_to_units(amount) + ONRAMP_EXACT_UNITS
-        url = onramp_url(opts["url"], chain=chain.key, chain_id=chain.chain_id, token=token,
-                         token_address=chain.tokens[token].address,
-                         amount=onramp_amount(units, chain.native_token == token))
-    here = step == "method" or (step in ONRAMP_PAGES and "method" not in path)
-    hint = (opts["enabled"] and here and url is None and can_go_back
-            and any(key in opts["chains"] for key in option_keys))
-    return {"url": url, "shows_onramp": here and url is not None, "shows_onramp_hint": hint}
+    return bool(opts["enabled"] and chain_key and chain_key in opts["chains"]
+                and chain_key in enabled_chains(config))
+
+
+def card_url(config: Config, *, token: str, chain_key: str | None, units: int | None) -> str | None:
+    """The card checkout page for a running session (pinned by the tier1 vectors, fn card_url):
+    configure(onramp=...)'s template filled in for the network, the developer's wallet there and
+    the session's exact amount. None without a session or where the network has no card button."""
+    if units is None or not card_offered(config, chain_key):
+        return None
+    chain = enabled_chains(config)[chain_key]
+    return onramp_url(config.onramp["url"], chain=chain.key, chain_id=chain.chain_id, token=token,
+                      token_address=chain.tokens[token].address, amount=format_units(units),
+                      recipient=config.wallet_for(chain))
+
+
+def network_view(config: Config, *, option_keys: list[str], chain_key: str | None,
+                 expanded: bool) -> dict:
+    """How the network step lays out the networks the player can pick, `option_keys` in display
+    order (pinned by the tier1 vectors, fn network_view):
+
+    - main: the tiles always shown, the options among MAIN_CHAINS (Ethereum, Solana).
+    - more: the rest, behind "More networks". When either list would be empty, every option is
+      main and more is empty: a dropdown hiding all of them, or none, has no use.
+    - expanded: whether "More networks" is open: as the player left it, or because the chosen
+      network is behind it (coming back to the step shows it).
+    - card: the options with a "Pay with card" button (card_offered), in display order.
+    """
+    main = [k for k in option_keys if k in MAIN_CHAINS]
+    more = [k for k in option_keys if k not in MAIN_CHAINS]
+    if not main or not more:
+        main, more = list(option_keys), []
+    return {"main": main, "more": more, "expanded": bool(more) and (expanded or chain_key in more),
+            "card": [k for k in option_keys if card_offered(config, k)]}
 
 
 class CheckoutController:
@@ -122,6 +129,7 @@ class CheckoutController:
         self.step = "amount" if spec.kind == "tip" else "network"
         self.nav_dir = 1  # 1: the step came in going forward, -1: going back
         self._picked_network = False  # move on from the network step once the session starts
+        self.more_networks = False  # the player opened "More networks" on the network step
         if self.step == "network":
             self._enter_network()
 
@@ -199,30 +207,21 @@ class CheckoutController:
         return eip681_transfer_uri(token_address=self.token_address, chain_id=self.chain.chain_id,
                                    recipient=self.recipient, units=self.session["units"])
 
-    def _onramp(self) -> dict:
-        return onramp_view(self.config, token=self.spec.token, chain_key=self.chain_key,
-                           units=self.session["units"] if self.session else None,
-                           amount=self.amount, step=self.step, path=self.step_path(),
-                           can_go_back=self.can_go_back,
-                           option_keys=[key for key, _name, _fee in self.chain_options()])
+    def network_layout(self) -> dict:
+        """The network step's layout: main tiles, "More networks", card buttons (network_view)."""
+        return network_view(self.config, option_keys=[k for k, _n, _f in self.chain_options()],
+                            chain_key=self.chain_key, expanded=self.more_networks)
 
-    def onramp_url(self) -> str | None:
-        """The page where a player without the token buys some with a card, for the chosen
-        network, with the payment (plus a cent for the fee on Arc) suggested as the amount.
-        None when configure(onramp=...) doesn't offer it on this network (see onramp_view)."""
-        return self._onramp()["url"]
+    def card_offered(self, key: str | None) -> bool:
+        """Whether the network `key` has a "Pay with card" button."""
+        return card_offered(self.config, key)
 
-    @property
-    def shows_onramp(self) -> bool:
-        """Whether this step offers the buy link."""
-        return self._onramp()["shows_onramp"]
-
-    @property
-    def shows_onramp_hint(self) -> bool:
-        """Whether this step points to the buy link instead ("Pick another network"), because
-        the chosen network has none (Solana) but another one the player can pick has it. Its
-        button goes back to the network step (``back()``)."""
-        return self._onramp()["shows_onramp_hint"]
+    def card_url(self) -> str | None:
+        """The card checkout page for this session: thirdweb's by default, paying the exact
+        amount to the developer's wallet on the chosen network. None before the session starts
+        or where the network has no card button."""
+        return card_url(self.config, token=self.spec.token, chain_key=self.chain_key,
+                        units=self.session["units"] if self.session else None)
 
     def explorer_url(self) -> str | None:
         tx = self.result.tx_hash if self.result and self.result.tx_hash else self.hint_tx
@@ -259,8 +258,10 @@ class CheckoutController:
     def step_path(self) -> list[str]:
         """The steps this payment walks through, without the single-option ones."""
         path = ["amount"] if self.spec.kind == "tip" else []
-        if len(self.chain_options()) != 1:
+        if self._network_has_choice():
             path.append("network")
+        if self.method == "card":
+            return path + ["card", "waiting"]
         if len(self.methods()) != 1:
             path.append("method")
         return path + [self.method or "browser", "waiting"]
@@ -290,11 +291,28 @@ class CheckoutController:
         self._future = self.submit(lambda e: e.start_session_co(
             spec.kind, key, item=spec.item, amount=amount, token=spec.token, title=spec.title))
         available = self.methods()
-        if self.method not in available:
+        if self.method not in available and not (self.method == "card" and self.card_offered(key)):
             self.method = available[0] if available else None
 
     def choose_network(self, key: str) -> None:
         """Network step: start a session on `key`, or keep the one already running."""
+        if self.method == "card":
+            self.method = None  # the network's own button: pick a method as usual
+        self._pick_network(key)
+
+    def pay_with_card(self, key: str) -> None:
+        """Network step, a network's "Pay with card" button: start a session on `key` (or keep
+        the one running), then go to the card page, skipping the method step."""
+        if not self.card_offered(key):
+            return
+        self.method = "card"
+        self._pick_network(key)
+
+    def toggle_more_networks(self) -> None:
+        """Open or close "More networks" on the network step."""
+        self.more_networks = not self.network_layout()["expanded"]
+
+    def _pick_network(self, key: str) -> None:
         self.step, self.nav_dir = "network", 1
         if key == self.chain_key and self.session and self.state == "waiting":
             self._after_network()
@@ -328,6 +346,14 @@ class CheckoutController:
         if self.step in ("qr", "manual"):
             self.error = None
             self._go("waiting", 1)
+
+    def open_card(self) -> str | None:
+        """Card page: returns the card checkout's URL for the sheet to open, and moves to
+        waiting; None (staying put) before the session has started."""
+        url = self.card_url() if self.step == "card" else None
+        if url:
+            self._go("waiting", 1)
+        return url
 
     def open_browser(self) -> str | None:
         """Browser page: start the localhost page and move to waiting; returns its URL."""
@@ -528,13 +554,22 @@ class CheckoutController:
     def _enter_network(self) -> None:
         """Go forward to the network step, or past it when there is only one network."""
         options = self.chain_options()
-        if len(options) == 1:
+        if not self._network_has_choice():
             self.choose_network(options[0][0])
         else:
             self._go("network", 1)
 
+    def _network_has_choice(self) -> bool:
+        """The network step is shown unless there is a single network without a card button."""
+        options = self.chain_options()
+        return len(options) != 1 or self.card_offered(options[0][0])
+
     def _after_network(self) -> None:
-        """The session is running: go to the method step, or straight to the only method."""
+        """The session is running: go to the method step, or straight to the only method; after
+        "Pay with card", to the card page."""
+        if self.method == "card":
+            self._go("card", 1)
+            return
         methods = self.methods()
         if self.method not in methods:
             self.method = methods[0] if methods else None

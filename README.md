@@ -37,7 +37,7 @@ Mobile builds are best effort and unverified on every engine.
   payment's transaction hash.
 - **Six networks built in**, plus any EVM chain you add: Ethereum, Arbitrum and Polygon (USDC and USDT), Base
   (USDC), Arc (USDC) and Solana (USDC and USDT). Testnets for all of them behind one switch.
-- **A buy link for players with no stablecoin** (new in 0.3.0, see [below](#the-buy-link)).
+- **Pay with card** on each EVM network, paid straight to your wallet (see [below](#pay-with-card)).
 - **Your look.** A logo and an accent colour in every engine, and deeper restyling in each engine's own way (see
   its docs). The texts can be reworded or translated in Godot and RPG Maker MZ; the screens are English only in Unity
   and Unreal for now.
@@ -171,16 +171,16 @@ Scfg->PayAsync(EScfgPayKind::Unlock, Request, [](const FScfgPaymentResult& Resul
 });
 ```
 
-## The buy link
+## Pay with card
 
-Players who have no USDC or USDT yet see **"No USDC yet? Buy some with a card"** on the payment sheet. It opens a
-third-party provider's hosted buy page (thirdweb by default, card payment only) for the network they picked, with
-the payment as the suggested amount. What they buy lands in their own wallet, and they then pay as usual, straight
-to yours. The link carries only the network, the token and the amount: not your wallet, not the item.
+On the network step, each EVM network has a small **Pay with card** button under its tile. It opens a third-party
+provider's hosted checkout page (thirdweb by default, card payment only) for that network, with your wallet as the
+recipient and the payment's exact amount. The player pays by card, the token goes straight to your wallet, and the
+game confirms it the way it confirms any payment. thirdweb has no card checkout on Solana, so Solana has no button.
 
-It is **on by default on mainnet**, so a game that upgrades to 0.3.0 shows it without a configuration change. It
-is offered on the built-in EVM networks (the provider does not sell on Solana yet), and not on testnets unless you
-list networks for it. To turn it off:
+It is **on by default on mainnet**, and not on testnets unless you list networks for it. It has not yet been checked
+with a real card that the provider delivers the exact amount the game waits for: try one small payment before you
+rely on it. To turn it off:
 
 | Engine | Off switch |
 |---|---|
@@ -190,8 +190,8 @@ list networks for it. To turn it off:
 | Unity | `ScfgOptions.Onramp = new ScfgOnramp { Enabled = false }` |
 | Unreal | `FScfgOptions.Onramp.bEnabled = false` |
 
-The same setting limits the link to some networks or points it at another provider's `https://` page. See
-[the buy link](docs/developers/configure/README.md#the-buy-link) in the guide.
+The same setting limits the button to some networks or points it at another provider's `https://` page. See
+[Pay with card](docs/developers/configure/README.md#pay-with-card) in the guide.
 
 ## Docs
 

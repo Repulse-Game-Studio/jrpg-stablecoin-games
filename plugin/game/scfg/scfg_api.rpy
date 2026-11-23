@@ -125,7 +125,7 @@ init -10 python in scfg:
         logo: an image in the game folder ("images/logo.png"), shown on the payment
         screens and the browser checkout page. accent: "#rrggbb" for selected options,
         e.g. accent=gui.accent_color.
-        onramp: the "Buy some with a card" link for players without USDC/USDT, e.g.
+        onramp: the "Pay with card" button under each network, e.g.
         {"enabled": False} to hide it, {"chains": ["arc"]} or {"url": "https://..."}."""
         config = _build_config(
             wallet, testnet=testnet, chains=chains, tokens=tokens, methods=methods,
@@ -610,6 +610,16 @@ init -10 python in scfg:
         if ctl is not None:
             ctl.choose_network(key)
 
+    def _pay_with_card(cid, key):
+        ctl = _state.checkouts.get(cid)
+        if ctl is not None:
+            ctl.pay_with_card(key)
+
+    def _toggle_more_networks(cid):
+        ctl = _state.checkouts.get(cid)
+        if ctl is not None:
+            ctl.toggle_more_networks()
+
     def _set_tip(cid, value):
         ctl = _state.checkouts.get(cid)
         if ctl is not None:
@@ -672,10 +682,11 @@ init -10 python in scfg:
             _open_url(url)
         return None
 
-    def _open_onramp(cid):
-        """The buy page for the chosen network, in the player's browser (a new tab on the web)."""
+    def _open_card(cid):
+        """The card checkout page for this payment, in the player's browser (a new tab on the
+        web); the sheet moves on to waiting."""
         ctl = _state.checkouts.get(cid)
-        url = ctl.onramp_url() if ctl is not None else None
+        url = ctl.open_card() if ctl is not None else None
         if url:
             _open_url(url)
         return None

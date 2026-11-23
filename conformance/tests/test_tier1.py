@@ -349,11 +349,13 @@ def test_payment_cases_include_float_and_unknown_item():
     assert any(isinstance(c["in"].get("amount"), dict) for c in _cases("payments"))
 
 
-def test_onramp_view_cases_cover_the_link_the_hint_and_the_session_less_amount():
-    outs = [(c["in"], c["out"]) for c in _cases("config") if c["fn"] == "onramp_view"]
-    assert any(o["shows_onramp"] for _, o in outs)
-    assert any(o["shows_onramp_hint"] for _, o in outs)
-    assert any(o["url"] and not o["shows_onramp"] for _, o in outs), "a url off the link's step"
-    assert any(i["units"] is None and o["url"] for i, o in outs), "before a session"
-    assert any(i["chain_key"] == "arc" and o["url"] for i, o in outs), "the Arc cent"
-    assert not any(o["shows_onramp"] and o["shows_onramp_hint"] for _, o in outs)
+def test_network_view_and_card_url_cases_cover_the_layouts_and_the_buttons():
+    views = [(c["in"], c["out"]) for c in _cases("config") if c["fn"] == "network_view"]
+    assert any(o["more"] and not o["expanded"] for _, o in views), "More networks closed"
+    assert any(o["more"] and o["expanded"] and not i["expanded"] for i, o in views), "chosen behind"
+    assert any(not o["more"] and len(o["main"]) > 1 for _, o in views), "no dropdown"
+    assert any(o["card"] for _, o in views) and any(not o["card"] for _, o in views)
+    assert any("solana" in o["main"] and "solana" not in o["card"] for _, o in views)
+    urls = [(c["in"], c["out"]) for c in _cases("config") if c["fn"] == "card_url"]
+    assert any(o for _, o in urls) and any(o is None for _, o in urls)
+    assert any(i["units"] is None and o is None for i, o in urls), "before a session"

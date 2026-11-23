@@ -20,7 +20,7 @@ init python:
 | `wallet` | required unless `solana_wallet` is given | Your EVM payout address. A wrong-case checksum raises an error, which catches typos |
 | `solana_wallet` | none | Your Solana payout address (base58) to accept USDC/USDT on Solana. See [Solana](solana.md) |
 | `testnet` | `False` | `True` uses Sepolia, Arbitrum Sepolia, Polygon Amoy, Base Sepolia, Arc Testnet and Solana Devnet (USDC only) |
-| `chains` | all built-ins + yours | Which networks players may pay on, in display order: `["arbitrum", "base", "arc", "polygon", "ethereum", "solana"]`. Chains you added with `add_chain()` can be listed too. By default the EVM chains (built-in, then yours) are offered if `wallet` is set, followed by `"solana"` if `solana_wallet` is set |
+| `chains` | all built-ins + yours | Which networks players may pay on, in display order: `["ethereum", "solana", "arc", "base", "arbitrum", "polygon"]`. Chains you added with `add_chain()` can be listed too. By default every built-in is offered in that order, followed by yours: the EVM chains if `wallet` is set and `"solana"` if `solana_wallet` is set. The network step shows Ethereum and Solana as tiles and the others under **More networks** (all as tiles when your list has none of the two, or only them) |
 | `tokens` | both | `["USDC"]`, `["USDT"]` or both |
 | `methods` | all on | Per-method options, see below |
 | `rpc_urls` | none | Your own RPC endpoints per chain, tried before the built-in public ones, e.g. `{"arbitrum": ["https://arb-mainnet.g.alchemy.com/v2/KEY"]}`. See below |
@@ -28,7 +28,7 @@ init python:
 | `previous_wallets` | none | Wallets used by earlier versions of your game, EVM (`0x…`) and Solana addresses can be mixed. Keeps old purchases valid after you change wallets |
 | `logo` | none | An image in your game folder, e.g. `"images/logo.png"` (`.png`, `.jpg` or `.webp`). Shown at the top of the payment screens and the browser checkout page, fitted into 240 × 64 (at 1280 × 720). A wide wordmark works best |
 | `accent` | `"#0e7c74"` | Color of selected options and the main browser button, e.g. `accent=gui.accent_color`. Text on it switches between white and dark automatically |
-| `onramp` | on, built-in EVM chains on mainnet | The "Buy some with a card" link for players without stablecoin, see [below](#the-buy-link) |
+| `onramp` | on, built-in EVM chains on mainnet | The **Pay with card** button under each network, see [below](#pay-with-card) |
 
 ## Payment methods
 
@@ -43,41 +43,44 @@ scfg.configure(wallet="0x...", methods={"browser": {"enabled": False},
                                               "qr": {"chains": ["base", "polygon"]}})
 ```
 
-## The buy link
+## Pay with card
 
-Players who have no USDC or USDT yet see a **No USDC yet? Buy some with a card** link (with
-the payment's token) on the method step, or on the only payment page when there is one
-method. It opens a buy page for the network they picked in their browser (a new tab in a
-web build). They buy the token with a card into their own wallet, come back and pay as usual:
-the payment itself is unchanged and still goes straight to your wallet.
+On the network step, each network that takes cards has a small **Pay with card** button
+under its tile. It skips the payment-method step and shows a card page with the exact
+amount; its **Open card checkout** button opens a card checkout page for that network in the
+player's browser (a new tab in a web build), and the sheet moves on to waiting for the
+payment. The player pays by card there, and the provider sends the token straight to your
+wallet on that network. The game finds that payment the way it finds any other: by its
+exact amount (the price plus the item code and nonce in the last four decimals), so nothing
+about the card payment changes how an unlock is confirmed or restored.
 
-The default page is [thirdweb's hosted Buy widget](https://portal.thirdweb.com/bridge/buy-widget/iframe).
-It needs no account or key on your side. The link locks it to the network and token, offers card
-payment only, and suggests the payment rounded up to whole cents (plus a cent on Arc, where the fee
-is paid in USDC) as the amount; before the payment's exact amount is known it suggests the most it
-can be (the price plus 0.009999), so the player never buys too little. The link itself carries
-only the network, the token's contract and that amount: no wallet address and nothing about the
-item. A web build opens it with `noopener,noreferrer`, so the page is not told the game's address,
-and a desktop game hands it to the player's browser, which sends no referrer for a link opened
-from outside. What the provider learns after that is up to the player and the provider: the player
-connects their wallet there, and thirdweb's card partners handle the purchase and the identity
-checks, with their own regions, minimum amounts and fees (the player pays the fees).
+The default page is [thirdweb's hosted Checkout widget](https://portal.thirdweb.com/bridge/checkout-widget/iframe).
+It needs no account or key on your side. The link carries the network, the token's contract,
+the payment's exact amount and your wallet for that network (as the `seller`), and offers
+card payment only. thirdweb's card partners handle the purchase and the identity checks,
+with their own regions, minimum amounts and fees (the player pays the fees). A web build opens
+it with `noopener,noreferrer`, so the page is not told the game's address, and a desktop game
+hands it to the player's browser, which sends no referrer for a link opened from outside.
 
-**On by default.** A game that upgrades to 0.3.0 shows the link on mainnet without changing its
-configuration. If linking to an outside purchase flow matters for your store or region, turn it
-off with `onramp={"enabled": False}`.
+> **Not yet checked with a real card:** the game only recognises the payment if thirdweb
+> delivers exactly the amount in the link, all six decimals. Make one small real card
+> payment on mainnet before you rely on it.
+
+**On by default.** A mainnet game shows the button without changing its configuration. If
+linking to an outside purchase flow matters for your store or region, turn it off with
+`onramp={"enabled": False}`.
 
 ```renpy
 scfg.configure(wallet="0x...", onramp={"enabled": False})            # hide it
 scfg.configure(wallet="0x...", onramp={"chains": ["base", "arc"]})   # only on these networks
-scfg.configure(wallet="0x...", onramp={"url": "https://buy.example/?net={chain_id}&a={amount}"})
+scfg.configure(wallet="0x...", onramp={"url": "https://pay.example/?net={chain_id}&a={amount}&to={recipient}"})
 ```
 
 | Option | Default | Meaning |
 |---|---|---|
-| `enabled` | `True` | `False` hides the link |
-| `chains` | built-in EVM chains | The networks it is offered on, from `chains=` (EVM only). Left out: the built-in EVM chains of a mainnet game, and none on testnet, where cards buy no test tokens; list chains to see the link while testing. Chains you added with `add_chain()` are only offered when listed |
-| `url` | thirdweb | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}` (the chain key), `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused |
+| `enabled` | `True` | `False` hides the button |
+| `chains` | built-in EVM chains | The networks it is offered on, from `chains=` (EVM only). Left out: the built-in EVM chains of a mainnet game, and none on testnet, where cards buy no test tokens; list chains to see the button while testing. Chains you added with `add_chain()` are only offered when listed |
+| `url` | thirdweb | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}` (the chain key), `{chain_id}`, `{token}`, `{token_address}`, `{amount}` (the exact amount, with 6 decimals: `4.993742`) and `{recipient}` (your wallet on that network) are filled in; any other brace is refused. The page must pay `{recipient}` exactly `{amount}`: the game waits for that payment |
 
 A mistake raises a `ConfigError` at startup with a code such as `onramp.unknown_option`,
 `onramp.bad_url` (also for a url without a host after `https://`), `onramp.unknown_placeholder`,
@@ -85,10 +88,10 @@ A mistake raises a `ConfigError` at startup with a code such as `onramp.unknown_
 spelling: `"onramp"` in Godot's `configure()`, the **Buy Link** parameter in RPG Maker MZ,
 `ScfgOptions.Onramp` (and the SCFG Settings asset's onramp fields) in Unity, and `FScfgOptions.Onramp`
 (and the project settings) in Unreal; see each engine's API page.
-Solana isn't offered yet: thirdweb's page buys on EVM networks only. A player who picked
-Solana (or another network without the link) sees **No USDC yet? Pick another network to buy
-some with a card** in its place instead, which goes back to the network step, as long as
-another network they can pick has the link.
+Solana has no card button: thirdweb's checkout takes payments on EVM networks only.
+
+A network the game offers alone, without a card button, is still chosen for the player and
+the network step skipped; with a card button the step stays, so the player can choose it.
 
 ## Your own RPC endpoints and chains
 

@@ -4,6 +4,7 @@ from scfg_core.chains import (
     ARC_SYSTEM_EMITTER,
     ARC_USDC,
     DISPLAY_ORDER,
+    MAIN_CHAINS,
     MAINNET,
     TESTNET,
     get_chains,
@@ -68,11 +69,12 @@ def test_chain_invariants(chain):
 
 
 def test_display_order_covers_all_chains():
-    assert sorted(DISPLAY_ORDER) == sorted(EVM)
+    assert sorted(DISPLAY_ORDER) == sorted(MAINNET) == sorted(TESTNET)
 
 
-def test_display_order_puts_arc_after_the_familiar_l2s():
-    assert DISPLAY_ORDER == ("arbitrum", "base", "arc", "polygon", "ethereum")
+def test_display_order_puts_the_main_chains_before_the_l2s():
+    assert DISPLAY_ORDER == ("ethereum", "solana", "arc", "base", "arbitrum", "polygon")
+    assert MAIN_CHAINS == ("ethereum", "solana")
 
 
 @pytest.mark.parametrize("testnet", [False, True])
@@ -153,4 +155,3 @@ def test_solana_entries(testnet):
                      ("https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com"))
     assert c.explorer_url("SIG") == ("https://solscan.io/tx/SIG?cluster=devnet" if testnet
                                      else "https://solscan.io/tx/SIG")
-    assert "solana" not in DISPLAY_ORDER

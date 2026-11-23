@@ -83,7 +83,7 @@ def test_build_chain_rejects(kw):
 
 def test_custom_chain_is_enabled_by_default_after_built_ins():
     cfg = build_config(DEV, custom_chains=[avalanche()])
-    assert cfg.chains == ("arbitrum", "base", "arc", "polygon", "ethereum", "avalanche")
+    assert cfg.chains == ("ethereum", "arc", "base", "arbitrum", "polygon", "avalanche")
     assert list(enabled_chains(cfg))[-1] == "avalanche"
     assert cfg.registry["avalanche"].chain_id == 43114
 

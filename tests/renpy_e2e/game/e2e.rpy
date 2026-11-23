@@ -29,12 +29,16 @@ init python:
         # The real Arc entry (USDC read from the system emitter), pointed at the local chain.
         _e2e_chains.MAINNET["arc"] = _e2e_replace(
             _e2e_chains.MAINNET["arc"], rpc=(E2E["SCFG_E2E_RPC"],))
-        scfg.configure(wallet=E2E["SCFG_E2E_DEV"], chains=["arc"], tokens=["USDC"])
+        scfg.configure(wallet=E2E["SCFG_E2E_DEV"], chains=["arc"], tokens=["USDC"],
+                       onramp={"enabled": False})
     else:
+        # Both mainnet runs turn "Pay with card" off: a single network without a card button is
+        # chosen automatically, so the sheet opens on the method step as the test case expects.
         _e2e_chains.MAINNET["arbitrum"] = _e2e_replace(
             _e2e_chains.MAINNET["arbitrum"], rpc=(E2E["SCFG_E2E_RPC"],), confirmations=2,
             tokens=python_dict(USDC=_E2EToken(E2E["SCFG_E2E_USDC"])))
-        scfg.configure(wallet=E2E["SCFG_E2E_DEV"], chains=["arbitrum"], tokens=["USDC"])
+        scfg.configure(wallet=E2E["SCFG_E2E_DEV"], chains=["arbitrum"], tokens=["USDC"],
+                       onramp={"enabled": False})
 
     scfg.add_item("chapter2", code=1, price="1.00", token="USDC", title="Chapter 2")
 

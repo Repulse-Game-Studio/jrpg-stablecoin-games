@@ -311,171 +311,64 @@
    "out": "solana:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU?amount=0.999999&spl-token=4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU&reference=5JguxczVSDmLXb7KxVtW8Cvad5oPydCwRqsMN2LMY3dz&label=Ruby%20Dreams&message=Tip"
   },
   {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": false,
-    "units": "4993742"
-   },
-   "out": "5.00"
-  },
-  {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": true,
-    "units": "4993742"
-   },
-   "out": "5.01"
-  },
-  {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": false,
-    "units": "5000000"
-   },
-   "out": "5.00"
-  },
-  {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": true,
-    "units": "5000000"
-   },
-   "out": "5.01"
-  },
-  {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": false,
-    "units": "5000001"
-   },
-   "out": "5.01"
-  },
-  {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": true,
-    "units": "1230017"
-   },
-   "out": "1.25"
-  },
-  {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": false,
-    "units": "0"
-   },
-   "out": "0.00"
-  },
-  {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": true,
-    "units": "0"
-   },
-   "out": "0.01"
-  },
-  {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": false,
-    "units": "1"
-   },
-   "out": "0.01"
-  },
-  {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": false,
-    "units": "9999"
-   },
-   "out": "0.01"
-  },
-  {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": false,
-    "units": "10000"
-   },
-   "out": "0.01"
-  },
-  {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": true,
-    "units": "990000"
-   },
-   "out": "1.00"
-  },
-  {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": false,
-    "units": "1000000009999"
-   },
-   "out": "1000000.01"
-  },
-  {
-   "fn": "onramp_amount",
-   "in": {
-    "gas_is_token": true,
-    "units": "1000000009999"
-   },
-   "out": "1000000.02"
-  },
-  {
    "fn": "onramp_url",
    "in": {
-    "amount": "5.00",
+    "amount": "4.993742",
     "chain": "base",
     "chain_id": 8453,
-    "template": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card",
+    "recipient": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+    "template": "https://thirdweb.com/bridge/checkout-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&seller={recipient}&paymentMethods=card",
     "token": "USDC",
     "token_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
    },
-   "out": "https://thirdweb.com/bridge/buy-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=5.00&tokenEditable=false&paymentMethods=card"
+   "out": "https://thirdweb.com/bridge/checkout-widget?chain=8453&tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&amount=4.993742&seller=0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed&paymentMethods=card"
   },
   {
    "fn": "onramp_url",
    "in": {
-    "amount": "5.01",
+    "amount": "5.000001",
     "chain": "arc",
     "chain_id": 5042,
-    "template": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card",
+    "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+    "template": "https://thirdweb.com/bridge/checkout-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&seller={recipient}&paymentMethods=card",
     "token": "USDC",
     "token_address": "0x3600000000000000000000000000000000000000"
    },
-   "out": "https://thirdweb.com/bridge/buy-widget?chain=5042&tokenAddress=0x3600000000000000000000000000000000000000&amount=5.01&tokenEditable=false&paymentMethods=card"
+   "out": "https://thirdweb.com/bridge/checkout-widget?chain=5042&tokenAddress=0x3600000000000000000000000000000000000000&amount=5.000001&seller=0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359&paymentMethods=card"
   },
   {
    "fn": "onramp_url",
    "in": {
-    "amount": "1000000.01",
+    "amount": "1000000.009999",
     "chain": "ethereum",
     "chain_id": 1,
-    "template": "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&tokenEditable=false&paymentMethods=card",
+    "recipient": "0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB",
+    "template": "https://thirdweb.com/bridge/checkout-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}&seller={recipient}&paymentMethods=card",
     "token": "USDT",
     "token_address": "0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb"
    },
-   "out": "https://thirdweb.com/bridge/buy-widget?chain=1&tokenAddress=0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb&amount=1000000.01&tokenEditable=false&paymentMethods=card"
+   "out": "https://thirdweb.com/bridge/checkout-widget?chain=1&tokenAddress=0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb&amount=1000000.009999&seller=0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB&paymentMethods=card"
   },
   {
    "fn": "onramp_url",
    "in": {
-    "amount": "0.50",
+    "amount": "0.500100",
     "chain": "polygon",
     "chain_id": 137,
-    "template": "https://x.example/{chain}/{chain}?id={chain_id}&t={token}&a={amount}&c={token_address}",
+    "recipient": "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed",
+    "template": "https://x.example/{chain}/{chain}?id={chain_id}&t={token}&a={amount}&c={token_address}&to={recipient}",
     "token": "USDC",
     "token_address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
    },
-   "out": "https://x.example/polygon/polygon?id=137&t=USDC&a=0.50&c=0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+   "out": "https://x.example/polygon/polygon?id=137&t=USDC&a=0.500100&c=0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48&to=0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
   },
   {
    "fn": "onramp_url",
    "in": {
-    "amount": "1.00",
+    "amount": "1.000000",
     "chain": "base",
     "chain_id": 11155111,
+    "recipient": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
     "template": "https://x.example/buy",
     "token": "USDC",
     "token_address": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
@@ -485,14 +378,15 @@
   {
    "fn": "onramp_url",
    "in": {
-    "amount": "12.34",
+    "amount": "12.340099",
     "chain": "my-l2_2",
     "chain_id": 0,
-    "template": "https://x.example/{amount}{amount}{token}",
+    "recipient": "0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb",
+    "template": "https://x.example/{amount}{amount}{token}{recipient}{recipient}",
     "token": "USDT",
     "token_address": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359"
    },
-   "out": "https://x.example/12.3412.34USDT"
+   "out": "https://x.example/12.34009912.340099USDT0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb"
   }
  ],
  "tier": 1,
