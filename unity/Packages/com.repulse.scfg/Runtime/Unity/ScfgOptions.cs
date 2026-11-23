@@ -24,8 +24,8 @@ namespace Scfg
         /// <summary>Which payment methods the sheet offers (default: all of them).</summary>
         public ScfgMethods? Methods { get; set; }
         /// <summary>
-        /// The "No USDC yet? Buy some with a card" link on the sheet (default: on, thirdweb's buy page, on the built-in
-        /// EVM networks of a mainnet game).
+        /// The "Pay with card" link under each network on the sheet (default: on, thirdweb's card checkout, on the
+        /// built-in EVM networks of a mainnet game).
         /// </summary>
         public ScfgOnramp? Onramp { get; set; }
         /// <summary>Extra RPC endpoints per chain key, tried before the built-in ones.</summary>
@@ -119,16 +119,18 @@ namespace Scfg
     }
 
     /// <summary>
-    /// The buy link (config.py's onramp): "No USDC yet? Buy some with a card" opens a page where a player without the
-    /// token buys some with a card, for the network they picked, then pays as usual. A null field keeps the default.
+    /// Pay with card (config.py's onramp): a "Pay with card" link under each network it is offered on leads to a card
+    /// page whose "Open card checkout" opens a checkout page where the player pays the exact amount by card, straight to
+    /// your wallet on that network. A null field keeps the default.
     /// </summary>
     public sealed class ScfgOnramp
     {
-        /// <summary>Show the link (default true). false hides it everywhere.</summary>
+        /// <summary>Show the "Pay with card" links (default true). false hides them everywhere.</summary>
         public bool? Enabled { get; set; }
         /// <summary>
-        /// The buy page, an https:// template whose placeholders are filled for the chosen network: {chain}, {chain_id},
-        /// {token}, {token_address}, {amount} (default: thirdweb's hosted Buy page, no account or key).
+        /// The card checkout page, an https:// template whose placeholders are filled for the chosen network and the
+        /// payment: {chain}, {chain_id}, {token}, {token_address}, {amount} (the exact amount, 6 decimals) and
+        /// {recipient} (your wallet there) (default: thirdweb's hosted Checkout page, no account or key).
         /// </summary>
         public string? Url { get; set; }
         /// <summary>

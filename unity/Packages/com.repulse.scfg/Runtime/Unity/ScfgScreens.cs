@@ -12,7 +12,7 @@
 // game quits with a screen open, Pay / Restore resolve with what they have and nothing is delivered.
 //
 // The facade polls the controller every frame, so a screen only reads its fields and calls its methods. Buttons that
-// leave the game use the controller wrappers' OpenBrowser, OpenWalletApp, OpenOnramp, OpenExplorer, Copy and Paste. The flows
+// leave the game use the controller wrappers' OpenBrowser, OpenWalletApp, OpenCard, OpenExplorer, Copy and Paste. The flows
 // close the controller (stopping its browser page) before they call Close(screen).
 #nullable enable
 using System;
@@ -73,8 +73,11 @@ namespace Scfg
         /// <summary>"Open wallet app" (phones): the payment link (EIP-681 or Solana Pay).</summary>
         public void OpenWalletApp() => SCFG.OpenWalletApp(this);
 
-        /// <summary>The buy link: opens configure's onramp page for the chosen network.</summary>
-        public void OpenOnramp() => SCFG.OpenOnramp(this);
+        /// <summary>
+        /// "Open card checkout" on the card step: opens configure's onramp page (thirdweb's card checkout by default)
+        /// for this payment and moves the sheet on to waiting (the controller's OpenCard()).
+        /// </summary>
+        public void OpenCard() => SCFG.OpenCard(this);
 
         /// <summary>Opens a block explorer link (the controller's explorer URL for a transaction); null does nothing.</summary>
         public void OpenExplorer(string? url) => SCFG.OpenExplorer(url);
