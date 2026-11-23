@@ -323,14 +323,14 @@ SCFG_TEST(ConfigTests, WalletsAndLookups) {
     SCFG_CHECK_EQ(t, strings(c.accepted_wallets_for("evm")), strings(c.accepted_wallets()));
     SCFG_CHECK(t, c.wallet_for(*chains::MAINNET().find("solana")) == std::optional<std::string>(SOL));
     SCFG_CHECK(t, c.wallet_for(*chains::MAINNET().find("base")) == std::optional<std::string>(EVM));
-    SCFG_CHECK_EQ(t, strings(c.chains), "arbitrum base arc polygon ethereum solana");
+    SCFG_CHECK_EQ(t, strings(c.chains), "ethereum solana arc base arbitrum polygon");
     SCFG_CHECK_EQ(t, strings(c.registry().keys()), "ethereum arbitrum polygon base arc solana");
     SCFG_CHECK(t, c.item_by_code(7) == nullptr);
     SCFG_CHECK_EQ(t, outcome(config::add_item(c, "a", Json::dict({{"code", 7}, {"price", "1"}, {"token", "USDC"},
                                                                    {"title", "A"}}))),
                   "ok");
     SCFG_CHECK(t, c.item_by_code(7) != nullptr && c.item_by_code(7)->item_id == "a");
-    SCFG_CHECK_EQ(t, strings(config::chains_for_token(c, "USDT").value()), "arbitrum polygon ethereum solana");
+    SCFG_CHECK_EQ(t, strings(config::chains_for_token(c, "USDT").value()), "ethereum solana arbitrum polygon");
 }
 
 SCFG_TEST(ConfigTests, EnabledChainsRaisesKeyErrorForAChainTheRegistryLost) {
@@ -421,7 +421,7 @@ SCFG_TEST(PaymentsTests, ATipCarriesWhateverTitleAndItemItWasGiven) {
         SCFG_CHECK_EQ(t, py::repr(spec.value().item).value(), "[1]");
         SCFG_CHECK_EQ(t, spec.value().price.str(), "1.00");
         SCFG_CHECK_EQ(t, spec.value().code, 0);
-        SCFG_CHECK_EQ(t, strings(spec.value().chains), "arbitrum base arc polygon ethereum solana");
+        SCFG_CHECK_EQ(t, strings(spec.value().chains), "ethereum solana arc base arbitrum polygon");
     }
     auto falsy = pay("tip", Json::dict({{"amount", "1"}, {"token", "USDC"}, {"title", 0}}));
     SCFG_CHECK(t, falsy.ok() && py::repr(falsy.value().title).value() == "'Tip'" && falsy.value().item.is_null());

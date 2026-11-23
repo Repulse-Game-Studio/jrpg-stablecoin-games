@@ -57,12 +57,12 @@ SCFGCORE_API Json DEFAULT_METHODS();
 // The longest onramp url template (config.py's ONRAMP_URL_LIMIT; Config.cpp's onramp.bad_url message spells it).
 inline constexpr size_t ONRAMP_URL_LIMIT = 2048;
 
-// configure's onramp, merged and checked: the "No USDC yet? Buy some with a card" link. Python's Config.onramp dict
+// configure's onramp, merged and checked: the "Pay with card" button under each network. Python's Config.onramp dict
 // {"enabled", "url", "chains"}; a Config made without build_config has it off (the dataclass default).
 struct SCFGCORE_API Onramp {
     bool enabled = false;
     std::string url = std::string(paylinks::ONRAMP_URL);
-    std::vector<std::string> chains;  // the chain keys the buy link is offered on, in order
+    std::vector<std::string> chains;  // the chain keys Pay with card is offered on, in order
 };
 
 // Python's Config dataclass (mutable: add_item adds to items).
@@ -80,7 +80,7 @@ struct SCFGCORE_API Config {
     std::optional<std::string> logo;  // image path, shown on the screens and the checkout page
     std::string accent = std::string(DEFAULT_ACCENT);  // #rrggbb used for selected options
     OrderedMap<chains::Chain> custom_chains;           // add_chain(), this network
-    Onramp onramp;                                     // the buy link (build_config resolves it)
+    Onramp onramp;                                     // Pay with card (build_config resolves it)
     OrderedMap<models::Item> items;
 
     // Every chain this game knows on its network: built-in, then the developer's own (a new dict).
@@ -107,8 +107,8 @@ SCFGCORE_API Result<chains::Chain> build_chain(const Json& kwargs);
 using CustomChain = std::variant<chains::Chain, Json>;
 
 // build_config's keyword arguments: wallet, testnet, chains, tokens, methods, rpc_urls, confirmations,
-// previous_wallets, logo, accent, custom_chains, solana_wallet and onramp (a dict of enabled, url and chains: the buy
-// link), all optional. A Json cannot hold a Chain, so
+// previous_wallets, logo, accent, custom_chains, solana_wallet and onramp (a dict of enabled, url and chains: Pay
+// with card), all optional. A Json cannot hold a Chain, so
 // kwargs' own custom_chains (if any) is iterated as Python iterates it and every entry is not a Chain; the second
 // overload passes the list beside kwargs, which must not also name it (a TypeError, Python's "got multiple values").
 // Custom chains of the other network are ignored unless chains names them.

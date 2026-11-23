@@ -183,7 +183,7 @@ SCFG_TEST(CheckoutTests, test_initial_state_and_chain_options) {
     CheckoutController& ctl = *s->ctl;
     SCFG_CHECK(t, ctl.state() == "choose" && ctl.session().is_null());
     SCFG_CHECK(t, keys(ctl.chain_options()) ==
-                      std::vector<std::string>({"arbitrum", "base", "arc", "polygon", "ethereum"}));
+                      std::vector<std::string>({"ethereum", "arc", "base", "arbitrum", "polygon"}));
     SCFG_CHECK_EQ(t, ctl.pay_amount_text(), "4.99");
 }
 

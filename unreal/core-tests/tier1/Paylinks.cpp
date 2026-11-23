@@ -1,6 +1,6 @@
 // Copyright 2026 Repulse
 // No Python twin: the tier1/paylinks.json adapters (conformance/python/scfg_conformance/tier1.py's
-// eip681_transfer_uri, onramp_amount, onramp_url and solana_pay_uri; unity/core-tests/Tier1.cs). Units arrive as
+// eip681_transfer_uri, onramp_url and solana_pay_uri; unity/core-tests/Tier1.cs). Units arrive as
 // decimal strings, read with int(); chain_id is the JSON int itself.
 #include "support/Tier1.h"
 
@@ -47,13 +47,6 @@ SCFG_TIER1_TOPIC(paylinks) {
         SCFG_TRY(std::string uri, scfg::paylinks::eip681_transfer_uri(token, chain_id.as_bigint(), recipient, units));
         return Json(std::move(uri));
     });
-    fn("onramp_amount", [](const Json& in) -> Result<Json> {
-        SCFG_TRY(BigInt units, a::units(in));
-        SCFG_TRY(Json gas, py::get(in, "gas_is_token"));
-        if (!gas.is_bool()) return Err::value_error("vector input gas_is_token must be a bool");
-        SCFG_TRY(std::string amount, scfg::paylinks::onramp_amount(units, gas.as_bool()));
-        return Json(std::move(amount));
-    });
     fn("onramp_url", [](const Json& in) -> Result<Json> {
         SCFG_TRY(std::string tmpl, a::str_field(in, "template"));
         SCFG_TRY(std::string chain, a::str_field(in, "chain"));
@@ -62,8 +55,9 @@ SCFG_TIER1_TOPIC(paylinks) {
         SCFG_TRY(std::string token, a::str_field(in, "token"));
         SCFG_TRY(std::string address, a::str_field(in, "token_address"));
         SCFG_TRY(std::string amount, a::str_field(in, "amount"));
+        SCFG_TRY(std::string recipient, a::str_field(in, "recipient"));
         SCFG_TRY(std::string url,
-                 scfg::paylinks::onramp_url(tmpl, chain, chain_id.as_bigint(), token, address, amount));
+                 scfg::paylinks::onramp_url(tmpl, chain, chain_id.as_bigint(), token, address, amount, recipient));
         return Json(std::move(url));
     });
     fn("solana_pay_uri", [](const Json& in) -> Result<Json> {

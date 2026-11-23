@@ -1,6 +1,6 @@
 // Copyright 2026 Repulse
 // Twin of scfg_core/paylinks.py (and of unity/.../Core/Paylinks.cs, rpgmaker/src/core/paylinks.ts).
-// Payment links (EIP-681), the buy page link (onramp) and QR code geometry. The QR matrix comes from QrCodeGen.h
+// Payment links (EIP-681), the "Pay with card" page link (onramp) and QR code geometry. The QR matrix comes from QrCodeGen.h
 // (Project Nayuki's generator). Rendering is left to the engine: qr_rects merges each row's dark modules into
 // horizontal runs, so the screen draws a few hundred rectangles instead of thousands of single squares.
 #pragma once
@@ -18,20 +18,17 @@
 
 namespace scfg::paylinks {
 
-// The buy page offered to players who have no stablecoin yet (configure's onramp): a template whose {placeholders} are
-// filled in for the network the player picked. The default is thirdweb's hosted Buy page, which needs no account or
-// key; the player connects their own wallet there and buys with a card, then pays as usual. tokenEditable=false keeps
-// the page on the network and token the game asked for, and paymentMethods=card offers card payment only.
-// tokenAddress is not in thirdweb's iframe docs, but the hosted page honors it (paylinks.py).
+// The "Pay with card" page (configure's onramp): a template whose {placeholders} are filled in for the network the
+// player picked and the payment's session. The default is thirdweb's hosted Checkout page, which needs no account or
+// key: the player pays by card and thirdweb sends the token to `seller`, the developer's wallet, on that network.
+// {amount} is the session's exact amount with all 6 decimals, so the game finds the payment as it finds any other
+// (amounts::encode). paymentMethods=card offers card payment only (paylinks.py). NOT YET CHECKED with a real card:
+// that thirdweb delivers the amount exactly, to 6 decimals.
 inline constexpr std::string_view ONRAMP_URL =
-    "https://thirdweb.com/bridge/buy-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}"
-    "&tokenEditable=false&paymentMethods=card";
-inline constexpr std::array<std::string_view, 5> ONRAMP_FIELDS = {"amount", "chain", "chain_id", "token",
-                                                                  "token_address"};
-// On a chain whose gas coin is the token (Arc), the payment's fee is paid in it too: 0.01.
-inline constexpr int64_t ONRAMP_GAS_UNITS = 10'000;
-// Before a session exists: the most the item code and nonce add to the price (0.009999).
-inline constexpr int64_t ONRAMP_EXACT_UNITS = 9'999;
+    "https://thirdweb.com/bridge/checkout-widget?chain={chain_id}&tokenAddress={token_address}&amount={amount}"
+    "&seller={recipient}&paymentMethods=card";
+inline constexpr std::array<std::string_view, 6> ONRAMP_FIELDS = {"amount",    "chain", "chain_id",
+                                                                  "recipient", "token", "token_address"};
 
 // One match of Python's ONRAMP_PLACEHOLDER, \{([^{}]*)\}: [start, end) in the template and the name between the
 // braces.
@@ -44,16 +41,12 @@ struct OnrampPlaceholder {
 // The matches of ONRAMP_PLACEHOLDER, left to right without overlaps: a '{' whose next brace is a '}'.
 SCFGCORE_API std::vector<OnrampPlaceholder> onramp_placeholders(std::string_view tmpl);
 
-// The amount suggested on the buy page: the payment (6-decimal units), plus a cent for the fee where the token is the
-// gas coin, rounded up to whole cents: 4993742 -> "5.00". py::int_str's limit on a huge int.
-SCFGCORE_API Result<std::string> onramp_amount(const BigInt& units, bool gas_is_token);
-
 // Fill a validated onramp template (config's onramp url check). Every value is made of URL-safe characters (a chain
 // key, digits, a 0x address, a token symbol, an amount), so none is escaped. A placeholder outside ONRAMP_FIELDS is
 // Python's KeyError.
 SCFGCORE_API Result<std::string> onramp_url(std::string_view tmpl, std::string_view chain, const BigInt& chain_id,
                                             std::string_view token, std::string_view token_address,
-                                            std::string_view amount);
+                                            std::string_view amount, std::string_view recipient);
 
 // ERC-20 transfer request that mobile wallets understand when scanned or opened:
 // "ethereum:<token_address>@<chain_id>/transfer?address=<recipient>&uint256=<units>", the text inserted as it is and
