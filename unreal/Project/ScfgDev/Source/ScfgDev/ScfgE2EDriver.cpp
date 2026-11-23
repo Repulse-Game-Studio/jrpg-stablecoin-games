@@ -194,6 +194,53 @@ FString ReadOptions(const FJsonObject& O, FScfgOptions& Out)
 				List.Add(S);
 			}
 		}
+		else if (K == TEXT("onramp"))
+		{
+			const TSharedPtr<FJsonObject>* Onramp = nullptr;
+			if (!V->TryGetObject(Onramp))
+			{
+				return TEXT("configure.onramp must be an object");
+			}
+			for (const auto& Sub : (*Onramp)->Values)
+			{
+				const FString S(Sub.Key.ToView());
+				if (S == TEXT("enabled"))
+				{
+					if (!Sub.Value->TryGetBool(Out.Onramp.bEnabled))
+					{
+						return TEXT("configure.onramp.enabled must be a boolean");
+					}
+				}
+				else if (S == TEXT("url"))
+				{
+					if (!Sub.Value->TryGetString(Out.Onramp.Url))
+					{
+						return TEXT("configure.onramp.url must be a string");
+					}
+				}
+				else if (S == TEXT("chains"))
+				{
+					const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+					if (!Sub.Value->TryGetArray(Values))
+					{
+						return TEXT("configure.onramp.chains must be a list of strings");
+					}
+					for (const TSharedPtr<FJsonValue>& Value : *Values)
+					{
+						FString Key;
+						if (!Value->TryGetString(Key))
+						{
+							return TEXT("configure.onramp.chains must be a list of strings");
+						}
+						Out.Onramp.Chains.Add(Key);
+					}
+				}
+				else
+				{
+					return FString::Printf(TEXT("configure.onramp.%s is not an option the e2e config takes"), *S);
+				}
+			}
+		}
 		else
 		{
 			return FString::Printf(TEXT("configure.%s is not an option the e2e config takes"), *K);
