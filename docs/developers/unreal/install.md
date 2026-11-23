@@ -181,7 +181,7 @@ Under the **Validate** button the panel has three sections. **Configure** holds 
 | **Chains**, **Tokens**, **Methods**, **Rpc Urls**, **Confirmations**, **Previous Wallets** | As the fields of `FScfgOptions` (see [Configure](api.md#configure)). Empty: the defaults |
 | **Logo** | An image file in a folder under `Content/`, relative to the project folder (`Content/Scfg/logo.png`): png or jpg (a webp shows on the checkout page only). Add that folder (`Scfg`) to **Project Settings > Packaging > Additional Non-Asset Directories to Package**, or a packaged game cannot find the logo and its `Configure` fails (see [The logo in a packaged game](api.md#the-logo-in-a-packaged-game)) |
 | **Accent** | The accent color of the sheet and the checkout page, `#rrggbb`. Empty: the default |
-| **Onramp** | The buy link, on by default on mainnet: players with no stablecoin yet see **No USDC yet? Buy some with a card**, which opens a third-party card seller (thirdweb) for the network they picked. Turn **Enabled** off to hide it; **Url** (your own page) and **Chains** (the EVM networks it is offered on) are optional (see [The buy link](api.md#the-buy-link-onramp)) |
+| **Onramp** | **Pay with card**, on by default on mainnet: a small link under each network's tile that opens a third-party card checkout (thirdweb) paying the exact amount straight to your wallet on that network. Turn **Enabled** off to hide it; **Url** (your own page) and **Chains** (the EVM networks it is offered on) are optional (see [Pay with card](api.md#pay-with-card-onramp)) |
 
 **Chains** lists your own EVM chains, each a **Key** and the fields of an `FScfgChain` (see
 [AddChain](api.md#addchain)). **Items** has one row per unlock: **Id**, **Code** (1-99, different for each item,
@@ -220,10 +220,10 @@ rules.
 6. If you take Solana payments, receive any amount of each token on your mainnet Solana wallet once first. Until
    then the Output Log warns (`scfg: your wallet can't receive USDT on solana yet ...`) and players are not offered
    that token. The same rule applies on Devnet while you test.
-7. Check the buy link (**No USDC yet? Buy some with a card**) and, on Solana, its **Pick another network** hint. On
-   testnet the link is off by default (cards don't buy test tokens); to see both before mainnet, name your enabled
-   testnet EVM networks in **Configure > Onramp > Chains** (`FScfgOnramp::Chains`, for example `base` and
-   `arbitrum`), then empty it again. See [The buy link](api.md#the-buy-link-onramp).
+7. Check **Pay with card** under the network tiles and its card page. On testnet it is off by default (cards don't
+   buy test tokens); to see it before mainnet, name your enabled testnet EVM networks in **Configure > Onramp >
+   Chains** (`FScfgOnramp::Chains`, for example `base` and `arbitrum`), then empty it again. Make one small real card
+   payment on mainnet before you rely on it. See [Pay with card](api.md#pay-with-card-onramp).
 8. Package the game and pay once from the packaged build. A Shipping game has not been run in this preview yet. If
    you set a logo, check that **Validate** gives no packaging warning (see
    [Logo](api.md#the-logo-in-a-packaged-game)).

@@ -3,10 +3,11 @@
 // payment sheet FScfgDefaultSheetHost shows for UScfgSubsystem::Pay.
 //
 // One step at a time, as the controller's step says: amount (tips) -> network -> method -> browser | qr | manual ->
-// waiting -> done. Every step has the header (the back arrow while the controller can_go_back, the step dots, the
-// logo, the title and the price), a scrolling body, the pinned buy link where the controller shows it (ShowsOnramp:
-// "No USDC yet? Buy some with a card"; or ShowsOnrampHint, which goes back to the network step), the pinned forward
-// button when the step has one, and the footer
+// waiting -> done, or network -> card -> waiting -> done through a network's "Pay with card" link. The network step
+// shows the main networks as tiles and the rest behind "More networks" (the controller's NetworkLayout), with a
+// "Pay with card" link under each tile that has one. Every step has the header (the back arrow while the controller
+// can_go_back, the step dots, the logo, the title and the price), a scrolling body, the pinned forward button when the
+// step has one, and the footer
 // (the message, the status line and Cancel / Continue playing / Continue). Development builds also show the developer
 // lines (DEV MODE and the controller's dev_warnings()); Shipping does not.
 //
@@ -15,8 +16,9 @@
 // transaction was seen, nor on waiting and done). The sheet closes with "cancel", "keep_playing" or "finish".
 //
 // Control keys (for tests and drivers, Godot's): back, title, price, forward, cancel, keep_playing, continue,
-// message, status, logo; preset_<amount>, custom_amount, set_amount; network_<key>; method_<name>; qr, wallet_app;
-// copy_amount, copy_recipient, copy_token, tx_input, check; progress, explorer, reopen; copy_tx; onramp, onramp_hint.
+// message, status, logo; preset_<amount>, custom_amount, set_amount; network_<key>, card_<key>, more_networks;
+// method_<name>; qr, wallet_app; copy_amount, copy_recipient, copy_token, tx_input, check; progress, explorer, reopen;
+// copy_tx.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -56,10 +58,12 @@ private:
 	TPair<FString, TFunction<void()>> BuildStep(SVerticalBox& Body);
 	void StepAmount(SVerticalBox& Body);
 	void StepNetwork(SVerticalBox& Body);
+	// Ren'Py's scfg_network_tiles: Keys as tiles in Columns columns (the last row padded so every tile is as wide), a
+	// "Pay with card" link under each one in Card.
+	void NetworkTiles(SVerticalBox& Body, const TArray<FString>& Keys, const TArray<FScfgChainOptionView>& Options,
+		const TArray<FString>& Card, int32 Columns, int32& Row);
 	void StepMethod(SVerticalBox& Body);
-	// "No USDC yet? Buy some with a card" (Godot's _onramp_link), pinned below the scrolling body and above the forward
-	// button, in that place in the focus order.
-	void OnrampLink(SVerticalBox& Step);
+	void StepCard(SVerticalBox& Body);
 	void StepBrowser(SVerticalBox& Body);
 	void StepQr(SVerticalBox& Body);
 	void StepManual(SVerticalBox& Body);

@@ -110,11 +110,11 @@ void FScfgCheckout::OpenWalletApp()
 	}
 }
 
-void FScfgCheckout::OpenOnramp()
+void FScfgCheckout::OpenCard()
 {
 	if (const TSharedPtr<FScfgFacade> F = Facade.Pin())
 	{
-		F->OpenOnramp(*this);
+		F->OpenCard(*this);
 	}
 }
 
@@ -1234,18 +1234,18 @@ void FScfgFacade::OpenWalletApp(FScfgCheckout& Checkout)
 	}
 }
 
-// The sheet's "No USDC yet? Buy some with a card": configure's onramp page for the chosen network, through the same
-// opener as the explorer link (Godot's open_onramp).
-void FScfgFacade::OpenOnramp(FScfgCheckout& Checkout)
+// The card step's "Open card checkout": the controller's open_card() (the card checkout page for this session, and the
+// sheet moves on to waiting), through the same opener as the explorer link (Ren'Py's _open_card).
+void FScfgFacade::OpenCard(FScfgCheckout& Checkout)
 {
 	if (!IsOpen(Checkout))
 	{
 		return;
 	}
-	const scfg::Result<std::optional<std::string>> Url = Checkout.Controller->onramp_url();
+	const scfg::Result<std::optional<std::string>> Url = Checkout.Controller->open_card();
 	if (!Url.ok())
 	{
-		ReportError(TEXT("cannot build the buy link:"), Url.err());
+		ReportError(TEXT("cannot build the card checkout link:"), Url.err());
 		return;
 	}
 	if (ScfgFacadeDetail::Truthy(Url.value()))

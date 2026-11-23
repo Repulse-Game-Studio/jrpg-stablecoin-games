@@ -21,7 +21,7 @@
 //     still exists.
 //
 // The flows poll the controller every frame, so a screen only reads its fields and calls its methods, never poll().
-// The buttons that leave the game are FScfgCheckoutController's OpenBrowser, OpenWalletApp, OpenOnramp, OpenExplorer,
+// The buttons that leave the game are FScfgCheckoutController's OpenBrowser, OpenWalletApp, OpenCard, OpenExplorer,
 // Copy and Paste, and FScfgRestoreController's Copy and Paste (ScfgCheckoutController.h). The flows close the
 // controller (stopping its browser page) before they call Close(screen).
 //

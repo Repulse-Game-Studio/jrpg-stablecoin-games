@@ -218,64 +218,66 @@ Result<std::optional<std::string>> CheckoutController::payment_uri() const {
     return std::optional<std::string>(std::move(uri));
 }
 
-Result<OnrampView> onramp_view(const config::Config& config, std::string_view token,
-                               const std::optional<std::string>& chain_key, const std::optional<BigInt>& units,
-                               const Dec& amount, std::string_view step, const std::vector<std::string>& path,
-                               bool can_go_back, const std::vector<std::string>& option_keys) {
+Result<bool> card_offered(const config::Config& config, const std::optional<std::string>& chain_key) {
     const config::Onramp& opts = config.onramp;
-    auto offered = [&](std::string_view key) {
-        return std::find(opts.chains.begin(), opts.chains.end(), key) != opts.chains.end();
-    };
-    OnrampView view;
-    if (chain_key && !chain_key->empty()) {
-        SCFG_TRY(OrderedMap<chains::Chain> enabled, config::enabled_chains(config));
-        const chains::Chain* c = enabled.find(*chain_key);
-        if (opts.enabled && c != nullptr && offered(c->key)) {
-            BigInt exact;
-            if (units) {
-                exact = *units;
-            } else {
-                SCFG_TRY(BigInt plain, amounts::decimal_to_units(amount));
-                exact = plain + BigInt(paylinks::ONRAMP_EXACT_UNITS);
-            }
-            const chains::Token* t = c->tokens.find(std::string(token));
-            if (t == nullptr) return Err::key_error(py::repr_str(token));
-            SCFG_TRY(std::string suggested, paylinks::onramp_amount(exact, c->native_token == token));
-            SCFG_TRY(std::string url, paylinks::onramp_url(opts.url, c->key, c->chain_id, token, t->address, suggested));
-            view.url = std::move(url);
-        }
+    if (!opts.enabled || !chain_key || chain_key->empty()) return false;
+    if (std::find(opts.chains.begin(), opts.chains.end(), *chain_key) == opts.chains.end()) return false;
+    SCFG_TRY(OrderedMap<chains::Chain> enabled, config::enabled_chains(config));
+    return enabled.contains(*chain_key);
+}
+
+Result<std::optional<std::string>> card_url(const config::Config& config, std::string_view token,
+                                            const std::optional<std::string>& chain_key,
+                                            const std::optional<BigInt>& units) {
+    if (!units) return std::optional<std::string>();
+    SCFG_TRY(bool offered, card_offered(config, chain_key));
+    if (!offered) return std::optional<std::string>();
+    SCFG_TRY(OrderedMap<chains::Chain> enabled, config::enabled_chains(config));
+    const chains::Chain* c = enabled.find(*chain_key);
+    const chains::Token* t = c->tokens.find(token);
+    if (t == nullptr) return Err::key_error(py::repr_str(token));
+    // f"{None}" is "None" where the family has no wallet (build_config refuses such a chain).
+    SCFG_TRY(std::string url, paylinks::onramp_url(config.onramp.url, c->key, c->chain_id, token, t->address,
+                                                   amounts::format_units(*units),
+                                                   config.wallet_for(*c).value_or("None")));
+    return std::optional<std::string>(std::move(url));
+}
+
+Result<NetworkView> network_view(const config::Config& config, const std::vector<std::string>& option_keys,
+                                 const std::optional<std::string>& chain_key, bool expanded) {
+    NetworkView view;
+    for (const std::string& k : option_keys) {
+        (detail::among(chains::MAIN_CHAINS, k) ? view.main : view.more).push_back(k);
     }
-    const bool here = step == "method" ||
-                      ((step == "browser" || step == "qr" || step == "manual") &&
-                       std::find(path.begin(), path.end(), "method") == path.end());
-    view.shows_onramp = here && view.url.has_value();
-    if (opts.enabled && here && !view.url && can_go_back) {
-        for (const std::string& k : option_keys) view.shows_onramp_hint = view.shows_onramp_hint || offered(k);
+    if (view.main.empty() || view.more.empty()) {
+        view.main = option_keys;
+        view.more.clear();
+    }
+    view.expanded = !view.more.empty() &&
+                    (expanded || (chain_key && std::find(view.more.begin(), view.more.end(), *chain_key) != view.more.end()));
+    for (const std::string& k : option_keys) {
+        SCFG_TRY(bool offered, card_offered(config, k));
+        if (offered) view.card.push_back(k);
     }
     return view;
 }
 
-Result<OnrampView> CheckoutController::onramp() const {
-    std::optional<BigInt> units;
-    if (session_.is_dict()) units = session_.as_dict().get("units").as_bigint();
+Result<NetworkView> CheckoutController::network_layout() const {
     std::vector<std::string> keys;
     for (const ChainOption& o : chain_options()) keys.push_back(o.key);
-    return onramp_view(config_, spec_.token, chain_key_, units, amount_, step_, step_path(), can_go_back(), keys);
+    return network_view(config_, keys, chain_key_, more_networks_);
 }
 
-Result<std::optional<std::string>> CheckoutController::onramp_url() const {
-    SCFG_TRY(OnrampView view, onramp());
-    return view.url;
+bool CheckoutController::card_offered(const std::optional<std::string>& key) const {
+    const config::Onramp& opts = config_.onramp;
+    return opts.enabled && key && !key->empty() &&
+           std::find(opts.chains.begin(), opts.chains.end(), *key) != opts.chains.end() && enabled_.contains(*key);
 }
 
-bool CheckoutController::shows_onramp() const {
-    Result<OnrampView> view = onramp();
-    return view.ok() && view.value().shows_onramp;
-}
-
-bool CheckoutController::shows_onramp_hint() const {
-    Result<OnrampView> view = onramp();
-    return view.ok() && view.value().shows_onramp_hint;
+Result<std::optional<std::string>> CheckoutController::card_url() const {
+    std::optional<BigInt> units;
+    if (session_.is_dict()) units = session_.as_dict().get("units").as_bigint();
+    return checkout::card_url(config_, spec_.token, chain_key_, units);
 }
 
 Result<std::optional<std::string>> CheckoutController::explorer_url() const {
@@ -327,7 +329,12 @@ bool CheckoutController::tx_seen() const { return (hint_tx && !hint_tx->empty())
 std::vector<std::string> CheckoutController::step_path() const {
     std::vector<std::string> path;
     if (spec_.kind == "tip") path.push_back("amount");
-    if (chain_options().size() != 1) path.push_back("network");
+    if (network_has_choice()) path.push_back("network");
+    if (method_ == "card") {
+        path.push_back("card");
+        path.push_back("waiting");
+        return path;
+    }
     if (methods().size() != 1) path.push_back("method");
     path.push_back(method_ && !method_->empty() ? *method_ : "browser");
     path.push_back("waiting");
@@ -366,13 +373,29 @@ Status CheckoutController::select_chain(const std::string& key) {
     submit_->start_session(Json(spec_.kind), Json(chosen), std::move(opts), worker::Delivery<Json>::receiver(started),
                            started->abandon_flag());
     const std::vector<std::string> available = methods();
-    if (!method_ || !detail::among(available, *method_)) {
+    if ((!method_ || !detail::among(available, *method_)) && !(method_ == "card" && card_offered(chosen))) {
         method_ = available.empty() ? std::nullopt : std::optional<std::string>(available[0]);
     }
     return ok();
 }
 
 Status CheckoutController::choose_network(const std::string& key) {
+    if (method_ == "card") method_.reset();  // the network's own button: pick a method as usual
+    return pick_network(key);
+}
+
+Status CheckoutController::pay_with_card(const std::string& key) {
+    if (!card_offered(key)) return ok();
+    method_ = "card";
+    return pick_network(key);
+}
+
+void CheckoutController::toggle_more_networks() {
+    const Result<NetworkView> layout = network_layout();
+    more_networks_ = !(layout.ok() ? layout.value().expanded : more_networks_);
+}
+
+Status CheckoutController::pick_network(const std::string& key) {
     step_ = "network";
     nav_dir_ = 1;
     if (chain_key_ == key && session_.is_dict() && state_ == "waiting") {
@@ -414,6 +437,15 @@ void CheckoutController::mark_sent() {
         error.reset();
         go("waiting", 1);
     }
+}
+
+Result<std::optional<std::string>> CheckoutController::open_card() {
+    std::optional<std::string> url;
+    if (step_ == "card") {
+        SCFG_TRY(url, card_url());
+    }
+    if (url && !url->empty()) go("waiting", 1);
+    return url;
 }
 
 std::optional<std::string> CheckoutController::open_browser() {
@@ -662,12 +694,21 @@ std::optional<std::string> CheckoutController::previous_step() const {
 
 Status CheckoutController::enter_network() {
     const std::vector<ChainOption> options = chain_options();
-    if (options.size() == 1) return choose_network(options[0].key);
+    if (!network_has_choice()) return choose_network(options[0].key);
     go("network", 1);
     return ok();
 }
 
+bool CheckoutController::network_has_choice() const {
+    const std::vector<ChainOption> options = chain_options();
+    return options.size() != 1 || card_offered(options[0].key);
+}
+
 void CheckoutController::after_network() {
+    if (method_ == "card") {
+        go("card", 1);
+        return;
+    }
     const std::vector<std::string> available = methods();
     if (!method_ || !detail::among(available, *method_)) {
         method_ = available.empty() ? std::nullopt : std::optional<std::string>(available[0]);

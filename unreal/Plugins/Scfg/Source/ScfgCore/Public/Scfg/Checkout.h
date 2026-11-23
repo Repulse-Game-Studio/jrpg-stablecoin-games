@@ -11,7 +11,8 @@
 //                                      \-> underpaid | expired
 //
 // The sheet shows one step at a time (step()):
-// amount (tips only) -> network -> method -> browser | qr | manual -> waiting -> done.
+// amount (tips only) -> network -> method -> browser | qr | manual -> waiting -> done,
+// or, through a network's "Pay with card" button: network -> card -> waiting -> done.
 // Steps with a single option are skipped both ways. back() works until a transaction is seen; a seen payment moves
 // the sheet to waiting and a final state to done. The state, step and message ids are Python's (the UI keys its texts
 // by conformance/vectors/messages.json, which MESSAGES() equals).
@@ -94,13 +95,14 @@ inline constexpr std::array<std::string_view, 3> FINAL_STATES = {"paid", "underp
 // Errors that judge the reported transaction (the hint) and drop it.
 inline constexpr std::array<std::string_view, 3> HINT_VERDICTS = {"tx_reverted", "tx_not_a_payment", "tx_not_landed"};
 // Order of the steps; the three method pages share a place.
-inline constexpr std::array<std::pair<std::string_view, int>, 8> STEP_ORDER = {{
+inline constexpr std::array<std::pair<std::string_view, int>, 9> STEP_ORDER = {{
     {"amount", 0},
     {"network", 1},
     {"method", 2},
     {"browser", 3},
     {"qr", 3},
     {"manual", 3},
+    {"card", 3},
     {"waiting", 4},
     {"done", 5},
 }};
@@ -117,28 +119,35 @@ struct ChainOption {
     friend bool operator==(const ChainOption&, const ChainOption&) = default;
 };
 
-// The buy link's state on a checkout step (Python's checkout.onramp_view).
-struct OnrampView {
-    std::optional<std::string> url;
-    bool shows_onramp = false;
-    bool shows_onramp_hint = false;
+// How the network step lays out the networks the player can pick (Python's checkout.network_view's dict).
+struct NetworkView {
+    std::vector<std::string> main;  // the tiles always shown
+    std::vector<std::string> more;  // behind "More networks"
+    bool expanded = false;          // "More networks" is open
+    std::vector<std::string> card;  // the options with a "Pay with card" button
 
-    friend bool operator==(const OnrampView&, const OnrampView&) = default;
+    friend bool operator==(const NetworkView&, const NetworkView&) = default;
 };
 
-// The buy link's state on a checkout step, as the controller and every port decide it (Python's
-// checkout.onramp_view, pinned by the tier1 vectors). url: configure's onramp page for the chosen network when it is
-// offered there, else None; the suggested amount is the session's exact `units`, or before a session (nullopt) the
-// payment `amount` plus the most the item code and nonce add (paylinks::ONRAMP_EXACT_UNITS); plus a cent where the
-// token is the network's gas coin (Arc); rounded up to whole cents. The link goes on the method step, or on the
-// payment page the sheet opens on when `path` has no method step; the hint shows there instead, without a url, while
-// the player can go back and another network in `option_keys` has the link. Errors: enabled_chains' and
-// decimal_to_units'.
-SCFGCORE_API Result<OnrampView> onramp_view(const config::Config& config, std::string_view token,
-                                            const std::optional<std::string>& chain_key,
-                                            const std::optional<BigInt>& units, const Dec& amount,
-                                            std::string_view step, const std::vector<std::string>& path,
-                                            bool can_go_back, const std::vector<std::string>& option_keys);
+// Whether the network gets a "Pay with card" button: configure's onramp is on and lists it (by default the built-in
+// EVM chains of a mainnet game; never Solana). Python's checkout.card_offered; errors: enabled_chains'.
+SCFGCORE_API Result<bool> card_offered(const config::Config& config, const std::optional<std::string>& chain_key);
+
+// The card checkout page for a running session (Python's checkout.card_url, pinned by the tier1 vectors): configure's
+// onramp template filled in for the network, the developer's wallet there and the session's exact amount. None
+// without a session (`units` nullopt) or where the network has no card button. Errors: enabled_chains' and
+// onramp_url's.
+SCFGCORE_API Result<std::optional<std::string>> card_url(const config::Config& config, std::string_view token,
+                                                         const std::optional<std::string>& chain_key,
+                                                         const std::optional<BigInt>& units);
+
+// How the network step lays out `option_keys`, the networks the player can pick in display order (Python's
+// checkout.network_view, pinned by the tier1 vectors): main, the options among chains::MAIN_CHAINS (Ethereum,
+// Solana); more, the rest, behind "More networks" (when either list would be empty, every option is main and more is
+// empty); expanded, whether "More networks" is open: as the player left it (`expanded`), or because the chosen
+// network is behind it; card, the options with a "Pay with card" button (card_offered), in display order.
+SCFGCORE_API Result<NetworkView> network_view(const config::Config& config, const std::vector<std::string>& option_keys,
+                                              const std::optional<std::string>& chain_key, bool expanded);
 
 // The routes the developer cannot receive on, as (chain key, token) pairs (the worker snapshot's unready).
 using Routes = std::vector<std::pair<std::string, std::string>>;
@@ -250,16 +259,15 @@ public:
     // The payment request a wallet scans or opens (EIP-681 or Solana Pay), or None before a session starts.
     Result<std::optional<std::string>> payment_uri() const;
     Result<std::optional<std::string>> explorer_url() const;
-    // The buy link on this step (onramp_view of the controller's state).
-    Result<OnrampView> onramp() const;
-    // The page where a player without the token buys some with a card, for the chosen network, with the payment (plus
-    // a cent for the fee on Arc) suggested as the amount. None when configure's onramp doesn't offer it here.
-    Result<std::optional<std::string>> onramp_url() const;
-    // Whether this step offers the buy link (false on an error).
-    bool shows_onramp() const;
-    // Whether this step points to the buy link instead ("Pick another network"): the chosen network has none (Solana)
-    // but another one the player can pick has it. Its button goes back to the network step (back()).
-    bool shows_onramp_hint() const;
+    // The network step's layout: main tiles, "More networks", card buttons (network_view of chain_options()).
+    Result<NetworkView> network_layout() const;
+    // Whether the network `key` has a "Pay with card" button (card_offered over the enabled chains make() read).
+    bool card_offered(const std::optional<std::string>& key) const;
+    // The card checkout page for this session: thirdweb's by default, paying the exact amount to the developer's
+    // wallet on the chosen network. None before the session starts or where the network has no card button.
+    Result<std::optional<std::string>> card_url() const;
+    // Whether the player opened "More networks" on the network step.
+    bool more_networks() const { return more_networks_; }
     std::optional<std::string> message() const;
     // Shown in DEV MODE only: setup problems the developer must fix.
     std::vector<std::string> dev_warnings() const;
@@ -281,12 +289,20 @@ public:
     Status select_chain(const std::string& key);
     // Network step: start a session on key, or keep the one already running.
     Status choose_network(const std::string& key);
+    // Network step, a network's "Pay with card" button: start a session on key (or keep the one running), then go to
+    // the card page, skipping the method step. Nothing happens on a network without the button.
+    Status pay_with_card(const std::string& key);
+    // Open or close "More networks" on the network step.
+    void toggle_more_networks();
     void choose_method(const std::string& name);
     // Leave the amount step (tips), applying a typed amount first. False when the step stays.
     Result<bool> next_step();
     void back();
     // The player says they sent the payment from the QR or manual page.
     void mark_sent();
+    // Card page: returns the card checkout's URL for the sheet to open, and moves to waiting; None (staying put)
+    // before the session has started, and off the card page.
+    Result<std::optional<std::string>> open_card();
     // Browser page: start the localhost page and move to waiting; returns its URL.
     std::optional<std::string> open_browser();
     // Change the tip. False (with error set) for an unusable amount, and for an unlock.
@@ -317,9 +333,14 @@ private:
 
     void go(std::string to, int direction);
     std::optional<std::string> previous_step() const;
-    // Go forward to the network step, or past it when there is only one network.
+    // Go forward to the network step, or past it when there is a single network without a card button.
     Status enter_network();
-    // The session is running: go to the method step, or straight to the only method.
+    // The network step is shown unless there is a single network without a card button.
+    bool network_has_choice() const;
+    // Python's _pick_network: choose_network and pay_with_card once the method is set.
+    Status pick_network(const std::string& key);
+    // The session is running: go to the method step, or straight to the only method; after "Pay with card", to the
+    // card page.
     void after_network();
     void hint_verdict(const watcher::StepOutcome& outcome);
     // Stop waiting for a session start the player moved away from, and discard that session once it exists: it
@@ -356,6 +377,7 @@ private:
     std::string step_;
     int nav_dir_ = 1;
     bool picked_network_ = false;  // move on from the network step once the session starts
+    bool more_networks_ = false;   // the player opened "More networks" on the network step
     // Last, so that it is destroyed first even without the destructor's close(): its callbacks reach every member.
     std::unique_ptr<Server> server_;
 };

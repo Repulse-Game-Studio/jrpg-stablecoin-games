@@ -18,8 +18,8 @@
 //
 // Names. Text (FTextBlockStyle): Scfg.Text, .Title, .Heading, .Amount, .AmountToken, .Note, .Label, .Muted, .Warning,
 // .Dev, .Error, .Ok, .Status, .Mono, .QrStep, .OptionText, .OptionSub, .OptionText.Selected, .OptionSub.Selected,
-// .ToastText, .ButtonText, .ButtonText.Small, .ButtonText.Primary, .ButtonText.Accent. Buttons (FButtonStyle):
-// Scfg.Button, .Button.Small, .Button.Primary, .Button.Accent, .Button.Back, .Option, .Option.Selected. Field
+// .ToastText, .ButtonText, .ButtonText.Small, .ButtonText.Primary, .ButtonText.Accent, .Link. Buttons (FButtonStyle):
+// Scfg.Button, .Button.Small, .Button.Primary, .Button.Accent, .Button.Back, .Button.Link, .Option, .Option.Selected. Field
 // (FEditableTextBoxStyle): Scfg.Field. Progress (FProgressBarStyle): Scfg.Progress. Brushes: Scfg.Dim, .Sheet,
 // .QrFrame, .Toast, .Rule, .Focus, .NoFocus, .Dot, .White, .Black, .Logo (only with a logo).
 #pragma once

@@ -53,8 +53,9 @@ public:
 	void OpenBrowser();
 	// "Open wallet app" (phones): the payment request link (EIP-681 or Solana Pay).
 	void OpenWalletApp();
-	// "No USDC yet? Buy some with a card": configure's onramp page for the chosen network.
-	void OpenOnramp();
+	// "Open card checkout" on the card step: the controller's card checkout page (configure's onramp, thirdweb's by
+	// default) in the player's browser; the sheet moves on to waiting.
+	void OpenCard();
 	// "View on explorer": opens Url (nothing for "").
 	void OpenExplorer(const FString& Url);
 	void Copy(const FString& Text);

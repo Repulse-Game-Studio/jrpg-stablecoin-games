@@ -104,7 +104,12 @@ struct SCFGCORE_API Chain {
 SCFGCORE_API OrderedMap<Chain>& MAINNET();
 SCFGCORE_API OrderedMap<Chain>& TESTNET();
 
-inline constexpr std::array<std::string_view, 5> DISPLAY_ORDER = {"arbitrum", "base", "arc", "polygon", "ethereum"};
+// The order the network step lists the built-in chains in: the main chains (Ethereum, Solana, Arc) first, then the
+// L2s.
+inline constexpr std::array<std::string_view, 6> DISPLAY_ORDER = {"ethereum", "solana", "arc",
+                                                                  "base",     "arbitrum", "polygon"};
+// The networks the network step shows as tiles; every other one sits behind "More networks".
+inline constexpr std::array<std::string_view, 2> MAIN_CHAINS = {"ethereum", "solana"};
 
 // TESTNET() if testnet else MAINNET(): the registry itself, not a copy.
 SCFGCORE_API OrderedMap<Chain>& get_chains(bool testnet);
