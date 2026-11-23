@@ -759,6 +759,60 @@ TSharedRef<SWidget> SScfgScreen::Option(const FString& Key, const FString& Text,
 	return Outer;
 }
 
+TSharedRef<SWidget> SScfgScreen::Link(const FString& Key, const FString& Text, bool bSelected,
+	TFunction<void()> OnPress, const FString& Row)
+{
+	TSharedPtr<SButton> B;
+	TWeakPtr<SButton> WeakB;
+	const auto Color = [&WeakB, bSelected]()
+	{
+		return [WeakB, bSelected]()
+		{
+			const TSharedPtr<SButton> Pinned = WeakB.Pin();
+			const bool bInk = bSelected || (Pinned.IsValid() && Pinned->IsHovered());
+			return FSlateColor(bInk ? FScfgStyle::InkColor : FScfgStyle::MutedColor);
+		};
+	};
+	const TSharedRef<SVerticalBox> Lines = SNew(SVerticalBox);
+	const TSharedRef<SWidget> Outer = Ring(Key,
+		SAssignNew(B, ScfgScreenDetail::SScfgButton)
+		.ButtonStyle(&Style->Button(TEXT("Scfg.Button.Link")))
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		.IsFocusable(true)
+		.OnClicked_Lambda([OnPress]()
+		{
+			if (OnPress)
+			{
+				OnPress();
+			}
+			return FReply::Handled();
+		})
+		[
+			Lines
+		]);
+	WeakB = B;
+	Lines->AddSlot().AutoHeight()
+	[
+		SNew(STextBlock)
+		.Text(FText::FromString(Text))
+		.TextStyle(&Style->Text(TEXT("Scfg.Link")))
+		.ColorAndOpacity_Lambda(Color())
+	];
+	// the underline: as wide as the text, 1 unit, in the text's color
+	Lines->AddSlot().AutoHeight().Padding(0, 1, 0, 0)
+	[
+		SNew(SBox).HeightOverride(1.f)
+		[
+			SNew(SImage)
+			.Image(Style->Brush(TEXT("Scfg.White")))
+			.ColorAndOpacity_Lambda(Color())
+		]
+	];
+	AddEntry(FEntry{Key, B.ToSharedRef(), Row, MoveTemp(OnPress)});
+	return Outer;
+}
+
 TSharedRef<SWidget> SScfgScreen::Field(const FString& Key, const FString& Text, int32 MaxLength,
 	const FString& Allowed, TFunction<void(const FString&)> OnText, TFunction<void()> OnSubmit, const FString& Row,
 	bool bReadOnly)

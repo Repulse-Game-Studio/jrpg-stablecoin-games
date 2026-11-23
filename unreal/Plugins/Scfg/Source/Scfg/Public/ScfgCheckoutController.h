@@ -30,7 +30,7 @@
 // A UMG host can show the plugin's own sheet instead: UScfgSheetWidget (ScfgSheetWidget.h).
 //
 // Read it every frame (the flows poll the controller; a view never polls). The step names, states, methods and message
-// ids are the core's: steps amount, network, method, browser, qr, manual, waiting, done; states choose,
+// ids are the core's: steps amount, network, method, browser, qr, manual, card, waiting, done; states choose,
 // starting, waiting, confirming, paid, underpaid, expired, closed; methods browser, qr, manual. Texts for the ids are
 // ScfgTexts' English (the ids of conformance/vectors/messages.json). The actions are the buttons; an Err a core call
 // returns (unreachable with the Engine's own results) is reported once ("scfg: screen: ...") and the action does
@@ -47,6 +47,16 @@
 
 class FScfgCheckout;
 class FScfgRestore;
+
+// How the network step lays out the networks (the core's network_layout()): Main as tiles, More behind "More
+// networks" (shown when bExpanded), and a "Pay with card" link under each tile whose key is in Card.
+struct FScfgNetworkLayout
+{
+	TArray<FString> Main;
+	TArray<FString> More;
+	bool bExpanded = false;
+	TArray<FString> Card;
+};
 
 // One network the payment can use (the core's chain_options()).
 struct FScfgChainOptionView
@@ -88,7 +98,7 @@ public:
 	FString GetId() const;
 	// The payment's state (choose, starting, waiting, confirming, paid, underpaid, expired, closed).
 	FString State() const;
-	// The step the sheet shows (amount, network, method, browser, qr, manual, waiting, done).
+	// The step the sheet shows (amount, network, method, browser, qr, manual, card, waiting, done).
 	FString Step() const;
 	FString Method() const;      // "" before one is chosen
 	FString ChainKey() const;    // "" before one is chosen
@@ -115,13 +125,14 @@ public:
 	bool HasSession() const;
 	FString PaymentUri() const;  // "" before a session started
 	FString ExplorerUrl() const;  // "" without a reported or found transaction
-	// The buy page for the chosen network (configure's onramp), or "" where it is not offered.
-	FString OnrampUrl() const;
-	// This step offers "No USDC yet? Buy some with a card" (OpenOnramp).
-	bool ShowsOnramp() const;
-	// This step points to it instead, "No USDC yet? Pick another network to buy some with a card", whose button goes
-	// back to the network step (Back): the chosen network has none (Solana) but another one the player can pick has it.
-	bool ShowsOnrampHint() const;
+	// The network step's layout: the main tiles (Ethereum, Solana), the rest behind "More networks", and the networks
+	// with a "Pay with card" link (configure's onramp).
+	FScfgNetworkLayout NetworkLayout() const;
+	// The network Key has a "Pay with card" link.
+	bool CardOffered(const FString& Key) const;
+	// The card checkout page for this session (configure's onramp, thirdweb's by default, paying the exact amount to
+	// the developer's wallet), or "" before the session started or where the network has no card link.
+	FString CardUrl() const;
 	FString HintTx() const;      // the transaction reported for this payment, or ""
 	FString ResultTx() const;    // the final result's transaction, or ""
 	// The confirmations the payment has, and the ones it needs.
@@ -168,6 +179,11 @@ public:
 	void ApplyCustomAmount();
 	// Pick a network (a ChainOptions() key) or a method (one of Methods()).
 	void ChooseNetwork(const FString& Key);
+	// "Pay with card" under a network's tile: start the payment on Key and go to the card step (skipping the method
+	// step). Nothing happens on a network without the link (CardOffered).
+	void PayWithCard(const FString& Key);
+	// "More networks" / "Fewer networks" on the network step.
+	void ToggleMoreNetworks();
 	void ChooseMethod(const FString& Name);
 	// "I've sent it" on the QR or manual step: the sheet moves on to waiting for the payment.
 	void MarkSent();
@@ -178,8 +194,8 @@ public:
 	void OpenBrowser();
 	// Open the payment in a wallet app on this device (the QR step on a phone).
 	void OpenWalletApp();
-	// "No USDC yet? Buy some with a card": opens configure's onramp page for the chosen network.
-	void OpenOnramp();
+	// "Open card checkout" on the card step: opens CardUrl() in the browser and moves on to waiting.
+	void OpenCard();
 	// Open a block explorer url (ExplorerUrl()) in the browser.
 	void OpenExplorer(const FString& Url);
 	// Copy Text (an address, an amount) to the clipboard; paste the clipboard into the transaction hash field.

@@ -670,22 +670,28 @@ bool FScfgFlowsMobileTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-SCFG_FACADE_FLOWS_TEST(FScfgFlowsOnrampTest, "test_the_buy_link_opens_the_onramp_page")
+SCFG_FACADE_FLOWS_TEST(FScfgFlowsCardTest, "test_open_card_opens_the_card_checkout_and_waits")
 
-bool FScfgFlowsOnrampTest::RunTest(const FString& Parameters)
+bool FScfgFlowsCardTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgFacadeFlowsTests;
 	FWorld W;
 	W.Started(*this);
 	W.Pay(EScfgPayKind::Unlock, Unlock());
-	FScfgCheckout& Ctl = W.Session(*this);
-	const scfg::Result<std::optional<std::string>> Url = Ctl.Core().onramp_url();
+	FScfgCheckout& Ctl = W.Host->CheckoutOf(-1);
+	Ctl.OpenCard();
+	TestEqual(TEXT("nothing to open off the card step"), W.Platform->Opened.Num(), 0);
+	TestTrue(TEXT("Pay with card on Arbitrum"), Ctl.Core().pay_with_card("arbitrum").ok());
+	W.Pass();
+	TestEqual(TEXT("the card step"), ScfgString::FromUtf8(Ctl.Core().step()), FString(TEXT("card")));
+	const scfg::Result<std::optional<std::string>> Url = Ctl.Core().card_url();
 	const FString Link = Url.ok() && Url.value() ? ScfgString::FromUtf8(*Url.value()) : FString();
-	TestTrue(*FString::Printf(TEXT("the buy page (%s)"), *Link),
-		Link.StartsWith(TEXT("https://thirdweb.com/bridge/buy-widget?chain=42161&")) &&
-		Link.EndsWith(TEXT("&paymentMethods=card")));
-	Ctl.OpenOnramp();
+	TestTrue(*FString::Printf(TEXT("thirdweb's card checkout paying the developer (%s)"), *Link),
+		Link.StartsWith(TEXT("https://thirdweb.com/bridge/checkout-widget?chain=42161&")) &&
+		Link.Contains(FString(TEXT("&seller=")) + UTF8_TO_TCHAR(kDev)) && Link.EndsWith(TEXT("&paymentMethods=card")));
+	Ctl.OpenCard();
 	SameLines(*this, TEXT("opened in the browser"), W.Platform->Opened, TArray<FString>{Link});
+	TestEqual(TEXT("the sheet waits for the payment"), ScfgString::FromUtf8(Ctl.Core().step()), FString(TEXT("waiting")));
 	return true;
 }
 

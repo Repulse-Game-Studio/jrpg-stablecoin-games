@@ -227,7 +227,10 @@ bool FScfgSheetTipByKeysTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the network step"), Sheet->ShownStep(), FString(TEXT("network")));
 	TestTrue(TEXT("the back arrow"), Sheet->IsShown(TEXT("back")));
 	TestFalse(TEXT("no forward button on the network step"), Sheet->IsShown(TEXT("forward")));
-	TestTrue(TEXT("Down reaches Arbitrum"), R.KeyTo(*Sheet, TEXT("network_arbitrum"), EKeys::Down));
+	TestTrue(TEXT("Down reaches More networks"), R.KeyTo(*Sheet, TEXT("more_networks"), EKeys::Down));
+	R.Key(EKeys::Enter);
+	R.Frame(2);
+	TestTrue(TEXT("Down reaches Arbitrum behind it"), R.KeyTo(*Sheet, TEXT("network_arbitrum"), EKeys::Down));
 	R.Key(EKeys::Enter);
 	R.Pass();
 	TestEqual(TEXT("the session started: the method step"), Sheet->ShownStep(), FString(TEXT("method")));
@@ -298,7 +301,10 @@ bool FScfgSheetUnlockByKeysTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("an unlock starts on the network step"), Sheet->ShownStep(), FString(TEXT("network")));
 	TestFalse(TEXT("no back arrow"), Sheet->IsShown(TEXT("back")));
 	TestEqual(TEXT("the item's title"), Sheet->TextOf(TEXT("title")), FString(TEXT("Chapter 2")));
-	TestTrue(TEXT("Down reaches Arbitrum"), R.KeyTo(*Sheet, TEXT("network_arbitrum"), EKeys::Down));
+	TestTrue(TEXT("Down reaches More networks"), R.KeyTo(*Sheet, TEXT("more_networks"), EKeys::Down));
+	R.Key(EKeys::Enter);
+	R.Frame(2);
+	TestTrue(TEXT("Down reaches Arbitrum behind it"), R.KeyTo(*Sheet, TEXT("network_arbitrum"), EKeys::Down));
 	R.Key(EKeys::Enter);
 	R.Pass();
 	TestEqual(TEXT("the method step"), Sheet->ShownStep(), FString(TEXT("method")));
@@ -357,12 +363,36 @@ bool FScfgSheetUnlockByKeysTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// test_sheet.gd's test_the_buy_link_sits_on_the_method_step_and_opens_the_buy_page: the link is on the method step
-// only (not before a network, not on a payment page the method step led to), between the methods and the forward
-// button in the focus order, and opens the controller's onramp_url through the platform.
-SCFG_SHEET_TEST(FScfgSheetOnrampTest, "TheBuyLinkSitsOnTheMethodStepAndOpensTheBuyPage")
+namespace ScfgSheetTestsDetail
+{
 
-bool FScfgSheetOnrampTest::RunTest(const FString& Parameters)
+// The rectangle Key was laid out in by the painted window.
+FSlateRect RectOf(const SScfgPaymentSheet& Sheet, const FString& Key)
+{
+	const TSharedPtr<SWidget> W = Sheet.Control(Key);
+	return W.IsValid() ? W->GetTickSpaceGeometry().GetLayoutBoundingRect() : FSlateRect();
+}
+
+// The "Pay with card" link card_<Key> sits under its tile network_<Key>, inside the tile's width.
+void LinkUnderItsTile(FAutomationTestBase& Test, const SScfgPaymentSheet& Sheet, const FString& Key, const FString& Where)
+{
+	const FSlateRect Tile = RectOf(Sheet, TEXT("network_") + Key);
+	const FSlateRect Link = RectOf(Sheet, TEXT("card_") + Key);
+	Test.TestTrue(*FString::Printf(TEXT("card_%s under its tile and inside its width, %s (%s under %s)"), *Key, *Where,
+		*Link.ToString(), *Tile.ToString()),
+		Link.GetSize().X > 0 && Tile.GetSize().X > 0 && Link.Top >= Tile.Bottom - 1.0 && Link.Left >= Tile.Left - 1.0 &&
+		Link.Right <= Tile.Right + 1.0);
+}
+
+}  // namespace ScfgSheetTestsDetail
+
+// Ren'Py's scfg_step_network and scfg_step_card: Ethereum as a tile, the other networks behind "More networks"; every
+// tile as wide as the others; a "Pay with card" link under each tile, after the row's tiles in the focus order; the
+// link goes to the card step, whose "Open card checkout" opens the controller's card url through the platform and
+// moves on to waiting.
+SCFG_SHEET_TEST(FScfgSheetNetworkStepTest, "TheNetworkStepShowsTheMainNetworksAndPayWithCard")
+
+bool FScfgSheetNetworkStepTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgSheetTestsDetail;
 	FSheetRig R(*this);
@@ -378,27 +408,53 @@ bool FScfgSheetOnrampTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestFalse(TEXT("not before a network is chosen"), Sheet->IsShown(TEXT("onramp")));
-	TestTrue(TEXT("pick Arbitrum"), Sheet->Press(TEXT("network_arbitrum")));
-	R.Pass();
-	TestEqual(TEXT("the method step"), Sheet->ShownStep(), FString(TEXT("method")));
-	TestTrue(TEXT("the qr method"), Sheet->Press(TEXT("method_qr")));
-	R.Frame(2);
-	TestFalse(TEXT("not on a method's page the method step led to"), Sheet->IsShown(TEXT("onramp")));
-	TestTrue(TEXT("back"), Sheet->Press(TEXT("back")));
-	R.Frame(2);
-	TestTrue(TEXT("on the method step"), Sheet->IsShown(TEXT("onramp")));
-	TestFalse(TEXT("no hint beside it"), Sheet->IsShown(TEXT("onramp_hint")));
-	TestEqual(TEXT("its text"), Sheet->TextOf(TEXT("onramp")), FString(TEXT("No USDC yet? Buy some with a card")));
+	TestEqual(TEXT("the network step"), Sheet->ShownStep(), FString(TEXT("network")));
+	TestTrue(TEXT("Ethereum is a tile"), Sheet->IsShown(TEXT("network_ethereum")));
+	TestFalse(TEXT("Arbitrum sits behind More networks"), Sheet->IsShown(TEXT("network_arbitrum")));
+	TestEqual(TEXT("More networks"), Sheet->TextOf(TEXT("more_networks")), FString(TEXT("More networks")));
+	TestEqual(TEXT("Pay with card under Ethereum"), Sheet->TextOf(TEXT("card_ethereum")), FString(TEXT("Pay with card")));
+	TestTrue(TEXT("open More networks"), Sheet->Press(TEXT("more_networks")));
+	R.Frame(3);
+	TestEqual(TEXT("it says Fewer networks"), Sheet->TextOf(TEXT("more_networks")), FString(TEXT("Fewer networks")));
+	for (const TCHAR* Key : {TEXT("arc"), TEXT("base"), TEXT("arbitrum"), TEXT("polygon")})
+	{
+		TestTrue(*FString::Printf(TEXT("%s and its card link"), Key),
+			Sheet->IsShown(FString(TEXT("network_")) + Key) && Sheet->IsShown(FString(TEXT("card_")) + Key));
+	}
 	const TArray<FString> Order = Sheet->FocusOrder();
-	const int32 Link = Order.IndexOfByKey(FString(TEXT("onramp")));
-	TestTrue(TEXT("after the methods and before the forward button in the focus order"),
-		Link > Order.IndexOfByKey(FString(TEXT("method_manual"))) &&
-		(Order.IndexOfByKey(FString(TEXT("forward"))) == INDEX_NONE || Link < Order.IndexOfByKey(FString(TEXT("forward")))));
-	const FString Url = Sheet->GetController().OnrampUrl();
-	TestTrue(*FString::Printf(TEXT("the card-only buy page (%s)"), *Url), Url.EndsWith(TEXT("&paymentMethods=card")));
-	TestTrue(TEXT("press it"), Sheet->Press(TEXT("onramp")));
-	TestTrue(TEXT("it opens the buy page"), R.W.Platform->Opened.Num() == 1 && R.W.Platform->Opened[0] == Url);
+	const auto At = [&Order](const TCHAR* Key) { return Order.IndexOfByKey(FString(Key)); };
+	TestTrue(TEXT("the focus order: a row's tiles, then its links; More networks between the main tiles and the rest"),
+		At(TEXT("network_ethereum")) < At(TEXT("card_ethereum")) && At(TEXT("card_ethereum")) < At(TEXT("more_networks")) &&
+		At(TEXT("more_networks")) < At(TEXT("network_arc")) && At(TEXT("network_base")) < At(TEXT("card_arc")) &&
+		At(TEXT("card_base")) < At(TEXT("network_arbitrum")));
+	const FSlateRect Eth = RectOf(*Sheet, TEXT("network_ethereum"));
+	const FSlateRect Arb = RectOf(*Sheet, TEXT("network_arbitrum"));
+	TestTrue(*FString::Printf(TEXT("the lone main tile is as wide and as tall as the others (%s, %s)"), *Eth.ToString(),
+		*Arb.ToString()),
+		Eth.GetSize().X > 0 && FMath::IsNearlyEqual(Eth.GetSize().X, Arb.GetSize().X, 1.0) &&
+		FMath::IsNearlyEqual(Eth.GetSize().Y, Arb.GetSize().Y, 1.0));
+	LinkUnderItsTile(*this, *Sheet, TEXT("ethereum"), TEXT("at 1280x720"));
+	LinkUnderItsTile(*this, *Sheet, TEXT("arbitrum"), TEXT("at 1280x720"));
+	TestTrue(TEXT("Pay with card on Arbitrum"), Sheet->Press(TEXT("card_arbitrum")));
+	R.Pass();
+	TestEqual(TEXT("the card step, past the method step"), Sheet->ShownStep(), FString(TEXT("card")));
+	TestEqual(TEXT("its forward button"), Sheet->TextOf(TEXT("forward")), FString(TEXT("Open card checkout")));
+	TestTrue(TEXT("which has the focus"), R.HasFocus(*Sheet, TEXT("forward")));
+	const FString Url = Sheet->GetController().CardUrl();
+	TestTrue(*FString::Printf(TEXT("thirdweb's card checkout paying the exact amount to the developer (%s)"), *Url),
+		Url.StartsWith(TEXT("https://thirdweb.com/bridge/checkout-widget?chain=42161&")) &&
+		Url.Contains(TEXT("&amount=") + Sheet->GetController().PayAmountText() + TEXT("&seller=") + UTF8_TO_TCHAR(kDev)));
+	TestTrue(TEXT("press it"), Sheet->Press(TEXT("forward")));
+	R.Frame(2);
+	TestTrue(TEXT("it opens the card checkout"), R.W.Platform->Opened.Num() == 1 && R.W.Platform->Opened[0] == Url);
+	TestEqual(TEXT("and waits for the payment"), Sheet->ShownStep(), FString(TEXT("waiting")));
+	TestTrue(TEXT("back to the card step"), Sheet->Press(TEXT("back")));
+	R.Frame(2);
+	TestTrue(TEXT("back to the network step"), Sheet->Press(TEXT("back")));
+	R.Frame(2);
+	TestEqual(TEXT("the network step"), Sheet->ShownStep(), FString(TEXT("network")));
+	TestTrue(TEXT("More networks stays open on the chosen network, its card link focused"),
+		Sheet->IsShown(TEXT("network_arbitrum")) && R.HasFocus(*Sheet, TEXT("card_arbitrum")));
 	return true;
 }
 
@@ -412,7 +468,7 @@ FScfgFacade& StartedWithSolana(FAutomationTestBase& Test, FSheetRig& R)
 	FScfgOptions Options;
 	Options.Wallet = UTF8_TO_TCHAR(kDev);
 	Options.SolanaWallet = TEXT("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM");
-	Options.Chains = {TEXT("solana"), TEXT("arbitrum")};
+	Options.Chains = {TEXT("ethereum"), TEXT("solana"), TEXT("arbitrum")};
 	Test.TestFalse(TEXT("configure"), S.Configure(Options).IsSet());
 	FScfgItem Item;
 	Item.Code = 37;
@@ -426,31 +482,8 @@ FScfgFacade& StartedWithSolana(FAutomationTestBase& Test, FSheetRig& R)
 	return S;
 }
 
-// The button Key, laid out by the painted window, stays inside the method options' width (the body's), and its text
-// wraps to it rather than running past.
-void FitsTheBody(FAutomationTestBase& Test, const SScfgPaymentSheet& Sheet, const FString& Key, const FString& Where)
-{
-	const TSharedPtr<SWidget> Button = Sheet.Control(Key);
-	const TSharedPtr<SWidget> Option = Sheet.Control(TEXT("method_manual"));
-	if (!Test.TestTrue(*(Key + TEXT(" and an option to measure against, ") + Where), Button.IsValid() && Option.IsValid()))
-	{
-		return;
-	}
-	const FSlateRect B = Button->GetTickSpaceGeometry().GetLayoutBoundingRect();
-	const FSlateRect O = Option->GetTickSpaceGeometry().GetLayoutBoundingRect();
-	Test.TestTrue(*FString::Printf(TEXT("%s within the body, %s (%s in %s)"), *Key, *Where, *B.ToString(), *O.ToString()),
-		B.GetSize().X > 0 && B.Left >= O.Left - 1.0 && B.Right <= O.Right + 1.0);
-	FChildren* Children = Button->GetChildren();
-	if (Test.TestTrue(TEXT("the button has its text block"), Children != nullptr && Children->Num() == 1))
-	{
-		const float TextWidth = Children->GetChildAt(0)->GetDesiredSize().X;
-		Test.TestTrue(*FString::Printf(TEXT("%s's text fits its button, %s (%.0f in %.0f)"), *Key, *Where, TextWidth,
-			B.GetSize().X), TextWidth <= B.GetSize().X + 1.0);
-	}
-}
-
-// Godot's test_on_solana_the_buy_link_points_to_another_network, in a window of Size.
-bool SolanaHint(FAutomationTestBase& Test, FVector2D Size, const FString& Where)
+// Ethereum and Solana side by side, Solana without a card link, in a window of Size.
+bool SolanaTiles(FAutomationTestBase& Test, FVector2D Size, const FString& Where)
 {
 	FSheetRig R(Test, Size);
 	if (!R.bReady)
@@ -459,46 +492,38 @@ bool SolanaHint(FAutomationTestBase& Test, FVector2D Size, const FString& Where)
 	}
 	StartedWithSolana(Test, R);
 	R.W.Pay(EScfgPayKind::Unlock, Unlock());
-	R.Frame(2);
+	R.Frame(3);
 	const TSharedPtr<SScfgPaymentSheet> Sheet = R.Sheet();
-	if (!Test.TestTrue(TEXT("the sheet"), Sheet.IsValid()) ||
-		!Test.TestTrue(TEXT("Solana is offered"), Sheet->Press(TEXT("network_solana"))))
+	if (!Test.TestTrue(TEXT("the sheet"), Sheet.IsValid()))
 	{
 		return false;
 	}
-	R.Pass();
-	Test.TestEqual(TEXT("the method step once the session started"), Sheet->ShownStep(), FString(TEXT("method")));
-	Test.TestFalse(TEXT("no buy link on Solana"), Sheet->IsShown(TEXT("onramp")));
-	Test.TestTrue(TEXT("the hint"), Sheet->IsShown(TEXT("onramp_hint")));
-	Test.TestEqual(TEXT("its text names the token"), Sheet->TextOf(TEXT("onramp_hint")),
-		FString(TEXT("No USDC yet? Pick another network to buy some with a card")));
-	const TArray<FString> Order = Sheet->FocusOrder();
-	const int32 Hint = Order.IndexOfByKey(FString(TEXT("onramp_hint")));
-	const int32 Forward = Order.IndexOfByKey(FString(TEXT("forward")));
-	Test.TestTrue(TEXT("after the methods and before the forward button in the focus order"),
-		Hint > Order.IndexOfByKey(FString(TEXT("method_manual"))) && (Forward == INDEX_NONE || Hint < Forward));
-	R.Frame(3);  // AutoWrapText wraps at the width of the frame before: let the layout settle
-	FitsTheBody(Test, *Sheet, TEXT("onramp_hint"), Where);
-	Test.TestTrue(TEXT("press the hint"), Sheet->Press(TEXT("onramp_hint")));
-	R.Frame(2);
-	Test.TestEqual(TEXT("back on the network step"), Sheet->ShownStep(), FString(TEXT("network")));
-	Test.TestTrue(TEXT("pick Arbitrum"), Sheet->Press(TEXT("network_arbitrum")));
-	R.Pass();
-	Test.TestTrue(TEXT("the buy link on Arbitrum"), Sheet->IsShown(TEXT("onramp")) && !Sheet->IsShown(TEXT("onramp_hint")));
-	R.Frame(3);
-	FitsTheBody(Test, *Sheet, TEXT("onramp"), Where);
+	Test.TestTrue(TEXT("Ethereum and Solana are tiles"),
+		Sheet->IsShown(TEXT("network_ethereum")) && Sheet->IsShown(TEXT("network_solana")));
+	Test.TestTrue(TEXT("Ethereum has a card link, Solana none"),
+		Sheet->IsShown(TEXT("card_ethereum")) && !Sheet->IsShown(TEXT("card_solana")));
+	const FSlateRect Eth = RectOf(*Sheet, TEXT("network_ethereum"));
+	const FSlateRect Sol = RectOf(*Sheet, TEXT("network_solana"));
+	Test.TestTrue(*FString::Printf(TEXT("side by side, as tall as each other, %s (%s, %s)"), *Where, *Eth.ToString(),
+		*Sol.ToString()),
+		FMath::IsNearlyEqual(Eth.Top, Sol.Top, 1.0) && Eth.Right <= Sol.Left + 1.0 &&
+		FMath::IsNearlyEqual(Eth.GetSize().Y, Sol.GetSize().Y, 1.0));
+	LinkUnderItsTile(Test, *Sheet, TEXT("ethereum"), Where);
+	const FSlateRect More = RectOf(*Sheet, TEXT("more_networks"));
+	Test.TestTrue(*FString::Printf(TEXT("More networks spans both tiles, %s (%s)"), *Where, *More.ToString()),
+		More.Left <= Eth.Left + 1.0 && More.Right >= Sol.Right - 1.0 && More.Top >= Eth.Bottom);
 	return true;
 }
 
 }  // namespace ScfgSheetTestsDetail
 
-SCFG_SHEET_TEST(FScfgSheetOnrampHintTest, "OnSolanaTheBuyLinkPointsToAnotherNetwork")
+SCFG_SHEET_TEST(FScfgSheetSolanaTilesTest, "SolanaIsAMainTileWithoutACardLink")
 
-bool FScfgSheetOnrampHintTest::RunTest(const FString& Parameters)
+bool FScfgSheetSolanaTilesTest::RunTest(const FString& Parameters)
 {
 	using namespace ScfgSheetTestsDetail;
-	const bool bWide = SolanaHint(*this, FVector2D(1280, 720), TEXT("at 1280x720"));
-	const bool bNarrow = SolanaHint(*this, FVector2D(400, 800), TEXT("at 400x800 (portrait)"));
+	const bool bWide = SolanaTiles(*this, FVector2D(1280, 720), TEXT("at 1280x720"));
+	const bool bNarrow = SolanaTiles(*this, FVector2D(400, 800), TEXT("at 400x800 (portrait)"));
 	return bWide && bNarrow;
 }
 
@@ -529,6 +554,9 @@ bool FScfgSheetEscapeTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	R.KeyTo(*Sheet, TEXT("more_networks"), EKeys::Gamepad_DPad_Down);
+	R.Key(EKeys::Gamepad_FaceButton_Bottom);
+	R.Frame(2);
 	R.KeyTo(*Sheet, TEXT("network_arbitrum"), EKeys::Gamepad_DPad_Down);
 	R.Key(EKeys::Gamepad_FaceButton_Bottom);
 	R.Pass();
@@ -681,6 +709,9 @@ bool FScfgSheetFieldsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Enter in the field sets the amount"), C.PriceText(), FString(TEXT("75.00")));
 	R.Sheet()->Press(TEXT("forward"));
 	R.Frame(2);
+	R.KeyTo(*Sheet, TEXT("more_networks"), EKeys::Down);
+	R.Key(EKeys::Enter);
+	R.Frame(2);
 	R.KeyTo(*Sheet, TEXT("network_arbitrum"), EKeys::Down);
 	R.Key(EKeys::Enter);
 	R.Pass();
@@ -731,6 +762,8 @@ bool FScfgSheetQrTest::RunTest(const FString& Parameters)
 		{
 			return false;
 		}
+		Sheet->Press(TEXT("more_networks"));
+		R.Frame(2);
 		Sheet->Press(TEXT("network_arbitrum"));
 		R.Pass();
 		Sheet->Press(TEXT("method_qr"));
@@ -844,6 +877,9 @@ bool FScfgSheetTextsTest::RunTest(const FString& Parameters)
 	Sheet->Press(TEXT("forward"));
 	R.Frame(2);
 	CheckKeyed(*this, *Sheet, DataOf(C), TEXT("network"));
+	Sheet->Press(TEXT("more_networks"));
+	R.Frame(2);
+	CheckKeyed(*this, *Sheet, DataOf(C), TEXT("network, More networks open"));
 	Sheet->Press(TEXT("network_arbitrum"));
 	R.Pass();
 	CheckKeyed(*this, *Sheet, DataOf(C), TEXT("method"));
@@ -856,6 +892,17 @@ bool FScfgSheetTextsTest::RunTest(const FString& Parameters)
 		Sheet->Press(TEXT("back"));
 		R.Frame(2);
 	}
+	Sheet->Press(TEXT("back"));  // the network step, for its Pay with card link
+	R.Frame(2);
+	Sheet->Press(TEXT("card_arbitrum"));
+	R.Frame(2);
+	TestEqual(TEXT("the card step"), Sheet->ShownStep(), FString(TEXT("card")));
+	CheckKeyed(*this, *Sheet, DataOf(C), TEXT("card"));
+	Sheet->Press(TEXT("back"));
+	R.Frame(2);
+	Sheet->Press(TEXT("network_arbitrum"));
+	R.Frame(2);
+	TestEqual(TEXT("the network's own tile: the method step again"), Sheet->ShownStep(), FString(TEXT("method")));
 	Sheet->Press(TEXT("method_manual"));
 	R.Frame(2);
 	Sheet->Press(TEXT("forward"));
@@ -1122,6 +1169,9 @@ bool FScfgSheetPausedTest::RunTest(const FString& Parameters)
 	R.KeyTo(*Sheet, TEXT("forward"), EKeys::Down);
 	R.Key(EKeys::Enter);
 	TestEqual(TEXT("keys work while paused"), Sheet->ShownStep(), FString(TEXT("network")));
+	R.KeyTo(*Sheet, TEXT("more_networks"), EKeys::Down);
+	R.Key(EKeys::Enter);
+	R.Frame(2);
 	R.KeyTo(*Sheet, TEXT("network_arbitrum"), EKeys::Down);
 	R.Key(EKeys::Enter);
 	R.Pass();

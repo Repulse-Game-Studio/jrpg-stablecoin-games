@@ -68,12 +68,14 @@ FString SScfgPaymentSheet::Signature() const
 	const FScfgCheckoutController& C = *Controller;
 	TArray<FString> Parts = {C.Step(), C.State(), C.MessageId(), C.CanGoBack() ? TEXT("1") : TEXT("0"), C.HintTx(),
 		LexToString(C.Confirmations()), LexToString(C.Required()), C.Method(), C.ChainKey(), C.PriceText(),
-		C.SessionId(), C.BrowserFailed() ? TEXT("1") : TEXT("0"), C.ResultTx(), C.Amount(),
-		C.ShowsOnramp() ? TEXT("1") : TEXT("0"), C.ShowsOnrampHint() ? TEXT("1") : TEXT("0")};
+		C.SessionId(), C.BrowserFailed() ? TEXT("1") : TEXT("0"), C.ResultTx(), C.Amount()};
 	for (const FScfgChainOptionView& O : C.ChainOptions())
 	{
 		Parts.Add(O.Key);
 	}
+	const FScfgNetworkLayout Layout = C.NetworkLayout();
+	Parts.Add(Layout.bExpanded ? TEXT("+") : TEXT("-"));
+	Parts.Append(Layout.Card);
 	Parts.Add(TEXT("|"));
 	Parts.Append(C.Methods());
 	Parts.Add(FString::FromInt(FMath::RoundToInt(PanelWidthNow())));  // Godot's k: a resize rebuilds (the QR's size)
@@ -107,12 +109,13 @@ FString SScfgPaymentSheet::PrimaryKey() const
 	}
 	if (Step == TEXT("network"))
 	{
-		const TArray<FScfgChainOptionView> Options = C.ChainOptions();
-		if (!C.ChainKey().IsEmpty())
+		const FScfgNetworkLayout Layout = C.NetworkLayout();
+		const FString Chosen = C.ChainKey();
+		if (!Chosen.IsEmpty() && (Layout.Main.Contains(Chosen) || (Layout.bExpanded && Layout.More.Contains(Chosen))))
 		{
-			return TEXT("network_") + C.ChainKey();
+			return (C.Method() == TEXT("card") && Layout.Card.Contains(Chosen) ? TEXT("card_") : TEXT("network_")) + Chosen;
 		}
-		return Options.Num() > 0 ? TEXT("network_") + Options[0].Key : FString(TEXT("cancel"));
+		return Layout.Main.Num() > 0 ? TEXT("network_") + Layout.Main[0] : FString(TEXT("cancel"));
 	}
 	if (Step == TEXT("method"))
 	{
@@ -123,7 +126,7 @@ FString SScfgPaymentSheet::PrimaryKey() const
 		}
 		return Methods.Num() > 0 ? TEXT("method_") + Methods[0] : FString(TEXT("cancel"));
 	}
-	if (Step == TEXT("browser") || Step == TEXT("qr"))
+	if (Step == TEXT("browser") || Step == TEXT("qr") || Step == TEXT("card"))
 	{
 		return TEXT("forward");
 	}
@@ -184,7 +187,6 @@ void SScfgPaymentSheet::BuildContent()
 	const TPair<FString, TFunction<void()>> Forward = BuildStep(*Body);
 	const TSharedRef<SVerticalBox> Step = SNew(SVerticalBox);
 	Step->AddSlot().FillHeight(1).Padding(0, 0, 0, 12)[Scroll];
-	OnrampLink(*Step);
 	if (Forward.Key.IsEmpty())
 	{
 		// the key exists on every step; collapsed when the step has none
@@ -291,6 +293,11 @@ TPair<FString, TFunction<void()>> SScfgPaymentSheet::BuildStep(SVerticalBox& Bod
 		StepManual(Body);
 		return {ScfgTexts::Get(TEXT("i_sent_it")), [C]() mutable { C.MarkSent(); }};
 	}
+	else if (Step == TEXT("card"))
+	{
+		StepCard(Body);
+		return {ScfgTexts::Get(TEXT("open_card_checkout")), [C]() mutable { C.OpenCard(); }};
+	}
 	else if (Step == TEXT("waiting"))
 	{
 		StepWaiting(Body);
@@ -352,35 +359,69 @@ void SScfgPaymentSheet::StepNetwork(SVerticalBox& Body)
 	FScfgCheckoutController C = *Controller;
 	ScfgPaymentSheetDetail::AddTo(Body, Label(ScfgTexts::Format(TEXT("which_network"), {C.Token()}), TEXT("Scfg.Label")));
 	const TArray<FScfgChainOptionView> Options = C.ChainOptions();
+	const FScfgNetworkLayout Layout = C.NetworkLayout();
+	// every tile as wide as the others, in two columns when there are two networks or more (Ren'Py's _cell)
 	const int32 Columns = FMath::Max(1, FMath::Min(Options.Num(), 2));
-	const TSharedRef<SUniformGridPanel> Grid = SNew(SUniformGridPanel).SlotPadding(FMargin(4));
-	for (int32 I = 0; I < Options.Num(); ++I)
+	int32 Row = 0;
+	NetworkTiles(Body, Layout.Main, Options, Layout.Card, Columns, Row);
+	if (Layout.More.Num() > 0)
 	{
-		const FString Key = Options[I].Key;
-		Grid->AddSlot(I % Columns, I / Columns)
-		[
-			Option(TEXT("network_") + Key, Options[I].Name, FeeLabel(Options[I].FeeHint), C.ChainKey() == Key,
-				[C, Key]() mutable { C.ChooseNetwork(Key); }, FString::Printf(TEXT("networks:%d"), I / 2))
-		];
+		ScfgPaymentSheetDetail::AddTo(Body, Button(TEXT("more_networks"),
+			ScfgTexts::Get(Layout.bExpanded ? TEXT("fewer_networks") : TEXT("more_networks")), TEXT("Scfg.Button.Small"),
+			[C]() mutable { C.ToggleMoreNetworks(); }));
+		if (Layout.bExpanded)
+		{
+			NetworkTiles(Body, Layout.More, Options, Layout.Card, Columns, Row);
+		}
 	}
-	ScfgPaymentSheetDetail::AddTo(Body, Grid);
 }
 
-void SScfgPaymentSheet::OnrampLink(SVerticalBox& Step)
+void SScfgPaymentSheet::NetworkTiles(SVerticalBox& Body, const TArray<FString>& Keys,
+	const TArray<FScfgChainOptionView>& Options, const TArray<FString>& Card, int32 Columns, int32& Row)
 {
-	// the body's full width, the text wrapping inside it: the hint is wider than the 432-unit body in one line
 	FScfgCheckoutController C = *Controller;
-	if (C.ShowsOnrampHint())
+	const bool bCard = C.Method() == TEXT("card");
+	const TSharedRef<SUniformGridPanel> Grid = SNew(SUniformGridPanel).SlotPadding(FMargin(4));
+	for (int32 First = 0, GridRow = 0; First < Keys.Num(); First += Columns, ++GridRow, ++Row)
 	{
-		Step.AddSlot().AutoHeight().HAlign(HAlign_Fill).Padding(0, 0, 0, 10)[Button(TEXT("onramp_hint"),
-			ScfgTexts::Format(TEXT("onramp_hint"), {C.Token()}), TEXT("Scfg.Button.Small"), [C]() mutable { C.Back(); },
-			FString(), true, true, true)];
+		// a row's tiles, then its card links, so the arrows move along the tiles and along the links (focus rows)
+		const int32 Last = FMath::Min(First + Columns, Keys.Num());
+		TArray<TSharedRef<SVerticalBox>> Cells;
+		for (int32 I = First; I < Last; ++I)
+		{
+			const FString Key = Keys[I];
+			const FScfgChainOptionView* Found =
+				Options.FindByPredicate([&Key](const FScfgChainOptionView& O) { return O.Key == Key; });
+			const TSharedRef<SVerticalBox> Cell = SNew(SVerticalBox);
+			Cell->AddSlot().AutoHeight()
+			[
+				Option(TEXT("network_") + Key, Found ? Found->Name : Key, Found ? FeeLabel(Found->FeeHint) : FString(),
+					C.ChainKey() == Key && !bCard, [C, Key]() mutable { C.ChooseNetwork(Key); },
+					FString::Printf(TEXT("networks:%d"), Row))
+			];
+			Cells.Add(Cell);
+		}
+		for (int32 I = First; I < Last; ++I)
+		{
+			const FString Key = Keys[I];
+			if (Card.Contains(Key))
+			{
+				Cells[I - First]->AddSlot().AutoHeight().HAlign(HAlign_Center).Padding(0, 2, 0, 0)
+				[
+					Link(TEXT("card_") + Key, ScfgTexts::Get(TEXT("pay_with_card")), C.ChainKey() == Key && bCard,
+						[C, Key]() mutable { C.PayWithCard(Key); }, FString::Printf(TEXT("cards:%d"), Row))
+				];
+			}
+		}
+		for (int32 Col = 0; Col < Columns; ++Col)
+		{
+			// an empty cell keeps the column, so a lone tile is as wide as the others
+			Grid->AddSlot(Col, GridRow)[Col < Cells.Num() ? StaticCastSharedRef<SWidget>(Cells[Col]) : TSharedRef<SWidget>(SNew(SSpacer))];
+		}
 	}
-	else if (C.ShowsOnramp())
+	if (Keys.Num() > 0)
 	{
-		Step.AddSlot().AutoHeight().HAlign(HAlign_Fill).Padding(0, 0, 0, 10)[Button(TEXT("onramp"),
-			ScfgTexts::Format(TEXT("onramp_link"), {C.Token()}), TEXT("Scfg.Button.Small"), [C]() mutable { C.OpenOnramp(); },
-			FString(), true, true, true)];
+		ScfgPaymentSheetDetail::AddTo(Body, Grid);
 	}
 }
 
@@ -393,6 +434,14 @@ void SScfgPaymentSheet::StepMethod(SVerticalBox& Body)
 		ScfgPaymentSheetDetail::AddTo(Body, Option(TEXT("method_") + M, MethodLabel(M), MethodHint(M), C.Method() == M,
 					  [C, M]() mutable { C.ChooseMethod(M); }), 8);
 	}
+}
+
+void SScfgPaymentSheet::StepCard(SVerticalBox& Body)
+{
+	const FScfgCheckoutController& C = *Controller;
+	ScfgPaymentSheetDetail::AddTo(Body, Label(ScfgTexts::Get(TEXT("pay_with_card")), TEXT("Scfg.Label")));
+	ScfgPaymentSheetDetail::AddTo(Body, Label(ScfgTexts::Get(TEXT("card_opens_browser_note"))));
+	ScfgPaymentSheetDetail::AddTo(Body, Label(ScfgTexts::Format(TEXT("card_pays_on"), {AmountLine(true), C.ChainDisplay()}), TEXT("Scfg.Muted")));
 }
 
 void SScfgPaymentSheet::StepBrowser(SVerticalBox& Body)
@@ -780,7 +829,8 @@ FString SScfgPaymentSheet::ExactNote() const
 {
 	const FScfgCheckoutController& C = *Controller;
 	const FString Step = C.Step();
-	if (!C.HasSession() || Step == TEXT("manual") || Step == TEXT("done") || C.State() == TEXT("closed"))
+	if (!C.HasSession() || Step == TEXT("manual") || Step == TEXT("card") || Step == TEXT("done") ||
+		C.State() == TEXT("closed"))
 	{
 		return FString();
 	}
