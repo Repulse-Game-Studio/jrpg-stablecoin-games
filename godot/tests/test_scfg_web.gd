@@ -53,9 +53,15 @@ func test_web_checkout_is_the_overlay_not_a_server() -> bool:
 	T.ok(opens[0].contains("\"Chapter 2\""), "with the session's title")
 	T.ok(opens[0].ends_with(", null)"), "and no logo")
 	T.eq(platform.opened, [], "no browser window on the web: the overlay is already showing")
-	s.open_onramp(ctl)
-	T.eq(js.scripts_for("scfgBridge.openUrl("), ["scfgBridge.openUrl(%s)" % JSON.stringify(ctl.onramp_url())],
-		"the buy link opens from the page")
+	ctl.back()  # the waiting step's back: the browser page
+	ctl.back()  # the method step
+	ctl.back()  # the network step, where Pay with card starts the card page on the same session
+	ctl.pay_with_card("arbitrum")
+	T.eq(ctl.step, "card", "the card page (%s)" % ctl.step)
+	var card: Variant = ctl.card_url()
+	s.open_card(ctl)
+	T.eq(js.scripts_for("scfgBridge.openUrl("), ["scfgBridge.openUrl(%s)" % JSON.stringify(card)],
+		"the card checkout opens from the page")
 	T.eq(platform.opened, [], "not the engine's shell_open")
 	# the page posts a tx hash: it reaches the session as a hint, through the pump
 	js.answers["scfgBridge.take("] = ["[{\"type\":\"tx\",\"body\":{\"tx_hash\":\"%s\"}}]" % TX]

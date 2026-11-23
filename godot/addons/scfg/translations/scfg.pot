@@ -114,6 +114,10 @@ msgid "Enter an amount of at least 0.50 with up to 2 decimals."
 msgstr ""
 
 #: addons/scfg/ui/sheet.gd
+msgid "Fewer networks"
+msgstr ""
+
+#: addons/scfg/ui/sheet.gd
 msgid "Finish the payment in the wallet window."
 msgstr ""
 
@@ -162,19 +166,19 @@ msgid "MetaMask, Rabby or another wallet in this browser"
 msgstr ""
 
 #: addons/scfg/ui/sheet.gd
+msgid "More networks"
+msgstr ""
+
+#: addons/scfg/ui/sheet.gd
 msgid "Next"
-msgstr ""
-
-#: addons/scfg/ui/sheet.gd
-msgid "No %s yet? Buy some with a card"
-msgstr ""
-
-#: addons/scfg/ui/sheet.gd
-msgid "No %s yet? Pick another network to buy some with a card"
 msgstr ""
 
 #: addons/scfg/ui/restore.gd
 msgid "Nothing new to restore. These purchases are already on this device."
+msgstr ""
+
+#: addons/scfg/ui/sheet.gd
+msgid "Open card checkout"
 msgstr ""
 
 #: addons/scfg/ui/sheet.gd
@@ -187,6 +191,10 @@ msgstr ""
 
 #: addons/scfg/ui/sheet.gd
 msgid "Open wallet app"
+msgstr ""
+
+#: addons/scfg/ui/sheet.gd
+msgid "Opens a card checkout page in your browser. You pay by card there, and the payment goes straight to the game's developer."
 msgstr ""
 
 #: addons/scfg/ui/sheet.gd
@@ -218,6 +226,10 @@ msgstr ""
 msgid "Paste the transaction hash or signature of your payment. You can find it in your wallet's activity, or in your exchange's withdrawal history."
 msgstr ""
 
+#: addons/scfg/ui/sheet.gd
+msgid "Pay with card"
+msgstr ""
+
 #: addons/scfg/scfg.gd
 msgid "Payment confirmed. Thank you for your support!"
 msgstr ""
@@ -240,6 +252,10 @@ msgstr ""
 
 #. core message: solana_unavailable
 msgid "Payments on Solana aren't available right now."
+msgstr ""
+
+#: addons/scfg/ui/sheet.gd
+msgid "Pays %s on %s."
 msgstr ""
 
 #: addons/scfg/ui/sheet.gd

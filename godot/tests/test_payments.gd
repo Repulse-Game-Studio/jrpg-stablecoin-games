@@ -3,7 +3,7 @@ extends RefCounted
 const T := preload("res://tests/t.gd")
 
 const DEV := "0x52908400098527886E0F7030069857D2E4169EE7"
-const ALL_CHAINS := ["arbitrum", "base", "arc", "polygon", "ethereum"]
+const ALL_CHAINS := ["ethereum", "arc", "base", "arbitrum", "polygon"]
 
 
 func _cfg(extra: Dictionary = {}) -> Dictionary:

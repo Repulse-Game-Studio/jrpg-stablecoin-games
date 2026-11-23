@@ -2,7 +2,8 @@
 ## plugin/game/scfg/scfg_screens.rpy, shown by ScfgDefaultSheetHost for `await Scfg.pay(...)`.
 ##
 ## One step at a time, as the controller's `step` says: amount (tips) -> network -> method ->
-## browser | qr | manual -> waiting -> done. Every step has the header (the back arrow while the
+## browser | qr | manual -> waiting -> done, or network -> card -> waiting -> done through a
+## network's "Pay with card" link. Every step has the header (the back arrow while the
 ## controller `can_go_back`, the step dots, the logo, the title and the price), a scrolling body,
 ## the pinned forward button when the step has one, and the footer (the status message, the
 ## status line and Cancel / Continue playing / Continue). Debug builds also show the developer
@@ -52,7 +53,7 @@ func _signature() -> Variant:
 	var ctl := controller
 	return [ctl.step, ctl.state, ctl.error, ctl.can_go_back, ctl.hint_tx, ctl.confirmations, ctl.required,
 		ctl.method, ctl.chain_key, ctl.price_text, ctl.session_id, ctl.browser_failed, ctl.chain_options(),
-		ctl.methods(), _result_tx(), ctl.message(), k]
+		ctl.methods(), ctl.more_networks, _result_tx(), ctl.message(), k]
 
 
 func _moved(before: Variant, after: Variant) -> bool:
@@ -71,7 +72,9 @@ func _primary() -> String:
 			return "custom_amount"
 		"network":
 			var options := ctl.chain_options()
-			if ctl.chain_key != null:
+			if ctl.chain_key != null and ctl.method == "card" and control("card_" + str(ctl.chain_key)) != null:
+				return "card_" + str(ctl.chain_key)
+			if ctl.chain_key != null and control("network_" + str(ctl.chain_key)) != null:
 				return "network_" + str(ctl.chain_key)
 			return "network_" + str(options[0][0]) if not options.is_empty() else "cancel"
 		"method":
@@ -79,7 +82,7 @@ func _primary() -> String:
 			if ctl.method != null and methods.has(ctl.method):
 				return "method_" + str(ctl.method)
 			return "method_" + str(methods[0]) if not methods.is_empty() else "cancel"
-		"browser", "qr":
+		"browser", "qr", "card":
 			return "forward"
 		"manual":
 			return "copy_amount"
@@ -120,7 +123,6 @@ func _build() -> void:
 	var body := scrolling_body(step)
 	_layout.add_child(step)
 	var forward := _build_step(body)
-	_onramp_link(step)
 	if forward.is_empty():
 		var none := Button.new()  # the key exists on every step; hidden when the step has none
 		none.visible = false
@@ -217,6 +219,9 @@ func _build_step(body: VBoxContainer) -> Array:
 		"manual":
 			_step_manual(body)
 			return [tr("I've sent it"), _mark_sent]
+		"card":
+			_step_card(body)
+			return [tr("Open card checkout"), _open_card]
 		"waiting":
 			_step_waiting(body)
 		_:
@@ -242,16 +247,87 @@ func _step_amount(body: VBoxContainer) -> void:
 	_synced["custom_amount"] = ctl.custom_amount
 
 
+## The networks: the main ones (Ethereum, Solana) as tiles, the rest behind "More networks"
+## (ScfgCheckoutController.network_layout). A network with a card button has a small "Pay with
+## card" link under its tile, which skips the method step for the card page. Every tile has the
+## same width (two columns, counting all the networks) and height.
 func _step_network(body: VBoxContainer) -> void:
 	var ctl := controller
 	body.add_child(label(tr("Which network holds your %s?") % ctl.spec["token"], "ScfgLabel"))
-	var options := ctl.chain_options()
-	var grid := option_grid("networks", mini(options.size(), 2))
-	for i in options.size():
-		var o: Array = options[i]
-		grid.add_child(option("network_" + str(o[0]), str(o[1]), _fee_label(o[2]), ctl.chain_key == o[0],
-			_choose_network.bind(o[0]), "networks:%d" % (i / 2)))
-	body.add_child(grid)
+	var options := {}
+	for o: Array in ctl.chain_options():
+		options[o[0]] = o
+	var layout := ctl.network_layout()
+	var columns := mini(options.size(), 2)
+	var tiles: Array[Button] = []
+	body.add_child(_network_tiles("networks", layout["main"], options, layout["card"], columns, tiles))
+	if not (layout["more"] as Array).is_empty():
+		var expanded: bool = layout["expanded"]
+		body.add_child(button("more_networks", tr("Fewer networks") if expanded else tr("More networks"), "ScfgSmall",
+			_toggle_more_networks))
+		if expanded:
+			body.add_child(_network_tiles("more", layout["more"], options, layout["card"], columns, tiles))
+	_same_height(tiles)
+
+
+## One grid of network tiles (`keys`), each with its "Pay with card" link when `card` has it. The
+## tiles of a grid row form a focus row, and so do their links below them.
+func _network_tiles(key: String, keys: Array, options: Dictionary, card: Array, columns: int,
+		tiles: Array[Button]) -> GridContainer:
+	var ctl := controller
+	var grid := option_grid(key, columns)
+	var cells := []
+	for i in keys.size():
+		var o: Array = options[keys[i]]
+		var cell := vbox(2)
+		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var tile := option("network_" + str(o[0]), str(o[1]), _fee_label(o[2]),
+			ctl.chain_key == o[0] and ctl.method != "card", _choose_network.bind(o[0]), "%s:%d" % [key, i / 2])
+		cell.add_child(tile)
+		tiles.append(tile)
+		cells.append(cell)
+		grid.add_child(cell)
+		# a row's links come after its tiles in the focus order, so left / right moves along a row
+		if i % 2 == 1 or i == keys.size() - 1:
+			for j in range(i - i % 2, i + 1):
+				if card.has(keys[j]):
+					cells[j].add_child(_card_link(keys[j], "%s_cards:%d" % [key, i / 2]))
+	if keys.size() < columns:
+		var filler := Control.new()  # keeps a lone tile one column wide
+		filler.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		filler.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(filler)
+	return grid
+
+
+## "Pay with card" under the tile of the network `key`: a small underlined text link.
+func _card_link(key: Variant, row: String) -> LinkButton:
+	var ctl := controller
+	var link := LinkButton.new()
+	link.text = tr("Pay with card")
+	link.underline = LinkButton.UNDERLINE_MODE_ALWAYS
+	var selected: bool = ctl.chain_key == key and ctl.method == "card"
+	link.theme_type_variation = "ScfgCardLinkSelected" if selected else "ScfgCardLink"
+	link.focus_mode = Control.FOCUS_ALL
+	link.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	link.pressed.connect(_pay_with_card.bind(key))
+	reg(link, "card_" + str(key), row)
+	return link
+
+
+## Gives every tile the height of the tallest (a tile without a fee line is shorter).
+func _same_height(tiles: Array[Button]) -> void:
+	var even := func() -> void:
+		var h := 0.0
+		for t: Button in tiles:
+			if is_instance_valid(t) and t.get_child_count() > 0:
+				h = maxf(h, (t.get_child(0) as Control).get_combined_minimum_size().y)
+		for t: Button in tiles:
+			if is_instance_valid(t):
+				t.custom_minimum_size.y = h
+	for t: Button in tiles:
+		(t.get_child(0) as Control).minimum_size_changed.connect(even)
+	even.call()
 
 
 func _step_method(body: VBoxContainer) -> void:
@@ -263,18 +339,12 @@ func _step_method(body: VBoxContainer) -> void:
 	body.add_child(list)
 
 
-## "No USDC yet? Buy some with a card": opens configure's onramp page for the chosen network,
-## pinned below the scrolling body (above the forward button) so it stays in view. On the method
-## step, or on the payment page the sheet opens on when there is a single method
-## (ScfgCheckoutController.shows_onramp). On a network without a buy page (Solana), when another
-## one has it, it points there instead and goes back to the network step (shows_onramp_hint).
-func _onramp_link(step: VBoxContainer) -> void:
-	if controller.shows_onramp:
-		step.add_child(button("onramp", tr("No %s yet? Buy some with a card") % controller.spec["token"], "ScfgSmall",
-			_open_onramp))
-	elif controller.shows_onramp_hint:
-		step.add_child(button("onramp_hint", tr("No %s yet? Pick another network to buy some with a card")
-			% controller.spec["token"], "ScfgSmall", _back))
+## The card page: what "Open card checkout" does, before it opens the card checkout page
+## (configure's onramp, thirdweb's by default) in the player's browser.
+func _step_card(body: VBoxContainer) -> void:
+	body.add_child(label(tr("Pay with card"), "ScfgLabel"))
+	body.add_child(label(tr("Opens a card checkout page in your browser. You pay by card there, and the payment goes straight to the game's developer.")))
+	body.add_child(label(tr("Pays %s on %s.") % [_amount_line(true), _chain_display()], "ScfgMuted"))
 
 
 func _step_browser(body: VBoxContainer) -> void:
@@ -544,7 +614,7 @@ func _amount_line(exact: bool) -> String:
 
 func _exact_note() -> String:
 	var ctl := controller
-	if not ScfgPy.py_truthy(ctl.session) or ctl.step in ["manual", "done"] or ctl.state == "closed":
+	if not ScfgPy.py_truthy(ctl.session) or ctl.step in ["manual", "card", "done"] or ctl.state == "closed":
 		return ""
 	return tr("Your wallet will ask for %s. The last digits identify your payment and add less than 1 cent.") % _amount_line(true)
 
@@ -594,6 +664,16 @@ func _choose_network(key: Variant) -> void:
 		_report(r)
 
 
+func _pay_with_card(key: Variant) -> void:
+	var r: Variant = controller.pay_with_card(key)
+	if r is ScfgErr:
+		_report(r)
+
+
+func _toggle_more_networks() -> void:
+	controller.toggle_more_networks()
+
+
 func _choose_method(m: String) -> void:
 	controller.choose_method(m)
 
@@ -628,9 +708,9 @@ func _open_explorer(url: Variant) -> void:
 		scfg.open_explorer(url)
 
 
-func _open_onramp() -> void:
+func _open_card() -> void:
 	if scfg != null:
-		scfg.open_onramp(controller)
+		scfg.open_card(controller)  # err-ok: the autoload's open_card returns nothing; it reports the controller's error
 
 
 func _copy(text: String) -> void:

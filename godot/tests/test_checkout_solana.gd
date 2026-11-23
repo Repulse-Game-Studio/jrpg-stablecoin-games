@@ -174,49 +174,13 @@ func test_solana_session_info_key_order() -> bool:
 	return T.done()
 
 
-# --- the buy link's hint: Solana has no buy page, another network does ---------------------
+# --- Solana has no "Pay with card" button ------------------------------------------------
 
-func _on_method(chain: String, config: Dictionary = {}) -> Dictionary:
-	var m := _setup([], config)
-	var ctl: ScfgCheckoutController = m["ctl"]
-	ctl.choose_network(chain)
-	ctl.poll()
-	return m
-
-
-func test_solana_points_to_a_network_with_the_buy_link() -> bool:
-	var ctl: ScfgCheckoutController = _on_method("solana")["ctl"]
-	T.eq(ctl.step, "method")
-	T.eq([ctl.onramp_url(), ctl.shows_onramp], [null, false])
-	T.eq(ctl.shows_onramp_hint, true)
-	ctl.back()
-	T.eq(ctl.step, "network")
-	ctl.choose_network("base")
-	ctl.poll()
-	T.eq([ctl.shows_onramp, ctl.shows_onramp_hint], [true, false])
-	return T.done()
-
-
-func test_the_hint_needs_a_network_with_the_link_that_the_player_can_pick() -> bool:
-	var ctl: ScfgCheckoutController = _on_method("solana", {"onramp": {"enabled": false}})["ctl"]
-	T.eq(ctl.shows_onramp_hint, false, "disabled")
-	ctl = _on_method("solana", {"testnet": true})["ctl"]
-	T.eq(ctl.shows_onramp_hint, false, "testnet: no network has the link")
-	ctl = _on_method("solana", {"onramp": {"chains": ["base"]}, "chains": ["solana", "base"]})["ctl"]
-	T.eq(ctl.shows_onramp_hint, true, "base has it")
-	ctl = _on_method("solana", {"testnet": true, "onramp": {"chains": ["base"]}})["ctl"]
-	T.eq(ctl.shows_onramp_hint, true, "base has it on testnet")
-	return T.done()
-
-
-func test_the_hint_shows_where_the_link_would_and_not_once_a_payment_is_seen() -> bool:
-	var only_manual := {"browser": {"enabled": false}, "qr": {"enabled": false}}
-	var ctl: ScfgCheckoutController = _on_method("solana", {"methods": only_manual})["ctl"]
-	T.eq([ctl.step, ctl.shows_onramp_hint], ["manual", true], "the only payment page")
-	ctl = _on_method("solana")["ctl"]
-	ctl.choose_method("qr")
-	T.eq(ctl.shows_onramp_hint, false, "the method step had it")
-	ctl = _on_method("solana", {"methods": only_manual})["ctl"]
-	ctl.submit_hash(SIG)
-	T.eq([ctl.step, ctl.shows_onramp_hint], ["waiting", false], "a payment is seen")
+func test_solana_is_a_main_tile_without_a_card_button() -> bool:
+	var ctl: ScfgCheckoutController = _setup()["ctl"]
+	var layout := ctl.network_layout()
+	T.eq(layout["main"], ["ethereum", "solana"])
+	T.ok(not (layout["card"] as Array).has("solana") and (layout["card"] as Array).has("ethereum"), str(layout["card"]))
+	ctl.pay_with_card("solana")
+	T.eq([ctl.step, ctl.session], ["network", null])
 	return T.done()
