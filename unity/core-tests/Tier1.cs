@@ -306,18 +306,22 @@ namespace Scfg.Core.Tests
             Funcs["get_chains"] = i => ChainsJson(Chains.GetChains(Py.Truthy(i["testnet"])));
             Funcs["build_chain"] = i => ChainJson(Config.BuildChain(i));
             Funcs["build_config"] = i => ConfigJson(ConfigFrom(i));
-            Funcs["onramp_view"] = i =>
+            Funcs["network_view"] = i =>
             {
-                var units = i.Get("units");
-                var view = Checkout.OnrampView(ConfigFrom(Obj(i["config"], "config")), Str(i, "token"),
-                    i.Get("chain_key") == null ? null : Str(i, "chain_key"), units == null ? (BigInteger?)null : Units(units),
-                    FiniteDec(i.Get("amount")), Str(i, "step"), Arr(i["path"], "path").Cast<string>().ToList(),
-                    i.Get("can_go_back") is bool back ? back : throw new ValueError("vector input can_go_back must be a bool"),
-                    Arr(i["option_keys"], "option_keys").Cast<string>().ToList());
+                var view = Checkout.NetworkView(ConfigFrom(Obj(i["config"], "config")),
+                    Arr(i["option_keys"], "option_keys").Cast<string>().ToList(),
+                    i.Get("chain_key") == null ? null : Str(i, "chain_key"),
+                    i.Get("expanded") is bool open ? open : throw new ValueError("vector input expanded must be a bool"));
                 return new JsonObject
                 {
-                    { "url", view.Url }, { "shows_onramp", view.ShowsOnramp }, { "shows_onramp_hint", view.ShowsOnrampHint },
+                    { "main", Strs(view.Main) }, { "more", Strs(view.More) }, { "expanded", view.Expanded }, { "card", Strs(view.Card) },
                 };
+            };
+            Funcs["card_url"] = i =>
+            {
+                var units = i.Get("units");
+                return Checkout.CardUrl(ConfigFrom(Obj(i["config"], "config")), Str(i, "token"),
+                    i.Get("chain_key") == null ? null : Str(i, "chain_key"), units == null ? (BigInteger?)null : Units(units));
             };
             Funcs["add_item"] = i =>
             {
@@ -349,10 +353,8 @@ namespace Scfg.Core.Tests
         {
             Funcs["eip681_transfer_uri"] = i => Paylinks.Eip681TransferUri(Str(i, "token_address"), IntField(i, "chain_id"),
                 Str(i, "recipient"), Units(i["units"]));
-            Funcs["onramp_amount"] = i => Paylinks.OnrampAmount(Units(i["units"]),
-                i.Get("gas_is_token") is bool gas ? gas : throw new ValueError("vector input gas_is_token must be a bool"));
             Funcs["onramp_url"] = i => Paylinks.OnrampUrl(Str(i, "template"), Str(i, "chain"), IntField(i, "chain_id"),
-                Str(i, "token"), Str(i, "token_address"), Str(i, "amount"));
+                Str(i, "token"), Str(i, "token_address"), Str(i, "amount"), Str(i, "recipient"));
             Funcs["solana_pay_uri"] = i => Solana.SolanaPaylinks.SolanaPayUri(Str(i, "recipient"), Units(i["units"]), Str(i, "mint"),
                 Str(i, "reference"), Str(i, "label"), Str(i, "message"));
             Funcs["qr_matrix"] = i =>

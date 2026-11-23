@@ -87,8 +87,8 @@ namespace Scfg.Core.Tests
             var ctl = CheckoutFixture.Setup().Ctl;
             Assert.That(ctl.State, Is.EqualTo("choose"));
             Assert.That(ctl.Session, Is.Null);
-            Assert.That(ctl.ChainOptions().Select(o => o.Key), Is.EqualTo(new[] { "arbitrum", "base", "arc", "polygon", "ethereum" }));
-            Assert.That(ctl.ChainOptions()[0], Is.EqualTo(("arbitrum", "Arbitrum", "low")));
+            Assert.That(ctl.ChainOptions().Select(o => o.Key), Is.EqualTo(new[] { "ethereum", "arc", "base", "arbitrum", "polygon" }));
+            Assert.That(ctl.ChainOptions()[0], Is.EqualTo(("ethereum", "Ethereum", "high")));
             Assert.That(ctl.PayAmountText, Is.EqualTo("4.99"));
             Assert.That(ctl.TipPresets().Select(d => d.ToString()), Is.EqualTo(new[] { "1.00", "3.00", "5.00", "10.00" }));
         }
@@ -575,7 +575,8 @@ namespace Scfg.Core.Tests
             Assert.That(Checkout.HintVerdicts, Is.EqualTo(new[] { "tx_reverted", "tx_not_a_payment", "tx_not_landed" }));
             Assert.That(Checkout.StepOrder.Select(kv => (kv.Key, kv.Value)), Is.EqualTo(new[]
             {
-                ("amount", 0), ("network", 1), ("method", 2), ("browser", 3), ("qr", 3), ("manual", 3), ("waiting", 4), ("done", 5),
+                ("amount", 0), ("network", 1), ("method", 2), ("browser", 3), ("qr", 3), ("manual", 3), ("card", 3), ("waiting", 4),
+                ("done", 5),
             }));
         }
 

@@ -103,12 +103,14 @@ namespace Scfg.Core.Tests
             AssertReadOnlyList(Config.Tokens);
             AssertReadOnlyList(Config.FeeHints);
             AssertReadOnlyList(Chains.DisplayOrder);
+            AssertReadOnlyList(Chains.MainChains);
             AssertReadOnlyList(Sessions.UiStatuses);
             AssertReadOnlyList(Payments.TipPresets);
             AssertReadOnlyDict(Config.LogoTypes);
             Assert.That(Config.Tokens, Is.EqualTo(new[] { "USDC", "USDT" }));
             Assert.That(Config.FeeHints, Is.EqualTo(new[] { "lowest", "low", "high" }));
-            Assert.That(Chains.DisplayOrder, Is.EqualTo(new[] { "arbitrum", "base", "arc", "polygon", "ethereum" }));
+            Assert.That(Chains.DisplayOrder, Is.EqualTo(new[] { "ethereum", "solana", "arc", "base", "arbitrum", "polygon" }));
+            Assert.That(Chains.MainChains, Is.EqualTo(new[] { "ethereum", "solana" }));
         }
 
         [Test]

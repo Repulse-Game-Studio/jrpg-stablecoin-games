@@ -22,11 +22,15 @@ namespace Scfg.Core.Tests
             { "browser", new JsonObject { { "enabled", false } } }, { "qr", new JsonObject { { "enabled", false } } },
         };
 
+        /// <summary>No "Pay with card" button: a single network is skipped.</summary>
+        private static JsonObject NoCard() => new JsonObject { { "enabled", false } };
+
         private static List<object?> L(params object?[] xs) => xs.ToList();
 
         private static CheckoutFixture Setup(string kind = "unlock", List<object?>? chains = null, JsonObject? methods = null,
-                                             Func<Chain, bool>? browserWallet = null) =>
-            CheckoutFixture.Setup(kind, methods: methods, chains: chains, browserWallet: browserWallet);
+                                             Func<Chain, bool>? browserWallet = null, JsonObject? onramp = null) =>
+            CheckoutFixture.Setup(kind, methods: methods, chains: chains, browserWallet: browserWallet,
+                                  appearance: onramp == null ? null : new JsonObject { { "onramp", onramp } });
 
         private static async Task<CheckoutFixture> OnMethodStep(string kind = "unlock", JsonObject? methods = null,
                                                                 Func<Chain, bool>? browserWallet = null)
@@ -210,7 +214,7 @@ namespace Scfg.Core.Tests
         [Test]
         public async Task SingleNetworkIsSkippedForUnlocks()
         {
-            var f = Setup(chains: L("base"));
+            var f = Setup(chains: L("base"), onramp: NoCard());
             var ctl = f.Ctl;
             Assert.That(ctl.State, Is.EqualTo("starting"));
             Assert.That(ctl.ChainKey, Is.EqualTo("base"));
@@ -224,7 +228,7 @@ namespace Scfg.Core.Tests
         [Test]
         public async Task SingleNetworkIsSkippedForTipsBothWays()
         {
-            var f = Setup(kind: "tip", chains: L("base"));
+            var f = Setup(kind: "tip", chains: L("base"), onramp: NoCard());
             var ctl = f.Ctl;
             ctl.NextStep();
             await f.Submitter.Idle();
@@ -427,7 +431,7 @@ namespace Scfg.Core.Tests
         [Test]
         public async Task StartFailureOnASkippedNetworkShowsTheNetworkStep()
         {
-            var f = Setup(kind: "tip", chains: L("base"));
+            var f = Setup(kind: "tip", chains: L("base"), onramp: NoCard());
             var ctl = f.Ctl;
             f.Rig.Evm("base").Down = true;
             ctl.NextStep();
@@ -535,87 +539,136 @@ namespace Scfg.Core.Tests
             Assert.That(f.Servers[1].SessionInfo["chain_name"], Is.EqualTo("Base"));
         }
 
-        // --- the buy link (configure's onramp) ------------------------------------------------------
+        // --- the network step: main tiles, "More networks", "Pay with card" -------------------------
 
-        private static async Task<CheckoutFixture> OnMethodStepWith(JsonObject? onramp, JsonObject? methods = null)
+        private static string[] A(params string[] xs) => xs;
+
+        [Test]
+        public void TheMainNetworksAreTilesAndTheRestSitBehindMoreNetworks()
         {
-            var f = CheckoutFixture.Setup(methods: methods,
-                                          appearance: onramp == null ? null : new JsonObject { { "onramp", onramp } });
-            f.Ctl.ChooseNetwork("arbitrum");
-            await f.Submitter.Idle();
-            f.Ctl.Poll();
-            return f;
+            var ctl = Setup().Ctl;
+            var layout = ctl.NetworkLayout();
+            Assert.That(layout.Main, Is.EqualTo(A("ethereum")));
+            Assert.That(layout.More, Is.EqualTo(A("arc", "base", "arbitrum", "polygon")));
+            Assert.That(layout.Expanded, Is.False);
+            Assert.That(layout.Card, Is.EqualTo(A("ethereum", "arc", "base", "arbitrum", "polygon")));
+            ctl.ToggleMoreNetworks();
+            Assert.That(ctl.NetworkLayout().Expanded, Is.True);
+            ctl.ToggleMoreNetworks();
+            Assert.That(ctl.NetworkLayout().Expanded, Is.False);
         }
 
         [Test]
-        public async Task TheMethodStepOffersTheBuyPageForTheChosenNetwork()
+        public async Task MoreNetworksStaysOpenWhenTheChosenNetworkIsBehindIt()
+        {
+            var ctl = (await OnMethodStep()).Ctl;
+            ctl.Back();
+            Assert.That(ctl.Step, Is.EqualTo("network"));
+            Assert.That(ctl.NetworkLayout().Expanded, Is.True);
+            ctl.ToggleMoreNetworks();                                       // closing it hides the chosen network...
+            Assert.That(ctl.NetworkLayout().Expanded, Is.True, "...so it stays open while it's chosen");
+        }
+
+        [Test]
+        public void WithoutAMainNetworkEveryNetworkIsATile()
+        {
+            var layout = Setup(chains: L("base", "arc")).Ctl.NetworkLayout();
+            Assert.That(layout.Main, Is.EqualTo(A("base", "arc")));
+            Assert.That(layout.More, Is.Empty);
+            Assert.That(layout.Expanded, Is.False);
+            Assert.That(layout.Card, Is.EqualTo(A("base", "arc")));
+        }
+
+        [Test]
+        public async Task PayWithCardSkipsTheMethodStepForTheCardPage()
         {
             var f = Setup();
             var ctl = f.Ctl;
-            Assert.That(ctl.OnrampUrl(), Is.Null, "no network yet");
-            Assert.That(ctl.ShowsOnramp, Is.False);
-            ctl.ChooseNetwork("arbitrum");
+            Assert.That(ctl.CardUrl(), Is.Null);
+            ctl.PayWithCard("arbitrum");
             await f.Submitter.Idle();
             ctl.Poll();
-            Assert.That(ctl.Step, Is.EqualTo("method"));
-            Assert.That(ctl.ShowsOnramp, Is.True);
+            Assert.That(ctl.Step, Is.EqualTo("card"));
+            Assert.That(ctl.Method, Is.EqualTo("card"));
+            Assert.That(ctl.StepPath(), Is.EqualTo(A("network", "card", "waiting")));
+            Assert.That(ctl.StepDots(), Is.EqualTo((1, 3)));
             var units = Ints.IntFrom(ctl.Session!["units"]);
             Assert.That(units >= 4_990_000 && units < 5_000_000, Is.True, units.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            Assert.That(ctl.OnrampUrl(), Is.EqualTo("https://thirdweb.com/bridge/buy-widget?chain=42161&tokenAddress=" + UsdcArb
-                                                   + "&amount=5.00&tokenEditable=false&paymentMethods=card"));
+            var amount = "4.99" + ((int)(units % 10_000)).ToString("0000", System.Globalization.CultureInfo.InvariantCulture);
+            Assert.That(ctl.CardUrl(), Is.EqualTo("https://thirdweb.com/bridge/checkout-widget?chain=42161&tokenAddress=" + UsdcArb
+                                                 + "&amount=" + amount + "&seller=" + Dev + "&paymentMethods=card"));
+            Assert.That(ctl.OpenCard(), Is.EqualTo(ctl.CardUrl()));
+            Assert.That(ctl.Step, Is.EqualTo("waiting"));
+            ctl.Back();
+            Assert.That(ctl.Step, Is.EqualTo("card"));
+            ctl.Back();
+            Assert.That(ctl.Step, Is.EqualTo("network"));
+            Assert.That(ctl.CanGoBack, Is.False);
         }
 
         [Test]
-        public async Task OnArcTheBuyAmountKeepsACentForTheFee()
+        public async Task TheNetworksOwnTileStillGoesToTheMethodStep()
         {
-            var f = Setup(chains: L("base", "arc"));
-            f.Ctl.ChooseNetwork("arc");
+            var f = Setup();
+            var ctl = f.Ctl;
+            ctl.PayWithCard("arbitrum");
+            await f.Submitter.Idle();
+            ctl.Poll();
+            ctl.Back();
+            ctl.ChooseNetwork("arbitrum");                                  // same network: the session is kept
+            Assert.That(ctl.Step, Is.EqualTo("method"));
+            Assert.That(ctl.Method, Is.EqualTo("browser"));
+            var sid = ctl.SessionId;
+            ctl.Back();
+            ctl.PayWithCard("arbitrum");
+            Assert.That(ctl.Step, Is.EqualTo("card"));
+            Assert.That(ctl.SessionId, Is.EqualTo(sid));
+        }
+
+        [Test]
+        public async Task PayWithCardFollowsTheOnrampOption()
+        {
+            var ctl = Setup(onramp: new JsonObject { { "enabled", false } }).Ctl;
+            Assert.That(ctl.NetworkLayout().Card, Is.Empty);
+            ctl.PayWithCard("arbitrum");                                    // no button: nothing happens
+            Assert.That(ctl.Step, Is.EqualTo("network"));
+            Assert.That(ctl.Session, Is.Null);
+            ctl = Setup(onramp: new JsonObject { { "chains", L("base") } }).Ctl;
+            Assert.That(ctl.NetworkLayout().Card, Is.EqualTo(A("base")));
+            var f = Setup(onramp: new JsonObject { { "url", "https://pay.example/{chain}/{token}?a={amount}&to={recipient}" } });
+            ctl = f.Ctl;
+            ctl.PayWithCard("base");
+            await f.Submitter.Idle();
+            ctl.Poll();
+            Assert.That(ctl.CardUrl(), Is.EqualTo("https://pay.example/base/USDC?a=" + ctl.PayAmountText + "&to=" + Dev));
+        }
+
+        [Test]
+        public async Task ASingleNetworkWithACardButtonKeepsTheNetworkStep()
+        {
+            var ctl = Setup(chains: L("base")).Ctl;
+            Assert.That(ctl.Step, Is.EqualTo("network"));
+            Assert.That(ctl.StepPath()[0], Is.EqualTo("network"));
+            var f = Setup(chains: L("base"), onramp: NoCard());
             await f.Submitter.Idle();
             f.Ctl.Poll();
-            Assert.That(f.Ctl.OnrampUrl(), Does.EndWith("&amount=5.01&tokenEditable=false&paymentMethods=card"));
+            Assert.That(f.Ctl.Step, Is.EqualTo("method"), "nothing to choose: skipped as before");
         }
 
         [Test]
-        public async Task TheBuyLinkMovesToTheOnlyPaymentPage()
+        public async Task OpenCardWaitsForTheSession()
         {
-            var ctl = (await OnMethodStep(methods: OnlyManual())).Ctl;
-            Assert.That(ctl.Step, Is.EqualTo("manual"));
-            Assert.That(ctl.ShowsOnramp, Is.True);
-            ctl = (await OnMethodStep()).Ctl;
-            ctl.ChooseMethod("qr");
-            Assert.That(ctl.Step, Is.EqualTo("qr"));
-            Assert.That(ctl.ShowsOnramp, Is.False, "the method step showed it");
-            ctl.MarkSent();
-            Assert.That(ctl.ShowsOnramp, Is.False);
-        }
-
-        [Test]
-        public async Task TheBuyLinkFollowsTheOnrampOption()
-        {
-            var ctl = (await OnMethodStepWith(new JsonObject { { "enabled", false } })).Ctl;
-            Assert.That(ctl.OnrampUrl(), Is.Null);
-            Assert.That(ctl.ShowsOnramp, Is.False);
-            ctl = (await OnMethodStepWith(new JsonObject { { "chains", L("base") } })).Ctl;
-            Assert.That(ctl.ChainKey, Is.EqualTo("arbitrum"));
-            Assert.That(ctl.OnrampUrl(), Is.Null);
-            ctl = (await OnMethodStepWith(new JsonObject { { "url", "https://buy.example/{chain}/{token}?a={amount}" } })).Ctl;
-            Assert.That(ctl.OnrampUrl(), Is.EqualTo("https://buy.example/arbitrum/USDC?a=5.00"));
-        }
-    
-        [Test]
-        public void BeforeASessionTheBuyLinkSuggestsTheMostThePaymentCanBe()
-        {
-            var cfg = Config.BuildConfig(new JsonObject { { "wallet", Dev }, { "chains", L("arbitrum", "arc") } });
-            var path = new List<string> { "network", "method", "browser", "waiting" };
-            var keys = new List<string> { "arbitrum", "arc" };
-            OnrampView View(string? key) => Checkout.OnrampView(cfg, "USDC", key, null, Dec.Parse("4.99")!, "method", path, true, keys);
-            // 4.99 plus at most 0.009999 of item code and nonce: the session's 4.993742 also gives 5.00
-            Assert.That(View("arbitrum").Url, Does.Contain("&amount=5.00&"));
-            Assert.That(View("arc").Url, Does.Contain("&amount=5.01&"));
-            var none = View(null);
-            Assert.That(none.Url, Is.Null);
-            Assert.That(none.ShowsOnramp, Is.False);
-            Assert.That(none.ShowsOnrampHint, Is.True);
+            var f = Setup();
+            var ctl = f.Ctl;
+            Assert.That(ctl.OpenCard(), Is.Null, "not on the card page");
+            ctl.PayWithCard("base");
+            Assert.That(ctl.Step, Is.EqualTo("network"));
+            Assert.That(ctl.OpenCard(), Is.Null);
+            await f.Submitter.Idle();
+            ctl.Poll();
+            Assert.That(ctl.Step, Is.EqualTo("card"));
+            Assert.That(ctl.OpenCard(), Is.Not.Null);
+            Assert.That(ctl.Step, Is.EqualTo("waiting"));
         }
     }
 }
