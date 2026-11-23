@@ -200,6 +200,9 @@ class Evm(desk.Evm):
                 "tokens": ["USDC"],
                 "rpc_urls": {"arbitrum": [self.url]},
                 "confirmations": {"arbitrum": 2},
+                # "Pay with card" off: a single network without a card button is chosen
+                # automatically, so the sheet opens on the method step as the test expects.
+                "onramp": {"enabled": False},
             },
             "items": ITEMS,
         }
@@ -215,6 +218,7 @@ class Arc(desk.Arc):
                 "chains": ["arc"],
                 "tokens": ["USDC"],
                 "rpc_urls": {"arc": [self.url]},
+                "onramp": {"enabled": False},  # (as above: the network step is skipped)
             },
             "items": ITEMS,
         }

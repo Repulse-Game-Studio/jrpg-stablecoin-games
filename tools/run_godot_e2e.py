@@ -139,7 +139,10 @@ class Evm:
 
     def config(self) -> dict:
         return {
-            "configure": {"wallet": self.dev, "chains": ["arbitrum"], "tokens": ["USDC"]},
+            # "Pay with card" off: a single network without a card button is chosen automatically,
+            # so the sheet opens on the method step as the test expects.
+            "configure": {"wallet": self.dev, "chains": ["arbitrum"], "tokens": ["USDC"],
+                          "onramp": {"enabled": False}},
             "items": ITEMS,
         }
 
@@ -194,7 +197,8 @@ class Arc(Evm):
 
     def config(self) -> dict:
         return {
-            "configure": {"wallet": self.dev, "chains": ["arc"], "tokens": ["USDC"]},
+            "configure": {"wallet": self.dev, "chains": ["arc"], "tokens": ["USDC"],
+                          "onramp": {"enabled": False}},  # (as above: the network step is skipped)
             "items": ITEMS,
         }
 
