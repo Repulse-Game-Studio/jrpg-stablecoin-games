@@ -101,7 +101,7 @@ func test_defaults() -> bool:
 		"previous_wallets", "solana_wallet", "previous_solana_wallets", "logo", "accent", "custom_chains", "onramp", "items"],
 		"Config fields in Python's order")
 	T.eq(c["testnet"], false, "testnet")
-	T.eq(c["chains"], ["arbitrum", "base", "arc", "polygon", "ethereum"], "chains")
+	T.eq(c["chains"], ["ethereum", "arc", "base", "arbitrum", "polygon"], "chains")
 	T.eq(c["tokens"], ["USDC", "USDT"], "tokens")
 	T.eq(c["methods"], ScfgConfig.DEFAULT_METHODS, "methods")
 	T.eq([c["rpc_urls"], c["confirmations"], c["items"], c["custom_chains"]], [{}, {}, {}, {}], "empty tables")
@@ -128,7 +128,7 @@ func test_chains_and_tokens() -> bool:
 	_bad({"chains": "base"}, "chains.unknown", "a str iterates its characters")
 	_bad({"chains": ""}, "chains.empty")
 	T.eq(_good({"chains": {"base": 1}})["chains"], ["base"], "a dict iterates its keys")
-	T.eq(_good({"chains": null})["chains"], ["arbitrum", "base", "arc", "polygon", "ethereum"], "None is the default")
+	T.eq(_good({"chains": null})["chains"], ["ethereum", "arc", "base", "arbitrum", "polygon"], "None is the default")
 	_bad({"tokens": []}, "tokens.empty")
 	_bad({"tokens": ["DAI"]}, "tokens.unknown")
 	_bad({"tokens": [["USDC"]]}, "tokens.unknown")
@@ -159,8 +159,8 @@ func test_enabled_chains_respects_order_tokens_and_overrides() -> bool:
 	T.eq(ScfgChains.MAINNET["polygon"]["tokens"].keys(), ["USDC", "USDT"], "(tokens too)")
 	T.eq(ScfgConfig.enabled_chains(_good({"rpc_urls": {"base": "https://one.rpc"}}))["base"]["rpc"][0], "https://one.rpc",
 		"a str URL is accepted")
-	T.eq(ScfgConfig.chains_for_token(_good(), "USDT"), ["arbitrum", "polygon", "ethereum"], "chains_for_token")
-	T.eq(ScfgConfig.chains_for_token(_good(), "USDC"), ["arbitrum", "base", "arc", "polygon", "ethereum"], "(USDC)")
+	T.eq(ScfgConfig.chains_for_token(_good(), "USDT"), ["ethereum", "arbitrum", "polygon"], "chains_for_token")
+	T.eq(ScfgConfig.chains_for_token(_good(), "USDC"), ["ethereum", "arc", "base", "arbitrum", "polygon"], "(USDC)")
 	T.is_err(ScfgConfig.chains_for_token(_good(), ["USDC"]), "TypeError", "an unhashable token")
 	T.eq(ScfgConfig.registry(_good()).keys(), ["ethereum", "arbitrum", "polygon", "base", "arc", "solana"], "registry")
 	return T.done()
@@ -264,12 +264,12 @@ func test_text_on_accent_stays_readable() -> bool:
 	return T.done()
 
 
-# --- onramp (the "Buy some with a card" link) -------------------------------------------------
+# --- onramp (the "Pay with card" buttons) ------------------------------------------------
 
 
 func test_onramp_defaults_to_the_builtin_evm_chains_on_mainnet() -> bool:
 	T.eq(_good({"solana_wallet": SOL})["onramp"], {"enabled": true, "url": ScfgPaylinks.ONRAMP_URL,
-		"chains": ["arbitrum", "base", "arc", "polygon", "ethereum"]})
+		"chains": ["ethereum", "arc", "base", "arbitrum", "polygon"]})
 	return T.done()
 
 
@@ -358,13 +358,13 @@ func test_solana_only_game() -> bool:
 	return T.done()
 
 
-func test_both_families_default_to_evm_then_solana() -> bool:
+func test_both_families_default_to_the_display_order() -> bool:
 	var c := _good({"solana_wallet": SOL})
-	T.eq(c["chains"], ["arbitrum", "base", "arc", "polygon", "ethereum", "solana"], "chains")
+	T.eq(c["chains"], ScfgChains.DISPLAY_ORDER, "chains")
 	T.eq(ScfgConfig.wallet_for(c, ScfgChains.MAINNET["base"]), DEV, "evm wallet")
 	var avax: Variant = _avax()
 	var c2 := _good({"solana_wallet": SOL, "custom_chains": [avax]})
-	T.eq(c2["chains"].slice(-2), ["avalanche", "solana"], "custom EVM chains come before Solana")
+	T.eq(c2["chains"], ScfgChains.DISPLAY_ORDER + ["avalanche"], "custom chains come after the built-ins")
 	return T.done()
 
 
@@ -489,7 +489,7 @@ func test_build_chain_rejects() -> bool:
 
 func test_custom_chain_is_enabled_by_default_after_built_ins() -> bool:
 	var c := _good({"custom_chains": [_avax()]})
-	T.eq(c["chains"], ["arbitrum", "base", "arc", "polygon", "ethereum", "avalanche"], "chains")
+	T.eq(c["chains"], ["ethereum", "arc", "base", "arbitrum", "polygon", "avalanche"], "chains")
 	T.eq(ScfgConfig.enabled_chains(c).keys()[-1], "avalanche", "enabled last")
 	T.eq(ScfgConfig.registry(c)["avalanche"]["chain_id"], 43114, "registry")
 	T.eq(c["custom_chains"].keys(), ["avalanche"], "custom_chains keyed by key")

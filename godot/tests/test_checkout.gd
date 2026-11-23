@@ -63,8 +63,8 @@ func test_initial_state_and_chain_options() -> bool:
 	var ctl: ScfgCheckoutController = _setup()["ctl"]
 	T.eq(ctl.state, "choose")
 	T.eq(ctl.session, null)
-	T.eq(_keys(ctl.chain_options()), ["arbitrum", "base", "arc", "polygon", "ethereum"], "display order")
-	T.eq(ctl.chain_options()[0], ["arbitrum", "Arbitrum", ScfgChains.MAINNET["arbitrum"]["fee_hint"]], "(key, name, fee hint)")
+	T.eq(_keys(ctl.chain_options()), ["ethereum", "arc", "base", "arbitrum", "polygon"], "display order")
+	T.eq(ctl.chain_options()[0], ["ethereum", "Ethereum", ScfgChains.MAINNET["ethereum"]["fee_hint"]], "(key, name, fee hint)")
 	T.eq(ctl.pay_amount_text, "4.99")
 	return T.done()
 
@@ -376,9 +376,9 @@ func test_messages_match_catalogue() -> bool:
 	T.eq(ScfgCheckoutController.FINAL_STATES, ["paid", "underpaid", "expired"])
 	T.eq(ScfgCheckoutController.HINT_VERDICTS, ["tx_reverted", "tx_not_a_payment", "tx_not_landed"])
 	T.eq(ScfgCheckoutController.STEP_ORDER, {"amount": 0, "network": 1, "method": 2, "browser": 3, "qr": 3,
-		"manual": 3, "waiting": 4, "done": 5})
+		"manual": 3, "card": 3, "waiting": 4, "done": 5})
 	T.eq(ScfgCheckoutController.STEP_ORDER.keys(), ["amount", "network", "method", "browser", "qr", "manual",
-		"waiting", "done"], "Python's key order")
+		"card", "waiting", "done"], "Python's key order")
 	return T.done()
 
 

@@ -241,6 +241,8 @@ static func _collect(node: Node, out: Array[String]) -> void:
 		out.append((node as Label).text)
 	elif node is Button and (node as Button).text != "":
 		out.append((node as Button).text)
+	elif node is LinkButton and (node as LinkButton).text != "":
+		out.append((node as LinkButton).text)
 	elif node is LineEdit and (node as LineEdit).placeholder_text != "":
 		out.append((node as LineEdit).placeholder_text)
 	for child in node.get_children():

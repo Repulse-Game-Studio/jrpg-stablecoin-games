@@ -71,7 +71,6 @@ static func _register() -> Dictionary:
 		"format_units": _format_units,
 		# paylinks
 		"eip681_transfer_uri": _eip681_transfer_uri,
-		"onramp_amount": _onramp_amount,
 		"onramp_url": _onramp_url,
 		"solana_pay_uri": _solana_pay_uri,
 		# qr
@@ -93,7 +92,8 @@ static func _register() -> Dictionary:
 		"get_chains": _get_chains,
 		"build_chain": _build_chain,
 		"build_config": _build_config,
-		"onramp_view": _onramp_view,
+		"network_view": _network_view,
+		"card_url": _card_url,
 		"add_item": _add_item,
 		"prepare_payment": _prepare_payment,
 		# rpc_errors
@@ -435,23 +435,14 @@ static func _eip681_transfer_uri(i: Dictionary) -> Variant:
 		"units": units})
 
 
-## paylinks.onramp_amount(int(i["units"]), i["gas_is_token"])
-static func _onramp_amount(i: Dictionary) -> Variant:
-	var units: Variant = _int_field(i, "units")
-	if units is ScfgErr:
-		return units
-	var gas: Variant = ScfgPy.py_get(i, "gas_is_token")
-	if gas is ScfgErr:
-		return gas
-	return ScfgPaylinks.onramp_amount(units, gas)
-
-
-## paylinks.onramp_url(i["template"], chain=..., chain_id=..., token=..., token_address=..., amount=...)
+## paylinks.onramp_url(i["template"], chain=..., chain_id=..., token=..., token_address=..., amount=...,
+## recipient=...)
 static func _onramp_url(i: Dictionary) -> Variant:
-	var args: Variant = _args(ScfgPy.from_json(i), ["template", "chain", "chain_id", "token", "token_address", "amount"])
+	var args: Variant = _args(ScfgPy.from_json(i), ["template", "chain", "chain_id", "token", "token_address", "amount",
+		"recipient"])
 	if args is ScfgErr:
 		return args
-	return ScfgPaylinks.onramp_url(args[0], args[1], args[2], args[3], args[4], args[5])
+	return ScfgPaylinks.onramp_url(args[0], args[1], args[2], args[3], args[4], args[5], args[6])
 
 
 ## solana_pay_uri(recipient=..., units=int(i["units"]), mint=..., reference=..., label=..., message=...)
@@ -825,9 +816,17 @@ static func _build_config(i: Dictionary) -> Variant:
 	return to_jsonable(config)
 
 
-## checkout.onramp_view(_config(i["config"]), token=..., chain_key=..., units=None or int(i["units"]),
-## amount=Decimal(i["amount"]), step=..., path=..., can_go_back=..., option_keys=...)
-static func _onramp_view(i: Dictionary) -> Variant:
+## checkout.network_view(_config(i["config"]), option_keys=..., chain_key=..., expanded=...)
+static func _network_view(i: Dictionary) -> Variant:
+	var j: Variant = ScfgPy.from_json(i)
+	var config: Variant = _config(j["config"])
+	if config is ScfgErr:
+		return config
+	return ScfgCheckoutController.network_view(config, j["option_keys"], j["chain_key"], j["expanded"])
+
+
+## checkout.card_url(_config(i["config"]), token=..., chain_key=..., units=None or int(i["units"]))
+static func _card_url(i: Dictionary) -> Variant:
 	var j: Variant = ScfgPy.from_json(i)
 	var config: Variant = _config(j["config"])
 	if config is ScfgErr:
@@ -837,8 +836,8 @@ static func _onramp_view(i: Dictionary) -> Variant:
 		units = _int_field(i, "units")
 		if units is ScfgErr:
 			return units
-	return ScfgCheckoutController.onramp_view(config, j["token"], j["chain_key"], units, j["amount"], j["step"],
-		j["path"], j["can_go_back"], j["option_keys"])
+	var url: Variant = ScfgCheckoutController.card_url_for(config, j["token"], j["chain_key"], units)
+	return NONE if url == null else url
 
 
 ## to_jsonable(add_item(_with_items(i["config"], i.get("existing", [])), **i["item"]))

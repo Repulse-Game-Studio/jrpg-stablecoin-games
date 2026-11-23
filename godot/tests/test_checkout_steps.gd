@@ -10,6 +10,7 @@ const PAYER := "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
 const TX := "0xabababababababababababababababababababababababababababababababab"
 const SERVER_URL := "http://127.0.0.1:1234/c/secret/"
 const ONLY_MANUAL := {"browser": {"enabled": false}, "qr": {"enabled": false}}
+const NO_CARD := {"enabled": false}  # no "Pay with card" button: a single network is skipped
 static var USDC_ARB: String = ScfgChains.MAINNET["arbitrum"]["tokens"]["USDC"]["address"]
 
 
@@ -184,7 +185,7 @@ func test_a_typed_amount_is_stripped_as_str_strip_does() -> bool:
 # --- skipping single-option steps -------------------------------------------------------
 
 func test_single_network_is_skipped_for_unlocks() -> bool:
-	var m := _setup({"chains": ["base"]})
+	var m := _setup({"chains": ["base"], "onramp": NO_CARD})
 	var ctl: ScfgCheckoutController = m["ctl"]
 	T.eq(ctl.state, "starting")
 	T.eq(ctl.chain_key, "base")
@@ -196,7 +197,7 @@ func test_single_network_is_skipped_for_unlocks() -> bool:
 
 
 func test_single_network_is_skipped_for_tips_both_ways() -> bool:
-	var ctl: ScfgCheckoutController = _setup({"kind": "tip", "chains": ["base"]})["ctl"]
+	var ctl: ScfgCheckoutController = _setup({"kind": "tip", "chains": ["base"], "onramp": NO_CARD})["ctl"]
 	ctl.next_step()
 	ctl.poll()
 	T.eq(ctl.step, "method")
@@ -373,7 +374,7 @@ func test_start_failure_returns_to_network_with_the_message() -> bool:
 
 
 func test_start_failure_on_a_skipped_network_shows_the_network_step() -> bool:
-	var m := _setup({"kind": "tip", "chains": ["base"]})
+	var m := _setup({"kind": "tip", "chains": ["base"], "onramp": NO_CARD})
 	var ctl: ScfgCheckoutController = m["ctl"]
 	var down := F.FakeChain.new()
 	down.down = true
@@ -449,60 +450,100 @@ func test_the_controller_pumps_and_reopens_an_overlay_page() -> bool:
 	return T.done()
 
 
-# --- the buy link (configure's onramp) ----------------------------------------------
+# --- the network step: main tiles, "More networks", "Pay with card" -------------------------
 
-func test_the_method_step_offers_the_buy_page_for_the_chosen_network() -> bool:
+func test_the_main_networks_are_tiles_and_the_rest_sit_behind_more_networks() -> bool:
 	var ctl: ScfgCheckoutController = _setup()["ctl"]
-	T.eq([ctl.onramp_url(), ctl.shows_onramp], [null, false], "no network yet")
-	ctl.choose_network("arbitrum")
+	T.eq(ctl.network_layout(), {"main": ["ethereum"], "more": ["arc", "base", "arbitrum", "polygon"], "expanded": false,
+		"card": ["ethereum", "arc", "base", "arbitrum", "polygon"]})
+	ctl.toggle_more_networks()
+	T.eq(ctl.network_layout()["expanded"], true, "opened")
+	ctl.toggle_more_networks()
+	T.eq(ctl.network_layout()["expanded"], false, "closed")
+	return T.done()
+
+
+func test_more_networks_stays_open_when_the_chosen_network_is_behind_it() -> bool:
+	var ctl: ScfgCheckoutController = _on_method_step()["ctl"]
+	ctl.back()
+	T.eq([ctl.step, ctl.network_layout()["expanded"]], ["network", true])
+	ctl.toggle_more_networks()  # closing it hides the chosen network...
+	T.eq(ctl.network_layout()["expanded"], true, "...so it stays open while it's chosen")
+	return T.done()
+
+
+func test_without_a_main_network_every_network_is_a_tile() -> bool:
+	var ctl: ScfgCheckoutController = _setup({"chains": ["base", "arc"]})["ctl"]
+	T.eq(ctl.network_layout(), {"main": ["base", "arc"], "more": [], "expanded": false, "card": ["base", "arc"]})
+	return T.done()
+
+
+func test_pay_with_card_skips_the_method_step_for_the_card_page() -> bool:
+	var ctl: ScfgCheckoutController = _setup()["ctl"]
+	T.eq(ctl.card_url(), null, "no session yet")
+	ctl.pay_with_card("arbitrum")
 	ctl.poll()
-	T.eq([ctl.step, ctl.shows_onramp], ["method", true])
+	T.eq([ctl.step, ctl.method], ["card", "card"])
+	T.eq(ctl.step_path(), ["network", "card", "waiting"])
+	T.eq(ctl.step_dots(), [1, 3])
 	var units: int = ctl.session["units"]
 	T.ok(units >= 4_990_000 and units < 5_000_000, "the session's amount")
-	T.eq(ctl.onramp_url(), "https://thirdweb.com/bridge/buy-widget?chain=42161&tokenAddress=%s&amount=5.00&tokenEditable=false&paymentMethods=card" % USDC_ARB)
+	var amount := "4.99%04d" % (units % 10_000)
+	T.eq(ctl.card_url(), "https://thirdweb.com/bridge/checkout-widget?chain=42161&tokenAddress=%s&amount=%s&seller=%s&paymentMethods=card"
+		% [USDC_ARB, amount, DEV])
+	T.eq(ctl.open_card(), ctl.card_url(), "open_card returns the page")
+	T.eq(ctl.step, "waiting")
+	ctl.back()
+	T.eq(ctl.step, "card")
+	ctl.back()
+	T.eq([ctl.step, ctl.can_go_back], ["network", false])
 	return T.done()
 
 
-func test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee() -> bool:
-	var ctl: ScfgCheckoutController = _setup({"chains": ["base", "arc"]})["ctl"]
-	ctl.choose_network("arc")
+func test_the_networks_own_tile_still_goes_to_the_method_step() -> bool:
+	var ctl: ScfgCheckoutController = _setup()["ctl"]
+	ctl.pay_with_card("arbitrum")
 	ctl.poll()
-	T.ok(str(ctl.onramp_url()).ends_with("&amount=5.01&tokenEditable=false&paymentMethods=card"), str(ctl.onramp_url()))
+	ctl.back()
+	ctl.choose_network("arbitrum")  # same network: the session is kept
+	T.eq([ctl.step, ctl.method], ["method", "browser"])
+	var sid: Variant = ctl.session_id
+	ctl.back()
+	ctl.pay_with_card("arbitrum")
+	T.eq([ctl.step, ctl.session_id], ["card", sid])
 	return T.done()
 
 
-func test_the_buy_link_moves_to_the_only_payment_page() -> bool:
-	var ctl: ScfgCheckoutController = _on_method_step({"methods": ONLY_MANUAL})["ctl"]
-	T.eq([ctl.step, ctl.shows_onramp], ["manual", true], "the only method")
-	ctl = _on_method_step()["ctl"]
-	ctl.choose_method("qr")
-	T.eq([ctl.step, ctl.shows_onramp], ["qr", false], "the method step showed it")
-	ctl.mark_sent()
-	T.eq(ctl.shows_onramp, false, "waiting")
+func test_pay_with_card_follows_the_onramp_option() -> bool:
+	var ctl: ScfgCheckoutController = _setup({"onramp": {"enabled": false}})["ctl"]
+	T.eq(ctl.network_layout()["card"], [], "disabled")
+	ctl.pay_with_card("arbitrum")  # no button: nothing happens
+	T.eq([ctl.step, ctl.session], ["network", null])
+	ctl = _setup({"onramp": {"chains": ["base"]}})["ctl"]
+	T.eq(ctl.network_layout()["card"], ["base"], "listed")
+	ctl = _setup({"onramp": {"url": "https://pay.example/{chain}/{token}?a={amount}&to={recipient}"}})["ctl"]
+	ctl.pay_with_card("base")
+	ctl.poll()
+	T.eq(ctl.card_url(), "https://pay.example/base/USDC?a=%s&to=%s" % [ctl.pay_amount_text, DEV], "a custom page")
 	return T.done()
 
 
-func test_the_buy_link_follows_the_onramp_option() -> bool:
-	var ctl: ScfgCheckoutController = _on_method_step({"onramp": {"enabled": false}})["ctl"]
-	T.eq([ctl.onramp_url(), ctl.shows_onramp], [null, false], "disabled")
-	ctl = _on_method_step({"onramp": {"chains": ["base"]}})["ctl"]
-	T.eq([ctl.chain_key, ctl.onramp_url()], ["arbitrum", null], "another network")
-	ctl = _on_method_step({"onramp": {"url": "https://buy.example/{chain}/{token}?a={amount}"}})["ctl"]
-	T.eq(ctl.onramp_url(), "https://buy.example/arbitrum/USDC?a=5.00", "a custom page")
+func test_a_single_network_with_a_card_button_keeps_the_network_step() -> bool:
+	var ctl: ScfgCheckoutController = _setup({"chains": ["base"]})["ctl"]
+	T.eq([ctl.step, ctl.step_path()[0]], ["network", "network"])
+	ctl = _setup({"chains": ["base"], "onramp": NO_CARD})["ctl"]
+	ctl.poll()
+	T.eq(ctl.step, "method", "nothing to choose: skipped as before")
 	return T.done()
 
 
-func test_before_a_session_the_buy_link_suggests_the_most_the_payment_can_be() -> bool:
-	var cfg: Variant = ScfgConfig.build_config({"wallet": DEV, "chains": ["arbitrum", "arc"]})
-	if not T.ok(cfg is Dictionary, "build_config"):
-		return T.done()
-	var path := ["network", "method", "browser", "waiting"]
-	var keys := ["arbitrum", "arc"]
-	# 4.99 plus at most 0.009999 of item code and nonce: the session's 4.993742 also gives 5.00
-	var arb: Variant = ScfgCheckoutController.onramp_view(cfg, "USDC", "arbitrum", null, "4.99", "method", path, true, keys)
-	T.ok(str(arb["url"]).contains("&amount=5.00&"), str(arb))
-	var arc: Variant = ScfgCheckoutController.onramp_view(cfg, "USDC", "arc", null, "4.99", "method", path, true, keys)
-	T.ok(str(arc["url"]).contains("&amount=5.01&"), str(arc))
-	var none: Variant = ScfgCheckoutController.onramp_view(cfg, "USDC", null, null, "4.99", "method", path, true, keys)
-	T.eq(none, {"url": null, "shows_onramp": false, "shows_onramp_hint": true}, "no network chosen")
+func test_open_card_waits_for_the_session() -> bool:
+	var ctl: ScfgCheckoutController = _setup()["ctl"]
+	T.eq(ctl.open_card(), null, "not on the card page")
+	ctl.pay_with_card("base")
+	T.eq([ctl.step, ctl.open_card()], ["network", null])
+	ctl.poll()
+	T.eq(ctl.step, "card")
+	T.ok(ctl.open_card() != null, "opens once the session runs")
+	T.eq(ctl.step, "waiting")
 	return T.done()
