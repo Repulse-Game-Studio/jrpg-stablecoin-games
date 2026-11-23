@@ -48,7 +48,7 @@ def _with_wallet(page):
 def _to_methods(game):
     game.setup()
     game.pay()
-    game.key("network_arbitrum").click()
+    game.network("arbitrum")
     game.pass_()
     game.wait_step("method")
 

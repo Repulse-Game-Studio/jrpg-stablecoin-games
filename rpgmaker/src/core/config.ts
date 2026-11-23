@@ -32,7 +32,7 @@ export const DEFAULT_METHODS: Record<string, Record<string, unknown>> = {
   qr: { enabled: true, wallet_button: true, chains: null },
   manual: { enabled: true, allow_tx_paste: true },
 };
-// The "No USDC yet? Buy some with a card" link. chains=null: the built-in EVM chains of a
+// The "Pay with card" button under each network. chains=null: the built-in EVM chains of a
 // mainnet game (card purchases don't exist on test networks); a list chooses the chains.
 export const DEFAULT_ONRAMP: Readonly<Record<string, unknown>> = { enabled: true, url: ONRAMP_URL, chains: null };
 export const ONRAMP_URL_LIMIT = 2048;
@@ -107,7 +107,7 @@ export interface Config {
   items: Map<string, Item>; // in the order added
 }
 
-/** The buy link: `chains` are the keys it is offered on (resolved: never null). */
+/** Pay with card: `chains` are the keys it is offered on (resolved: never null). */
 export interface Onramp {
   enabled: boolean;
   url: string;
@@ -452,7 +452,7 @@ function mergeOnramp(onramp: unknown, chains: readonly string[], reg: Map<string
       throw new ConfigError(`onramp.chains contains disabled chain ${JSON.stringify(c)}`, { code: "onramp.disabled_chain" });
     }
     if (reg.get(c)!.family !== "evm") {
-      throw new ConfigError(`onramp.chains: '${c}' is not an EVM chain; the buy link is offered on EVM chains only`,
+      throw new ConfigError(`onramp.chains: '${c}' is not an EVM chain; Pay with card is offered on EVM chains only`,
         { code: "onramp.not_evm" });
     }
   }
@@ -473,7 +473,7 @@ export interface BuildConfigOptions {
   accent?: string | null;
   custom_chains?: Chain[] | null;
   solana_wallet?: string | null;
-  /** The buy link: `{enabled, url, chains}`, each optional. */
+  /** Pay with card: `{enabled, url, chains}`, each optional. */
   onramp?: { enabled?: boolean; url?: string; chains?: string[] | null } | null;
 }
 
@@ -497,9 +497,11 @@ export function buildConfig(options: BuildConfigOptions = {}): Config {
     if (addr !== current && !seen.includes(addr)) seen.push(addr);
   }
 
-  const solanaKeys = [...reg].filter(([, c]) => c.family === "solana").map(([k]) => k);
+  // Default: the built-ins in display order, then the developer's own, each where its family has a wallet.
+  const offered: Record<string, boolean> = { evm: wallet !== null, solana: sol !== null };
   const chains: string[] = noneish(o["chains"])
-    ? [...(wallet ? [...DISPLAY_ORDER, ...custom.keys()] : []), ...(sol ? solanaKeys : [])]
+    ? [...DISPLAY_ORDER, ...[...reg.keys()].filter((k) => !DISPLAY_ORDER.includes(k))]
+      .filter((k) => reg.has(k) && offered[reg.get(k)!.family] === true)
     : (iterate(o["chains"], "chains") as string[]);
   if (chains.length === 0) throw new ConfigError("chains must not be empty", { code: "chains.empty" });
   for (const c of chains) {

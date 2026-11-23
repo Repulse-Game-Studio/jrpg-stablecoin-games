@@ -128,6 +128,14 @@ class Game:
     def setup(self, **opts):
         self.page.evaluate("(o) => scfgTest.setup(o)", opts)
 
+    def network(self, key, card=False):
+        """Click the network step's tile for `key` (its "Pay with card" link with `card`), opening
+        "More networks" first when the tile sits behind it."""
+        if self.key(f"network_{key}").count() == 0:
+            self.key("more_networks").click()
+            self.frames(2)
+        self.key(f"card_{key}" if card else f"network_{key}").click()
+
     def pay(self, kind="unlock", **opts):
         if kind == "unlock" and not opts:
             opts = {"item": "chapter2"}

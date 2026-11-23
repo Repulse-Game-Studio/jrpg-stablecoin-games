@@ -211,7 +211,11 @@ export const TESTNET: Record<string, Chain> = {
   },
 };
 
-export const DISPLAY_ORDER: readonly string[] = ["arbitrum", "base", "arc", "polygon", "ethereum"];
+// The order the network step lists the built-in chains in: the main chains (Ethereum, Solana,
+// Arc) first, then the L2s.
+export const DISPLAY_ORDER: readonly string[] = ["ethereum", "solana", "arc", "base", "arbitrum", "polygon"];
+// The networks the network step shows as tiles; every other one sits behind "More networks".
+export const MAIN_CHAINS: readonly string[] = ["ethereum", "solana"];
 
 export function getChains(testnet: boolean): Record<string, Chain> {
   return testnet ? TESTNET : MAINNET;

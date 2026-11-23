@@ -9,6 +9,7 @@ import { preparePayment } from "./payments.ts";
 import { classify } from "./restore.ts";
 import { asUnits } from "./amounts.ts";
 import { ONRAMP_URL } from "./paylinks.ts";
+import { DISPLAY_ORDER } from "./chains.ts";
 
 const W = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
 const AVAX = {
@@ -21,7 +22,7 @@ const code = (f: () => unknown) => { try { f(); } catch (e) { assert.ok(e instan
 test("test_defaults", () => {
   const c = buildConfig({ wallet: W.toLowerCase() });
   assert.equal(c.wallet, W);
-  assert.deepEqual(c.chains, ["arbitrum", "base", "arc", "polygon", "ethereum"]);
+  assert.deepEqual(c.chains, ["ethereum", "arc", "base", "arbitrum", "polygon"]);
   assert.deepEqual(c.tokens, ["USDC", "USDT"]);
   assert.equal(c.accent, DEFAULT_ACCENT);
   assert.equal(c.logo, null);
@@ -81,7 +82,7 @@ test("test_custom_chain_in_default_order", () => {
   assert.equal(chain.family, "evm");
   assert.equal(chain.max_log_range, 1000);
   const c = buildConfig({ wallet: W, custom_chains: [chain] });
-  assert.deepEqual(c.chains, ["arbitrum", "base", "arc", "polygon", "ethereum", "avalanche"]);
+  assert.deepEqual(c.chains, ["ethereum", "arc", "base", "arbitrum", "polygon", "avalanche"]);
   assert.equal(registry(c).get("avalanche"), chain);
   assert.equal(walletFor(c, chain), W);
 });
@@ -138,7 +139,7 @@ test("test_integer_like_keys_keep_insertion_order", () => {
   for (const [id, n] of [["b", 1], ["10", 2], ["a", 3], ["0", 4]] as const) {
     addItem(c, id, { code: n, price: "1.00", token: "USDC", title: id });
   }
-  const evm = ["arbitrum", "base", "arc", "polygon", "ethereum", "zeta", "10", "2"];
+  const evm = ["ethereum", "arc", "base", "arbitrum", "polygon", "zeta", "10", "2"];
   assert.deepEqual(c.chains, evm);
   assert.deepEqual(preparePayment(c, "unlock", { item: "10" }).chains, evm);
   assert.deepEqual(chainsForToken(c, "USDC"), evm);
@@ -150,13 +151,26 @@ test("test_integer_like_keys_keep_insertion_order", () => {
   assert.equal(itemByCode(c, 2)!.item_id, "10");
 });
 
-// --- onramp (the "Buy some with a card" link) ----------------------------------------------
+// --- onramp ("Pay with card" under each network) ----------------------------------------
 
 const SOL = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
 
+test("test_both_families_default_to_the_display_order", () => {
+  const c = buildConfig({ wallet: W, solana_wallet: SOL });
+  assert.deepEqual(c.chains, [...DISPLAY_ORDER]);
+  assert.equal(walletFor(c, enabledChains(c).get("base")!), W);
+});
+
+test("test_custom_chains_come_after_the_built_ins", () => {
+  const c = buildConfig({ wallet: W, solana_wallet: SOL, custom_chains: [buildChain("avalanche", AVAX)] });
+  assert.deepEqual(c.chains, [...DISPLAY_ORDER, "avalanche"]);
+  // a Solana-only game: the custom EVM chain needs wallet=, so it is left out
+  assert.deepEqual(buildConfig({ solana_wallet: SOL, custom_chains: [buildChain("avalanche", AVAX)] }).chains, ["solana"]);
+});
+
 test("test_onramp_defaults_to_the_builtin_evm_chains_on_mainnet", () => {
   const c = buildConfig({ wallet: W, solana_wallet: SOL });
-  assert.deepEqual(c.onramp, { enabled: true, url: ONRAMP_URL, chains: ["arbitrum", "base", "arc", "polygon", "ethereum"] });
+  assert.deepEqual(c.onramp, { enabled: true, url: ONRAMP_URL, chains: ["ethereum", "arc", "base", "arbitrum", "polygon"] });
 });
 
 test("test_onramp_is_not_offered_on_testnet_unless_chains_are_listed", () => {

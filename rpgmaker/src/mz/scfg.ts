@@ -36,7 +36,7 @@
  * its controller first (cancel / finish stop its browser page), and only then the screen;
  * "keep_playing" moves the controller to `_background`, where its page keeps answering until the
  * session is final or the browser timeout passes. The sheet's buttons that leave the game call
- * `openBrowser`, `openWalletApp`, `openExplorer`, `openOnramp`, `copy` and `pasteInto` (actions.ts has the
+ * `openBrowser`, `openWalletApp`, `openExplorer`, `openCard`, `copy` and `pasteInto` (actions.ts has the
  * per-platform parts). Notifications go through `text()`.
  *
  * WEB (not NW.js; Ren'Py's WEB branches): the browser checkout is the in-page overlay
@@ -353,8 +353,8 @@ export class Scfg {
   /**
    * Set the payout wallet and options (Ren'Py's keyword arguments, by their Python names):
    * wallet and/or solana_wallet, testnet, chains, tokens, methods, onramp, rpc_urls, confirmations,
-   * previous_wallets, logo and accent. `onramp` is the "Buy some with a card" link: {enabled, url,
-   * chains}, like {enabled: false} to hide it. `logo` names an image in img/scfg/ ("logo" is
+   * previous_wallets, logo and accent. `onramp` is the "Pay with card" button under each network:
+   * {enabled, url, chains}, like {enabled: false} to hide it. `logo` names an image in img/scfg/ ("logo" is
    * img/scfg/logo.png). It can be called again until payments have started (the frame after the
    * state is read).
    *
@@ -1158,11 +1158,14 @@ export class Scfg {
     if (uri) this._openUrl(uri);
   }
 
-  /** The sheet's "No USDC yet? Buy some with a card" (Ren'Py's _open_onramp): the buy page for the chosen network. */
-  openOnramp(ctl: CheckoutController): void {
+  /**
+   * The card step's "Open card checkout" (Ren'Py's _open_card): the card checkout page for this
+   * payment (the controller's openCard, which also moves the sheet on to waiting).
+   */
+  openCard(ctl: CheckoutController): void {
     const open = this._openController(ctl);
     if (!(open instanceof ScreenCheckout)) return;
-    const url = open.onrampUrl();
+    const url = open.openCard();
     if (url) this._openUrl(url);
   }
 

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  ARC_MIN_FEE_WEI, ARC_SYSTEM_EMITTER, ARC_USDC, DISPLAY_ORDER, MAINNET, TESTNET, explorerUrl, getChains,
+  ARC_MIN_FEE_WEI, ARC_SYSTEM_EMITTER, ARC_USDC, DISPLAY_ORDER, MAIN_CHAINS, MAINNET, TESTNET, explorerUrl, getChains,
   logSource, makeToken, parseTransfer,
 } from "./chains.ts";
 import { ValueError } from "./errors.ts";
@@ -20,7 +20,16 @@ test("test_constants", () => {
   assert.equal(ARC_USDC, "0x3600000000000000000000000000000000000000");
   assert.equal(ARC_SYSTEM_EMITTER, "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE");
   assert.equal(ARC_MIN_FEE_WEI, 20_000_000_000n);
-  assert.deepEqual(DISPLAY_ORDER, ["arbitrum", "base", "arc", "polygon", "ethereum"]);
+});
+
+test("test_display_order_covers_all_chains", () => {
+  assert.deepEqual([...DISPLAY_ORDER].sort(), Object.keys(MAINNET).sort());
+  assert.deepEqual([...DISPLAY_ORDER].sort(), Object.keys(TESTNET).sort());
+});
+
+test("test_display_order_puts_the_main_chains_before_the_l2s", () => {
+  assert.deepEqual(DISPLAY_ORDER, ["ethereum", "solana", "arc", "base", "arbitrum", "polygon"]);
+  assert.deepEqual(MAIN_CHAINS, ["ethereum", "solana"]);
 });
 
 test("test_get_chains_returns_the_mutable_registries", () => {

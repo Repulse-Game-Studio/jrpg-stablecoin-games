@@ -738,12 +738,18 @@ test("mobileOffersWalletAppLink", async () => {
   s.openExplorer("");
   assert.equal(world.opened.length, 2, "openExplorer opens a URL, and nothing for none");
   s.openWalletApp({ paymentUri: () => "ethereum:0xevil" } as any);
-  s.openOnramp({ onrampUrl: () => "https://evil.example" } as any);
+  s.openCard({ openCard: () => "https://evil.example" } as any);
   assert.equal(world.opened.length, 2, "only an open sheet's controller");
-  const buy = ctl.onrampUrl();
-  assert.ok(buy !== null && buy.startsWith("https://thirdweb.com/"), `the buy page (${buy})`);
-  s.openOnramp(ctl);
-  assert.deepEqual(world.opened[2], ["window", buy, "_blank", "noopener,noreferrer"], "the buy link opens with window.open");
+  s.openCard(ctl);
+  assert.equal(world.opened.length, 2, "nothing off the card step");
+  ctl.back();
+  ctl.payWithCard("arbitrum"); // the running session: straight to the card step
+  assert.equal(ctl.step, "card");
+  const card = ctl.cardUrl();
+  assert.ok(card !== null && card.startsWith("https://thirdweb.com/bridge/checkout-widget?"), `the card checkout (${card})`);
+  s.openCard(ctl);
+  assert.deepEqual(world.opened[2], ["window", card, "_blank", "noopener,noreferrer"], "Open card checkout opens it with window.open");
+  assert.equal(ctl.step, "waiting");
 });
 
 test("linksOpenWithNwShellOnDesktopAndNeverThrowWithoutIt", async () => {
@@ -753,15 +759,19 @@ test("linksOpenWithNwShellOnDesktopAndNeverThrowWithoutIt", async () => {
   const ctl = await session(env);
   s.openWalletApp(ctl);
   s.openExplorer("https://arbiscan.io/tx/" + TX);
-  s.openOnramp(ctl);
-  assert.deepEqual(world.opened, [["nw", ctl.paymentUri()], ["nw", "https://arbiscan.io/tx/" + TX], ["nw", ctl.onrampUrl()]],
+  ctl.back();
+  ctl.payWithCard("arbitrum");
+  const card = ctl.cardUrl();
+  s.openCard(ctl);
+  assert.deepEqual(world.opened, [["nw", ctl.paymentUri()], ["nw", "https://arbiscan.io/tx/" + TX], ["nw", card]],
     "nw.Shell.openExternal on desktop");
   world.nwAvailable = false; // NW.js without its `nw` object: the page's window.open
   s.openExplorer("https://arbiscan.io/tx/1");
   assert.deepEqual(world.opened[3], ["window", "https://arbiscan.io/tx/1", "_blank", "noopener,noreferrer"]);
   delete world.win.open; // and with neither: nothing, never an exception
   assert.doesNotThrow(() => s.openExplorer("https://arbiscan.io/tx/2"));
-  assert.doesNotThrow(() => s.openOnramp(ctl));
+  ctl.back(); // the card step again
+  assert.doesNotThrow(() => s.openCard(ctl));
   assert.doesNotThrow(() => s.copy("x"));
   assert.equal(world.opened.length, 4);
   assert.equal(host.closes, 0);

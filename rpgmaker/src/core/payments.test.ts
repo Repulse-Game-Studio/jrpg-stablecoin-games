@@ -23,7 +23,7 @@ test("test_unlock_uses_item_defaults", () => {
   assert.equal(String(s.price), "4.99");
   assert.equal(s.code, 1);
   assert.equal(s.title, "Chapter 2");
-  assert.deepEqual(s.chains, ["arbitrum", "base", "arc", "polygon", "ethereum"]);
+  assert.deepEqual(s.chains, ["ethereum", "arc", "base", "arbitrum", "polygon"]);
 });
 
 test("test_unlock_pins_codes_and_error_classes", () => {

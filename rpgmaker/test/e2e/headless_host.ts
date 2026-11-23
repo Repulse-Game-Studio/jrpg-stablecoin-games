@@ -94,9 +94,13 @@ export class HeadlessHost implements SheetHost {
     const s = this.scfg;
     const out: Button[] = [];
     const add = (name: string, text: string, press: () => void) => out.push({ name, text, press });
-    const onramp = () => {
-      if (c.showsOnramp) add("onramp", this.t("onramp_link", c.spec.token), () => s.openOnramp(c));
-      else if (c.showsOnrampHint) add("onramp_hint", this.t("onramp_hint", c.spec.token), () => c.back());
+    const names = new Map<string, string>(c.chainOptions().map(([key, name]: [string, string]) => [key, name]));
+    // a grid's tiles in the sheet's order, each with its "Pay with card" link below it
+    const tiles = (keys: string[], card: string[]) => {
+      for (const key of keys) {
+        add(`network_${key}`, names.get(key)!, () => c.chooseNetwork(key));
+        if (card.includes(key)) add(`card_${key}`, this.t("pay_with_card"), () => c.payWithCard(key));
+      }
     };
     if (c.canGoBack) add("back", this.t("back"), () => c.back());
     if (c.state !== "closed") {
@@ -106,20 +110,23 @@ export class HeadlessHost implements SheetHost {
           add("set_amount", this.t("set"), () => c.applyCustomAmount());
           add("forward", this.t("next"), () => void c.nextStep());
           break;
-        case "network":
-          for (const [key, name] of c.chainOptions()) add(`network_${key}`, name, () => c.chooseNetwork(key));
+        case "network": {
+          const layout = c.networkLayout();
+          tiles(layout.main, layout.card);
+          if (layout.more.length > 0) {
+            add("more_networks", this.t(layout.expanded ? "fewer_networks" : "more_networks"), () => c.toggleMoreNetworks());
+            if (layout.expanded) tiles(layout.more, layout.card);
+          }
           break;
+        }
         case "method":
           for (const m of c.methods()) add(`method_${m}`, m, () => c.chooseMethod(m));
-          onramp();
           break;
         case "browser":
-          onramp();
           add("forward", this.t("open_checkout_browser"), () => s.openBrowser(c));
           break;
         case "qr":
           if (s._platform.isMobile() && c.config.methods["qr"]?.["wallet_button"]) add("wallet_app", this.t("open_wallet_app"), () => s.openWalletApp(c));
-          onramp();
           add("forward", this.t("i_sent_it"), () => c.markSent());
           break;
         case "manual": {
@@ -129,10 +136,12 @@ export class HeadlessHost implements SheetHost {
           }
           // (the sheet's Paste button is web only: on desktop the player pastes into the field)
           if (c.config.methods["manual"]?.["allow_tx_paste"]) add("check", this.t("check"), () => c.submitHash());
-          onramp();
           add("forward", this.t("i_sent_it"), () => c.markSent());
           break;
         }
+        case "card":
+          add("forward", this.t("open_card_checkout"), () => s.openCard(c));
+          break;
         case "waiting":
           if (c.hint_tx) {
             const url = c.explorerUrl();
