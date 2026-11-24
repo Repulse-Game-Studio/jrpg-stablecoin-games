@@ -321,7 +321,9 @@ def test_pay_with_card_follows_the_option_and_skips_solana(make_game):
     # the two main tiles side by side, the same size
     box = "(el) => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; }"
     eth, sol = game2.key("network_ethereum").evaluate(box), game2.key("network_solana").evaluate(box)
-    assert eth[1] == sol[1] and eth[2:] == sol[2:] and sol[0] > eth[0]
+    # within half a pixel: Chrome lays fractional widths out to 1/64 px or finer, so equal cells can
+    # differ in the last bits (178.9375 and 178.93756 on CI)
+    assert all(abs(a - b) < 0.5 for a, b in zip(eth[1:], sol[1:])) and sol[0] > eth[0]
 
 
 def test_a_single_network_with_a_card_button_keeps_the_network_step(make_game):
