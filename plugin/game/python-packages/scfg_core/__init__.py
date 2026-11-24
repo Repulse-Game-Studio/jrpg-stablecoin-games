@@ -4,4 +4,4 @@ Nothing in this package may import ``renpy``. Ren'Py-specific glue lives in
 ``game/scfg/*.rpy``. Code must remain compatible with Python 3.9.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

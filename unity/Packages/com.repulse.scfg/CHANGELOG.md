@@ -3,7 +3,7 @@
 Each release's section heads its GitHub release notes (`release.yml` copies the section whose heading is the tagged
 version). The generated list of changes follows it there, and the release's date is on the GitHub release.
 
-## Unreleased
+## 0.4.0
 
 - **The network step leads with Ethereum and Solana.** Networks are listed Ethereum, Solana, Arc, Base, Arbitrum,
   Polygon (was Arbitrum, Base, Arc, Polygon, Ethereum, then Solana), and only Ethereum and Solana are tiles: the rest

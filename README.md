@@ -112,7 +112,7 @@ if (result.status === "paid" || result.status === "already_owned") {
 In the Package Manager, **Add package from git URL...**:
 
 ```
-https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games.git?path=unity/Packages/com.repulse.scfg#v0.3.0
+https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games.git?path=unity/Packages/com.repulse.scfg#v0.4.0
 ```
 
 or **Add package from tarball...** with `scfg-unity-<version>.tgz`. The package has two samples (Showcase and
@@ -372,7 +372,7 @@ The desktop e2e defaults to SDL's offscreen video driver. Where that isn't avail
    suites locally (`unity/README.md`, `unreal/README.md`) before tagging.
 3. Tag that commit and push the tag:
    ```bash
-   git tag v0.3.0 && git push origin v0.3.0
+   git tag v0.4.0 && git push origin v0.4.0
    ```
 
 `.github/workflows/release.yml` then runs the lint and unit tests, the C++ and C# cores' tests, checks that the
@@ -380,7 +380,7 @@ tag matches `__version__`, builds every archive with `tools/package.py` (Ren'Py,
 `.tgz`, the three Unreal zips and the Unreal showcase zip) and publishes them as a GitHub release with generated notes. A second job builds
 the `stablecoin-games-renpy` package (`uv build`: the installer in `installer/` with the plugin files inside it) and
 uploads it to PyPI through trusted publishing, from the `pypi` environment. A version with letters in it, such as
-`0.3.0rc1`, is published as a prerelease and does not become "latest".
+`0.4.0rc1`, is published as a prerelease and does not become "latest".
 
 **Fab.** The Unreal plugin is released on GitHub only. Its `unreal/Plugins/Scfg/Scfg.uplugin` lists Win64, Mac,
 Android and IOS next to Linux in each module's `PlatformAllowList`. Win64 builds with MSVC on UE 5.8; Mac, Android and IOS are expected to work but have not yet been built or tested. Fab compiles a code

@@ -19,10 +19,10 @@ any EVM chain you add yourself.
 2. Paste this URL and click **Add**:
 
    ```
-   https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games.git?path=unity/Packages/com.repulse.scfg#v0.3.0
+   https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games.git?path=unity/Packages/com.repulse.scfg#v0.4.0
    ```
 
-   The `#v0.3.0` at the end pins a release tag; use the tag of the release you want. The Package Manager needs
+   The `#v0.4.0` at the end pins a release tag; use the tag of the release you want. The Package Manager needs
    `git` installed on your machine for this.
 
 ## From the release tarball

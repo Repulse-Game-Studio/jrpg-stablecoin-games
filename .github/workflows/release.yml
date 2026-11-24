@@ -137,7 +137,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.build.outputs.version }}
         run: |
-          # Only versions like 0.3.0rc1 are prereleases; GitHub's "latest" (and the jrpg.com page) skips those.
+          # Only versions like 0.4.0rc1 are prereleases; GitHub's "latest" (and the jrpg.com page) skips those.
           prerelease=""
           case "$VERSION" in *[a-z]*) prerelease="--prerelease" ;; esac
           # gh puts these lines above the generated notes (what changed since the last tag). The tested versions are
