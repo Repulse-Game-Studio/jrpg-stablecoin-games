@@ -22,12 +22,14 @@ init python:
     if E2E.get("family") == "arc":
         # The real Arc entry (USDC read from the system emitter), pointed at the local chain.
         _e2e_chains.MAINNET["arc"] = _e2e_replace(_e2e_chains.MAINNET["arc"], rpc=(E2E["rpc"],))
-        scfg.configure(wallet=E2E["dev"], chains=["arc"], tokens=["USDC"])
+        scfg.configure(wallet=E2E["dev"], chains=["arc"], tokens=["USDC"],
+                       onramp={"enabled": False})  # no card button: the network step is skipped
     else:
         _e2e_chains.MAINNET["arbitrum"] = _e2e_replace(
             _e2e_chains.MAINNET["arbitrum"], rpc=(E2E["rpc"],), confirmations=2,
             tokens=python_dict(USDC=_E2EToken(E2E["usdc"])))
-        scfg.configure(wallet=E2E["dev"], chains=["arbitrum"], tokens=["USDC"])
+        scfg.configure(wallet=E2E["dev"], chains=["arbitrum"], tokens=["USDC"],
+                       onramp={"enabled": False})  # no card button: the network step is skipped
     scfg.add_item("chapter2", code=1, price="1.00", token="USDC", title="Chapter 2")
 
     def e2e_checkout():
