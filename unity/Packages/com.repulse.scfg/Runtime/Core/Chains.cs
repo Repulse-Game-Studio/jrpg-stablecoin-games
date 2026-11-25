@@ -288,6 +288,13 @@ namespace Scfg.Core
         /// </summary>
         public static readonly IReadOnlyList<string> MainChains = Array.AsReadOnly(new[] { "ethereum", "solana" });
 
+        /// <summary>
+        /// Tiles the network step always shows when there are that many networks: when fewer of
+        /// <see cref="MainChains"/> are offered (no Solana wallet), the next networks in display order fill the row, so
+        /// an EVM-only game shows Ethereum and Arc, not Ethereum alone. (Python's MAIN_TILES.)
+        /// </summary>
+        public const int MainTiles = 2;
+
         public static IReadOnlyDictionary<string, Chain> GetChains(bool testnet) => testnet ? Testnet : Mainnet;
 
         /// <summary>

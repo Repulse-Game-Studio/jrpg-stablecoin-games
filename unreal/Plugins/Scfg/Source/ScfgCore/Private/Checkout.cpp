@@ -246,12 +246,20 @@ Result<std::optional<std::string>> card_url(const config::Config& config, std::s
 Result<NetworkView> network_view(const config::Config& config, const std::vector<std::string>& option_keys,
                                  const std::optional<std::string>& chain_key, bool expanded) {
     NetworkView view;
+    std::size_t featured = 0;
     for (const std::string& k : option_keys) {
-        (detail::among(chains::MAIN_CHAINS, k) ? view.main : view.more).push_back(k);
+        if (detail::among(chains::MAIN_CHAINS, k)) ++featured;
     }
-    if (view.main.empty() || view.more.empty()) {
-        view.main = option_keys;
-        view.more.clear();
+    std::size_t fill = featured < chains::MAIN_TILES ? chains::MAIN_TILES - featured : 0;
+    for (const std::string& k : option_keys) {
+        if (detail::among(chains::MAIN_CHAINS, k)) {
+            view.main.push_back(k);
+        } else if (fill > 0) {
+            view.main.push_back(k);
+            --fill;
+        } else {
+            view.more.push_back(k);
+        }
     }
     view.expanded = !view.more.empty() &&
                     (expanded || (chain_key && std::find(view.more.begin(), view.more.end(), *chain_key) != view.more.end()));

@@ -216,6 +216,10 @@ export const TESTNET: Record<string, Chain> = {
 export const DISPLAY_ORDER: readonly string[] = ["ethereum", "solana", "arc", "base", "arbitrum", "polygon"];
 // The networks the network step shows as tiles; every other one sits behind "More networks".
 export const MAIN_CHAINS: readonly string[] = ["ethereum", "solana"];
+// Tiles the network step always shows when there are that many networks: when fewer of
+// MAIN_CHAINS are offered (no Solana wallet), the next networks in display order fill the row,
+// so an EVM-only game shows Ethereum and Arc, not Ethereum alone.
+export const MAIN_TILES = 2;
 
 export function getChains(testnet: boolean): Record<string, Chain> {
   return testnet ? TESTNET : MAINNET;

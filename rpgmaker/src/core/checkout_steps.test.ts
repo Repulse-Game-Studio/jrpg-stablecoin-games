@@ -392,7 +392,7 @@ test("test_the_controller_pumps_and_reopens_an_overlay_page", async () => {
 test("test_the_main_networks_are_tiles_and_the_rest_sit_behind_more_networks", () => {
   const { ctl } = setup();
   assert.deepEqual(ctl.networkLayout(), {
-    main: ["ethereum"], more: ["arc", "base", "arbitrum", "polygon"], expanded: false,
+    main: ["ethereum", "arc"], more: ["base", "arbitrum", "polygon"], expanded: false,
     card: ["ethereum", "arc", "base", "arbitrum", "polygon"],
   });
   ctl.toggleMoreNetworks();
@@ -409,9 +409,11 @@ test("test_more_networks_stays_open_when_the_chosen_network_is_behind_it", async
   assert.equal(ctl.networkLayout().expanded, true); // ...so it stays open while it's chosen
 });
 
-test("test_without_a_main_network_every_network_is_a_tile", () => {
+test("test_without_a_main_network_the_first_two_are_tiles", () => {
   const { ctl } = setup({ chains: ["base", "arc"] });
   assert.deepEqual(ctl.networkLayout(), { main: ["base", "arc"], more: [], expanded: false, card: ["base", "arc"] });
+  const three = setup({ chains: ["base", "arc", "polygon"] }).ctl.networkLayout();
+  assert.deepEqual([three.main, three.more], [["base", "arc"], ["polygon"]]);
 });
 
 test("test_pay_with_card_skips_the_method_step_for_the_card_page", async () => {

@@ -55,8 +55,9 @@ def test_steps_follow_the_controller(make_game):
     assert game.key("token").inner_text() == "USDC"
     names = {k: name for k, name, _fee in v["chainOptions"]}
     layout = v["layout"]
-    assert layout["main"] == ["ethereum"] and layout["more"] == ["arc", "base", "arbitrum", "polygon"]
-    assert [game.key(f"network_{k}").inner_text().splitlines()[0] for k in layout["main"]] == ["Ethereum"]
+    # no Solana wallet: Arc fills the second tile
+    assert layout["main"] == ["ethereum", "arc"] and layout["more"] == ["base", "arbitrum", "polygon"]
+    assert [game.key(f"network_{k}").inner_text().splitlines()[0] for k in layout["main"]] == ["Ethereum", "Arc"]
     assert all(game.key(f"network_{k}").count() == 0 for k in layout["more"]), "behind More networks"
     game.key("more_networks").click()
     game.frames(2)
@@ -157,11 +158,15 @@ def test_keyboard_only_manual_payment(make_game):
     game.setup()
     game.pay()
     assert game.focused_key() == "network_ethereum", "the first network has the focus"
-    # past Ethereum's "Pay with card" to More networks, open it, then on to Arbitrum and Enter (MZ's "ok")
-    game.hold("ArrowDown")
-    assert game.focused_key() == "card_ethereum"
-    game.hold("ArrowDown")
-    assert game.focused_key() == "more_networks"
+    # past the main tiles and their "Pay with card" links to More networks, open it, then on to
+    # Arbitrum and Enter (MZ's "ok")
+    seen = []
+    for _ in range(8):
+        game.hold("ArrowDown")
+        seen.append(game.focused_key())
+        if seen[-1] == "more_networks":
+            break
+    assert seen[-1] == "more_networks" and {"network_arc", "card_ethereum", "card_arc"} <= set(seen)
     game.hold("Enter")
     assert game.view()["layout"]["expanded"] and game.focused_key() == "more_networks"
     for _ in range(8):

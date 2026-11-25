@@ -410,6 +410,7 @@ bool FScfgSheetNetworkStepTest::RunTest(const FString& Parameters)
 	}
 	TestEqual(TEXT("the network step"), Sheet->ShownStep(), FString(TEXT("network")));
 	TestTrue(TEXT("Ethereum is a tile"), Sheet->IsShown(TEXT("network_ethereum")));
+	TestTrue(TEXT("without a Solana wallet, Arc is the second tile"), Sheet->IsShown(TEXT("network_arc")));
 	TestFalse(TEXT("Arbitrum sits behind More networks"), Sheet->IsShown(TEXT("network_arbitrum")));
 	TestEqual(TEXT("More networks"), Sheet->TextOf(TEXT("more_networks")), FString(TEXT("More networks")));
 	TestEqual(TEXT("Pay with card under Ethereum"), Sheet->TextOf(TEXT("card_ethereum")), FString(TEXT("Pay with card")));
@@ -424,12 +425,12 @@ bool FScfgSheetNetworkStepTest::RunTest(const FString& Parameters)
 	const TArray<FString> Order = Sheet->FocusOrder();
 	const auto At = [&Order](const TCHAR* Key) { return Order.IndexOfByKey(FString(Key)); };
 	TestTrue(TEXT("the focus order: a row's tiles, then its links; More networks between the main tiles and the rest"),
-		At(TEXT("network_ethereum")) < At(TEXT("card_ethereum")) && At(TEXT("card_ethereum")) < At(TEXT("more_networks")) &&
-		At(TEXT("more_networks")) < At(TEXT("network_arc")) && At(TEXT("network_base")) < At(TEXT("card_arc")) &&
-		At(TEXT("card_base")) < At(TEXT("network_arbitrum")));
+		At(TEXT("network_ethereum")) < At(TEXT("network_arc")) && At(TEXT("network_arc")) < At(TEXT("card_ethereum")) &&
+		At(TEXT("card_arc")) < At(TEXT("more_networks")) && At(TEXT("more_networks")) < At(TEXT("network_base")) &&
+		At(TEXT("network_arbitrum")) < At(TEXT("card_base")) && At(TEXT("card_arbitrum")) < At(TEXT("network_polygon")));
 	const FSlateRect Eth = RectOf(*Sheet, TEXT("network_ethereum"));
 	const FSlateRect Arb = RectOf(*Sheet, TEXT("network_arbitrum"));
-	TestTrue(*FString::Printf(TEXT("the lone main tile is as wide and as tall as the others (%s, %s)"), *Eth.ToString(),
+	TestTrue(*FString::Printf(TEXT("a main tile is as wide and as tall as the others (%s, %s)"), *Eth.ToString(),
 		*Arb.ToString()),
 		Eth.GetSize().X > 0 && FMath::IsNearlyEqual(Eth.GetSize().X, Arb.GetSize().X, 1.0) &&
 		FMath::IsNearlyEqual(Eth.GetSize().Y, Arb.GetSize().Y, 1.0));

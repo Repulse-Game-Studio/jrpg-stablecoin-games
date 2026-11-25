@@ -43,6 +43,10 @@ const CHAIN_FIELDS: Array[String] = ["key", "chain_id", "name", "rpc", "confirma
 const DISPLAY_ORDER: Array[String] = ["ethereum", "solana", "arc", "base", "arbitrum", "polygon"]
 ## The networks the network step shows as tiles; every other one sits behind "More networks".
 const MAIN_CHAINS: Array[String] = ["ethereum", "solana"]
+## Tiles the network step always shows when there are that many networks: when fewer of
+## MAIN_CHAINS are offered (no Solana wallet), the next networks in display order fill the row,
+## so an EVM-only game shows Ethereum and Arc, not Ethereum alone.
+const MAIN_TILES := 2
 
 static var MAINNET: Dictionary = _mainnet()
 static var TESTNET: Dictionary = _testnet()

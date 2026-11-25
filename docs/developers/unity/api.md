@@ -50,7 +50,7 @@ be called again until payments have started, on the frame after a successful cal
 | `Wallet` | Your EVM payout address (`0x...`). At least one of `Wallet` and `SolanaWallet` is required |
 | `SolanaWallet` | Your Solana payout address (base58) |
 | `Testnet` | `true` uses the test networks (Sepolia, Arbitrum Sepolia, Polygon Amoy, Base Sepolia, Arc Testnet, and Solana Devnet with USDC only), so no real money moves. Default `false`: set it to `true` while you develop |
-| `Chains` | The networks offered, in order, by key (`"ethereum"`, `"solana"`, `"arc"`, `"base"`, `"arbitrum"`, `"polygon"`, or your own). Default: every network the wallets can receive on, in that order, then your own. The network step shows Ethereum and Solana as tiles and the others under **More networks** |
+| `Chains` | The networks offered, in order, by key (`"ethereum"`, `"solana"`, `"arc"`, `"base"`, `"arbitrum"`, `"polygon"`, or your own). Default: every network the wallets can receive on, in that order, then your own. The network step shows Ethereum and Solana as tiles and the others under **More networks**; without a Solana wallet, Arc takes the second tile |
 | `Tokens` | `"USDC"`, `"USDT"`. Default both |
 | `Methods` | A `ScfgMethods`: which payment methods the sheet offers. Default: all of them |
 | `Onramp` | A `ScfgOnramp`: the "Pay with card" button under each network, see [Pay with card](#pay-with-card-onramp). Default: on, on mainnet |

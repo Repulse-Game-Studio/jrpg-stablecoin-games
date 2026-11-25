@@ -260,23 +260,29 @@ static func card_url_for(cfg: Dictionary, pay_token: String, key: Variant, units
 
 ## How the network step lays out the networks the player can pick, `option_keys` in display order
 ## (Python's checkout.network_view, pinned by the tier1 vectors): {"main", "more", "expanded", "card"}.
-## - main: the tiles always shown, the options among MAIN_CHAINS (Ethereum, Solana).
-## - more: the rest, behind "More networks". When either list would be empty, every option is main
-##   and more is empty: a dropdown hiding all of them, or none, has no use.
+## - main: the tiles always shown: the options among MAIN_CHAINS (Ethereum, Solana), and when there
+##   are fewer than MAIN_TILES of those, the next options in order until there are MAIN_TILES (an
+##   EVM-only game: Ethereum and Arc). In display order.
+## - more: the rest, behind "More networks" (empty: no "More networks").
 ## - expanded: whether "More networks" is open: as the player left it, or because the chosen network
 ##   (`key`) is behind it (coming back to the step shows it).
 ## - card: the options with a "Pay with card" button (card_offered_on), in display order.
 static func network_view(cfg: Dictionary, option_keys: Array, key: Variant, expanded: bool) -> Dictionary:
+	var featured := 0
+	for k: Variant in option_keys:
+		if ScfgChains.MAIN_CHAINS.has(k):
+			featured += 1
+	var fill := maxi(0, ScfgChains.MAIN_TILES - featured)
 	var main := []
 	var more := []
 	for k: Variant in option_keys:
 		if ScfgChains.MAIN_CHAINS.has(k):
 			main.append(k)
+		elif fill > 0:
+			main.append(k)
+			fill -= 1
 		else:
 			more.append(k)
-	if main.is_empty() or more.is_empty():
-		main = option_keys.duplicate()
-		more = []
 	var card := []
 	for k: Variant in option_keys:
 		if card_offered_on(cfg, k):

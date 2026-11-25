@@ -548,8 +548,8 @@ namespace Scfg.Core.Tests
         {
             var ctl = Setup().Ctl;
             var layout = ctl.NetworkLayout();
-            Assert.That(layout.Main, Is.EqualTo(A("ethereum")));
-            Assert.That(layout.More, Is.EqualTo(A("arc", "base", "arbitrum", "polygon")));
+            Assert.That(layout.Main, Is.EqualTo(A("ethereum", "arc")));          // no Solana wallet: Arc fills the row
+            Assert.That(layout.More, Is.EqualTo(A("base", "arbitrum", "polygon")));
             Assert.That(layout.Expanded, Is.False);
             Assert.That(layout.Card, Is.EqualTo(A("ethereum", "arc", "base", "arbitrum", "polygon")));
             ctl.ToggleMoreNetworks();
@@ -570,13 +570,16 @@ namespace Scfg.Core.Tests
         }
 
         [Test]
-        public void WithoutAMainNetworkEveryNetworkIsATile()
+        public void WithoutAMainNetworkTheFirstTwoAreTiles()
         {
             var layout = Setup(chains: L("base", "arc")).Ctl.NetworkLayout();
             Assert.That(layout.Main, Is.EqualTo(A("base", "arc")));
             Assert.That(layout.More, Is.Empty);
             Assert.That(layout.Expanded, Is.False);
             Assert.That(layout.Card, Is.EqualTo(A("base", "arc")));
+            var three = Setup(chains: L("base", "arc", "polygon")).Ctl.NetworkLayout();
+            Assert.That(three.Main, Is.EqualTo(A("base", "arc")));
+            Assert.That(three.More, Is.EqualTo(A("polygon")));
         }
 
         [Test]

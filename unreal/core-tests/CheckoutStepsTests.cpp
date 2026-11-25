@@ -37,7 +37,7 @@
 //   test_the_controller_pumps_and_reopens_an_overlay_page                  -> the same name
 //   test_the_main_networks_are_tiles_and_the_rest_sit_behind_more_networks -> the same name
 //   test_more_networks_stays_open_when_the_chosen_network_is_behind_it     -> the same name
-//   test_without_a_main_network_every_network_is_a_tile                    -> the same name
+//   test_without_a_main_network_the_first_two_are_tiles                    -> the same name
 //   test_pay_with_card_skips_the_method_step_for_the_card_page             -> the same name
 //   test_the_networks_own_tile_still_goes_to_the_method_step               -> the same name
 //   test_pay_with_card_follows_the_onramp_option                           -> the same name
@@ -545,7 +545,7 @@ SCFG_TEST(CheckoutStepsTests, test_the_main_networks_are_tiles_and_the_rest_sit_
     if (!s) return;
     CheckoutController& ctl = *s->ctl;
     SCFG_CHECK(t, layout_of(t, ctl) == (scfg::checkout::NetworkView{
-                                           keys({"ethereum"}), keys({"arc", "base", "arbitrum", "polygon"}), false,
+                                           keys({"ethereum", "arc"}), keys({"base", "arbitrum", "polygon"}), false,
                                            keys({"ethereum", "arc", "base", "arbitrum", "polygon"})}));
     ctl.toggle_more_networks();
     SCFG_CHECK(t, layout_of(t, ctl).expanded);
@@ -563,11 +563,15 @@ SCFG_TEST(CheckoutStepsTests, test_more_networks_stays_open_when_the_chosen_netw
     SCFG_CHECK(t, layout_of(t, ctl).expanded);  // ...so it stays open while it's chosen
 }
 
-SCFG_TEST(CheckoutStepsTests, test_without_a_main_network_every_network_is_a_tile) {
+SCFG_TEST(CheckoutStepsTests, test_without_a_main_network_the_first_two_are_tiles) {
     std::optional<Setup> s = setup(t, {.chains = Json::list({"base", "arc"})});
     if (!s) return;
     SCFG_CHECK(t, layout_of(t, *s->ctl) ==
                       (scfg::checkout::NetworkView{keys({"base", "arc"}), {}, false, keys({"base", "arc"})}));
+    std::optional<Setup> three = setup(t, {.chains = Json::list({"base", "arc", "polygon"})});
+    if (!three) return;
+    scfg::checkout::NetworkView view = layout_of(t, *three->ctl);
+    SCFG_CHECK(t, view.main == keys({"base", "arc"}) && view.more == keys({"polygon"}));
 }
 
 SCFG_TEST(CheckoutStepsTests, test_pay_with_card_skips_the_method_step_for_the_card_page) {

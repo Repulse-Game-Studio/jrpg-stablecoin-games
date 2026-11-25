@@ -77,21 +77,19 @@ namespace Scfg.Core
         /// <summary>
         /// How the network step lays out <paramref name="optionKeys"/>, the networks the player can pick in display order
         /// (Python's checkout.network_view, pinned by the tier1 vectors). Main: the options among
-        /// <see cref="Chains.MainChains"/>; More: the rest, behind "More networks". When either list would be empty,
-        /// every option is main and More is empty. Expanded: "More networks" is open, as the player left it
+        /// <see cref="Chains.MainChains"/> and, when there are fewer than <see cref="Chains.MainTiles"/> of those, the
+        /// next options in order until there are that many (an EVM-only game: Ethereum and Arc), in display order;
+        /// More: the rest, behind "More networks" (empty: no "More networks"). Expanded: "More networks" is open, as the player left it
         /// (<paramref name="expanded"/>) or because the chosen network is behind it. Card: the options with a "Pay with
         /// card" button (<see cref="CardOffered"/>), in display order.
         /// </summary>
         public static NetworkView NetworkView(ConfigData config, IReadOnlyList<string> optionKeys, string? chainKey,
                                               bool expanded)
         {
-            var main = optionKeys.Where(k => Chains.MainChains.Contains(k)).ToList();
-            var more = optionKeys.Where(k => !Chains.MainChains.Contains(k)).ToList();
-            if (main.Count == 0 || more.Count == 0)
-            {
-                main = optionKeys.ToList();
-                more = new List<string>();
-            }
+            var others = optionKeys.Where(k => !Chains.MainChains.Contains(k)).ToList();
+            var fill = others.Take(Math.Max(0, Chains.MainTiles - (optionKeys.Count - others.Count))).ToList();
+            var main = optionKeys.Where(k => Chains.MainChains.Contains(k) || fill.Contains(k)).ToList();
+            var more = optionKeys.Where(k => !main.Contains(k)).ToList();
             bool open = more.Count > 0 && (expanded || (chainKey != null && more.Contains(chainKey)));
             return new NetworkView(main.AsReadOnly(), more.AsReadOnly(), open,
                                    optionKeys.Where(k => CardOffered(config, k)).ToList().AsReadOnly());

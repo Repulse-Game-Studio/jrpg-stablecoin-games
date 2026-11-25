@@ -6,8 +6,8 @@ version). The generated list of changes follows it there, and the release's date
 ## 0.4.0
 
 - **The network step leads with Ethereum and Solana.** Networks are listed Ethereum, Solana, Arc, Base, Arbitrum,
-  Polygon (was Arbitrum, Base, Arc, Polygon, Ethereum, then Solana), and only Ethereum and Solana are tiles: the rest
-  sit under **More networks**. Chains added with `add_chain()` now come after all the built-ins, Solana included. A
+  Polygon (was Arbitrum, Base, Arc, Polygon, Ethereum, then Solana). Ethereum and Solana are tiles, and the rest
+  sit under **More networks**; without a Solana wallet, Arc takes the second tile, so the row always has two. Chains added with `add_chain()` now come after all the built-ins, Solana included. A
   game that passes its own `chains` list keeps its order.
 - **Pay with card replaces the buy link.** Each network that takes cards has a small **Pay with card** button under
   its tile, which opens thirdweb's hosted *checkout* page paying the exact amount straight to your wallet, instead of

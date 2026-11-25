@@ -3677,10 +3677,10 @@
     ],
     "expanded": false,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon"
@@ -3713,10 +3713,10 @@
     ],
     "expanded": true,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon"
@@ -3749,10 +3749,10 @@
     ],
     "expanded": false,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon"
@@ -3785,10 +3785,10 @@
     ],
     "expanded": true,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon"
@@ -3821,10 +3821,10 @@
     ],
     "expanded": true,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon"
@@ -3857,10 +3857,10 @@
     ],
     "expanded": false,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon"
@@ -3893,10 +3893,10 @@
     ],
     "expanded": false,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon"
@@ -4001,11 +4001,10 @@
     ],
     "expanded": false,
     "main": [
-     "solana"
-    ],
-    "more": [
+     "solana",
      "base"
-    ]
+    ],
+    "more": []
    }
   },
   {
@@ -4179,11 +4178,10 @@
     ],
     "expanded": false,
     "main": [
+     "arbitrum",
      "ethereum"
     ],
-    "more": [
-     "arbitrum"
-    ]
+    "more": []
    }
   },
   {
@@ -4209,10 +4207,10 @@
     "card": [],
     "expanded": false,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon"
@@ -4248,10 +4246,10 @@
     ],
     "expanded": false,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon"
@@ -4281,10 +4279,10 @@
     "card": [],
     "expanded": false,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon"
@@ -4312,10 +4310,10 @@
     "card": [],
     "expanded": false,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon"
@@ -4350,10 +4348,10 @@
     ],
     "expanded": false,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon"
@@ -4400,10 +4398,10 @@
     ],
     "expanded": false,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon",
@@ -4452,10 +4450,10 @@
     ],
     "expanded": false,
     "main": [
-     "ethereum"
+     "ethereum",
+     "arc"
     ],
     "more": [
-     "arc",
      "base",
      "arbitrum",
      "polygon",

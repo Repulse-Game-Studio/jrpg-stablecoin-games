@@ -110,6 +110,10 @@ inline constexpr std::array<std::string_view, 6> DISPLAY_ORDER = {"ethereum", "s
                                                                   "base",     "arbitrum", "polygon"};
 // The networks the network step shows as tiles; every other one sits behind "More networks".
 inline constexpr std::array<std::string_view, 2> MAIN_CHAINS = {"ethereum", "solana"};
+// Tiles the network step always shows when there are that many networks: when fewer of MAIN_CHAINS are offered (no
+// Solana wallet), the next networks in display order fill the row, so an EVM-only game shows Ethereum and Arc, not
+// Ethereum alone.
+inline constexpr std::size_t MAIN_TILES = 2;
 
 // TESTNET() if testnet else MAINNET(): the registry itself, not a copy.
 SCFGCORE_API OrderedMap<Chain>& get_chains(bool testnet);

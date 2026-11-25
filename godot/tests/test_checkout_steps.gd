@@ -454,7 +454,7 @@ func test_the_controller_pumps_and_reopens_an_overlay_page() -> bool:
 
 func test_the_main_networks_are_tiles_and_the_rest_sit_behind_more_networks() -> bool:
 	var ctl: ScfgCheckoutController = _setup()["ctl"]
-	T.eq(ctl.network_layout(), {"main": ["ethereum"], "more": ["arc", "base", "arbitrum", "polygon"], "expanded": false,
+	T.eq(ctl.network_layout(), {"main": ["ethereum", "arc"], "more": ["base", "arbitrum", "polygon"], "expanded": false,
 		"card": ["ethereum", "arc", "base", "arbitrum", "polygon"]})
 	ctl.toggle_more_networks()
 	T.eq(ctl.network_layout()["expanded"], true, "opened")
@@ -472,9 +472,11 @@ func test_more_networks_stays_open_when_the_chosen_network_is_behind_it() -> boo
 	return T.done()
 
 
-func test_without_a_main_network_every_network_is_a_tile() -> bool:
+func test_without_a_main_network_the_first_two_are_tiles() -> bool:
 	var ctl: ScfgCheckoutController = _setup({"chains": ["base", "arc"]})["ctl"]
 	T.eq(ctl.network_layout(), {"main": ["base", "arc"], "more": [], "expanded": false, "card": ["base", "arc"]})
+	ctl = _setup({"chains": ["base", "arc", "polygon"]})["ctl"]
+	T.eq([ctl.network_layout()["main"], ctl.network_layout()["more"]], [["base", "arc"], ["polygon"]], "three")
 	return T.done()
 
 

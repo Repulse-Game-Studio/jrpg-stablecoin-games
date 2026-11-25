@@ -18,7 +18,7 @@
  */
 import { asUnits, formatUnits, parseAmount, type Units } from "./amounts.ts";
 import { backendFor } from "./backends/index.ts";
-import { explorerUrl, MAIN_CHAINS, type Chain } from "./chains.ts";
+import { explorerUrl, MAIN_CHAINS, MAIN_TILES, type Chain } from "./chains.ts";
 import { enabledChains, registry, textOn, walletFor, type Config } from "./config.ts";
 import type { Dec } from "./decimal.ts";
 import { parseUnreadyKey, unreadyKey, type Engine } from "./engine.ts";
@@ -134,9 +134,10 @@ export interface NetworkView {
 /**
  * How the network step lays out the networks the player can pick, `optionKeys` in display order
  * (Python's checkout.network_view, pinned by the tier1 vectors):
- * - main: the tiles always shown, the options among MAIN_CHAINS (Ethereum, Solana).
- * - more: the rest, behind "More networks". When either list would be empty, every option is main
- *   and more is empty: a dropdown hiding all of them, or none, has no use.
+ * - main: the tiles always shown: the options among MAIN_CHAINS (Ethereum, Solana), and when there
+ *   are fewer than MAIN_TILES of those, the next options in order until there are MAIN_TILES (an
+ *   EVM-only game: Ethereum and Arc). In display order.
+ * - more: the rest, behind "More networks" (empty: no "More networks").
  * - expanded: whether "More networks" is open: as the player left it, or because the chosen
  *   network is behind it (coming back to the step shows it).
  * - card: the options with a "Pay with card" button (cardOffered), in display order.
@@ -144,12 +145,10 @@ export interface NetworkView {
 export function networkView(config: Config, v: {
   optionKeys: readonly string[]; chainKey: string | null; expanded: boolean;
 }): NetworkView {
-  let main = v.optionKeys.filter((k) => MAIN_CHAINS.includes(k));
-  let more = v.optionKeys.filter((k) => !MAIN_CHAINS.includes(k));
-  if (main.length === 0 || more.length === 0) {
-    main = [...v.optionKeys];
-    more = [];
-  }
+  const others = v.optionKeys.filter((k) => !MAIN_CHAINS.includes(k));
+  const fill = others.slice(0, Math.max(0, MAIN_TILES - (v.optionKeys.length - others.length)));
+  const main = v.optionKeys.filter((k) => MAIN_CHAINS.includes(k) || fill.includes(k));
+  const more = v.optionKeys.filter((k) => !main.includes(k));
   return {
     main, more, expanded: more.length > 0 && (v.expanded || (v.chainKey !== null && more.includes(v.chainKey))),
     card: v.optionKeys.filter((k) => cardOffered(config, k)),

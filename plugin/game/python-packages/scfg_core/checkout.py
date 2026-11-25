@@ -22,7 +22,7 @@ from decimal import Decimal
 
 from .amounts import format_units, parse_amount
 from .backends import backend_for
-from .chains import MAIN_CHAINS, Chain
+from .chains import MAIN_CHAINS, MAIN_TILES, Chain
 from .config import Config, enabled_chains, text_on
 from .models import PaymentResult
 from .paylinks import eip681_transfer_uri, onramp_url
@@ -82,17 +82,18 @@ def network_view(config: Config, *, option_keys: list[str], chain_key: str | Non
     """How the network step lays out the networks the player can pick, `option_keys` in display
     order (pinned by the tier1 vectors, fn network_view):
 
-    - main: the tiles always shown, the options among MAIN_CHAINS (Ethereum, Solana).
-    - more: the rest, behind "More networks". When either list would be empty, every option is
-      main and more is empty: a dropdown hiding all of them, or none, has no use.
+    - main: the tiles always shown: the options among MAIN_CHAINS (Ethereum, Solana), and when
+      there are fewer than MAIN_TILES of those, the next options in order until there are
+      MAIN_TILES (an EVM-only game: Ethereum and Arc). In display order.
+    - more: the rest, behind "More networks" (empty: no "More networks").
     - expanded: whether "More networks" is open: as the player left it, or because the chosen
       network is behind it (coming back to the step shows it).
     - card: the options with a "Pay with card" button (card_offered), in display order.
     """
-    main = [k for k in option_keys if k in MAIN_CHAINS]
-    more = [k for k in option_keys if k not in MAIN_CHAINS]
-    if not main or not more:
-        main, more = list(option_keys), []
+    others = [k for k in option_keys if k not in MAIN_CHAINS]
+    shown = set(MAIN_CHAINS) | set(others[:max(0, MAIN_TILES - (len(option_keys) - len(others)))])
+    main = [k for k in option_keys if k in shown]
+    more = [k for k in option_keys if k not in shown]
     return {"main": main, "more": more, "expanded": bool(more) and (expanded or chain_key in more),
             "card": [k for k in option_keys if card_offered(config, k)]}
 

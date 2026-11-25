@@ -143,8 +143,9 @@ SCFGCORE_API Result<std::optional<std::string>> card_url(const config::Config& c
 
 // How the network step lays out `option_keys`, the networks the player can pick in display order (Python's
 // checkout.network_view, pinned by the tier1 vectors): main, the options among chains::MAIN_CHAINS (Ethereum,
-// Solana); more, the rest, behind "More networks" (when either list would be empty, every option is main and more is
-// empty); expanded, whether "More networks" is open: as the player left it (`expanded`), or because the chosen
+// Solana) and, when there are fewer than chains::MAIN_TILES of those, the next options in order until there are that
+// many (an EVM-only game: Ethereum and Arc), in display order; more, the rest, behind "More networks" (empty: no
+// "More networks"); expanded, whether "More networks" is open: as the player left it (`expanded`), or because the chosen
 // network is behind it; card, the options with a "Pay with card" button (card_offered), in display order.
 SCFGCORE_API Result<NetworkView> network_view(const config::Config& config, const std::vector<std::string>& option_keys,
                                               const std::optional<std::string>& chain_key, bool expanded);

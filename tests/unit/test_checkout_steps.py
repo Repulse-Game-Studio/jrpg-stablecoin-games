@@ -395,9 +395,9 @@ def test_the_controller_pumps_and_reopens_an_overlay_page():
 # --- the network step: main tiles, "More networks", "Pay with card" -------------------------
 
 def test_the_main_networks_are_tiles_and_the_rest_sit_behind_more_networks():
-    ctl, *_ = setup()
+    ctl, *_ = setup()                                # no Solana wallet: Arc fills the second tile
     assert ctl.network_layout() == {
-        "main": ["ethereum"], "more": ["arc", "base", "arbitrum", "polygon"], "expanded": False,
+        "main": ["ethereum", "arc"], "more": ["base", "arbitrum", "polygon"], "expanded": False,
         "card": ["ethereum", "arc", "base", "arbitrum", "polygon"]}
     ctl.toggle_more_networks()
     assert ctl.network_layout()["expanded"] is True
@@ -413,10 +413,13 @@ def test_more_networks_stays_open_when_the_chosen_network_is_behind_it():
     assert ctl.network_layout()["expanded"] is True  # ...so it stays open while it's chosen
 
 
-def test_without_a_main_network_every_network_is_a_tile():
+def test_without_a_main_network_the_first_two_are_tiles():
     ctl, *_ = setup(chains=["base", "arc"])
     assert ctl.network_layout() == {"main": ["base", "arc"], "more": [], "expanded": False,
                                     "card": ["base", "arc"]}
+    ctl, *_ = setup(chains=["base", "arc", "polygon"])
+    assert ctl.network_layout()["main"] == ["base", "arc"]
+    assert ctl.network_layout()["more"] == ["polygon"]
 
 
 def test_pay_with_card_skips_the_method_step_for_the_card_page():

@@ -71,7 +71,7 @@ configuration: declare the items again after it.
 | `Wallet` | Your EVM payout address (`0x...`). At least one of `Wallet` and `SolanaWallet` is required |
 | `SolanaWallet` | Your Solana payout address (base58) |
 | `bTestnet` | `true` uses the test networks (Sepolia, Arbitrum Sepolia, Polygon Amoy, Base Sepolia, Arc Testnet and Solana Devnet, USDC only), so no real money moves. Default `false` in the struct (the project settings start with it on) |
-| `Chains` | The networks offered, in order, by key (`ethereum`, `arbitrum`, `polygon`, `base`, `arc`, `solana`, or your own). Empty: every network your wallets can receive on, Ethereum, Solana, Arc, Base, Arbitrum and Polygon, then your own. The network step shows Ethereum and Solana as tiles and the others behind **More networks** |
+| `Chains` | The networks offered, in order, by key (`ethereum`, `arbitrum`, `polygon`, `base`, `arc`, `solana`, or your own). Empty: every network your wallets can receive on, Ethereum, Solana, Arc, Base, Arbitrum and Polygon, then your own. The network step shows Ethereum and Solana as tiles and the others behind **More networks**; without a Solana wallet, Arc takes the second tile |
 | `Tokens` | `USDC`, `USDT`. Empty: both |
 | `Methods` | An `FScfgMethods`: which payment methods the sheet offers. Default: all of them |
 | `Onramp` | An `FScfgOnramp`: the **Pay with card** button under each network, see [Pay with card](#pay-with-card-onramp). Default: on, on mainnet |

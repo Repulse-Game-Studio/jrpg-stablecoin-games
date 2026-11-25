@@ -38,7 +38,8 @@ that it is refused with `configure.after_start`.
 
 ## Pay with card (`onramp`)
 
-The network step shows Ethereum and Solana as tiles and the other networks under **More networks**. Under each
+The network step shows Ethereum and Solana as tiles and the other networks under **More networks**; without a
+Solana wallet, Arc takes the second tile. Under each
 network that takes cards the sheet shows a small **Pay with card** link. It skips the method step for a card
 page with the exact amount, whose **Open card checkout** button opens a card checkout page for that network in
 the browser (a new tab on a web export) and moves on to waiting for the payment. The player pays by card there,

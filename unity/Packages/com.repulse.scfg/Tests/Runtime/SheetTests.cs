@@ -106,8 +106,8 @@ namespace Scfg.Tests
             Assert.That(GameObject.Find("SCFG Payment Sheet"), Is.Null, "the host destroyed the sheet");
         }
 
-        // The network step (Ren'Py's scfg_step_network): Ethereum as a tile, the L2s behind "More networks", a "Pay with
-        // card" link under each tile.
+        // The network step (Ren'Py's scfg_step_network): Ethereum and, without a Solana wallet, Arc as tiles, the L2s
+        // behind "More networks", a "Pay with card" link under each tile.
         [UnityTest]
         public IEnumerator TheNetworkStepShowsTheMainNetworksAndTheRestBehindMoreNetworks()
         {
@@ -117,24 +117,25 @@ namespace Scfg.Tests
             yield return Frames();
             var v = OpenSheet();
             Assert.That(v.ShownStep, Is.EqualTo("network"));
-            Assert.That(v.Keys.Where(k => k.StartsWith("network_")), Is.EqualTo(new[] { "network_ethereum" }));
+            Assert.That(v.Keys.Where(k => k.StartsWith("network_")), Is.EqualTo(new[] { "network_ethereum", "network_arc" }));
             Assert.That(v.Focused, Is.EqualTo("network_ethereum"));
             Assert.That(v.TextOf("card_ethereum"), Is.EqualTo("Pay with card"));
             Assert.That(v.TextOf("more_networks"), Is.EqualTo("More networks"));
-            Nav(v, NavigationMoveEvent.Direction.Down);
-            Assert.That(v.Focused, Is.EqualTo("card_ethereum"), "the link under the tile");
-            Nav(v, NavigationMoveEvent.Direction.Down);
-            Assert.That(v.Focused, Is.EqualTo("more_networks"));
+            foreach (var next in new[] { "network_arc", "card_ethereum", "card_arc", "more_networks" })
+            {
+                Nav(v, NavigationMoveEvent.Direction.Down);                 // the row's tiles, then their links
+                Assert.That(v.Focused, Is.EqualTo(next));
+            }
             Submit(v);
             yield return Frames();
             Assert.That(v.TextOf("more_networks"), Is.EqualTo("Fewer networks"));
             Assert.That(v.Focused, Is.EqualTo("more_networks"), "the focus stays on the toggle");
             Assert.That(v.FocusOrder.Select(c => v.Keys.First(k => v.Control(k) == c)).TakeWhile(k => k != "cancel"), Is.EqualTo(new[]
             {
-                "network_ethereum", "card_ethereum", "more_networks", "network_arc", "network_base", "card_arc", "card_base",
-                "network_arbitrum", "network_polygon", "card_arbitrum", "card_polygon",
+                "network_ethereum", "network_arc", "card_ethereum", "card_arc", "more_networks", "network_base",
+                "network_arbitrum", "card_base", "card_arbitrum", "network_polygon", "card_polygon",
             }));
-            var arc = v.Control("network_arc")!;
+            var arc = v.Control("network_base")!;
             var ethereum = v.Control("network_ethereum")!;
             Assert.That(arc.layout.width, Is.EqualTo(ethereum.layout.width).Within(0.5f), "every tile has the same width");
             Assert.That(arc.layout.height, Is.EqualTo(ethereum.layout.height).Within(0.5f), "and the same height");
@@ -181,7 +182,7 @@ namespace Scfg.Tests
             Assert.That(v.Control("network_arbitrum")!.ClassListContains("scfg-option--selected"), Is.False);
         }
 
-        // Solana is a main tile without a "Pay with card" link.
+        // Solana is a main tile without a "Pay with card" link; Arbitrum fills the second tile.
         [UnityTest]
         public IEnumerator SolanaHasNoPayWithCardLink()
         {
@@ -197,9 +198,8 @@ namespace Scfg.Tests
             Assert.That(v.ShownStep, Is.EqualTo("network"));
             Assert.That(v.Control("network_solana"), Is.Not.Null);
             Assert.That(v.Control("card_solana"), Is.Null);
-            Assert.That(v.Control("network_arbitrum"), Is.Null, "behind More networks");
-            Assert.That(v.Press("more_networks"), Is.True);
-            yield return Frames();
+            Assert.That(v.Control("network_arbitrum"), Is.Not.Null, "the second tile");
+            Assert.That(v.Control("more_networks"), Is.Null, "nothing left behind More networks");
             Assert.That(v.Control("card_arbitrum"), Is.Not.Null);
         }
 
