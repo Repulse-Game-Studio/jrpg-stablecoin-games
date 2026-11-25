@@ -9,21 +9,22 @@
  *                                      \-> underpaid | expired
  *
  * The sheet shows one step at a time (`step`):
- * amount (tips only) -> network -> method -> browser | qr | manual -> waiting -> done.
+ * amount (tips only) -> network -> method -> browser | qr | manual -> waiting -> done,
+ * or, through a network's "Pay with card" button: network -> card -> waiting -> done.
  * Steps with a single option are skipped both ways. `back()` works until a transaction
  * is seen; a seen payment moves the sheet to waiting and a final state to done.
  *
  * Stored fields keep the Python (snake_case) names; methods and computed properties are camelCase.
  */
-import { asUnits, decimalToUnits, formatUnits, parseAmount, type Units } from "./amounts.ts";
+import { asUnits, formatUnits, parseAmount, type Units } from "./amounts.ts";
 import { backendFor } from "./backends/index.ts";
-import { explorerUrl, type Chain } from "./chains.ts";
+import { explorerUrl, MAIN_CHAINS, MAIN_TILES, type Chain } from "./chains.ts";
 import { enabledChains, registry, textOn, walletFor, type Config } from "./config.ts";
 import type { Dec } from "./decimal.ts";
 import { parseUnreadyKey, unreadyKey, type Engine } from "./engine.ts";
 import { ValueError } from "./errors.ts";
 import { makePaymentResult, type PaymentResult } from "./models.ts";
-import { eip681TransferUri, ONRAMP_EXACT_UNITS, onrampAmount, onrampUrl } from "./paylinks.ts";
+import { eip681TransferUri, onrampUrl } from "./paylinks.ts";
 import { MIN_TIP, TIP_PRESETS, type PaymentSpec } from "./payments.ts";
 import { RpcUnavailable } from "./rpc.ts";
 import { solanaPayUri } from "./solana/paylinks.ts";
@@ -37,7 +38,7 @@ export const FINAL_STATES: readonly string[] = ["paid", "underpaid", "expired"];
 export const HINT_VERDICTS: readonly string[] = ["tx_reverted", "tx_not_a_payment", "tx_not_landed"];
 // Order of the steps; the three method pages share a place.
 export const STEP_ORDER: Readonly<Record<string, number>> = {
-  amount: 0, network: 1, method: 2, browser: 3, qr: 3, manual: 3, waiting: 4, done: 5,
+  amount: 0, network: 1, method: 2, browser: 3, qr: 3, manual: 3, card: 3, waiting: 4, done: 5,
 };
 
 export const MESSAGES: Readonly<Record<string, string>> = {
@@ -98,42 +99,60 @@ export interface CheckoutOptions {
   browser_wallet?: ((chain: Chain) => boolean) | null;
 }
 
-/** The buy link's state on a checkout step (Python's checkout.onramp_view). */
-export interface OnrampView {
-  url: string | null;
-  shows_onramp: boolean;
-  shows_onramp_hint: boolean;
+/**
+ * Whether the network gets a "Pay with card" button (Python's checkout.card_offered):
+ * configure({onramp}) is on and lists it (by default the built-in EVM chains of a mainnet game;
+ * never Solana).
+ */
+export function cardOffered(config: Config, chainKey: string | null): boolean {
+  const opts = config.onramp;
+  return Boolean(opts.enabled && chainKey && opts.chains.includes(chainKey) && enabledChains(config).has(chainKey));
 }
 
-const ONRAMP_PAGES: readonly string[] = ["browser", "qr", "manual"];
+/**
+ * The card checkout page for a running session (Python's checkout.card_url, pinned by the tier1
+ * vectors): configure({onramp})'s template filled in for the network, the developer's wallet there
+ * and the session's exact amount. null without a session or where the network has no card button.
+ */
+export function cardUrl(config: Config, v: { token: string; chainKey: string | null; units: Units | null }): string | null {
+  if (v.units === null || !cardOffered(config, v.chainKey)) return null;
+  const chain = enabledChains(config).get(v.chainKey as string)!;
+  return onrampUrl(config.onramp.url, {
+    chain: chain.key, chainId: chain.chain_id, token: v.token, tokenAddress: chain.tokens[v.token]!.address,
+    amount: formatUnits(v.units), recipient: walletFor(config, chain) as string,
+  });
+}
+
+/** How the network step lays out the networks (Python's checkout.network_view). */
+export interface NetworkView {
+  main: string[];
+  more: string[];
+  expanded: boolean;
+  card: string[];
+}
 
 /**
- * The buy link's state on a checkout step, as the controller and every port decide it (Python's
- * checkout.onramp_view, pinned by the tier1 vectors). url: configure({onramp})'s page for the
- * chosen network when it is offered there, else null; the suggested amount is the session's exact
- * `units`, or before a session (null) the payment `amount` plus the most the item code and nonce
- * add (ONRAMP_EXACT_UNITS); plus a cent where the token is the network's gas coin (Arc); rounded
- * up to whole cents. The link goes on the method step, or on the payment page the sheet opens on
- * when `path` has no method step; the hint shows there instead, without a url, while the player
- * can go back and another network in `optionKeys` has the link.
+ * How the network step lays out the networks the player can pick, `optionKeys` in display order
+ * (Python's checkout.network_view, pinned by the tier1 vectors):
+ * - main: the tiles always shown: the options among MAIN_CHAINS (Ethereum, Solana), and when there
+ *   are fewer than MAIN_TILES of those, the next options in order until there are MAIN_TILES (an
+ *   EVM-only game: Ethereum and Arc). In display order.
+ * - more: the rest, behind "More networks" (empty: no "More networks").
+ * - expanded: whether "More networks" is open: as the player left it, or because the chosen
+ *   network is behind it (coming back to the step shows it).
+ * - card: the options with a "Pay with card" button (cardOffered), in display order.
  */
-export function onrampView(config: Config, v: {
-  token: string; chainKey: string | null; units: Units | null; amount: Dec; step: string; path: readonly string[];
-  canGoBack: boolean; optionKeys: readonly string[];
-}): OnrampView {
-  const opts = config.onramp;
-  const chain = v.chainKey ? enabledChains(config).get(v.chainKey) ?? null : null;
-  let url: string | null = null;
-  if (opts.enabled && chain !== null && opts.chains.includes(chain.key)) {
-    const units = v.units ?? asUnits(decimalToUnits(v.amount) + ONRAMP_EXACT_UNITS);
-    url = onrampUrl(opts.url, {
-      chain: chain.key, chainId: chain.chain_id, token: v.token, tokenAddress: chain.tokens[v.token]!.address,
-      amount: onrampAmount(units, chain.native_token === v.token),
-    });
-  }
-  const here = v.step === "method" || (ONRAMP_PAGES.includes(v.step) && !v.path.includes("method"));
-  const hint = opts.enabled && here && url === null && v.canGoBack && v.optionKeys.some((k) => opts.chains.includes(k));
-  return { url, shows_onramp: here && url !== null, shows_onramp_hint: hint };
+export function networkView(config: Config, v: {
+  optionKeys: readonly string[]; chainKey: string | null; expanded: boolean;
+}): NetworkView {
+  const others = v.optionKeys.filter((k) => !MAIN_CHAINS.includes(k));
+  const fill = others.slice(0, Math.max(0, MAIN_TILES - (v.optionKeys.length - others.length)));
+  const main = v.optionKeys.filter((k) => MAIN_CHAINS.includes(k) || fill.includes(k));
+  const more = v.optionKeys.filter((k) => !main.includes(k));
+  return {
+    main, more, expanded: more.length > 0 && (v.expanded || (v.chainKey !== null && more.includes(v.chainKey))),
+    card: v.optionKeys.filter((k) => cardOffered(config, k)),
+  };
 }
 
 export class CheckoutController {
@@ -164,6 +183,7 @@ export class CheckoutController {
   _future: Job<any> | null = null;
   _server: CheckoutServer | null = null;
   _picked_network = false; // move on from the network step once the session starts
+  more_networks = false; // the player opened "More networks" on the network step
 
   constructor(opts: CheckoutOptions) {
     const { config, spec, submit } = opts;
@@ -271,36 +291,27 @@ export class CheckoutController {
     });
   }
 
-  /** The buy link's state on this step (onrampView over the controller's fields). */
-  private onramp(): OnrampView {
-    return onrampView(this.config, {
-      token: this.spec.token, chainKey: this.chain_key, units: this.session ? asUnits(BigInt(this.session["units"])) : null,
-      amount: this.amount, step: this.step, path: this.stepPath(), canGoBack: this.canGoBack,
-      optionKeys: this.chainOptions().map(([key]) => key),
+  /** The network step's layout: main tiles, "More networks", card buttons (networkView). */
+  networkLayout(): NetworkView {
+    return networkView(this.config, {
+      optionKeys: this.chainOptions().map(([key]) => key), chainKey: this.chain_key, expanded: this.more_networks,
     });
   }
 
-  /**
-   * The page where a player without the token buys some with a card, for the chosen network, with
-   * the payment (plus a cent for the fee on Arc) suggested as the amount. null when
-   * configure({onramp}) doesn't offer it on this network (see onrampView).
-   */
-  onrampUrl(): string | null {
-    return this.onramp().url;
-  }
-
-  /** Whether this step offers the buy link. */
-  get showsOnramp(): boolean {
-    return this.onramp().shows_onramp;
+  /** Whether the network `key` has a "Pay with card" button. */
+  cardOffered(key: string | null): boolean {
+    return cardOffered(this.config, key);
   }
 
   /**
-   * Whether this step points to the buy link instead ("Pick another network"), because the chosen
-   * network has none (Solana) but another one the player can pick has it. Its button goes back to
-   * the network step (back()).
+   * The card checkout page for this session: thirdweb's by default, paying the exact amount to the
+   * developer's wallet on the chosen network. null before the session starts or where the network
+   * has no card button.
    */
-  get showsOnrampHint(): boolean {
-    return this.onramp().shows_onramp_hint;
+  cardUrl(): string | null {
+    return cardUrl(this.config, {
+      token: this.spec.token, chainKey: this.chain_key, units: this.session ? asUnits(BigInt(this.session["units"])) : null,
+    });
   }
 
   explorerUrl(): string | null {
@@ -346,7 +357,8 @@ export class CheckoutController {
   /** The steps this payment walks through, without the single-option ones. */
   stepPath(): string[] {
     const path = this.spec.kind === "tip" ? ["amount"] : [];
-    if (this.chainOptions().length !== 1) path.push("network");
+    if (this._networkHasChoice()) path.push("network");
+    if (this.method === "card") return [...path, "card", "waiting"];
     if (this.methods().length !== 1) path.push("method");
     return [...path, this.method || "browser", "waiting"];
   }
@@ -378,11 +390,33 @@ export class CheckoutController {
       item: spec.item, amount, token: spec.token, title: spec.title,
     }));
     const available = this.methods();
-    if (this.method === null || !available.includes(this.method)) this.method = available.length > 0 ? available[0]! : null;
+    if ((this.method === null || !available.includes(this.method)) && !(this.method === "card" && this.cardOffered(key))) {
+      this.method = available.length > 0 ? available[0]! : null;
+    }
   }
 
   /** Network step: start a session on `key`, or keep the one already running. */
   chooseNetwork(key: string): void {
+    if (this.method === "card") this.method = null; // the network's own button: pick a method as usual
+    this._pickNetwork(key);
+  }
+
+  /**
+   * Network step, a network's "Pay with card" button: start a session on `key` (or keep the one
+   * running), then go to the card page, skipping the method step.
+   */
+  payWithCard(key: string): void {
+    if (!this.cardOffered(key)) return;
+    this.method = "card";
+    this._pickNetwork(key);
+  }
+
+  /** Open or close "More networks" on the network step. */
+  toggleMoreNetworks(): void {
+    this.more_networks = !this.networkLayout().expanded;
+  }
+
+  _pickNetwork(key: string): void {
     this.step = "network";
     this.nav_dir = 1;
     if (key === this.chain_key && this.session && this.state === "waiting") {
@@ -422,6 +456,16 @@ export class CheckoutController {
       this.error = null;
       this._go("waiting", 1);
     }
+  }
+
+  /**
+   * Card page: returns the card checkout's URL for the sheet to open, and moves to waiting; null
+   * (staying put) before the session has started.
+   */
+  openCard(): string | null {
+    const url = this.step === "card" ? this.cardUrl() : null;
+    if (url) this._go("waiting", 1);
+    return url;
   }
 
   /** Browser page: start the localhost page and move to waiting; returns its URL. */
@@ -648,12 +692,25 @@ export class CheckoutController {
   /** Go forward to the network step, or past it when there is only one network. */
   _enterNetwork(): void {
     const options = this.chainOptions();
-    if (options.length === 1) this.chooseNetwork(options[0]![0]);
+    if (!this._networkHasChoice()) this.chooseNetwork(options[0]![0]);
     else this._go("network", 1);
   }
 
-  /** The session is running: go to the method step, or straight to the only method. */
+  /** The network step is shown unless there is a single network without a card button. */
+  _networkHasChoice(): boolean {
+    const options = this.chainOptions();
+    return options.length !== 1 || this.cardOffered(options[0]![0]);
+  }
+
+  /**
+   * The session is running: go to the method step, or straight to the only method; after "Pay with
+   * card", to the card page.
+   */
   _afterNetwork(): void {
+    if (this.method === "card") {
+      this._go("card", 1);
+      return;
+    }
     const methods = this.methods();
     if (this.method === null || !methods.includes(this.method)) this.method = methods.length > 0 ? methods[0]! : null;
     this._go(methods.length === 1 ? (this.method as string) : "method", 1);

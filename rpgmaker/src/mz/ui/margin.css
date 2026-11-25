@@ -13,12 +13,12 @@
  * Class names (the screens build from these; SCFG.css can restyle any of them):
  *   layout   .scfg-root, .screen[data-screen=payment|restore] (.keys while keys or a gamepad
  *            drive it), .scrim, .sheet, .sheet-head, .nav, .sheet-body, .sheet-foot, .rule, .row,
- *            .stack (.tight), .grow, .grid, .price, .actions, .field-row, .value-row, .qr-row,
- *            .qr-steps, .gap
+ *            .stack (.tight), .grow, .grid (.networks), .network-cell, .price, .actions, .field-row,
+ *            .value-row, .qr-row, .qr-steps, .gap
  *   text     .title .heading (.ok .error .warn) .amount .amount-token .note .label .muted .warning
  *            .dev .error .ok .status .mono .qr-step
- *   buttons  button, .primary, .accent, .forward, .small, .back, .option (.selected, with
- *            .option-text and .option-sub inside)
+ *   buttons  button, .primary, .accent, .forward, .small, .more-networks, .back, .option (.selected,
+ *            with .option-text and .option-sub inside), .card-link (.selected)
  *   fields   input
  *   others   .qr-frame, .toasts / .toast (.fade), .dots / .dot (.on), .status-line / .status-dot
  *            (.accent .ok .error .warn), .progress / .progress-fill, .logo
@@ -90,6 +90,10 @@
 @keyframes scfg-step-back { from { opacity: 0; transform: translateX(calc(-40px * var(--scfg-k))); } to { opacity: 1; transform: none; } }
 .price { display: flex; align-items: baseline; gap: calc(8px * var(--scfg-k)); }
 .grid { display: grid; gap: calc(8px * var(--scfg-k)); }
+/* the network step: every row as tall as the others, a tile with its "Pay with card" link below */
+.grid.networks { grid-auto-rows: 1fr; }
+.network-cell { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.network-cell > .option { flex: none; }
 .actions { display: flex; gap: calc(10px * var(--scfg-k)); }
 .actions > button { flex: 1 1 0; min-width: 0; }
 .field-row { display: flex; gap: calc(8px * var(--scfg-k)); align-items: stretch; }
@@ -172,6 +176,16 @@ button.back {
   display: flex; align-items: center; justify-content: center;
 }
 button.back svg { width: 60%; height: 60%; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* "More networks" / "Fewer networks": a small button as wide as the body */
+button.more-networks { width: 100%; }
+/* "Pay with card" under a network's tile: a small underlined text link (Ren'Py's scfg_card_link) */
+button.card-link {
+  font-size: calc(15px * var(--scfg-k)); font-weight: 400; color: var(--scfg-muted);
+  text-decoration: underline; background: transparent; border-color: transparent;
+  padding: calc(4px * var(--scfg-k)) calc(6px * var(--scfg-k));
+}
+button.card-link:hover, button.card-link:active, button.card-link.selected { color: var(--scfg-ink); background: transparent; border-color: transparent; }
 
 /* options: a choice in a list; the selected one takes the accent */
 .option {

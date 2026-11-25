@@ -6,7 +6,8 @@
 // dev module's start hands it (UScfgShowcaseGameInstance::SetHarnessFactory, ScfgDev.cpp).
 //
 // The config (JSON object, written by the runner):
-//   configure  {wallet?, solana_wallet?, testnet?, chains?, tokens?}: Configure()'s options (Python's keyword names)
+//   configure  {wallet?, solana_wallet?, testnet?, chains?, tokens?, onramp?: {enabled?, url?, chains?}}: Configure()'s
+//              options (Python's keyword names)
 //   items      {id: {code, price, token?, title?, min_price?}}: AddItem() for each
 //   own_config true, in place of configure and items (and of chain): the showcase configures itself, from the project
 //              settings or in code (ScfgShowcase.h, CONFIGURATION), as it does without the driver: the tour of its

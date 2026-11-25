@@ -145,6 +145,7 @@ namespace Scfg.Tests
             SCFG.Configure(new ScfgOptions
             {
                 Wallet = ScfgRig.Dev, Chains = new List<string> { "arbitrum" }, Logo = logo,
+                Onramp = new ScfgOnramp { Enabled = false }, // one network without a card button: the network step is skipped
                 Methods = new ScfgMethods { Qr = false, Manual = false },
             });
             SCFG.AddItem("chapter2", new ScfgItem { Code = 1, Price = "4.99", Token = "USDC", Title = "Chapter 2" });

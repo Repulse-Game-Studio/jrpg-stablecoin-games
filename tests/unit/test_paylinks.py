@@ -1,9 +1,7 @@
-import pytest
 
 from scfg_core.paylinks import (
     ONRAMP_URL,
     eip681_transfer_uri,
-    onramp_amount,
     onramp_url,
     qr_matrix,
     qr_rects,
@@ -12,35 +10,25 @@ from scfg_core.paylinks import (
 USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 
 
-@pytest.mark.parametrize("units, gas_is_token, expected", [
-    (4_993_742, False, "5.00"),     # rounded up to whole cents
-    (4_993_742, True, "5.01"),      # plus a cent for the fee where the token is the gas coin
-    (5_000_000, False, "5.00"),     # already whole cents
-    (5_000_001, False, "5.01"),
-    (1_230_017, True, "1.25"),
-    (0, False, "0.00"),
-    (1, False, "0.01"),
-    (10**12 + 9999, False, "1000000.01"),
-])
-def test_onramp_amount(units, gas_is_token, expected):
-    assert onramp_amount(units, gas_is_token) == expected
+DEV = "0x52908400098527886E0F7030069857D2E4169EE7"
 
 
-def test_default_onramp_url_is_thirdwebs_buy_page_locked_to_the_token():
+def test_default_onramp_url_is_thirdwebs_card_checkout_paying_the_developer():
     url = onramp_url(ONRAMP_URL, chain="base", chain_id=8453, token="USDC",
-                     token_address=USDC_BASE, amount="5.00")
-    assert url == ("https://thirdweb.com/bridge/buy-widget?chain=8453"
-                   f"&tokenAddress={USDC_BASE}&amount=5.00&tokenEditable=false&paymentMethods=card")
+                     token_address=USDC_BASE, amount="4.993742", recipient=DEV)
+    assert url == ("https://thirdweb.com/bridge/checkout-widget?chain=8453"
+                   f"&tokenAddress={USDC_BASE}&amount=4.993742&seller={DEV}&paymentMethods=card")
 
 
 def test_onramp_url_fills_every_placeholder_each_time_it_appears():
     url = onramp_url("https://x.example/{chain}/{chain}?id={chain_id}&t={token}&a={amount}"
-                     "&c={token_address}", chain="arc", chain_id=5042, token="USDC",
-                     token_address="0x3600000000000000000000000000000000000000", amount="1.25")
-    assert url == ("https://x.example/arc/arc?id=5042&t=USDC&a=1.25"
-                   "&c=0x3600000000000000000000000000000000000000")
+                     "&c={token_address}&to={recipient}", chain="arc", chain_id=5042,
+                     token="USDC", token_address="0x3600000000000000000000000000000000000000",
+                     amount="1.250017", recipient=DEV)
+    assert url == ("https://x.example/arc/arc?id=5042&t=USDC&a=1.250017"
+                   f"&c=0x3600000000000000000000000000000000000000&to={DEV}")
     assert onramp_url("https://x.example/buy", chain="arc", chain_id=5042, token="USDC",
-                      token_address="0x36", amount="1.25") == "https://x.example/buy"
+                      token_address="0x36", amount="1.25", recipient=DEV) == "https://x.example/buy"
 
 
 def test_eip681_uri():

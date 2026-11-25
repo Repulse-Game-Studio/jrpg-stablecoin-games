@@ -71,10 +71,10 @@ configuration: declare the items again after it.
 | `Wallet` | Your EVM payout address (`0x...`). At least one of `Wallet` and `SolanaWallet` is required |
 | `SolanaWallet` | Your Solana payout address (base58) |
 | `bTestnet` | `true` uses the test networks (Sepolia, Arbitrum Sepolia, Polygon Amoy, Base Sepolia, Arc Testnet and Solana Devnet, USDC only), so no real money moves. Default `false` in the struct (the project settings start with it on) |
-| `Chains` | The networks offered, in order, by key (`ethereum`, `arbitrum`, `polygon`, `base`, `arc`, `solana`, or your own). Empty: every network your wallets can receive on |
+| `Chains` | The networks offered, in order, by key (`ethereum`, `arbitrum`, `polygon`, `base`, `arc`, `solana`, or your own). Empty: every network your wallets can receive on, Ethereum, Solana, Arc, Base, Arbitrum and Polygon, then your own. The network step shows Ethereum and Solana as tiles and the others behind **More networks**; without a Solana wallet, Arc takes the second tile |
 | `Tokens` | `USDC`, `USDT`. Empty: both |
 | `Methods` | An `FScfgMethods`: which payment methods the sheet offers. Default: all of them |
-| `Onramp` | An `FScfgOnramp`: the "Buy some with a card" link, see [The buy link](#the-buy-link-onramp). Default: on, on mainnet |
+| `Onramp` | An `FScfgOnramp`: the **Pay with card** button under each network, see [Pay with card](#pay-with-card-onramp). Default: on, on mainnet |
 | `RpcUrls` | Your own RPC endpoints per chain key (an `FScfgRpcUrls` whose `Urls` are https URLs, or `http://127.0.0.1` / `http://localhost` with a port for a local node), tried before the built-in public ones |
 | `Confirmations` | Confirmations required per chain key (1 or more; not for Solana, which waits for finalization) |
 | `PreviousWallets` | Wallets you were paid to before (EVM and Solana addresses can be mixed). Their receipts stay valid |
@@ -91,16 +91,21 @@ configuration: declare the items again after it.
 | `Manual.bEnabled` | The address and exact amount to send by hand, from an exchange or any wallet. Default `true` |
 | `Manual.bAllowTxPaste` | Whether the player may paste the transaction hash on the manual page. Default `true` |
 
-### The buy link (`Onramp`)
+### Pay with card (`Onramp`)
 
-Players who have no USDC or USDT yet see **No USDC yet? Buy some with a card** (with the payment's token) on the
-method step, or on the only payment page when there is one method. It opens a buy page for the network they picked
-in their browser, where they buy the token with a card into their own wallet and then pay as usual: the payment
-itself still goes straight to your wallet. The default page is thirdweb's hosted Buy widget, card payment only,
-locked to the network and token, suggesting the payment rounded up to cents (plus a cent for the fee on Arc). The
-link carries only the network, the token's contract and that amount. On a network it isn't offered on, like Solana,
-the sheet says **No USDC yet? Pick another network to buy some with a card** instead, which goes back to the network
-step, when another network the player can pick has the link.
+On the network step, each network that takes cards has a small **Pay with card** link under its tile. It skips the
+payment-method step and shows a card page with the exact amount; its **Open card checkout** button opens a card
+checkout page for that network in the player's browser, and the sheet moves on to waiting for the payment. The
+player pays by card there, and the provider sends the token straight to your wallet on that network. The game finds
+that payment the way it finds any other, by its exact amount. The default page is thirdweb's hosted Checkout widget,
+card payment only; the link carries the network, the token's contract, the payment's exact amount and your wallet
+for that network. Solana has no card link. A single network with a card link keeps the network step (so the player
+can pick the card); with the link off, a single network is chosen by itself as before. thirdweb's card partners
+handle the purchase and the identity checks, with their own regions, minimum amounts and fees (the player pays the
+fees).
+
+> **Not yet checked with a real card:** the game only recognises the payment if thirdweb delivers exactly the amount
+> in the link, all six decimals. Make one small real card payment on mainnet before you rely on it.
 
 It is **on by default on mainnet**. Turn it off, or change it, with `FScfgOptions.Onramp` (in the project settings,
 **Configure > Onramp**):
@@ -108,19 +113,20 @@ It is **on by default on mainnet**. Turn it off, or change it, with `FScfgOption
 | `FScfgOnramp` field | Meaning |
 |---|---|
 | `bEnabled` | `true` (default) or `false` |
-| `Chains` | The networks it is offered on (enabled EVM networks only). Empty: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens). Name testnet networks here (for example `base`, `arbitrum`) to see the link and the Solana hint before mainnet |
-| `Url` | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused. Empty: thirdweb's page |
+| `Chains` | The networks it is offered on (enabled EVM networks only). Empty: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens). Name testnet networks here (for example `base`, `arbitrum`) to see the links before mainnet |
+| `Url` | Your own `https://` page with a host, without spaces, at most 2048 characters. `{chain}`, `{chain_id}`, `{token}`, `{token_address}`, `{amount}` (the exact amount, six decimals) and `{recipient}` (your wallet on that network) are filled in; any other brace is refused. Empty: thirdweb's page |
 
 ```cpp
-Options.Onramp.bEnabled = false;                                               // hide it
-Options.Onramp.Chains = { TEXT("base"), TEXT("arc") };                         // offer it on these networks only
-Options.Onramp.Url = TEXT("https://buy.example/?net={chain_id}&a={amount}");   // your own buy page
+Options.Onramp.bEnabled = false;                                                         // hide it
+Options.Onramp.Chains = { TEXT("base"), TEXT("arc") };                                   // only on these networks
+Options.Onramp.Url = TEXT("https://pay.example/?net={chain_id}&a={amount}&to={recipient}");   // your own page
 ```
 
 A mistake is reported with its code: `onramp.bad_url` (also a url with no host after `https://`),
 `onramp.unknown_placeholder`, `onramp.unmatched_brace`, `onramp.disabled_chain`, `onramp.not_evm` or
-`onramp.duplicate_chain`. A replacement sheet shows the link while the controller's `ShowsOnramp()` is true and opens it with `OpenOnramp()`; while `ShowsOnrampHint()` is true it shows the "Pick another
-network" button there instead, which calls `Back()`.
+`onramp.duplicate_chain`. A replacement sheet lays the network step out from the controller's `NetworkLayout()`
+(`Main` tiles, `More` behind **More networks** while `bExpanded`, `Card`: the networks with a card link), calls
+`ToggleMoreNetworks()` and `PayWithCard(Key)`, and on the `card` step `OpenCard()`.
 
 ### AddItem
 
@@ -494,15 +500,15 @@ Read the payment through `FScfgCheckoutController(Checkout)` and the restore thr
 (`ScfgCheckoutController.h`), the views the plugin's own screens are built on. The plugin polls the controllers every
 frame, so your screen only reads them (every frame, or when they change) and calls their buttons:
 
-- `FScfgCheckoutController`: `Step()` (`amount`, `network`, `method`, `browser`, `qr`, `manual`, `waiting`, `done`),
+- `FScfgCheckoutController`: `Step()` (`amount`, `network`, `method`, `browser`, `qr`, `manual`, `card`, `waiting`, `done`),
   `State()` (`choose`, `starting`, `waiting`, `confirming`, `paid`, `underpaid`, `expired`, `closed`), `Methods()`
   (`browser`, `qr`, `manual`), `ChainOptions()`, `Title()`, `Token()`, `PriceText()`, `PayAmountText()` (the exact
   amount to send), `Recipient()`, `PaymentUri()` (the QR code's text), `ExplorerUrl()`, `Confirmations()` and
   `Required()`, `StepDots()`, `Message()` (its English) and `MessageId()`, `CanGoBack()`, `IsTestnet()`, `Accent()`,
-  `LogoPath()`, `ShowsOnramp()` and `ShowsOnrampHint()` (the buy link and its hint) and more; the buttons `Back`,
-  `Next`, `SetTip`, `SetCustomAmount`, `ApplyCustomAmount`, `ChooseNetwork`, `ChooseMethod`, `MarkSent`,
-  `SetTxInput`, `SubmitHash`, and those that leave the game, `OpenBrowser`, `OpenWalletApp`, `OpenOnramp`,
-  `OpenExplorer`, `Copy`, `Paste`.
+  `LogoPath()`, `NetworkLayout()`, `CardOffered(Key)` and `CardUrl()` (Pay with card) and more; the buttons `Back`,
+  `Next`, `SetTip`, `SetCustomAmount`, `ApplyCustomAmount`, `ChooseNetwork`, `PayWithCard`, `ToggleMoreNetworks`,
+  `ChooseMethod`, `MarkSent`, `SetTxInput`, `SubmitHash`, and those that leave the game, `OpenBrowser`,
+  `OpenWalletApp`, `OpenCard`, `OpenExplorer`, `Copy`, `Paste`.
 - `FScfgRestoreController`: `State()` (`input`, `checking`, `choose`, `saving`, `done`, `closed`), `TxInput()`,
   `Message()`, `NumCandidates()`, `Candidate(Index)`, `PendingChoices()`, `CanConfirm()`, `Added()`, `Receipts()`
   and `ReceiptsRevision()`, `ItemTitle(Id)`, `ChainName(Key)`; the buttons `SetTxInput`, `Check`, `Choose`,

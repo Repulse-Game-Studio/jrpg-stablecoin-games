@@ -275,8 +275,25 @@ namespace Scfg.Core
         /// <summary>The built-in testnet chains (read-only).</summary>
         public static readonly IReadOnlyDictionary<string, Chain> Testnet = new ReadOnlyDictionary<string, Chain>(TestnetTable);
 
+        /// <summary>
+        /// The order the network step lists the built-in chains in: the main chains (Ethereum, Solana, Arc) first, then
+        /// the L2s. (Python's DISPLAY_ORDER.)
+        /// </summary>
         public static readonly IReadOnlyList<string> DisplayOrder =
-            Array.AsReadOnly(new[] { "arbitrum", "base", "arc", "polygon", "ethereum" });
+            Array.AsReadOnly(new[] { "ethereum", "solana", "arc", "base", "arbitrum", "polygon" });
+
+        /// <summary>
+        /// The networks the network step shows as tiles; every other one sits behind "More networks". (Python's
+        /// MAIN_CHAINS.)
+        /// </summary>
+        public static readonly IReadOnlyList<string> MainChains = Array.AsReadOnly(new[] { "ethereum", "solana" });
+
+        /// <summary>
+        /// Tiles the network step always shows when there are that many networks: when fewer of
+        /// <see cref="MainChains"/> are offered (no Solana wallet), the next networks in display order fill the row, so
+        /// an EVM-only game shows Ethereum and Arc, not Ethereum alone. (Python's MAIN_TILES.)
+        /// </summary>
+        public const int MainTiles = 2;
 
         public static IReadOnlyDictionary<string, Chain> GetChains(bool testnet) => testnet ? Testnet : Mainnet;
 

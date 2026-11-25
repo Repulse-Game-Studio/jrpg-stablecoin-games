@@ -32,6 +32,12 @@ shows. Per run (godot/demo's scenarios, tools/run_godot_e2e.py):
      on the dimmed game while a screen is open reaches neither. The sheet's screenshot is
      checked to show the drawn sheet.
   4. Restart the game: Chapter 2 is still owned.
+  5. Pay with card (evm and arc, mainnet chains): the first game runs with configure's onramp off,
+     so its single network is chosen by itself; the restarted game runs with it on (the default):
+     a tip's network step shows the network's tile with "Pay with card" under it, which leads to
+     the card step, whose "Open card checkout" asks to open thirdweb's checkout paying the exact
+     amount to the developer (the driver refuses every LaunchURL, so no card page opens); then the
+     sheet is cancelled. Both steps are screenshotted.
 
 --showcase runs the showcase's boot test instead (tests/unreal_showcase, the twin of
 tests/godot_showcase; see "the showcase tour" below): no chain, no browser. The showcase
@@ -103,7 +109,7 @@ the kernel picks. The game process itself has the engine's trace control listene
 0.0.0.0:1985, which has no switch. solana-test-validator (Agave 4.3) runs with --bind-address
 127.0.0.1 (gossip, repair, TVU, TPU on loopback), but its RPC and pubsub (TCP <rpc>, <rpc>+1), its
 faucet (TCP) and one UDP socket on port 8000 listen on 0.0.0.0, and Agave 4.3 has no option for
-those: an accepted test-time exposure. Screenshots of the sheet (one per run) go to --screenshots.
+those: an accepted test-time exposure. Screenshots of the sheet go to --screenshots.
 
 The engine is --engine, else $UE_ROOT. A missing prerequisite ends the run with exit code 2 and one
 line, before anything is built or started: no engine given; the engine's binary the run starts
@@ -204,7 +210,7 @@ ALLOWED = (
     # Ours, by design: the e2e driver refuses every LaunchURL (it records the URL instead, through
     # FCoreDelegates::ShouldLaunchUrl), and the plugin warns that the link did not open (the
     # scheme only, never the link).
-    re.compile(r"\bLogScfg: Warning: scfg: cannot open the (http|ethereum|solana): link: "
+    re.compile(r"\bLogScfg: Warning: scfg: cannot open the (https?|ethereum|solana): link: "
                r"LaunchURL cancelled by delegate$"),
 )
 
@@ -800,10 +806,10 @@ def read_png(path: Path) -> tuple:
 SHEET_RGB = (0xFB, 0xFC, 0xFD)
 
 
-def sheet_drawn(path: Path, view: dict) -> str | None:
+def sheet_drawn(path: Path, view: dict, min_dark: float = 0.003) -> str | None:
     """None when the screenshot shows the sheet drawn where the snapshot lays it out, else why
     not: the window's size; in the area of the sheet's controls, mostly the panel colour and some
-    dark text; the game beside it dimmed."""
+    dark text (at least `min_dark` of it); the game beside it dimmed."""
     width, height, ch, rows = read_png(path)
     if (width, height) != WINDOW:
         return f"the screenshot is {width}x{height}, not {WINDOW[0]}x{WINDOW[1]}"
@@ -822,7 +828,7 @@ def sheet_drawn(path: Path, view: dict) -> str | None:
             for y in range(0, height, 8) for x in range(0, left // 2, 8)]
     if not total or panel / total < 0.4:
         return f"the sheet's area is {panel}/{total} panel-coloured pixels, not mostly the panel"
-    if dark / total < 0.003:
+    if dark / total < min_dark:
         return f"the sheet's area has {dark}/{total} dark pixels: no text drawn"
     if sum(game) / max(len(game), 1) > 140:
         return "the game beside the sheet is not dimmed"
@@ -832,50 +838,93 @@ def sheet_drawn(path: Path, view: dict) -> str | None:
 # --- the scenarios ---------------------------------------------------------------------------
 
 
-def buy_link_drawn_in_the_sheet(game: Game, snap: dict, shots: Path, family: str) -> None:
-    """The method step's buy link (configure's onramp, on by default for the mainnet chains the evm
-    and arc families dress as): laid out within the method options' width, its text in one or more
-    lines inside it, and drawn (the screenshot). The solana family runs on testnet: no link and no
-    hint."""
-    if family != "solana":
-        # a step's first frame lays its buttons out at height 0: measure once the layout has settled
-        def laid_out(s):
-            view = sheet(s)
-            return view is not None and button(view, "onramp") is not None and all(
-                b["rect"][3] > 0 for b in view["buttons"]
-                if b["name"] == "onramp" or b["name"].startswith("method_"))
+def without_card(family_config: dict) -> dict:
+    """The family's config with "Pay with card" off, as Ren'Py's e2e runs: a single network without
+    a card button is chosen by itself, so the first game's sheets open past the network step."""
+    configure = {**family_config["configure"], "onramp": {"enabled": False}}
+    return {**family_config, "configure": configure}
 
-        snap = wait_for(game, "the method step laid out", laid_out)
+
+def laid_out(*names: str):
+    """The sheet shows every control in `names`, laid out (a step's first frame lays its buttons
+    out at height 0: measure once the layout has settled)."""
+    def pred(snap):
+        view = sheet(snap)
+        found = [button(view, n) for n in names] if view is not None else [None]
+        return all(b is not None and b["rect"][3] > 0 for b in found)
+
+    return pred
+
+
+def pay_with_card_drawn(game: Game, fam, shots: Path, family: str) -> None:
+    """The network step with a "Pay with card" link under the network's tile (configure's onramp,
+    on by default on the mainnet chains the evm and arc families dress as, so the single network
+    keeps its step), and the card step it leads to: drawn (the screenshots), the link inside its
+    tile's width, the card step's texts without the exact-amount note, and its "Open card
+    checkout" asking to open thirdweb's checkout paying the session's exact amount to the
+    developer. The driver refuses every LaunchURL (it records the URL): no card page is opened.
+    The sheet is then cancelled."""
+    key = fam.chain()["key"]
+    tile_name, link_name = f"network_{key}", f"card_{key}"
+    game.click(TIP, "game")
+    wait_for(game, "the amount step", has_button("forward", "Next"))
+    game.click("forward")
+    snap = wait_for(game, "the network step with its card link", laid_out(tile_name, link_name))
     view = sheet(snap)
-    link = button(view, "onramp")
-    if family == "solana":
-        expect(link is None and button(view, "onramp_hint") is None,
-               "a testnet Solana payment should show no buy link and no hint", view)
-        return
-    expect(link is not None and link["text"] == "No USDC yet? Buy some with a card",
-           "the method step should show the buy link", view)
-    options = [b["rect"] for b in view["buttons"] if b["name"].startswith("method_")]
-    left = min(r[0] for r in options)
-    right = max(r[0] + r[2] for r in options)
-    x, _y, w, _h = link["rect"]
-    expect(w > 0 and x >= left - 1 and x + w <= right + 1,
-           f"the buy link {link['rect']} should lie inside the body ({left}..{right})", view)
-    shot = shots / f"unreal-e2e-{family}-method.png"
+    tile, link = button(view, tile_name), button(view, link_name)
+    expect(link["text"] == "Pay with card", "the card link under the tile should say Pay with card",
+           view)
+    tx, ty, tw, th = tile["rect"]
+    lx, ly, lw, _lh = link["rect"]
+    expect(ly >= ty + th - 1 and lx >= tx - 1 and lx + lw <= tx + tw + 1,
+           f"the card link {link['rect']} should sit under its tile {tile['rect']}", view)
+    shot = shots / f"unreal-e2e-{family}-network.png"
+    game.call("screenshot", path=str(shot), timeout=180)
+    # a single tile and a small link: less dark text than the other steps (Arc's is 0.28%)
+    why = sheet_drawn(shot, view, min_dark=0.0015)
+    expect(why is None, f"the screenshot {shot} does not show the sheet: {why}")
+    print(f"  network step: Pay with card under the {key} tile, {link['rect']} (screenshot {shot})")
+    game.click(link_name)
+    snap = wait_for(game, "the card step", laid_out("forward"))
+    view = sheet(snap)
+    expect(button(view, "forward")["text"] == "Open card checkout",
+           "the card step's button should be Open card checkout", view)
+    texts = view["texts"]
+    pays = re.compile(r"^Pays \d+\.\d{6} USDC on .+\.$")
+    expect("Pay with card" in texts and any(pays.match(t) for t in texts)
+           and not any(t.startswith("Your wallet will ask for") for t in texts),
+           "the card step should say what it pays, without the exact-amount note", texts)
+    shot = shots / f"unreal-e2e-{family}-card.png"
     game.call("screenshot", path=str(shot), timeout=180)
     why = sheet_drawn(shot, view)
     expect(why is None, f"the screenshot {shot} does not show the sheet: {why}")
-    print(f"  method step: the buy link inside the body, {link['rect']} (screenshot {shot})")
+    opened = len(snap["opened"])
+    game.click("forward")
+    url = wait_for(game, "the card checkout's URL", lambda s: len(s["opened"]) > opened,
+                   30)["opened"][-1]
+    expect(url.startswith("https://thirdweb.com/bridge/checkout-widget?chain=")
+           and f"&seller={fam.dev}&paymentMethods=card".lower() in url.lower(),
+           f"Open card checkout asked for {url!r}, not thirdweb's checkout paying the developer")
+    wait_for(game, "the waiting step",
+             lambda s: any(t.startswith("Waiting for your payment")
+                           for t in (sheet(s) or {}).get("texts", [])))
+    print(f"  card step: Open card checkout asked for {url.split('&seller=')[0]}... "
+          f"(screenshot {shot}); the sheet waits")
+    game.click("cancel")
+    wait_for(game, "the sheet to close", no_screen)
 
 
 def unlock_by_manual_transfer(game: Game, fam, state_file: Path, shots: Path, family: str) -> None:
     wait_for(game, "the Unlock button", lambda s: button(s["game"], UNLOCK) is not None, 120)
     game.click(UNLOCK, "game")
-    # The only enabled network is chosen by itself, so the sheet opens on the method step.
+    # The only enabled network, without "Pay with card" (without_card), is chosen by itself, so the
+    # sheet opens on the method step.
     snap = wait_for(game, "the method step", has_button("method_manual"))
     expect(snap["paused"], "the showcase should pause the game while the sheet is open")
     expect(snap["input"]["focus"] == "sheet", "the sheet should have the keyboard focus",
            snap["input"])
-    buy_link_drawn_in_the_sheet(game, snap, shots, family)
+    expect(not any(b["name"].startswith("card_") for b in sheet(snap)["buttons"]),
+           "no card link with Pay with card off", sheet(snap))
     game.click("method_manual")
     wait_for(game, "the manual step", has_button("copy_amount"))
     amount = copy_value(game, "copy_amount")
@@ -1887,7 +1936,10 @@ def run_inner(args) -> int:
         fam = fam_cls(exe, work)
         run.cleanups.append(fam.cleanup)
         config = work / "e2e_config.json"
-        write_config(config, fam.config(), fam.chain(), control.port, control.token)
+        write_config(config, without_card(fam.config()), fam.chain(), control.port, control.token)
+        # the restart: the family's own config, "Pay with card" on (on mainnet: evm and arc)
+        config2 = work / "e2e_config_card.json"
+        write_config(config2, fam.config(), fam.chain(), control.port, control.token)
         outputs = []
         with sync_playwright() as p:
             browser = godot.launch_chromium(p)
@@ -1918,10 +1970,13 @@ def run_inner(args) -> int:
                 raise E2EError(f"the game exited with {code}:\n{tail}")
             print("4. restart")
             t = time.monotonic()
-            game = make_game(config, "game2")
+            game = make_game(config2, "game2")
             times["start2"] = game.connect()
             game.focus()
             still_owned_after_restart(game)
+            if args.family != "solana":  # Solana (on testnet here) has no card button
+                print("5. Pay with card on the network step, and the card step")
+                pay_with_card_drawn(game, fam, run.shots, args.family)
             code, output, tail = quit_and_collect(game)
             outputs.append(output)
             if code != 0:

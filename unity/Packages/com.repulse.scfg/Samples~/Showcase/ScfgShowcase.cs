@@ -118,8 +118,8 @@ namespace Scfg.Samples.Showcase
             return null;
         }
 
-        // The options: with an SCFG Settings asset in the project, its options are the starting point (accent, logo, buy
-        // link ...), so what you set there shows here too; this scene adds only its wallets and testnet, and its own
+        // The options: with an SCFG Settings asset in the project, its options are the starting point (accent, logo, Pay
+        // with card ...), so what you set there shows here too; this scene adds only its wallets and testnet, and its own
         // items. It always runs on the test networks, so it keeps the asset's networks and tokens only when the asset is
         // set to testnet (a release asset's choices, USDT say, may exist on no test network), and of those networks only
         // the ones it has a wallet for ("solana" is the Solana network; every other key is an EVM network). Without an

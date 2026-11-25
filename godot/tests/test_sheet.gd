@@ -23,8 +23,17 @@ func _open_unlock(s: Node) -> Array:
 	return [box, sheet, ctl]
 
 
-## Picks Arbitrum (the session starts on the next worker pass), then `method`.
+## Opens "More networks" when the network `key` sits behind it.
+func _show_network(sheet: Node, key: String) -> void:
+	if sheet.control("network_" + key) == null and sheet.control("more_networks") != null:
+		(sheet.control("more_networks") as Button).pressed.emit()
+		await UI.frames(2)
+
+
+## Picks Arbitrum (behind "More networks"; the session starts on the next worker pass), then
+## `method`.
 func _to_method_step(s: Node, sheet: Node, method: String) -> void:
+	await _show_network(sheet, "arbitrum")
 	(sheet.control("network_arbitrum") as Button).pressed.emit()
 	await UI.pass_(s)
 	await UI.frames(2)
@@ -65,6 +74,7 @@ func test_steps_follow_the_controller() -> bool:
 	T.eq([ctl.step, sheet.shown_step], ["network", "network"], "Next: the network step")
 	T.eq((sheet.control("back") as Control).visible, true, "the back arrow")
 	T.ok(not sheet.control("forward").visible, "no forward button on the network step")
+	await _show_network(sheet, "arbitrum")
 	for option: Array in ctl.chain_options():
 		T.ok(sheet.control("network_" + str(option[0])) is Button, "an option for %s" % option[0])
 	await _to_method_step(s, sheet, "manual")
@@ -86,56 +96,108 @@ func test_steps_follow_the_controller() -> bool:
 	return T.done()
 
 
-func test_the_buy_link_sits_on_the_method_step_and_opens_the_buy_page() -> bool:
-	var env := await UI.make("onramp")
+func test_the_network_step_shows_the_main_networks_and_more_networks() -> bool:
+	var env := await UI.make("network_layout")
 	var s: Node = env["node"]
 	var opened := await _open_unlock(s)
 	var sheet: Node = opened[1]
 	var ctl: ScfgCheckoutController = opened[2]
-	T.eq(sheet.control("onramp"), null, "not before a network is chosen")
-	await _to_method_step(s, sheet, "qr")
-	T.eq(sheet.control("onramp"), null, "not on a method's page the method step led to")
-	(sheet.control("back") as Button).pressed.emit()
+	T.eq(sheet.shown_step, "network", "the network step")
+	T.ok(sheet.control("network_ethereum") is Button, "Ethereum is a tile")
+	T.eq(sheet.control("network_arbitrum"), null, "Arbitrum sits behind More networks")
+	var more: Button = sheet.control("more_networks")
+	T.eq(more.text if more != null else null, "More networks", "the More networks button")
+	if more == null:
+		await UI.drop(env)
+		return T.done()
+	more.pressed.emit()
 	await UI.frames(2)
-	var link: Button = sheet.control("onramp")
-	T.eq(link.text if link != null else null, "No USDC yet? Buy some with a card", "on the method step")
-	if link != null:
-		link.pressed.emit()
-	T.eq(env["platform"].opened, [ctl.onramp_url()], "opens the buy page")
+	T.eq((sheet.control("more_networks") as Button).text, "Fewer networks", "it toggles")
+	for key: String in ["arc", "base", "arbitrum", "polygon"]:
+		T.ok(sheet.control("network_" + key) is Button, "%s below it" % key)
+	var tiles: Array = []
+	for o: Array in ctl.chain_options():
+		tiles.append(sheet.control("network_" + str(o[0])))
+		var link: LinkButton = sheet.control("card_" + str(o[0]))
+		T.eq(link.text if link != null else null, "Pay with card", "Pay with card under %s" % o[0])
+	var sizes := tiles.map(func(t: Control) -> Vector2: return t.size)
+	T.ok(sizes.all(func(v: Vector2) -> bool: return v == sizes[0]), "every tile has the same size (%s)" % [sizes])
+	(sheet.control("more_networks") as Button).pressed.emit()
+	await UI.frames(2)
+	T.eq(sheet.control("network_arbitrum"), null, "Fewer networks hides them again")
 	await UI.drop(env)
 	return T.done()
 
 
-func test_on_solana_the_buy_link_points_to_another_network() -> bool:
+func test_pay_with_card_opens_the_card_page_and_the_card_checkout() -> bool:
+	var env := await UI.make("card")
+	var s: Node = env["node"]
+	var opened := await _open_unlock(s)
+	var sheet: Node = opened[1]
+	var ctl: ScfgCheckoutController = opened[2]
+	var link: LinkButton = sheet.control("card_ethereum")
+	T.ok(link != null, "Pay with card under Ethereum")
+	if link == null:
+		await UI.drop(env)
+		return T.done()
+	link.pressed.emit()
+	await UI.pass_(s)
+	await UI.frames(2)
+	T.eq([ctl.step, sheet.shown_step], ["card", "card"], "the card page, skipping the method step")
+	var texts := UI.visible_texts(sheet)
+	T.ok(texts.has("Pay with card"), "its label (%s)" % [texts])
+	T.ok(texts.has("Pays %s USDC on Ethereum." % ctl.pay_amount_text), "the exact amount and the network")
+	T.ok(not texts.any(func(t: String) -> bool: return t.begins_with("Your wallet will ask for")), "no exact-amount note")
+	var forward: Button = sheet.control("forward")
+	T.eq(forward.text, "Open card checkout", "the forward button")
+	T.eq(sheet.dots(), [1, 3], "network, card, waiting")
+	var url: Variant = ctl.card_url()
+	T.ok(str(url).begins_with("https://thirdweb.com/bridge/checkout-widget?chain=1&"), str(url))
+	forward.pressed.emit()
+	await UI.frames(2)
+	T.eq(env["platform"].opened, [url], "opens the card checkout")
+	T.eq([ctl.step, sheet.shown_step], ["waiting", "waiting"], "then waits for the payment")
+	(sheet.control("back") as Button).pressed.emit()
+	await UI.frames(2)
+	(sheet.control("back") as Button).pressed.emit()
+	await UI.frames(2)
+	T.eq(sheet.shown_step, "network", "back to the network step")
+	var again: LinkButton = sheet.control("card_ethereum")
+	T.eq(str(again.theme_type_variation) if again != null else null, "ScfgCardLinkSelected", "the card link is selected")
+	T.eq(str((sheet.control("network_ethereum") as Button).theme_type_variation), "ScfgOption", "the tile is not")
+	T.ok(UI.focused() == again, "and has the focus (%s)" % [UI.focused()])
+	await UI.drop(env)
+	return T.done()
+
+
+func test_solana_has_no_card_link() -> bool:
 	const SOL_WALLET := "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
 	var mint: String = ScfgChains.MAINNET["solana"]["tokens"]["USDC"]["address"]
 	var sol := F.FakeSolanaChain.new()
 	sol.accounts[ScfgSolanaPda.associated_token_address(SOL_WALLET, mint)] = true  # it can receive USDC
 	var evm := F.FakeChain.new(1000)
 	var factory := func(c: Dictionary) -> Variant: return sol if c["family"] == "solana" else evm
-	var env := await UI.make("onramp_hint", {"solana_wallet": SOL_WALLET},
+	var env := await UI.make("card_solana", {"solana_wallet": SOL_WALLET},
 		{"engine_opts": {"rpc_factory": factory, "clock": F.FakeClock.new(1000.0).fn}})
 	var s: Node = env["node"]
 	var opened := await _open_unlock(s)
 	var sheet: Node = opened[1]
-	var ctl: ScfgCheckoutController = opened[2]
-	var pick: Button = sheet.control("network_solana")
-	T.ok(pick != null, "Solana is offered")
-	if pick == null:
-		await UI.drop(env)
-		return T.done()
-	pick.pressed.emit()
-	await UI.pass_(s)
-	await UI.frames(2)
-	T.eq(sheet.shown_step, "method", "the method step once the session started")
-	T.eq(sheet.control("onramp"), null, "no buy link on Solana")
-	var hint: Button = sheet.control("onramp_hint")
-	T.eq(hint.text if hint != null else null, "No USDC yet? Pick another network to buy some with a card", "the hint")
-	if hint != null:
-		hint.pressed.emit()
-	await UI.frames(2)
-	T.eq([ctl.step, sheet.shown_step], ["network", "network"], "goes back to the network step")
-	T.eq(env["platform"].opened, [], "opens nothing")
+	T.ok(sheet.control("network_ethereum") is Button and sheet.control("network_solana") is Button,
+		"Ethereum and Solana are the tiles")
+	T.ok(sheet.control("card_ethereum") != null, "Pay with card under Ethereum")
+	T.eq(sheet.control("card_solana"), null, "none under Solana")
+	await UI.drop(env)
+	return T.done()
+
+
+func test_without_the_onramp_there_is_no_card_link() -> bool:
+	var env := await UI.make("no_card", {"onramp": {"enabled": false}})
+	var s: Node = env["node"]
+	var opened := await _open_unlock(s)
+	var sheet: Node = opened[1]
+	await _show_network(sheet, "arbitrum")
+	for key: String in ["ethereum", "arc", "base", "arbitrum", "polygon"]:
+		T.eq(sheet.control("card_" + key), null, "no Pay with card under %s" % key)
 	await UI.drop(env)
 	return T.done()
 
@@ -184,6 +246,9 @@ func test_keyboard_only_manual_payment() -> bool:
 	T.eq(sheet.shown_step, "network", "the network step")
 	var first: Control = UI.focused()
 	T.ok(first != null and sheet.is_ancestor_of(first), "the sheet has the focus (%s)" % [first])
+	T.ok(await UI.focus_to(sheet, "more_networks"), "ui_down reaches More networks")
+	await UI.act("ui_accept")
+	await UI.frames(2)
 	T.ok(await UI.focus_to(sheet, "network_arbitrum"), "ui_down reaches Arbitrum")
 	await UI.act("ui_accept")
 	await UI.pass_(s)
@@ -497,8 +562,16 @@ func _visit_every_step() -> void:
 	(sheet.control("forward") as Button).pressed.emit()
 	await UI.frames(2)
 	_check_texts(sheet, _dynamic(ctl), "network")
-	(sheet.control("network_arbitrum") as Button).pressed.emit()
+	await _show_network(sheet, "arbitrum")
+	_check_texts(sheet, _dynamic(ctl), "network with More networks open")
+	(sheet.control("card_arbitrum") as LinkButton).pressed.emit()
 	await UI.pass_(s)
+	await UI.frames(2)
+	T.eq(sheet.shown_step, "card", "the card step")
+	_check_texts(sheet, _dynamic(ctl), "card")
+	(sheet.control("back") as Button).pressed.emit()
+	await UI.frames(2)
+	(sheet.control("network_arbitrum") as Button).pressed.emit()
 	await UI.frames(2)
 	_check_texts(sheet, _dynamic(ctl), "method")
 	for method: String in ["browser", "qr", "manual"]:

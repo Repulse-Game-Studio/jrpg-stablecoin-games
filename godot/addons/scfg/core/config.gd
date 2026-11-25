@@ -594,7 +594,7 @@ static func _merge_onramp(onramp: Variant, chains: Array, reg: Dictionary, testn
 			if not in_strs(chains, c):
 				return config_error("onramp.disabled_chain", "onramp.chains contains disabled chain %s" % ScfgPy.py_repr(c))
 			if reg[str(c)]["family"] != "evm":
-				return config_error("onramp.not_evm", "onramp.chains: %s is not an EVM chain; the buy link is offered on EVM chains only" % ScfgPy.py_repr(c))
+				return config_error("onramp.not_evm", "onramp.chains: %s is not an EVM chain; Pay with card is offered on EVM chains only" % ScfgPy.py_repr(c))
 		for c: Variant in keys:
 			if out.has(str(c)):
 				return config_error("onramp.duplicate_chain", "duplicate chain in onramp.chains")
@@ -608,7 +608,7 @@ static func _merge_onramp(onramp: Variant, chains: Array, reg: Dictionary, testn
 ## The developer's configuration, validated. `opts` holds the keyword arguments (all optional):
 ## wallet, testnet, chains, tokens, methods, rpc_urls, confirmations, previous_wallets, logo,
 ## accent, custom_chains (Chains from build_chain; those of the other network are ignored),
-## solana_wallet and onramp ({enabled, url, chains}, the buy link). Returns a Config Dictionary.
+## solana_wallet and onramp ({enabled, url, chains}, the Pay with card buttons). Returns a Config Dictionary.
 ## @fallible
 static func build_config(opts: Variant = {}) -> Variant:
 	var bad_opts: Variant = _check_opts(opts, [], _BUILD_CONFIG_KEYS, "build_config")
@@ -656,14 +656,16 @@ static func build_config(opts: Variant = {}) -> Variant:
 
 	var chains: Variant
 	if o.get("chains") == null:
+		# Built-ins in display order, then the developer's own, each where its family has a wallet.
 		chains = []
-		if wallet != null:
-			chains.append_array(ScfgChains.DISPLAY_ORDER)
-			chains.append_array(custom.keys())
-		if sol != null:
-			for k: String in reg:
-				if reg[k]["family"] == "solana":
-					chains.append(k)
+		var offered := {"evm": wallet != null, "solana": sol != null}
+		var order: Array = ScfgChains.DISPLAY_ORDER.duplicate()
+		for k: String in reg:
+			if not order.has(k):
+				order.append(k)
+		for k: String in order:
+			if reg.has(k) and offered[reg[k]["family"]]:
+				chains.append(k)
 	else:
 		chains = _iterate(o["chains"])
 		if chains is ScfgErr:

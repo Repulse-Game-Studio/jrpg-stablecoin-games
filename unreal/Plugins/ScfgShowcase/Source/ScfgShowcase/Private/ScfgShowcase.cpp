@@ -588,8 +588,8 @@ bool UScfgShowcaseGameInstance::Refuse(const FString& Why)
 bool UScfgShowcaseGameInstance::ConfigureInCode(const FScfgShowcaseWallets& Wallets)
 {
 	using namespace ScfgShowcaseDetail;
-	// The project settings' options are the starting point (their networks, tokens, RPC urls, accent, logo, buy link
-	// ...), so what is set there shows here too; the showcase adds only its wallets, testnet and items, and its accent
+	// The project settings' options are the starting point (their networks, tokens, RPC urls, accent, logo, Pay with
+	// card ...), so what is set there shows here too; the showcase adds only its wallets, testnet and items, and its accent
 	// and logo where the settings have none. Their chain rows come first, so the options may name them.
 	const UScfgSettings* Settings = GetDefault<UScfgSettings>();
 	for (const FScfgSettingsChain& Row : Settings->Chains)

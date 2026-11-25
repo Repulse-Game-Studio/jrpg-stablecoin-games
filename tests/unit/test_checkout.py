@@ -66,7 +66,7 @@ def started(**kw):
 def test_initial_state_and_chain_options():
     ctl, *_ = setup()
     assert ctl.state == "choose" and ctl.session is None
-    assert [k for k, _, _ in ctl.chain_options()] == ["arbitrum", "base", "arc", "polygon", "ethereum"]
+    assert [k for k, _, _ in ctl.chain_options()] == ["ethereum", "arc", "base", "arbitrum", "polygon"]
     assert ctl.pay_amount_text == "4.99"
 
 

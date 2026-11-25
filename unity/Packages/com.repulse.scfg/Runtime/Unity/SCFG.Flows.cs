@@ -285,20 +285,20 @@ namespace Scfg
         }
 
         /// <summary>
-        /// The sheet's "No USDC yet? Buy some with a card": open configure's onramp page for the chosen network (a new tab
-        /// with noopener,noreferrer on WebGL, as every link the sheet opens).
+        /// The card step's "Open card checkout": open configure's onramp page for this payment (a new tab with
+        /// noopener,noreferrer on WebGL, as every link the sheet opens); the sheet moves on to waiting.
         /// </summary>
-        internal static void OpenOnramp(ScfgCheckoutController ctl)
+        internal static void OpenCard(ScfgCheckoutController ctl)
         {
             if (!IsOpen(ctl)) return;
             string? url;
             try
             {
-                url = ctl.Core.OnrampUrl();
+                url = ctl.Core.OpenCard();
             }
             catch (Exception e)
             {
-                ReportError("cannot build the buy link:", e);
+                ReportError("cannot build the card checkout link:", e);
                 return;
             }
             if (!string.IsNullOrEmpty(url)) OpenUrl(url!);

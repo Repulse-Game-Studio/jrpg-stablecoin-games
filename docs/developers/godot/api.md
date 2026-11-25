@@ -19,7 +19,7 @@ Setup advice (a token the wallet cannot receive yet, a corrupt state file) is pr
 | Call | Returns |
 |---|---|
 | `Scfg.add_chain(key, opts)` | `null`, or the `ScfgErr`. Adds your own EVM chain; call before `configure()`. `opts`: `name`, `chain_id`, `rpc` (Array of https URLs; `http://127.0.0.1` / `http://localhost` with a port for a local node), `tokens` (`{"USDC": "0x..."}`, 6-decimal tokens), `confirmations`, `explorer_tx` (https URL with `{}` for the hash; http only on 127.0.0.1 / localhost), optional `native_symbol`, `fee_hint`, `testnet`, `max_log_range` |
-| `Scfg.configure(opts)` | `null`, or the `ScfgErr`. `opts`: `wallet` (EVM `0x` address) and/or `solana_wallet`, `testnet`, `chains`, `tokens`, `methods`, `onramp` (the buy link, see below), `rpc_urls`, `confirmations`, `previous_wallets`, `logo` (`res://` path to a png, jpg or webp), `accent` (`"#rrggbb"`), and the Godot-only `theme` and `sheet_scene` |
+| `Scfg.configure(opts)` | `null`, or the `ScfgErr`. `opts`: `wallet` (EVM `0x` address) and/or `solana_wallet`, `testnet`, `chains`, `tokens`, `methods`, `onramp` (the **Pay with card** button, see below), `rpc_urls`, `confirmations`, `previous_wallets`, `logo` (`res://` path to a png, jpg or webp), `accent` (`"#rrggbb"`), and the Godot-only `theme` and `sheet_scene` |
 | `Scfg.add_item(id, opts)` | `null`, or the `ScfgErr`. `opts`: `code` (1-99, never change it after release), `price` (`"4.99"`), `token` (`"USDC"` or `"USDT"`), `title`, optional `min_price` |
 | `await Scfg.pay(kind, opts)` | `ScfgPaymentResult`, when the payment sheet closes. `kind` is `"unlock"` (`opts.item` required) or `"tip"` (`opts.amount`, the suggested amount, and `opts.token` required). An unlock also takes an optional `opts.amount`, the amount to charge instead of the item's price (at least its `min_price`, which defaults to the price: so pay-what-you-want above the price, or a sale down to `min_price`), and an optional `opts.token`, another enabled token than the item's. `opts` also takes `callback` (a Callable taking the result). Amounts are Strings, never floats |
 | `await Scfg.restore(opts)` | `ScfgRestoreResult`; shows the restore screen where the player pastes a transaction hash. `opts.callback` gets the result once a restore finishes |
@@ -36,32 +36,40 @@ Setup advice (a token the wallet cannot receive yet, a corrupt state file) is pr
 `configure()` can be called again until payments have started (the frame after a successful call). After
 that it is refused with `configure.after_start`.
 
-## The buy link (`onramp`)
+## Pay with card (`onramp`)
 
-The sheet shows a **No USDC yet? Buy some with a card** link (with the payment's token) on the method step, or
-on the only payment page when there is one method. It opens a buy page for the network the player picked, in
-the browser (a new tab on a web export), where they buy the token with a card into their own wallet and then
-pay as usual. The default page is thirdweb's hosted Buy widget, card payment only, locked to the network
-and token, with the payment rounded up to cents (plus a cent for the fee on Arc) as the suggested amount. On a network it isn't
-offered on, like Solana, the sheet says **No USDC yet? Pick another network to buy some with a card** there
-instead, which goes back to the network step, when another network the player can pick has the link.
+The network step shows Ethereum and Solana as tiles and the other networks under **More networks**; without a
+Solana wallet, Arc takes the second tile. Under each
+network that takes cards the sheet shows a small **Pay with card** link. It skips the method step for a card
+page with the exact amount, whose **Open card checkout** button opens a card checkout page for that network in
+the browser (a new tab on a web export) and moves on to waiting for the payment. The player pays by card there,
+and the provider sends the token straight to your wallet on that network; the game finds the payment by its
+exact amount, as any other. The default page is thirdweb's hosted Checkout widget, card payment only, paying the
+exact amount to your wallet (`seller`). Solana has no card link. See
+[Pay with card](https://jrpg.com/stablecoinforgames/docs/developers/configure/#pay-with-card) for what the page is told, and for the warning that this
+is not yet checked with a real card.
+
+A single network without a card link is still chosen for the player, and the network step is skipped; a single
+network with one keeps the network step, so the link can be reached.
 
 ```gdscript
 Scfg.configure({"wallet": "0x...", "onramp": {"enabled": false}})            # hide it
 Scfg.configure({"wallet": "0x...", "onramp": {"chains": ["base", "arc"]}})   # only on these networks
-Scfg.configure({"wallet": "0x...", "onramp": {"url": "https://buy.example/?net={chain_id}&a={amount}"}})
+Scfg.configure({"wallet": "0x...", "onramp": {"url": "https://pay.example/?net={chain_id}&a={amount}&to={recipient}"}})
 ```
 
 | Option | Meaning |
 |---|---|
 | `enabled` | `true` (default) or `false` |
 | `chains` | The networks it is offered on (enabled EVM networks only). Left out: the built-in EVM networks on mainnet, and none on testnet (cards don't buy test tokens) |
-| `url` | Your own `https://` page, without spaces, at most 2048 characters. `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}` are filled in; any other brace is refused |
+| `url` | Your own `https://` page, without spaces, at most 2048 characters. `{chain}`, `{chain_id}`, `{token}`, `{token_address}`, `{amount}` (the exact amount, with 6 decimals: `4.993742`) and `{recipient}` (your wallet on that network) are filled in; any other brace is refused. The page must pay `{recipient}` exactly `{amount}` |
 
 A mistake is a `ConfigError` from `configure()` with a code such as `onramp.unknown_option`, `onramp.bad_url`,
-`onramp.unknown_placeholder` or `onramp.disabled_chain`. A replacement sheet shows the link while the
-controller's `shows_onramp` is true and opens it with `Scfg.open_onramp(controller)`; while `shows_onramp_hint`
-is true it shows the "Pick another network" button there instead, which calls the controller's `back()`.
+`onramp.unknown_placeholder` or `onramp.disabled_chain`. A replacement sheet lays out the network step with the
+controller's `network_layout()` (`{"main", "more", "expanded", "card"}`: the tiles, the networks under More
+networks, whether that is open, and the networks with a card link), toggles it with `toggle_more_networks()`,
+and calls `pay_with_card(key)` for a card link. On the `"card"` step, `Scfg.open_card(controller)` opens the
+card checkout (`card_url()`) and moves on to waiting.
 
 ## ScfgPaymentResult
 
@@ -137,10 +145,9 @@ From least to most work:
 3. `Scfg.configure({"sheet_scene": preload("res://my_sheet.tscn")})`: your scene replaces the payment sheet.
    Its root needs `func bind(controller, scfg)` and `signal closed(how)`. `bind()` is called once, before the
    root enters the tree, with the `ScfgCheckoutController` and the `Scfg` autoload. Show the controller's
-   fields, call its methods (`choose_network`, `choose_method`, `next_step`, `set_tip_amount`, `mark_sent`,
-   `submit_hash`, `back`) and the autoload's actions (`open_browser`, `open_wallet_app`, `open_explorer`,
-   `open_onramp` (while `shows_onramp`; while `shows_onramp_hint`, a "Pick another network" button there
-   instead, handled with `back()`), `copy`, `paste_into`). Emit `closed("cancel")`, `closed("keep_playing")` (only once a session exists) or
+   fields, call its methods (`choose_network`, `pay_with_card`, `toggle_more_networks`, `choose_method`,
+   `next_step`, `set_tip_amount`, `mark_sent`, `submit_hash`, `back`) and the autoload's actions (`open_browser`, `open_wallet_app`, `open_explorer`,
+   `open_card` (on the card step, after `pay_with_card`), `copy`, `paste_into`). Emit `closed("cancel")`, `closed("keep_playing")` (only once a session exists) or
    `closed("finish")` (after a final state), once. Never call the controller's `poll()`: the autoload does. A
    root without `bind` and `closed` is not shown, and `pay()` resolves `failed` with `sheet.unavailable`.
 4. Replace `Scfg.sheet_host` with your own `ScfgSheetHost` (`addons/scfg/sheet_host.gd`) to show the payment

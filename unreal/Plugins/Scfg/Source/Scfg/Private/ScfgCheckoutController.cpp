@@ -176,9 +176,39 @@ FString FScfgCheckoutController::ResultTx() const
 
 int64 FScfgCheckoutController::Confirmations() const { return ScfgCheckoutControllerDetail::Clamp(Checkout->Core().confirmations()); }
 int64 FScfgCheckoutController::Required() const { return ScfgCheckoutControllerDetail::Clamp(Checkout->Core().required()); }
-FString FScfgCheckoutController::OnrampUrl() const
+FScfgNetworkLayout FScfgCheckoutController::NetworkLayout() const
 {
-	const scfg::Result<std::optional<std::string>> Url = Checkout->Core().onramp_url();
+	FScfgNetworkLayout Out;
+	const scfg::Result<scfg::checkout::NetworkView> View = Checkout->Core().network_layout();
+	if (!View.ok())
+	{
+		ScfgCheckoutControllerDetail::Report(Checkout->GetFacade(), View.err());
+		return Out;
+	}
+	const auto Keys = [](const std::vector<std::string>& In)
+	{
+		TArray<FString> Strs;
+		for (const std::string& K : In)
+		{
+			Strs.Add(ScfgString::FromUtf8(K));
+		}
+		return Strs;
+	};
+	Out.Main = Keys(View.value().main);
+	Out.More = Keys(View.value().more);
+	Out.bExpanded = View.value().expanded;
+	Out.Card = Keys(View.value().card);
+	return Out;
+}
+
+bool FScfgCheckoutController::CardOffered(const FString& Key) const
+{
+	return Checkout->Core().card_offered(ScfgString::ToUtf8(Key));
+}
+
+FString FScfgCheckoutController::CardUrl() const
+{
+	const scfg::Result<std::optional<std::string>> Url = Checkout->Core().card_url();
 	if (!Url.ok())
 	{
 		ScfgCheckoutControllerDetail::Report(Checkout->GetFacade(), Url.err());
@@ -187,8 +217,6 @@ FString FScfgCheckoutController::OnrampUrl() const
 	return ScfgCheckoutControllerDetail::Opt(Url.value());
 }
 
-bool FScfgCheckoutController::ShowsOnramp() const { return Checkout->Core().shows_onramp(); }
-bool FScfgCheckoutController::ShowsOnrampHint() const { return Checkout->Core().shows_onramp_hint(); }
 bool FScfgCheckoutController::CanGoBack() const { return Checkout->Core().can_go_back(); }
 bool FScfgCheckoutController::TxSeen() const { return Checkout->Core().tx_seen(); }
 bool FScfgCheckoutController::BrowserFailed() const { return Checkout->Core().browser_failed(); }
@@ -294,6 +322,16 @@ void FScfgCheckoutController::ChooseNetwork(const FString& Key)
 	}
 }
 
+void FScfgCheckoutController::PayWithCard(const FString& Key)
+{
+	const scfg::Status R = Checkout->Core().pay_with_card(ScfgString::ToUtf8(Key));
+	if (!R.ok())
+	{
+		ScfgCheckoutControllerDetail::Report(Checkout->GetFacade(), R.err());
+	}
+}
+
+void FScfgCheckoutController::ToggleMoreNetworks() { Checkout->Core().toggle_more_networks(); }
 void FScfgCheckoutController::ChooseMethod(const FString& Name) { Checkout->Core().choose_method(ScfgString::ToUtf8(Name)); }
 void FScfgCheckoutController::MarkSent() { Checkout->Core().mark_sent(); }
 void FScfgCheckoutController::SetTxInput(const FString& Text) { Checkout->Core().tx_input = ScfgString::ToUtf8(Text); }
@@ -309,7 +347,7 @@ void FScfgCheckoutController::SubmitHash()
 
 void FScfgCheckoutController::OpenBrowser() { Checkout->OpenBrowser(); }
 void FScfgCheckoutController::OpenWalletApp() { Checkout->OpenWalletApp(); }
-void FScfgCheckoutController::OpenOnramp() { Checkout->OpenOnramp(); }
+void FScfgCheckoutController::OpenCard() { Checkout->OpenCard(); }
 void FScfgCheckoutController::OpenExplorer(const FString& Url) { Checkout->OpenExplorer(Url); }
 void FScfgCheckoutController::Copy(const FString& Text) { Checkout->Copy(Text); }
 void FScfgCheckoutController::Paste() { Checkout->Paste(); }

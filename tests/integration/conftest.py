@@ -103,7 +103,9 @@ def world(anvil, monkeypatch):
     local = replace(chains_module.MAINNET["arbitrum"], rpc=(url,), confirmations=3,
                     tokens={"USDC": Token(usdc), "USDT": Token(usdt)})
     monkeypatch.setitem(chains_module.MAINNET, "arbitrum", local)
-    cfg = build_config(dev, chains=["arbitrum"])
+    # Pay with card off: a single network without a card button is chosen automatically, so the
+    # checkout opens on the method step as the tests expect.
+    cfg = build_config(dev, chains=["arbitrum"], onramp={"enabled": False})
     add_item(cfg, "chapter2", code=37, price="4.99", token="USDC", title="Chapter 2")
     engine = Engine(cfg, transport=UrllibTransport())
     return {"rpc": rpc, "engine": engine, "dev": dev, "payer": payer, "usdc": usdc,
@@ -122,7 +124,9 @@ def arc_world(anvil, monkeypatch):
     send(rpc, deployer, usdc, "0x" + MINT_SELECTOR + addr_word(payer) + word(100_000_000))
     local = replace(chains_module.MAINNET["arc"], rpc=(url,))
     monkeypatch.setitem(chains_module.MAINNET, "arc", local)
-    cfg = build_config(dev, chains=["arc"])
+    # Pay with card off: a single network without a card button is chosen automatically, so the
+    # checkout opens on the method step as the tests expect.
+    cfg = build_config(dev, chains=["arc"], onramp={"enabled": False})
     add_item(cfg, "chapter2", code=37, price="4.99", token="USDC", title="Chapter 2")
     engine = Engine(cfg, transport=UrllibTransport())
     return {"rpc": rpc, "engine": engine, "dev": dev, "payer": payer, "usdc": usdc,

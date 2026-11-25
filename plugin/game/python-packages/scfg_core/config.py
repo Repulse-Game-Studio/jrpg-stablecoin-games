@@ -345,7 +345,7 @@ def _merge_onramp(onramp, chains: tuple[str, ...], registry: dict[str, Chain],
                 raise ConfigError(f"onramp.chains contains disabled chain {c!r}",
                                   code="onramp.disabled_chain")
             if registry[c].family != "evm":
-                raise ConfigError(f"onramp.chains: {c!r} is not an EVM chain; the buy link "
+                raise ConfigError(f"onramp.chains: {c!r} is not an EVM chain; Pay with card "
                                   "is offered on EVM chains only", code="onramp.not_evm")
         if len(set(keys)) != len(keys):
             raise ConfigError("duplicate chain in onramp.chains", code="onramp.duplicate_chain")
@@ -373,9 +373,14 @@ def build_config(wallet=None, *, testnet=False, chains=None, tokens=None, method
         if address != current and address not in seen:
             seen.append(address)
 
-    solana_keys = tuple(k for k, c in registry.items() if c.family == "solana")
-    chains = ((DISPLAY_ORDER + tuple(custom) if wallet else ()) + (solana_keys if sol else ())
-              if chains is None else tuple(chains))
+    if chains is None:
+        # Built-ins in display order, then the developer's own, each where its family has a
+        # wallet.
+        offered = {"evm": wallet is not None, "solana": sol is not None}
+        chains = tuple(k for k in (*DISPLAY_ORDER, *(k for k in registry if k not in DISPLAY_ORDER))
+                       if k in registry and offered[registry[k].family])
+    else:
+        chains = tuple(chains)
     if not chains:
         raise ConfigError("chains must not be empty", code="chains.empty")
     for c in chains:

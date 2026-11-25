@@ -327,7 +327,10 @@ bool FScfgMobileSheetTest::RunTest(const FString& Parameters)
 	const FScfgCheckoutController& C = Sheet->GetController();
 	FScfgCheckout& Ctl = C.GetCheckout().Get();
 	TestTrue(TEXT("the screen's controller says mobile"), C.IsMobile());
-	TestTrue(TEXT("Down reaches Arbitrum"), R.KeyTo(*Sheet, TEXT("network_arbitrum"), EKeys::Down));
+	TestTrue(TEXT("Down reaches More networks"), R.KeyTo(*Sheet, TEXT("more_networks"), EKeys::Down));
+	R.Key(EKeys::Enter);
+	R.Frame(2);
+	TestTrue(TEXT("Down reaches Arbitrum behind it"), R.KeyTo(*Sheet, TEXT("network_arbitrum"), EKeys::Down));
 	R.Key(EKeys::Enter);
 	R.Pass();
 	TestEqual(TEXT("the method step"), Sheet->ShownStep(), FString(TEXT("method")));
@@ -386,7 +389,10 @@ bool FScfgMobileNoWalletButtonTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestTrue(TEXT("Down reaches Arbitrum"), R.KeyTo(*Sheet, TEXT("network_arbitrum"), EKeys::Down));
+	TestTrue(TEXT("Down reaches More networks"), R.KeyTo(*Sheet, TEXT("more_networks"), EKeys::Down));
+	R.Key(EKeys::Enter);
+	R.Frame(2);
+	TestTrue(TEXT("Down reaches Arbitrum behind it"), R.KeyTo(*Sheet, TEXT("network_arbitrum"), EKeys::Down));
 	R.Key(EKeys::Enter);
 	R.Pass();
 	TestEqual(TEXT("the method step"), Sheet->ShownStep(), FString(TEXT("method")));

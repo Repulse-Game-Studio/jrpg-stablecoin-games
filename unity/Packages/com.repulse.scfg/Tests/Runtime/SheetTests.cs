@@ -106,38 +106,85 @@ namespace Scfg.Tests
             Assert.That(GameObject.Find("SCFG Payment Sheet"), Is.Null, "the host destroyed the sheet");
         }
 
-        // test_sheet.gd's test_the_buy_link_sits_on_the_method_step_and_opens_the_buy_page.
+        // The network step (Ren'Py's scfg_step_network): Ethereum and, without a Solana wallet, Arc as tiles, the L2s
+        // behind "More networks", a "Pay with card" link under each tile.
         [UnityTest]
-        public IEnumerator TheBuyLinkSitsOnTheMethodStepAndOpensTheBuyPage()
+        public IEnumerator TheNetworkStepShowsTheMainNetworksAndTheRestBehindMoreNetworks()
         {
-            _rig.Configure();
+            Assert.That(SCFG.Configure(new ScfgOptions { Wallet = ScfgRig.Dev }), Is.Null);
+            Assert.That(SCFG.AddItem("chapter2", new ScfgItem { Code = 1, Price = "4.99", Token = "USDC", Title = "Chapter 2" }), Is.Null);
             SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
             yield return Frames();
             var v = OpenSheet();
-            Assert.That(v.ShownStep, Is.EqualTo("method"));
-            var link = (Button?)v.Control("onramp");
-            Assert.That(link, Is.Not.Null, "on the method step");
-            Assert.That(v.Control("onramp_hint"), Is.Null);
-            Assert.That(link!.text, Is.EqualTo("No USDC yet? Buy some with a card"));
-            var order = v.FocusOrder.ToList();
-            Assert.That(order.IndexOf(link), Is.GreaterThan(order.IndexOf(v.Control("method_manual")!)),
-                        "after the methods in the focus order");
-            Assert.That(v.Press("method_qr"), Is.True);
+            Assert.That(v.ShownStep, Is.EqualTo("network"));
+            Assert.That(v.Keys.Where(k => k.StartsWith("network_")), Is.EqualTo(new[] { "network_ethereum", "network_arc" }));
+            Assert.That(v.Focused, Is.EqualTo("network_ethereum"));
+            Assert.That(v.TextOf("card_ethereum"), Is.EqualTo("Pay with card"));
+            Assert.That(v.TextOf("more_networks"), Is.EqualTo("More networks"));
+            foreach (var next in new[] { "network_arc", "card_ethereum", "card_arc", "more_networks" })
+            {
+                Nav(v, NavigationMoveEvent.Direction.Down);                 // the row's tiles, then their links
+                Assert.That(v.Focused, Is.EqualTo(next));
+            }
+            Submit(v);
             yield return Frames();
-            Assert.That(v.ShownStep, Is.EqualTo("qr"));
-            Assert.That(v.Control("onramp"), Is.Null, "not on a method's page the method step led to");
+            Assert.That(v.TextOf("more_networks"), Is.EqualTo("Fewer networks"));
+            Assert.That(v.Focused, Is.EqualTo("more_networks"), "the focus stays on the toggle");
+            Assert.That(v.FocusOrder.Select(c => v.Keys.First(k => v.Control(k) == c)).TakeWhile(k => k != "cancel"), Is.EqualTo(new[]
+            {
+                "network_ethereum", "network_arc", "card_ethereum", "card_arc", "more_networks", "network_base",
+                "network_arbitrum", "card_base", "card_arbitrum", "network_polygon", "card_polygon",
+            }));
+            var arc = v.Control("network_base")!;
+            var ethereum = v.Control("network_ethereum")!;
+            Assert.That(arc.layout.width, Is.EqualTo(ethereum.layout.width).Within(0.5f), "every tile has the same width");
+            Assert.That(arc.layout.height, Is.EqualTo(ethereum.layout.height).Within(0.5f), "and the same height");
+            Assert.That(v.Press("network_base"), Is.True);
+            yield return Frames(6);
+            Assert.That(v.ShownStep, Is.EqualTo("method"), v.Controller.Core.Error);
             Assert.That(v.Press("back"), Is.True);
             yield return Frames();
-            Assert.That(v.Control("onramp"), Is.Not.Null);
-            var url = v.Controller.Core.OnrampUrl();
-            Assert.That(url, Does.StartWith("https://thirdweb.com/bridge/buy-widget?chain=42161&").And.EndWith("&paymentMethods=card"));
-            Assert.That(v.Press("onramp"), Is.True);
-            Assert.That(_rig.Platform.Opened.Last(), Is.EqualTo(url), "opens the buy page through the platform");
+            Assert.That(v.Control("network_base"), Is.Not.Null, "More networks stays open while Base is chosen");
+            Assert.That(v.Focused, Is.EqualTo("network_base"));
         }
 
-        // test_sheet.gd's test_on_solana_the_buy_link_points_to_another_network.
+        // A network's "Pay with card" (Ren'Py's scfg_step_card): the card page, whose button opens the card checkout.
         [UnityTest]
-        public IEnumerator OnSolanaTheBuyLinkPointsToAnotherNetwork()
+        public IEnumerator PayWithCardOpensTheCardPageAndTheCardCheckout()
+        {
+            _rig.Configure(card: true);
+            SCFG.Pay(ScfgPayKind.Unlock, new ScfgPayRequest { Item = "chapter2" });
+            yield return Frames();
+            var v = OpenSheet();
+            Assert.That(v.ShownStep, Is.EqualTo("network"), "a single network with a card button keeps the network step");
+            Assert.That(v.Control("more_networks"), Is.Null);
+            Assert.That(v.Press("card_arbitrum"), Is.True);
+            yield return Frames(6);
+            Assert.That(v.ShownStep, Is.EqualTo("card"), v.Controller.Core.Error);
+            Assert.That(v.Focused, Is.EqualTo("forward"));
+            Assert.That(v.TextOf("forward"), Is.EqualTo("Open card checkout"));
+            Assert.That(v.TextOf("exact_note"), Is.Null, "the card page names the exact amount itself");
+            var url = v.Controller.Core.CardUrl();
+            Assert.That(url, Does.StartWith("https://thirdweb.com/bridge/checkout-widget?chain=42161&")
+                                 .And.Contain("&amount=" + v.Controller.Core.PayAmountText + "&seller=" + ScfgRig.Dev + "&"));
+            Assert.That(v.Press("forward"), Is.True);
+            Assert.That(_rig.Platform.Opened.Last(), Is.EqualTo(url), "opens the card checkout through the platform");
+            yield return Frames();
+            Assert.That(v.ShownStep, Is.EqualTo("waiting"));
+            Assert.That(v.Press("back"), Is.True);
+            yield return Frames();
+            Assert.That(v.ShownStep, Is.EqualTo("card"));
+            Assert.That(v.Press("back"), Is.True);
+            yield return Frames();
+            Assert.That(v.ShownStep, Is.EqualTo("network"));
+            Assert.That(v.Focused, Is.EqualTo("card_arbitrum"), "the chosen card link has the focus");
+            Assert.That(v.Control("card_arbitrum")!.ClassListContains("scfg-card-link--selected"), Is.True);
+            Assert.That(v.Control("network_arbitrum")!.ClassListContains("scfg-option--selected"), Is.False);
+        }
+
+        // Solana is a main tile without a "Pay with card" link; Arbitrum fills the second tile.
+        [UnityTest]
+        public IEnumerator SolanaHasNoPayWithCardLink()
         {
             Assert.That(SCFG.Configure(new ScfgOptions
             {
@@ -149,22 +196,11 @@ namespace Scfg.Tests
             yield return Frames();
             var v = OpenSheet();
             Assert.That(v.ShownStep, Is.EqualTo("network"));
-            Assert.That(v.Press("network_solana"), Is.True, "Solana is offered");
-            yield return Frames(6);
-            Assert.That(v.ShownStep, Is.EqualTo("method"), v.Controller.Core.Error);
-            Assert.That(v.Control("onramp"), Is.Null, "no buy link on Solana");
-            var hint = (Button?)v.Control("onramp_hint");
-            Assert.That(hint, Is.Not.Null, "the hint");
-            Assert.That(hint!.text, Is.EqualTo("No USDC yet? Pick another network to buy some with a card"));
-            var order = v.FocusOrder.ToList();
-            Assert.That(order.IndexOf(hint), Is.GreaterThan(order.IndexOf(v.Control("method_manual")!)), "after the methods");
-            Assert.That(v.Press("onramp_hint"), Is.True);
-            yield return Frames();
-            Assert.That(v.ShownStep, Is.EqualTo("network"), "the hint goes back to the network step");
-            Assert.That(v.Press("network_arbitrum"), Is.True);
-            yield return Frames(6);
-            Assert.That(v.Control("onramp"), Is.Not.Null, "the buy link on Arbitrum");
-            Assert.That(v.Control("onramp_hint"), Is.Null);
+            Assert.That(v.Control("network_solana"), Is.Not.Null);
+            Assert.That(v.Control("card_solana"), Is.Null);
+            Assert.That(v.Control("network_arbitrum"), Is.Not.Null, "the second tile");
+            Assert.That(v.Control("more_networks"), Is.Null, "nothing left behind More networks");
+            Assert.That(v.Control("card_arbitrum"), Is.Not.Null);
         }
 
         [UnityTest]

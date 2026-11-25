@@ -199,7 +199,7 @@ init -10 python in scfg:
     def _exact_note(ctl):
         """Under the price once a session exists: the wallet asks for slightly more, because
         the last digits identify the payment (always under one cent)."""
-        if not ctl.session or ctl.step in ("manual", "done") or ctl.state == "closed":
+        if not ctl.session or ctl.step in ("manual", "card", "done") or ctl.state == "closed":
             return ""
         return _("Your wallet will ask for %s. The last digits identify your payment and add less than 1 cent.") % _amount_line(ctl, exact=True)
 
@@ -392,6 +392,17 @@ style scfg_small_button is scfg_button:
 style scfg_small_button_text is scfg_button_text:
     size scfg._px(15)
 
+## "Pay with card" under a network's tile: a small text link.
+style scfg_card_link is default:
+    padding (scfg._px(6), scfg._px(4))
+
+style scfg_card_link_text is scfg_text:
+    size scfg._px(15)
+    color scfg.MUTED
+    hover_color scfg.INK
+    selected_color scfg.INK
+    underline True
+
 ## Top row of the sheet: the back arrow on the left, the step dots on the right.
 style scfg_nav is default:
     xfill True
@@ -520,6 +531,9 @@ screen scfg_payment(cid):
             elif ctl.step == "manual":
                 use scfg_step_view(ctl.nav_dir, _("I've sent it"), Function(scfg._mark_sent, cid), ctl=ctl, cid=cid):
                     use scfg_step_manual(ctl, cid)
+            elif ctl.step == "card":
+                use scfg_step_view(ctl.nav_dir, _("Open card checkout"), Function(scfg._open_card, cid), ctl=ctl, cid=cid):
+                    use scfg_step_card(ctl, cid)
             elif ctl.step == "waiting":
                 use scfg_step_view(ctl.nav_dir):
                     use scfg_step_waiting(ctl, cid)
@@ -531,8 +545,7 @@ screen scfg_payment(cid):
 
 
 ## One step sliding in from the right (forward) or the left (back): its scrolling body,
-## and below it, always in view, the buy link (when `ctl` offers it on this step) and the
-## button that moves on (when the step has one).
+## and below it, always in view, the button that moves on (when the step has one).
 screen scfg_step_view(direction, next_label=None, next_action=None, ctl=None, cid=None):
     side "c b":
         style "scfg_step"
@@ -551,8 +564,6 @@ screen scfg_step_view(direction, next_label=None, next_action=None, ctl=None, ci
 
         vbox:
             style "scfg_body"
-            if ctl is not None and (ctl.shows_onramp or ctl.shows_onramp_hint):
-                use scfg_onramp_link(ctl, cid)
             if next_label:
                 textbutton next_label:
                     style "scfg_accent_button"
@@ -639,14 +650,37 @@ screen scfg_step_amount(ctl, cid):
         textbutton _("Set") style "scfg_small_button" xsize scfg._px(90) yfill True action Function(scfg._apply_custom_tip, cid)
 
 
+## The networks: the main ones (Ethereum, Solana) as tiles, the rest behind "More networks"
+## (CheckoutController.network_layout). A network with a card button has a small "Pay with
+## card" link under its tile, which skips the method step for the card page.
 screen scfg_step_network(ctl, cid):
     text (_("Which network holds your %s?") % ctl.spec.token) style "scfg_label" substitute False
-    $ options = python_list((key, name, scfg.FEE_LABELS.get(fee, fee)) for key, name, fee in ctl.chain_options())
+    $ options = python_dict((key, (name, scfg.FEE_LABELS.get(fee, fee))) for key, name, fee in ctl.chain_options())
+    $ layout = ctl.network_layout()
     $ cell = scfg._cell(len(options), max_cols=2)
-    $ row_h = scfg._option_height(python_list((name, fee) for key, name, fee in options), cell)
+    $ row_h = scfg._option_height(python_list(options.values()), cell)
+    use scfg_network_tiles(ctl, cid, layout["main"], options, layout["card"], cell, row_h)
+    if layout["more"]:
+        textbutton (_("Fewer networks") if layout["expanded"] else _("More networks")):
+            style "scfg_small_button"
+            xsize scfg._inner_width()
+            action Function(scfg._toggle_more_networks, cid)
+        if layout["expanded"]:
+            use scfg_network_tiles(ctl, cid, layout["more"], options, layout["card"], cell, row_h)
+
+
+screen scfg_network_tiles(ctl, cid, keys, options, card, cell, row_h):
     hbox:
-        for key, name, fee in options:
-            use scfg_option(name, Function(scfg._choose_network, cid, key), selected=(ctl.chain_key == key), sub=fee, width=cell, height=row_h)
+        for key in keys:
+            vbox:
+                xsize cell
+                use scfg_option(options[key][0], Function(scfg._choose_network, cid, key), selected=(ctl.chain_key == key and ctl.method != "card"), sub=options[key][1], width=cell, height=row_h)
+                if key in card:
+                    textbutton _("Pay with card"):
+                        style "scfg_card_link"
+                        xalign 0.5
+                        selected (ctl.chain_key == key and ctl.method == "card")
+                        action Function(scfg._pay_with_card, cid, key)
 
 
 screen scfg_step_method(ctl, cid):
@@ -658,17 +692,12 @@ screen scfg_step_method(ctl, cid):
             use scfg_option(label, Function(scfg._choose_method, cid, m), selected=(ctl.method == m), sub=hint, width=scfg._content_width(), height=row_h)
 
 
-## "No USDC yet? Buy some with a card": opens the configure(onramp=...) page for the chosen
-## network in the player's browser. scfg_step_view shows it below the scrolling body, so it
-## stays in view, on the method step or on the payment page the sheet opens on when there is
-## a single method (CheckoutController.shows_onramp). On a network without a buy page
-## (Solana), when another one has it, it points there instead and goes back to the network
-## step (shows_onramp_hint).
-screen scfg_onramp_link(ctl, cid):
-    if ctl.shows_onramp:
-        textbutton (_("No %s yet? Buy some with a card") % ctl.spec.token) style "scfg_small_button" xsize scfg._inner_width() action Function(scfg._open_onramp, cid)
-    else:
-        textbutton (_("No %s yet? Pick another network to buy some with a card") % ctl.spec.token) style "scfg_small_button" xsize scfg._inner_width() action Function(scfg._back, cid)
+## The card page: what "Open card checkout" does, before it opens the card checkout page
+## (configure(onramp=...), thirdweb's by default) in the player's browser.
+screen scfg_step_card(ctl, cid):
+    text _("Pay with card") style "scfg_label"
+    text _("Opens a card checkout page in your browser. You pay by card there, and the payment goes straight to the game's developer.")
+    text (_("Pays %s on %s.") % (scfg._amount_line(ctl, exact=True), ctl.chain.name)) style "scfg_muted" substitute False
 
 
 screen scfg_step_browser(ctl, cid):

@@ -396,10 +396,17 @@ namespace Scfg.Tests
         public List<string> Reported => SCFG.Current.Reported;
         public List<string> Warnings => SCFG.Current.Warnings;
 
-        /// <summary>The usual configuration: Dev on Arbitrum (mainnet), chapter2 at 4.99 USDC.</summary>
-        public void Configure(ScfgMethods? methods = null)
+        /// <summary>
+        /// The usual configuration: Dev on Arbitrum (mainnet), chapter2 at 4.99 USDC. Pay with card is off, so the single
+        /// network has no card button and the network step is skipped (<paramref name="card"/> turns it on).
+        /// </summary>
+        public void Configure(ScfgMethods? methods = null, bool card = false)
         {
-            var err = SCFG.Configure(new ScfgOptions { Wallet = Dev, Chains = new List<string> { "arbitrum" }, Methods = methods });
+            var err = SCFG.Configure(new ScfgOptions
+            {
+                Wallet = Dev, Chains = new List<string> { "arbitrum" }, Methods = methods,
+                Onramp = card ? null : new ScfgOnramp { Enabled = false },
+            });
             if (err != null) throw new InvalidOperationException("configure: " + err + " " + string.Join("; ", Reported));
             err = SCFG.AddItem("chapter2", new ScfgItem { Code = 1, Price = "4.99", Token = "USDC", Title = "Chapter 2" });
             if (err != null) throw new InvalidOperationException("add_item: " + err);

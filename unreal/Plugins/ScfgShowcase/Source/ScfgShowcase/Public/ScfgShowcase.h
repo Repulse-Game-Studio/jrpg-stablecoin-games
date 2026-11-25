@@ -25,9 +25,9 @@
 // Settings with items but the wallet from the command line are applied with ConfigureWithSettings(Wallet,
 // SolanaWallet). In code instead (ConfigureInCode), with -scfg-showcase-code on the command line or when the project's
 // settings have no items (a fresh project with only its wallet set). It starts from the project settings' options and
-// chain rows, so their networks, RPC urls and buy link show, and adds the wallets, testnet, the showcase's three items,
-// and its accent and the logo (this plugin's Resources/logo.png or the project's Content/Showcase/logo.png) where the
-// settings set none; this replaces the settings ("a code call after it wins", ScfgSettings.h). Settings with Testnet
+// chain rows, so their networks, RPC urls and Pay with card show, and adds the wallets, testnet, the showcase's three
+// items, and its accent and the logo (this plugin's Resources/logo.png or the project's Content/Showcase/logo.png)
+// where the settings set none; this replaces the settings ("a code call after it wins", ScfgSettings.h). Settings with Testnet
 // off are refused on every path (ChooseSetup): the showcase runs on testnets only, and their chains, tokens and RPC
 // urls are a mainnet's.
 //

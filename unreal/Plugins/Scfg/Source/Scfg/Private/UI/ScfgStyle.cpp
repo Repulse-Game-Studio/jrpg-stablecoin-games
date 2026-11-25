@@ -198,6 +198,7 @@ void FScfgStyle::Build(const FString& AccentHex)
 		{TEXT("Scfg.ButtonText.Small"), 15, InkColor, true},
 		{TEXT("Scfg.ButtonText.Primary"), 17, WhiteColor, true},
 		{TEXT("Scfg.ButtonText.Accent"), 17, OnAccentColor, true},
+		{TEXT("Scfg.Link"), 15, MutedColor, false},
 	};
 	for (const FText& T : Texts)
 	{
@@ -209,6 +210,9 @@ void FScfgStyle::Build(const FString& AccentHex)
 	Set(TEXT("Scfg.Button"), Outlined(FMargin(16, 11)));
 	Set(TEXT("Scfg.Button.Small"), Outlined(FMargin(10, 6)));
 	Set(TEXT("Scfg.Button.Back"), Outlined(FMargin(0)));
+	// a text link ("Pay with card" under a network's tile): no box, the text and its underline change color instead
+	const FSlateNoResource None;
+	Set(TEXT("Scfg.Button.Link"), ButtonStyle(None, None, None, None, FMargin(6, 4)));
 	Set(TEXT("Scfg.Option"), Outlined(FMargin(6, 7)));
 	Set(TEXT("Scfg.Button.Primary"), Filled(InkColor, InkHoverColor, InkHoverColor, FMargin(16, 11)));
 	Set(TEXT("Scfg.Button.Accent"), Filled(AccentColor, AccentColor * 1.08f, AccentColor * 0.92f, FMargin(16, 11)));

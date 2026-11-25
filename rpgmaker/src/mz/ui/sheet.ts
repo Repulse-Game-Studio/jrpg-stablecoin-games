@@ -4,7 +4,8 @@
  * for `await SCFG.pay(...)`.
  *
  * One step at a time, as the controller's `step` says: amount (tips) -> network -> method ->
- * browser | qr | manual -> waiting -> done. Every step has the header (the back arrow while the
+ * browser | qr | manual -> waiting -> done, or through a network's "Pay with card" link:
+ * network -> card -> waiting -> done. Every step has the header (the back arrow while the
  * controller `canGoBack`, the step dots, the logo, the title and the price), a scrolling body, the
  * pinned forward button when the step has one, and the footer (the status message, the status
  * line and Cancel / Continue playing / Continue). A test play also shows the developer lines
@@ -12,7 +13,7 @@
  *
  * The sheet reads only the CheckoutController's fields and getters and calls its methods; SCFG
  * polls it every frame. Buttons that leave the game go through SCFG (openBrowser, openWalletApp,
- * openExplorer, openOnramp, copy, pasteInto). `closed` resolves "cancel", "keep_playing" or
+ * openExplorer, openCard, copy, pasteInto). `closed` resolves "cancel", "keep_playing" or
  * "finish", Ren'Py's _close_checkout hows.
  *
  * Keyboard and gamepad (screen.ts): each step focuses its primary control (the selected option,
@@ -64,7 +65,7 @@ export class PaymentSheet extends Screen {
   protected signature(): unknown[] {
     const c = this.ctl;
     return [c.step, c.state, c.error, c.canGoBack, c.hint_tx, c.confirmations, c.required, c.method, c.chain_key,
-      c.priceText, c.sessionId, c.browser_failed, c.chainOptions(), c.methods(), c.result?.tx_hash ?? null, c.message(), c.showsOnramp, c.showsOnrampHint,
+      c.priceText, c.sessionId, c.browser_failed, c.chainOptions(), c.methods(), c.result?.tx_hash ?? null, c.message(), c.networkLayout(),
       [...c.unready()].sort(), this.env.logo()];
   }
 
@@ -78,7 +79,7 @@ export class PaymentSheet extends Screen {
       }
       case "network": {
         const options = c.chainOptions();
-        if (c.chain_key !== null) return `network_${c.chain_key}`;
+        if (c.chain_key !== null) return c.method === "card" ? `card_${c.chain_key}` : `network_${c.chain_key}`;
         return options.length > 0 ? `network_${options[0]![0]}` : "cancel";
       }
       case "method": {
@@ -88,6 +89,7 @@ export class PaymentSheet extends Screen {
       }
       case "browser":
       case "qr":
+      case "card":
         return "forward";
       case "manual":
         return "copy_amount";
@@ -128,7 +130,6 @@ export class PaymentSheet extends Screen {
     this.body = body;
     this.sheet.append(body);
     const forward = this.step(body);
-    this.onrampLink();
     if (forward !== null) this.sheet.append(this.button("forward", forward[0], "accent forward", forward[1]));
     this.sheet.append(this.footer());
   }
@@ -199,6 +200,9 @@ export class PaymentSheet extends Screen {
       case "manual":
         this.stepManual(body);
         return [this.text("i_sent_it"), () => c.markSent()];
+      case "card":
+        this.stepCard(body);
+        return [this.text("open_card_checkout"), () => this.scfg.openCard(c)];
       case "waiting":
         this.stepWaiting(body);
         return null;
@@ -227,17 +231,58 @@ export class PaymentSheet extends Screen {
     this._synced.set("custom_amount", c.custom_amount);
   }
 
+  /**
+   * The networks (Ren'Py's scfg_step_network): the main ones (Ethereum, Solana) as tiles, the rest
+   * behind "More networks" (the controller's networkLayout). A network with a card button has a
+   * small "Pay with card" link under its tile, which skips the method step for the card page. All
+   * tiles share one column count, so every tile has the same width.
+   */
   private stepNetwork(body: HTMLElement): void {
     const c = this.ctl;
     body.append(this.label(this.text("which_network", c.spec.token), "label"));
-    const options = c.chainOptions();
-    const grid = this.grid(Math.min(options.length, 2));
-    options.forEach(([key, name, fee], i) => {
-      const known = this.feeLabel(fee);
-      grid.append(this.option(`network_${key}`, name, known ?? (fee || ""), c.chain_key === key, () => c.chooseNetwork(key),
-        { row: `networks:${Math.floor(i / 2)}`, textIsData: true, subIsData: known === null }));
-    });
-    body.append(grid);
+    const options = new Map(c.chainOptions().map(([key, name, fee]) => [key, [name, fee] as const]));
+    const layout = c.networkLayout();
+    const columns = Math.min(options.size, 2);
+    body.append(this.networkTiles(layout.main, options, layout.card, columns, "networks"));
+    if (layout.more.length > 0) {
+      body.append(this.button("more_networks", this.text(layout.expanded ? "fewer_networks" : "more_networks"), "small more-networks",
+        () => c.toggleMoreNetworks()));
+      if (layout.expanded) body.append(this.networkTiles(layout.more, options, layout.card, columns, "more"));
+    }
+  }
+
+  /**
+   * A grid of network tiles (Ren'Py's scfg_network_tiles), each with its "Pay with card" link when
+   * `card` lists it. Left and right move along a row's tiles, or along its links.
+   */
+  private networkTiles(keys: readonly string[], options: Map<string, readonly [string, string]>, card: readonly string[],
+    columns: number, row: string): HTMLElement {
+    const c = this.ctl;
+    const grid = this.grid(columns);
+    grid.classList.add("networks");
+    for (let start = 0; start < keys.length; start += columns) {
+      const rowKeys = keys.slice(start, start + columns);
+      const r = Math.floor(start / columns);
+      // created tiles first, then links, so the focus order walks a row's tiles, then its links
+      const tiles = rowKeys.map((key) => {
+        const [name, fee] = options.get(key)!;
+        const known = this.feeLabel(fee);
+        return this.option(`network_${key}`, name, known ?? (fee || ""), c.chain_key === key && c.method !== "card",
+          () => c.chooseNetwork(key), { row: `${row}:${r}`, textIsData: true, subIsData: known === null });
+      });
+      rowKeys.forEach((key, i) => {
+        const cell = this.div("network-cell", tiles[i]!);
+        if (card.includes(key)) {
+          const chosen = c.chain_key === key && c.method === "card";
+          const link = this.button(`card_${key}`, this.text("pay_with_card"), chosen ? "card-link selected" : "card-link",
+            () => c.payWithCard(key), `${row}-card:${r}`);
+          link.setAttribute("aria-pressed", chosen ? "true" : "false");
+          cell.append(link);
+        }
+        grid.append(cell);
+      });
+    }
+    return grid;
   }
 
   private stepMethod(body: HTMLElement): void {
@@ -249,17 +294,13 @@ export class PaymentSheet extends Screen {
   }
 
   /**
-   * "No USDC yet? Buy some with a card" (Ren'Py's scfg_onramp_link): the configure({onramp}) page
-   * for the chosen network, pinned below the scrolling body (above the forward button) so it stays
-   * in view. On the method step, or the payment page the sheet opens on when there is a single
-   * method (the controller's showsOnramp). On a network without a buy page (Solana), when another
-   * one has it, "No USDC yet? Pick another network to buy some with a card" goes back to the
-   * network step instead (showsOnrampHint).
+   * The card page (Ren'Py's scfg_step_card): what "Open card checkout" does, before it opens the
+   * card checkout page (configure({onramp}), thirdweb's by default) in the player's browser.
    */
-  private onrampLink(): void {
-    const c = this.ctl;
-    if (c.showsOnramp) this.sheet.append(this.button("onramp", this.text("onramp_link", c.spec.token), "small", () => this.scfg.openOnramp(c)));
-    else if (c.showsOnrampHint) this.sheet.append(this.button("onramp_hint", this.text("onramp_hint", c.spec.token), "small", () => c.back()));
+  private stepCard(body: HTMLElement): void {
+    body.append(this.label(this.text("pay_with_card"), "label"));
+    body.append(this.label(this.text("card_opens_browser_note")),
+      this.label(this.text("card_pays_on", this.amountLine(true), this.chainDisplay()), "muted", "card_pays"));
   }
 
   private stepBrowser(body: HTMLElement): void {
@@ -467,7 +508,7 @@ export class PaymentSheet extends Screen {
   /** Under the price once a session exists: the wallet asks for slightly more (the last digits identify the payment). */
   private exactNote(): string {
     const c = this.ctl;
-    if (!c.session || c.step === "manual" || c.step === "done" || c.state === "closed") return "";
+    if (!c.session || c.step === "manual" || c.step === "card" || c.step === "done" || c.state === "closed") return "";
     return this.text("wallet_will_ask", this.amountLine(true));
   }
 }

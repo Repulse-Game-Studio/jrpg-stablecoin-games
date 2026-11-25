@@ -18,9 +18,7 @@
 //   test_status_names_the_signature_that_never_landed                  -> the same name
 //   test_a_new_hint_clears_the_old_not_landed_status                   -> the same name
 //   test_a_verdict_on_an_older_hint_does_not_touch_the_newer_one[...]  -> the same name (one test, the three errors)
-//   test_solana_points_to_a_network_with_the_buy_link                  -> the same name
-//   test_the_hint_needs_a_network_with_the_link_that_the_player_can_pick -> the same name
-//   test_the_hint_shows_where_the_link_would_and_not_once_a_payment_is_seen -> the same name
+//   test_solana_is_a_main_tile_without_a_card_button                   -> the same name
 // C++ only: test_a_signature_hint_message_parses, and test_solana_session_info_key_order (as
 // godot/tests/test_checkout_solana.gd: the Solana page's keys in Python's order, and build_tx submits
 // build_solana_payment for this session).
@@ -92,34 +90,6 @@ std::optional<Setup> setup(Ctx& t, scfg::checkout::Routes unready = {}, bool ser
     Result<Setup> rig = fakes::make_rig(std::move(r));
     if (!t.check(rig.ok(), rig.ok() ? "" : "setup: " + rig.err().str())) return std::nullopt;
     return rig.take();
-}
-
-// setup(**config): the same, with build_config's extra keyword arguments.
-std::optional<Setup> setup_with(Ctx& t, const Json& extra) {
-    fakes::RigOptions r;
-    r.config = Json::dict({{"wallet", DEV_EVM}, {"solana_wallet", DEV}});
-    for (const auto& [k, v] : extra.as_dict()) r.config.as_dict().set(k, v);
-    r.now = 0;
-    r.server = false;
-    r.unready = [] { return scfg::checkout::Routes{}; };
-    r.game_name = "Ruby Dreams";
-    Result<Setup> rig = fakes::make_rig(std::move(r));
-    if (!t.check(rig.ok(), rig.ok() ? "" : "setup: " + rig.err().str())) return std::nullopt;
-    return rig.take();
-}
-
-// on_method(chain, **config): choose_network(chain), then poll().
-std::optional<Setup> on_method(Ctx& t, const std::string& chain, const Json& extra = Json::dict()) {
-    std::optional<Setup> s = setup_with(t, extra);
-    if (!s) return std::nullopt;
-    if (!t.check(s->ctl->choose_network(chain).ok(), "choose_network")) return std::nullopt;
-    s->ctl->poll();
-    return s;
-}
-
-Json only_manual_methods() {
-    return Json::dict({{"methods", Json::dict({{"browser", Json::dict({{"enabled", false}})},
-                                               {"qr", Json::dict({{"enabled", false}})}})}});
 }
 
 // started(chain): select_chain(chain), then poll().
@@ -337,54 +307,18 @@ SCFG_TEST(CheckoutSolanaTests, test_solana_session_info_key_order) {
     SCFG_CHECK(t, s->deferred->queue.size() == 1 && s->deferred->queue.back().name == "build_solana_payment");
 }
 
-// --- the buy link's hint: Solana has no buy page, another network does ------------------------------------------
+// --- Solana has no "Pay with card" button ----------------------------------------------------------------------
 
-SCFG_TEST(CheckoutSolanaTests, test_solana_points_to_a_network_with_the_buy_link) {
-    std::optional<Setup> s = on_method(t, "solana");
+SCFG_TEST(CheckoutSolanaTests, test_solana_is_a_main_tile_without_a_card_button) {
+    std::optional<Setup> s = setup(t);
     if (!s) return;
     CheckoutController& ctl = *s->ctl;
-    SCFG_CHECK_EQ(t, ctl.step(), "method");
-    SCFG_CHECK(t, !ctl.onramp_url().value() && !ctl.shows_onramp());
-    SCFG_CHECK(t, ctl.shows_onramp_hint());
-    ctl.back();
-    SCFG_CHECK_EQ(t, ctl.step(), "network");
-    SCFG_CHECK(t, ctl.choose_network("base").ok());
-    ctl.poll();
-    SCFG_CHECK(t, ctl.shows_onramp() && !ctl.shows_onramp_hint());
-}
-
-SCFG_TEST(CheckoutSolanaTests, test_the_hint_needs_a_network_with_the_link_that_the_player_can_pick) {
-    std::optional<Setup> s = on_method(t, "solana", Json::dict({{"onramp", Json::dict({{"enabled", false}})}}));
-    if (!s) return;
-    SCFG_CHECK(t, !s->ctl->shows_onramp_hint());
-    s.reset();
-    s = on_method(t, "solana", Json::dict({{"testnet", true}}));  // testnet: no network has the link
-    if (!s) return;
-    SCFG_CHECK(t, !s->ctl->shows_onramp_hint());
-    s.reset();
-    s = on_method(t, "solana", Json::dict({{"onramp", Json::dict({{"chains", Json::list({"base"})}})},
-                                           {"chains", Json::list({"solana", "base"})}}));
-    if (!s) return;
-    SCFG_CHECK(t, s->ctl->shows_onramp_hint());
-    s.reset();
-    s = on_method(t, "solana",
-                  Json::dict({{"testnet", true}, {"onramp", Json::dict({{"chains", Json::list({"base"})}})}}));
-    if (!s) return;
-    SCFG_CHECK(t, s->ctl->shows_onramp_hint());
-}
-
-SCFG_TEST(CheckoutSolanaTests, test_the_hint_shows_where_the_link_would_and_not_once_a_payment_is_seen) {
-    std::optional<Setup> s = on_method(t, "solana", only_manual_methods());
-    if (!s) return;
-    SCFG_CHECK(t, s->ctl->step() == "manual" && s->ctl->shows_onramp_hint());  // the only payment page
-    s.reset();
-    s = on_method(t, "solana");
-    if (!s) return;
-    s->ctl->choose_method("qr");
-    SCFG_CHECK(t, !s->ctl->shows_onramp_hint());  // the method step had it
-    s.reset();
-    s = on_method(t, "solana", only_manual_methods());
-    if (!s) return;
-    SCFG_CHECK(t, is_true(s->ctl->submit_hash(SIG)));
-    SCFG_CHECK(t, s->ctl->step() == "waiting" && !s->ctl->shows_onramp_hint());
+    const Result<scfg::checkout::NetworkView> layout = ctl.network_layout();
+    if (!t.check(layout.ok(), "network_layout")) return;
+    SCFG_CHECK(t, layout.value().main == std::vector<std::string>({"ethereum", "solana"}));
+    const std::vector<std::string>& card = layout.value().card;
+    SCFG_CHECK(t, std::find(card.begin(), card.end(), "solana") == card.end() &&
+                      std::find(card.begin(), card.end(), "ethereum") != card.end());
+    SCFG_CHECK(t, ctl.pay_with_card("solana").ok());
+    SCFG_CHECK(t, ctl.step() == "network" && ctl.session().is_null());
 }

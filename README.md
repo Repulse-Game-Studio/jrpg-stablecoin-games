@@ -37,7 +37,7 @@ Mobile builds are best effort and unverified on every engine.
   payment's transaction hash.
 - **Six networks built in**, plus any EVM chain you add: Ethereum, Arbitrum and Polygon (USDC and USDT), Base
   (USDC), Arc (USDC) and Solana (USDC and USDT). Testnets for all of them behind one switch.
-- **A buy link for players with no stablecoin** (new in 0.3.0, see [below](#the-buy-link)).
+- **Pay with card** on each EVM network, paid straight to your wallet (see [below](#pay-with-card)).
 - **Your look.** A logo and an accent colour in every engine, and deeper restyling in each engine's own way (see
   its docs). The texts can be reworded or translated in Godot and RPG Maker MZ; the screens are English only in Unity
   and Unreal for now.
@@ -112,7 +112,7 @@ if (result.status === "paid" || result.status === "already_owned") {
 In the Package Manager, **Add package from git URL...**:
 
 ```
-https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games.git?path=unity/Packages/com.repulse.scfg#v0.3.0
+https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games.git?path=unity/Packages/com.repulse.scfg#v0.4.0
 ```
 
 or **Add package from tarball...** with `scfg-unity-<version>.tgz`. The package has two samples (Showcase and
@@ -171,16 +171,16 @@ Scfg->PayAsync(EScfgPayKind::Unlock, Request, [](const FScfgPaymentResult& Resul
 });
 ```
 
-## The buy link
+## Pay with card
 
-Players who have no USDC or USDT yet see **"No USDC yet? Buy some with a card"** on the payment sheet. It opens a
-third-party provider's hosted buy page (thirdweb by default, card payment only) for the network they picked, with
-the payment as the suggested amount. What they buy lands in their own wallet, and they then pay as usual, straight
-to yours. The link carries only the network, the token and the amount: not your wallet, not the item.
+On the network step, each EVM network has a small **Pay with card** button under its tile. It opens a third-party
+provider's hosted checkout page (thirdweb by default, card payment only) for that network, with your wallet as the
+recipient and the payment's exact amount. The player pays by card, the token goes straight to your wallet, and the
+game confirms it the way it confirms any payment. thirdweb has no card checkout on Solana, so Solana has no button.
 
-It is **on by default on mainnet**, so a game that upgrades to 0.3.0 shows it without a configuration change. It
-is offered on the built-in EVM networks (the provider does not sell on Solana yet), and not on testnets unless you
-list networks for it. To turn it off:
+It is **on by default on mainnet**, and not on testnets unless you list networks for it. It has not yet been checked
+with a real card that the provider delivers the exact amount the game waits for: try one small payment before you
+rely on it. To turn it off:
 
 | Engine | Off switch |
 |---|---|
@@ -190,8 +190,8 @@ list networks for it. To turn it off:
 | Unity | `ScfgOptions.Onramp = new ScfgOnramp { Enabled = false }` |
 | Unreal | `FScfgOptions.Onramp.bEnabled = false` |
 
-The same setting limits the link to some networks or points it at another provider's `https://` page. See
-[the buy link](docs/developers/configure/README.md#the-buy-link) in the guide.
+The same setting limits the button to some networks or points it at another provider's `https://` page. See
+[Pay with card](docs/developers/configure/README.md#pay-with-card) in the guide.
 
 ## Docs
 
@@ -372,7 +372,7 @@ The desktop e2e defaults to SDL's offscreen video driver. Where that isn't avail
    suites locally (`unity/README.md`, `unreal/README.md`) before tagging.
 3. Tag that commit and push the tag:
    ```bash
-   git tag v0.3.0 && git push origin v0.3.0
+   git tag v0.4.0 && git push origin v0.4.0
    ```
 
 `.github/workflows/release.yml` then runs the lint and unit tests, the C++ and C# cores' tests, checks that the
@@ -380,7 +380,7 @@ tag matches `__version__`, builds every archive with `tools/package.py` (Ren'Py,
 `.tgz`, the three Unreal zips and the Unreal showcase zip) and publishes them as a GitHub release with generated notes. A second job builds
 the `stablecoin-games-renpy` package (`uv build`: the installer in `installer/` with the plugin files inside it) and
 uploads it to PyPI through trusted publishing, from the `pypi` environment. A version with letters in it, such as
-`0.3.0rc1`, is published as a prerelease and does not become "latest".
+`0.4.0rc1`, is published as a prerelease and does not become "latest".
 
 **Fab.** The Unreal plugin is released on GitHub only. Its `unreal/Plugins/Scfg/Scfg.uplugin` lists Win64, Mac,
 Android and IOS next to Linux in each module's `PlatformAllowList`. Win64 builds with MSVC on UE 5.8; Mac, Android and IOS are expected to work but have not yet been built or tested. Fab compiles a code

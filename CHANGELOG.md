@@ -3,6 +3,20 @@
 Each release's section heads its GitHub release notes (`release.yml` copies the section whose heading is the tagged
 version). The generated list of changes follows it there, and the release's date is on the GitHub release.
 
+## 0.4.0
+
+- **The network step leads with Ethereum and Solana.** Networks are listed Ethereum, Solana, Arc, Base, Arbitrum,
+  Polygon (was Arbitrum, Base, Arc, Polygon, Ethereum, then Solana). Ethereum and Solana are tiles, and the rest
+  sit under **More networks**; without a Solana wallet, Arc takes the second tile, so the row always has two. Chains added with `add_chain()` now come after all the built-ins, Solana included. A
+  game that passes its own `chains` list keeps its order.
+- **Pay with card replaces the buy link.** Each network that takes cards has a small **Pay with card** button under
+  its tile, which opens thirdweb's hosted *checkout* page paying the exact amount straight to your wallet, instead of
+  a buy page that put the token in the player's wallet. It skips the method step. The `onramp` option keeps its
+  name and settings; its default page changed, `{amount}` is now the exact amount with 6 decimals (was rounded up to
+  cents), and `{recipient}` (your wallet on that network) is new. A custom `url` must now pay `{recipient}` exactly
+  `{amount}`. Not yet checked with a real card that thirdweb delivers the exact amount.
+- A single network with a card button no longer skips the network step, so the button can be reached.
+
 ## 0.3.0
 
 - **New engines (Preview):** a Unity package (`com.repulse.scfg`, Unity 6.3 LTS+, tested on 6000.6.9f1 in Linux and

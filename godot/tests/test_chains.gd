@@ -74,13 +74,15 @@ func test_chain_invariants() -> bool:
 
 
 func test_display_order() -> bool:
-	T.eq(ScfgChains.DISPLAY_ORDER, ["arbitrum", "base", "arc", "polygon", "ethereum"], "Arc after the familiar L2s")
-	var keys := _evm(ScfgChains.MAINNET).keys()
-	keys.sort()
-	var order := ScfgChains.DISPLAY_ORDER.duplicate()
-	order.sort()
-	T.eq(order, keys, "display order covers every EVM chain")
-	T.ok(not "solana" in ScfgChains.DISPLAY_ORDER, "Solana is not in the EVM display order")
+	T.eq(ScfgChains.DISPLAY_ORDER, ["ethereum", "solana", "arc", "base", "arbitrum", "polygon"],
+		"the main chains before the L2s")
+	T.eq(ScfgChains.MAIN_CHAINS, ["ethereum", "solana"], "MAIN_CHAINS")
+	for net: Dictionary in [ScfgChains.MAINNET, ScfgChains.TESTNET]:
+		var keys := net.keys()
+		keys.sort()
+		var order := ScfgChains.DISPLAY_ORDER.duplicate()
+		order.sort()
+		T.eq(order, keys, "display order covers every chain")
 	return T.done()
 
 

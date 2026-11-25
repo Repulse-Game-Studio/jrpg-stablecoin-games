@@ -35,11 +35,14 @@
 //   test_web_offers_browser_wallet_only_when_the_page_has_one              -> the same name
 //   test_web_browser_wallet_ignores_the_mobile_flag                        -> the same name
 //   test_the_controller_pumps_and_reopens_an_overlay_page                  -> the same name
-//   test_the_method_step_offers_the_buy_page_for_the_chosen_network        -> the same name
-//   test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee                    -> the same name
-//   test_the_buy_link_moves_to_the_only_payment_page                       -> the same name
-//   test_the_buy_link_follows_the_onramp_option                            -> the same name
-//   test_before_a_session_the_buy_link_suggests_the_most_the_payment_can_be -> the same name
+//   test_the_main_networks_are_tiles_and_the_rest_sit_behind_more_networks -> the same name
+//   test_more_networks_stays_open_when_the_chosen_network_is_behind_it     -> the same name
+//   test_without_a_main_network_the_first_two_are_tiles                    -> the same name
+//   test_pay_with_card_skips_the_method_step_for_the_card_page             -> the same name
+//   test_the_networks_own_tile_still_goes_to_the_method_step               -> the same name
+//   test_pay_with_card_follows_the_onramp_option                           -> the same name
+//   test_a_single_network_with_a_card_button_keeps_the_network_step        -> the same name
+//   test_open_card_waits_for_the_session                                   -> the same name
 // Python's FakeServer has no pump() or reopen() and PageWithPump adds them; the one FakeServer here has both (a
 // server without them is the Server base's no-ops, which nothing can observe). ctl._server is the test's own
 // record of the server it made (support/CheckoutFakes.h, ServerLog).
@@ -77,6 +80,8 @@ const std::string TX = "0xababababababababababababababababababababababababababab
 
 std::string usdc_arb() { return scfg::chains::MAINNET().find("arbitrum")->tokens.find("USDC")->address; }
 std::string show(const std::optional<std::string>& s) { return s ? *s : std::string("None"); }
+// No "Pay with card" button: a single network is skipped.
+Json no_card() { return Json::dict({{"enabled", false}}); }
 Json only_manual() {
     return Json::dict({{"browser", Json::dict({{"enabled", false}})}, {"qr", Json::dict({{"enabled", false}})}});
 }
@@ -263,7 +268,7 @@ SCFG_TEST(CheckoutStepsTests, test_a_typed_amount_is_stripped_as_str_strip_does)
 // --- skipping single-option steps ---------------------------------------------------------------------------------
 
 SCFG_TEST(CheckoutStepsTests, test_single_network_is_skipped_for_unlocks) {
-    std::optional<Setup> s = setup(t, {.chains = Json::list({"base"})});
+    std::optional<Setup> s = setup(t, {.chains = Json::list({"base"}), .onramp = no_card()});
     if (!s) return;
     CheckoutController& ctl = *s->ctl;
     SCFG_CHECK(t, ctl.state() == "starting" && show(ctl.chain_key()) == "base");
@@ -273,7 +278,7 @@ SCFG_TEST(CheckoutStepsTests, test_single_network_is_skipped_for_unlocks) {
 }
 
 SCFG_TEST(CheckoutStepsTests, test_single_network_is_skipped_for_tips_both_ways) {
-    std::optional<Setup> s = setup(t, {.kind = "tip", .chains = Json::list({"base"})});
+    std::optional<Setup> s = setup(t, {.kind = "tip", .chains = Json::list({"base"}), .onramp = no_card()});
     if (!s) return;
     CheckoutController& ctl = *s->ctl;
     (void)ctl.next_step();
@@ -443,7 +448,7 @@ SCFG_TEST(CheckoutStepsTests, test_start_failure_returns_to_network_with_the_mes
 }
 
 SCFG_TEST(CheckoutStepsTests, test_start_failure_on_a_skipped_network_shows_the_network_step) {
-    std::optional<Setup> s = setup(t, {.kind = "tip", .chains = Json::list({"base"})});
+    std::optional<Setup> s = setup(t, {.kind = "tip", .chains = Json::list({"base"}), .onramp = no_card()});
     if (!s) return;
     CheckoutController& ctl = *s->ctl;
     s->fake("base") = fakes::FakeChain();
@@ -524,74 +529,132 @@ SCFG_TEST(CheckoutStepsTests, test_the_controller_pumps_and_reopens_an_overlay_p
     SCFG_CHECK_EQ(t, s->servers->front()->reopens, 1);
 }
 
-// --- the buy link (configure's onramp) ------------------------------------------------------------------------------
+// --- the network step: main tiles, "More networks", "Pay with card" --------------------------------------------------
 
-SCFG_TEST(CheckoutStepsTests, test_the_method_step_offers_the_buy_page_for_the_chosen_network) {
+namespace scfg_test::checkout_steps_tests {
+std::vector<std::string> keys(std::initializer_list<const char*> names) { return {names.begin(), names.end()}; }
+scfg::checkout::NetworkView layout_of(Ctx& t, const CheckoutController& ctl) {
+    Result<scfg::checkout::NetworkView> v = ctl.network_layout();
+    t.check(v.ok(), v.ok() ? "" : "network_layout: " + v.err().str());
+    return v.ok() ? v.value() : scfg::checkout::NetworkView{};
+}
+}  // namespace scfg_test::checkout_steps_tests
+
+SCFG_TEST(CheckoutStepsTests, test_the_main_networks_are_tiles_and_the_rest_sit_behind_more_networks) {
     std::optional<Setup> s = setup(t);
     if (!s) return;
     CheckoutController& ctl = *s->ctl;
-    SCFG_CHECK(t, ctl.onramp_url().ok() && !ctl.onramp_url().value() && !ctl.shows_onramp());  // no network yet
-    SCFG_CHECK(t, ctl.choose_network("arbitrum").ok());
-    ctl.poll();
-    SCFG_CHECK(t, ctl.step() == "method" && ctl.shows_onramp());
-    const scfg::BigInt units = ctl.session().as_dict().get("units").as_bigint();
-    SCFG_CHECK(t, scfg::BigInt(4'990'000) <= units && units < scfg::BigInt(5'000'000));
-    SCFG_CHECK_EQ(t, show(ctl.onramp_url().value()),
-                  "https://thirdweb.com/bridge/buy-widget?chain=42161&tokenAddress=" + usdc_arb() +
-                      "&amount=5.00&tokenEditable=false&paymentMethods=card");
+    SCFG_CHECK(t, layout_of(t, ctl) == (scfg::checkout::NetworkView{
+                                           keys({"ethereum", "arc"}), keys({"base", "arbitrum", "polygon"}), false,
+                                           keys({"ethereum", "arc", "base", "arbitrum", "polygon"})}));
+    ctl.toggle_more_networks();
+    SCFG_CHECK(t, layout_of(t, ctl).expanded);
+    ctl.toggle_more_networks();
+    SCFG_CHECK(t, !layout_of(t, ctl).expanded);
 }
 
-SCFG_TEST(CheckoutStepsTests, test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee) {
+SCFG_TEST(CheckoutStepsTests, test_more_networks_stays_open_when_the_chosen_network_is_behind_it) {
+    std::optional<Setup> s = on_method_step(t);
+    if (!s) return;
+    CheckoutController& ctl = *s->ctl;
+    ctl.back();
+    SCFG_CHECK(t, ctl.step() == "network" && layout_of(t, ctl).expanded);
+    ctl.toggle_more_networks();               // closing it hides the chosen network...
+    SCFG_CHECK(t, layout_of(t, ctl).expanded);  // ...so it stays open while it's chosen
+}
+
+SCFG_TEST(CheckoutStepsTests, test_without_a_main_network_the_first_two_are_tiles) {
     std::optional<Setup> s = setup(t, {.chains = Json::list({"base", "arc"})});
     if (!s) return;
+    SCFG_CHECK(t, layout_of(t, *s->ctl) ==
+                      (scfg::checkout::NetworkView{keys({"base", "arc"}), {}, false, keys({"base", "arc"})}));
+    std::optional<Setup> three = setup(t, {.chains = Json::list({"base", "arc", "polygon"})});
+    if (!three) return;
+    scfg::checkout::NetworkView view = layout_of(t, *three->ctl);
+    SCFG_CHECK(t, view.main == keys({"base", "arc"}) && view.more == keys({"polygon"}));
+}
+
+SCFG_TEST(CheckoutStepsTests, test_pay_with_card_skips_the_method_step_for_the_card_page) {
+    std::optional<Setup> s = setup(t);
+    if (!s) return;
     CheckoutController& ctl = *s->ctl;
-    SCFG_CHECK(t, ctl.choose_network("arc").ok());
+    SCFG_CHECK(t, ctl.card_url().ok() && !ctl.card_url().value());
+    SCFG_CHECK(t, ctl.pay_with_card("arbitrum").ok());
     ctl.poll();
-    const std::string url = show(ctl.onramp_url().value());
-    SCFG_CHECK(t, url.ends_with("&amount=5.01&tokenEditable=false&paymentMethods=card"));
+    SCFG_CHECK(t, ctl.step() == "card" && show(ctl.method()) == "card");
+    SCFG_CHECK(t, ctl.step_path() == keys({"network", "card", "waiting"}));
+    SCFG_CHECK(t, (ctl.step_dots() == std::pair<int64_t, int64_t>(1, 3)));
+    const int64_t units = ctl.session().as_dict().get("units").as_int64();
+    SCFG_CHECK(t, 4'990'000 <= units && units < 5'000'000);
+    std::string nonce = std::to_string(units % 10'000);
+    nonce.insert(0, 4 - nonce.size(), '0');
+    const std::string amount = "4.99" + nonce;
+    SCFG_CHECK_EQ(t, show(ctl.card_url().value()),
+                  "https://thirdweb.com/bridge/checkout-widget?chain=42161&tokenAddress=" + usdc_arb() +
+                      "&amount=" + amount + "&seller=" + DEV + "&paymentMethods=card");
+    const std::string expected = show(ctl.card_url().value());
+    SCFG_CHECK_EQ(t, show(ctl.open_card().value()), expected);
+    SCFG_CHECK_EQ(t, ctl.step(), "waiting");
+    ctl.back();
+    SCFG_CHECK_EQ(t, ctl.step(), "card");
+    ctl.back();
+    SCFG_CHECK(t, ctl.step() == "network" && !ctl.can_go_back());
 }
 
-SCFG_TEST(CheckoutStepsTests, test_the_buy_link_moves_to_the_only_payment_page) {
-    std::optional<Setup> s = on_method_step(t, {.methods = only_manual()});
-    if (!s) return;
-    SCFG_CHECK(t, s->ctl->step() == "manual" && s->ctl->shows_onramp());
-    s.reset();
-    s = on_method_step(t);
+SCFG_TEST(CheckoutStepsTests, test_the_networks_own_tile_still_goes_to_the_method_step) {
+    std::optional<Setup> s = setup(t);
     if (!s) return;
     CheckoutController& ctl = *s->ctl;
-    ctl.choose_method("qr");
-    SCFG_CHECK(t, ctl.step() == "qr" && !ctl.shows_onramp());  // the method step showed it
-    ctl.mark_sent();
-    SCFG_CHECK(t, !ctl.shows_onramp());
+    SCFG_CHECK(t, ctl.pay_with_card("arbitrum").ok());
+    ctl.poll();
+    ctl.back();
+    SCFG_CHECK(t, ctl.choose_network("arbitrum").ok());  // same network: the session is kept
+    SCFG_CHECK(t, ctl.step() == "method" && show(ctl.method()) == "browser");
+    const std::optional<std::string> sid = ctl.session_id();
+    ctl.back();
+    SCFG_CHECK(t, ctl.pay_with_card("arbitrum").ok());
+    SCFG_CHECK(t, ctl.step() == "card" && ctl.session_id() == sid);
 }
 
-SCFG_TEST(CheckoutStepsTests, test_the_buy_link_follows_the_onramp_option) {
-    std::optional<Setup> s = on_method_step(t, {.onramp = Json::dict({{"enabled", false}})});
+SCFG_TEST(CheckoutStepsTests, test_pay_with_card_follows_the_onramp_option) {
+    std::optional<Setup> s = setup(t, {.onramp = Json::dict({{"enabled", false}})});
     if (!s) return;
-    SCFG_CHECK(t, !s->ctl->onramp_url().value() && !s->ctl->shows_onramp());
+    SCFG_CHECK(t, layout_of(t, *s->ctl).card.empty());
+    SCFG_CHECK(t, s->ctl->pay_with_card("arbitrum").ok());  // no button: nothing happens
+    SCFG_CHECK(t, s->ctl->step() == "network" && s->ctl->session().is_null());
     s.reset();
-    s = on_method_step(t, {.onramp = Json::dict({{"chains", Json::list({"base"})}})});
+    s = setup(t, {.onramp = Json::dict({{"chains", Json::list({"base"})}})});
     if (!s) return;
-    SCFG_CHECK(t, show(s->ctl->chain_key()) == "arbitrum" && !s->ctl->onramp_url().value());
+    SCFG_CHECK(t, layout_of(t, *s->ctl).card == keys({"base"}));
     s.reset();
-    s = on_method_step(t, {.onramp = Json::dict({{"url", "https://buy.example/{chain}/{token}?a={amount}"}})});
+    s = setup(t, {.onramp = Json::dict({{"url", "https://pay.example/{chain}/{token}?a={amount}&to={recipient}"}})});
     if (!s) return;
-    SCFG_CHECK_EQ(t, show(s->ctl->onramp_url().value()), "https://buy.example/arbitrum/USDC?a=5.00");
+    CheckoutController& ctl = *s->ctl;
+    SCFG_CHECK(t, ctl.pay_with_card("base").ok());
+    ctl.poll();
+    SCFG_CHECK_EQ(t, show(ctl.card_url().value()),
+                  "https://pay.example/base/USDC?a=" + ctl.pay_amount_text() + "&to=" + DEV);
 }
 
-SCFG_TEST(CheckoutStepsTests, test_before_a_session_the_buy_link_suggests_the_most_the_payment_can_be) {
-    Result<scfg::config::Config> cfg =
-        scfg::config::build_config(Json::dict({{"wallet", DEV}, {"chains", Json::list({"arbitrum", "arc"})}}));
-    if (!t.check(cfg.ok(), "build_config")) return;
-    const scfg::Dec price = *scfg::Dec::parse("4.99").value();
-    const std::vector<std::string> path = {"network", "method", "browser", "waiting"};
-    const std::vector<std::string> keys = {"arbitrum", "arc"};
-    auto view = [&](std::optional<std::string> key) {
-        return scfg::checkout::onramp_view(cfg.value(), "USDC", key, std::nullopt, price, "method", path, true, keys);
-    };
-    // 4.99 plus at most 0.009999 of item code and nonce: the session's 4.993742 also gives 5.00
-    SCFG_CHECK(t, show(view("arbitrum").value().url).find("&amount=5.00&") != std::string::npos);
-    SCFG_CHECK(t, show(view("arc").value().url).find("&amount=5.01&") != std::string::npos);
-    const scfg::checkout::OnrampView none = view(std::nullopt).value();
-    SCFG_CHECK(t, !none.url && !none.shows_onramp && none.shows_onramp_hint);
+SCFG_TEST(CheckoutStepsTests, test_a_single_network_with_a_card_button_keeps_the_network_step) {
+    std::optional<Setup> s = setup(t, {.chains = Json::list({"base"})});
+    if (!s) return;
+    SCFG_CHECK(t, s->ctl->step() == "network" && s->ctl->step_path()[0] == "network");
+    s.reset();
+    s = setup(t, {.chains = Json::list({"base"}), .onramp = no_card()});
+    if (!s) return;
+    s->ctl->poll();
+    SCFG_CHECK_EQ(t, s->ctl->step(), "method");  // nothing to choose: skipped as before
+}
+
+SCFG_TEST(CheckoutStepsTests, test_open_card_waits_for_the_session) {
+    std::optional<Setup> s = setup(t);
+    if (!s) return;
+    CheckoutController& ctl = *s->ctl;
+    SCFG_CHECK(t, ctl.open_card().ok() && !ctl.open_card().value());  // not on the card page
+    SCFG_CHECK(t, ctl.pay_with_card("base").ok());
+    SCFG_CHECK(t, ctl.step() == "network" && !ctl.open_card().value());
+    ctl.poll();
+    SCFG_CHECK_EQ(t, ctl.step(), "card");
+    SCFG_CHECK(t, ctl.open_card().value().has_value() && ctl.step() == "waiting");
 }

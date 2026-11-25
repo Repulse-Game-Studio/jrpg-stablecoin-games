@@ -40,22 +40,9 @@ std::vector<OnrampPlaceholder> onramp_placeholders(std::string_view tmpl) {
     return found;
 }
 
-Result<std::string> onramp_amount(const BigInt& units, bool gas_is_token) {
-    const BigInt total = units + BigInt(gas_is_token ? ONRAMP_GAS_UNITS : 0);
-    SCFG_TRY(BigInt down, (-total).floordiv(BigInt(10'000)));  // -(-total // 10_000): the ceiling
-    const BigInt cents = -down;
-    SCFG_TRY(BigInt whole, cents.floordiv(BigInt(100)));
-    SCFG_TRY(BigInt rest, cents.mod(BigInt(100)));
-    SCFG_TRY(std::string head, py::int_str(whole));
-    SCFG_TRY(int64_t r, rest.to_int64());
-    std::string out = head + ".";
-    out += static_cast<char>('0' + r / 10);
-    out += static_cast<char>('0' + r % 10);
-    return out;
-}
-
 Result<std::string> onramp_url(std::string_view tmpl, std::string_view chain, const BigInt& chain_id,
-                               std::string_view token, std::string_view token_address, std::string_view amount) {
+                               std::string_view token, std::string_view token_address, std::string_view amount,
+                               std::string_view recipient) {
     SCFG_TRY(std::string id, py::int_str(chain_id));
     std::string out;
     out.reserve(tmpl.size() + 64);
@@ -72,6 +59,8 @@ Result<std::string> onramp_url(std::string_view tmpl, std::string_view chain, co
             out += token;
         } else if (p.name == "token_address") {
             out += token_address;
+        } else if (p.name == "recipient") {
+            out += recipient;
         } else {
             return Err::key_error(py::repr_str(p.name));
         }

@@ -13,6 +13,7 @@
 #include "Scfg/SolanaBase58.h"
 #include "Scfg/SolanaEd25519.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <optional>
@@ -504,7 +505,7 @@ Result<Onramp> merge_onramp(const Json& onramp, const std::vector<std::string>& 
         }
         if (registry.find(c.as_str())->family != "evm") {
             return Err::config_error("onramp.not_evm", "onramp.chains: " + py::repr_str(c.as_str()) +
-                                                           " is not an EVM chain; the buy link is offered on EVM "
+                                                           " is not an EVM chain; Pay with card is offered on EVM "
                                                            "chains only");
         }
         out.chains.push_back(c.as_str());
@@ -571,19 +572,20 @@ Result<Config> build(const Json& kwargs, const std::vector<CustomChain>* typed) 
         }
     }
 
-    // chains = (DISPLAY_ORDER + tuple(custom) if wallet else ()) + (solana_keys if sol else ()) if chains is None
-    // else tuple(chains); every entry is then checked, the default ones too.
+    // chains is None: the built-ins in display order, then the developer's own (registry keys not in DISPLAY_ORDER),
+    // each where its family has a wallet; else tuple(chains). Every entry is then checked, the default ones too.
     std::vector<Json> chain_values;
     Json chains_arg = arg(*kw, "chains");
     if (chains_arg.is_null()) {
-        if (wallet) {
-            for (std::string_view k : chains::DISPLAY_ORDER) chain_values.emplace_back(k);
-            for (const auto& [k, c] : custom.mine) chain_values.emplace_back(k);
+        auto offered = [&](const chains::Chain& c) { return c.family == "solana" ? sol.has_value() : wallet.has_value(); };
+        for (std::string_view k : chains::DISPLAY_ORDER) {
+            const chains::Chain* c = registry.find(k);
+            if (c != nullptr && offered(*c)) chain_values.emplace_back(k);
         }
-        if (sol) {  // solana_keys
-            for (const auto& [k, c] : registry) {
-                if (c.family == "solana") chain_values.emplace_back(k);
-            }
+        for (const auto& [k, c] : registry) {
+            if (std::find(chains::DISPLAY_ORDER.begin(), chains::DISPLAY_ORDER.end(), k) == chains::DISPLAY_ORDER.end() &&
+                offered(c))
+                chain_values.emplace_back(k);
         }
     } else {
         SCFG_TRY(chain_values, py::iterate(chains_arg));

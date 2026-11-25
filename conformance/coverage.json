@@ -196,7 +196,7 @@
    "tier1/chains",
    "tier1/config"
   ],
-  "tests/unit/test_chains.py::test_display_order_puts_arc_after_the_familiar_l2s": [
+  "tests/unit/test_chains.py::test_display_order_puts_the_main_chains_before_the_l2s": [
    "tier1/chains",
    "tier1/config"
   ],
@@ -359,10 +359,10 @@
   "tests/unit/test_config_solana.py::test_bad_solana_wallet": [
    "tier1/config"
   ],
-  "tests/unit/test_config_solana.py::test_both_families_default_to_evm_then_solana": [
+  "tests/unit/test_config_solana.py::test_both_families_default_to_the_display_order": [
    "tier1/config"
   ],
-  "tests/unit/test_config_solana.py::test_custom_evm_chains_come_before_solana": [
+  "tests/unit/test_config_solana.py::test_custom_chains_come_after_the_built_ins": [
    "tier1/custom_chains"
   ],
   "tests/unit/test_config_solana.py::test_family_rules": [
@@ -592,13 +592,10 @@
   "tests/unit/test_paylinks.py::test_a_version_32_payment_link_matrix": [
    "tier1/qr"
   ],
-  "tests/unit/test_paylinks.py::test_default_onramp_url_is_thirdwebs_buy_page_locked_to_the_token": [
+  "tests/unit/test_paylinks.py::test_default_onramp_url_is_thirdwebs_card_checkout_paying_the_developer": [
    "tier1/paylinks"
   ],
   "tests/unit/test_paylinks.py::test_eip681_uri": [
-   "tier1/paylinks"
-  ],
-  "tests/unit/test_paylinks.py::test_onramp_amount": [
    "tier1/paylinks"
   ],
   "tests/unit/test_paylinks.py::test_onramp_url_fills_every_placeholder_each_time_it_appears": [

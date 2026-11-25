@@ -138,18 +138,20 @@ struct FScfgMethods
 	FScfgManualMethod Manual;
 };
 
-// The "No USDC yet? Buy some with a card" link on the payment sheet. By default it is on, opens thirdweb's buy page,
-// and is offered on the built-in EVM networks of a mainnet game (none on testnet, where cards buy no test tokens).
+// "Pay with card" under each network on the payment sheet's network step: the player pays by card on a checkout page
+// that sends the token straight to your wallet. By default it is on, opens thirdweb's checkout page for the session's
+// exact amount, and is offered on the built-in EVM networks of a mainnet game (none on testnet, where cards buy no test
+// tokens).
 USTRUCT(BlueprintType)
 struct FScfgOnramp
 {
 	GENERATED_BODY()
 
-	// Show the link; off hides it everywhere.
+	// Show "Pay with card"; off hides it everywhere.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	bool bEnabled = true;
-	// Your own buy page, an https:// template with {chain}, {chain_id}, {token}, {token_address} and {amount}; empty:
-	// thirdweb's buy page.
+	// Your own card checkout page, an https:// template with {chain}, {chain_id}, {token}, {token_address}, {amount} (the
+	// exact amount, 6 decimals) and {recipient} (your wallet on that network); empty: thirdweb's checkout page.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FString Url;
 	// The EVM chain keys it is offered on (each one of Chains); empty: the built-in EVM chains of a mainnet game.
@@ -182,7 +184,7 @@ struct FScfgOptions
 	// The ways the player can pay (browser page, QR code, manual transfer).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FScfgMethods Methods;
-	// The "No USDC yet? Buy some with a card" link.
+	// "Pay with card" under each network.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SCFG")
 	FScfgOnramp Onramp;
 	// Your own RPC urls per chain key, tried before the public ones.

@@ -819,17 +819,23 @@ func test_mobile_offers_wallet_app_link() -> bool:
 	return T.done()
 
 
-func test_the_buy_link_opens_the_onramp_page() -> bool:
-	var env := await _make("onramp")
+func test_open_card_opens_the_card_checkout() -> bool:
+	var env := await _make("card")
 	var s: Node = env["node"]
 	var host: FakeHost = env["host"]
 	var platform: FakePlatform = env["platform"]
 	_pay(s, "unlock", {"item": "chapter2"})
-	var ctl := await _session(s, host)
-	var url: Variant = ctl.onramp_url()
-	T.ok(url is String and (url as String).begins_with("https://thirdweb.com/bridge/buy-widget?chain=42161&"), "the buy page (%s)" % [url])
-	s.open_onramp(ctl)
+	var ctl: ScfgCheckoutController = (host.sheets[-1] as FakeSheet).controller
+	T.eq(ctl.pay_with_card("arbitrum"), null, "Pay with card on Arbitrum")
+	await _pass(s)
+	T.eq(ctl.step, "card", "the card page")
+	var url: Variant = ctl.card_url()
+	T.ok(url is String and (url as String).begins_with("https://thirdweb.com/bridge/checkout-widget?chain=42161&"),
+		"the card checkout (%s)" % [url])
+	T.ok(str(url).contains("&amount=%s&seller=%s&" % [ctl.pay_amount_text, DEV]), "the exact amount, to the developer")
+	s.open_card(ctl)
 	T.eq(platform.opened, [url], "opened in the browser")
+	T.eq(ctl.step, "waiting", "then waits for the payment")
 	await _drop(env)
 	return T.done()
 

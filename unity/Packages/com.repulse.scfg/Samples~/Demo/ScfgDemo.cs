@@ -88,9 +88,9 @@ namespace Scfg.Samples.Demo
             return err;
         }
 
-        // The options: with an SCFG Settings asset in the project, its options are the starting point (accent, logo,
-        // buy link ...), and the demo adds only its wallets and testnet (its own item comes after). The demo always
-        // runs on the test networks, so it keeps the asset's networks and tokens only when the asset is set to testnet
+        // The options: with an SCFG Settings asset in the project, its options are the starting point (accent, logo, Pay
+        // with card ...), and the demo adds only its wallets and testnet (its own item comes after). The demo always runs
+        // on the test networks, so it keeps the asset's networks and tokens only when the asset is set to testnet
         // (a release asset's choices, USDT say, may exist on no test network), and of those networks only the ones it
         // has a wallet for ("solana" is the Solana network; every other key is an EVM network).
         private static ScfgOptions TestnetOptions(ScfgSettings? settings, string? evm, string? solana)

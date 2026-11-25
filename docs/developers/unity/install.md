@@ -19,10 +19,10 @@ any EVM chain you add yourself.
 2. Paste this URL and click **Add**:
 
    ```
-   https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games.git?path=unity/Packages/com.repulse.scfg#v0.3.0
+   https://github.com/Repulse-Game-Studio/jrpg-stablecoin-games.git?path=unity/Packages/com.repulse.scfg#v0.4.0
    ```
 
-   The `#v0.3.0` at the end pins a release tag; use the tag of the release you want. The Package Manager needs
+   The `#v0.4.0` at the end pins a release tag; use the tag of the release you want. The Package Manager needs
    `git` installed on your machine for this.
 
 ## From the release tarball
@@ -60,8 +60,8 @@ Both run on testnets, so no real money moves, and both pay **your** wallet. Set 
 scene (**SCFG Showcase** or **SCFG Demo**: **Wallet** for an EVM `0x` address, **Solana Wallet** to take Solana on
 Devnet too), or in your project's [SCFG Settings asset](#without-code-the-scfg-settings-asset), which the samples
 use when both component fields are blank. With neither, a sample configures nothing and says so on screen: it never
-pays a placeholder. With an SCFG Settings asset in the project the samples start from its options (accent, logo, buy
-link, and its networks and tokens when the asset is set to testnet), and add their own items.
+pays a placeholder. With an SCFG Settings asset in the project the samples start from its options (accent, logo, Pay
+with card, and its networks and tokens when the asset is set to testnet), and add their own items.
 
 To watch a real test payment arrive you need test money in a second wallet (the player's):
 
@@ -120,9 +120,9 @@ it in:
 | **Tokens** | `USDC`, `USDT`. Empty: both |
 | **Accent** | The accent color of the sheet and the checkout page, `#rrggbb`. Empty: the default |
 | **Logo** | A sprite shown on the sheet and the checkout page |
-| **Onramp Enabled** | On by default: players with no stablecoin yet see **No USDC yet? Buy some with a card** on mainnet, which opens a third-party card seller (thirdweb) for the network they picked. Turn it off to hide the link (see [The buy link](api.md#the-buy-link-onramp)) |
-| **Onramp Url** | Optional, your own buy page (`https://`, with `{chain}`, `{chain_id}`, `{token}`, `{token_address}` and `{amount}`). Empty: thirdweb's page |
-| **Onramp Chains** | Optional, the EVM networks the link is offered on. Empty: the built-in EVM networks of a mainnet game (none on testnet; name testnet networks here to try the link before mainnet) |
+| **Onramp Enabled** | On by default: on mainnet each EVM network gets a **Pay with card** link under its tile, which leads to a third-party card checkout (thirdweb) paying the exact amount to your wallet. Turn it off to hide the links (see [Pay with card](api.md#pay-with-card-onramp)) |
+| **Onramp Url** | Optional, your own card checkout page (`https://`, with `{chain}`, `{chain_id}`, `{token}`, `{token_address}`, `{amount}` and `{recipient}`). Empty: thirdweb's page |
+| **Onramp Chains** | Optional, the EVM networks that get the link. Empty: the built-in EVM networks of a mainnet game (none on testnet; name testnet networks here to try the link before mainnet) |
 | **Web Storage Id** | WebGL builds only, see [WebGL builds](api.md#webgl-builds). Set it once and never change it |
 | **Items** | One entry per unlock: **Id**, **Code** (1-99, different for each item, never changed after release), **Price** (`4.99`), **Token**, **Title** and an optional **Min Price** |
 
@@ -159,10 +159,11 @@ own, a cell of a sprite sheet or a sprite in a Sprite Atlas, with or without Rea
 6. If you take Solana payments, receive any amount of each token on your mainnet Solana wallet once first. Until
    then a development build warns in the Console and players are not offered that token. The same rule applies on
    Devnet while you test: send your Devnet wallet a little Devnet USDC first.
-7. Check the buy link (**No USDC yet? Buy some with a card**) and, on Solana, its **Pick another network** hint.
-   On testnet the link is off by default (cards don't buy test tokens); to see both before mainnet, name your
-   enabled testnet EVM networks in `Onramp.Chains` (the asset's **Onramp Chains**), for example `base` and
-   `arbitrum`, then remove them again. See [The buy link](api.md#the-buy-link-onramp).
+7. Check **Pay with card** under the networks and its card page. On testnet the link is off by default (cards
+   don't buy test tokens); to see it before mainnet, name your enabled testnet EVM networks in `Onramp.Chains`
+   (the asset's **Onramp Chains**), for example `base` and `arbitrum`, then remove them again. The card checkout
+   is not yet checked with a real card: make one small real card payment on mainnet before you rely on it. See
+   [Pay with card](api.md#pay-with-card-onramp).
 8. For a WebGL release, read [WebGL builds](api.md#webgl-builds) and pay once from the build at its real address.
 
 ## What you get

@@ -204,16 +204,11 @@ def _eip681_transfer_uri(i):
                                         units=int(i["units"]))
 
 
-@_fn("onramp_amount")
-def _onramp_amount(i):
-    return paylinks.onramp_amount(int(i["units"]), i["gas_is_token"])
-
-
 @_fn("onramp_url")
 def _onramp_url(i):
     return paylinks.onramp_url(i["template"], chain=i["chain"], chain_id=i["chain_id"],
                                token=i["token"], token_address=i["token_address"],
-                               amount=i["amount"])
+                               amount=i["amount"], recipient=i["recipient"])
 
 
 @_fn("solana_pay_uri")
@@ -866,25 +861,21 @@ def _link_cases():
         cases.append(("solana_pay_uri", {"recipient": _WALLET, "units": str(units),
                                          "mint": DEVNET_USDC_MINT, "reference": _key("ref"),
                                          "label": "Ruby Dreams", "message": "Tip"}))
-    for units, gas_is_token in [(4_993_742, False), (4_993_742, True), (5_000_000, False),
-                                (5_000_000, True), (5_000_001, False), (1_230_017, True),
-                                (0, False), (0, True), (1, False), (9_999, False),
-                                (10_000, False), (990_000, True), (_MAX_UNITS, False),
-                                (_MAX_UNITS, True)]:
-        cases.append(("onramp_amount", {"units": str(units), "gas_is_token": gas_is_token}))
-    for template, chain, chain_id, token, address, amount in [
+    for template, chain, chain_id, token, address, amount, recipient in [
             (paylinks.ONRAMP_URL, "base", 8453, "USDC",
-             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "5.00"),
-            (paylinks.ONRAMP_URL, "arc", 5042, "USDC", ARC_USDC, "5.01"),
-            (paylinks.ONRAMP_URL, "ethereum", 1, "USDT", _EIP55[3], "1000000.01"),
+             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "4.993742", _EIP55[0]),
+            (paylinks.ONRAMP_URL, "arc", 5042, "USDC", ARC_USDC, "5.000001", _EIP55[1]),
+            (paylinks.ONRAMP_URL, "ethereum", 1, "USDT", _EIP55[3], "1000000.009999", _EIP55[2]),
             ("https://x.example/{chain}/{chain}?id={chain_id}&t={token}&a={amount}"
-             "&c={token_address}", "polygon", 137, "USDC", _USDC_ETH.lower(), "0.50"),
-            ("https://x.example/buy", "base", _MAX_EVM_CHAIN_ID, "USDC", _EIP55[0], "1.00"),
-            ("https://x.example/{amount}{amount}{token}", "my-l2_2", 0, "USDT", _EIP55[1],
-             "12.34")]:
+             "&c={token_address}&to={recipient}", "polygon", 137, "USDC", _USDC_ETH.lower(),
+             "0.500100", _EIP55[0].lower()),
+            ("https://x.example/buy", "base", _MAX_EVM_CHAIN_ID, "USDC", _EIP55[0], "1.000000",
+             _EIP55[1]),
+            ("https://x.example/{amount}{amount}{token}{recipient}{recipient}", "my-l2_2", 0,
+             "USDT", _EIP55[1], "12.340099", _EIP55[3])]:
         cases.append(("onramp_url", {"template": template, "chain": chain, "chain_id": chain_id,
                                      "token": token, "token_address": address,
-                                     "amount": amount}))
+                                     "amount": amount, "recipient": recipient}))
     return cases
 
 

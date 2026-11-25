@@ -264,7 +264,7 @@ public:
 
 	void OpenBrowser(FScfgCheckout& Checkout);
 	void OpenWalletApp(FScfgCheckout& Checkout);
-	void OpenOnramp(FScfgCheckout& Checkout);
+	void OpenCard(FScfgCheckout& Checkout);
 	void OpenExplorer(const FString& Url);
 	void Copy(const FString& Text);
 	void PasteInto(FScfgCheckout& Checkout);

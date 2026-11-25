@@ -5,9 +5,8 @@ import { FakeChain, transferLog } from "../../test/chain_fakes.ts";
 import { FakeServer, PageWithPump, immediateSubmitter } from "../../test/checkout_fakes.ts";
 import { FakeClock } from "../../test/rpc_fakes.ts";
 import { MAINNET, type Chain } from "./chains.ts";
-import { CheckoutController, onrampView } from "./checkout.ts";
+import { CheckoutController } from "./checkout.ts";
 import { addItem, buildConfig, type BuildConfigOptions } from "./config.ts";
-import { Dec } from "./decimal.ts";
 import { Engine } from "./engine.ts";
 import { preparePayment } from "./payments.ts";
 import { makeStepOutcome } from "./watcher.ts";
@@ -17,6 +16,7 @@ const PAYER = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
 const USDC_ARB = MAINNET["arbitrum"]!.tokens["USDC"]!.address;
 const TX = "0x" + "ab".repeat(32);
 const ONLY_MANUAL = { browser: { enabled: false }, qr: { enabled: false } };
+const NO_CARD = { enabled: false }; // no "Pay with card" button: a single network is skipped
 
 interface SetupOpts {
   kind?: string;
@@ -164,7 +164,7 @@ test("test_a_typed_amount_is_stripped_as_str_strip_does", () => {
 // --- skipping single-option steps -------------------------------------------------------
 
 test("test_single_network_is_skipped_for_unlocks", async () => {
-  const { ctl, submit } = setup({ chains: ["base"] });
+  const { ctl, submit } = setup({ chains: ["base"], onramp: NO_CARD });
   assert.ok(ctl.state === "starting" && ctl.chain_key === "base");
   await submit.idle();
   ctl.poll();
@@ -173,7 +173,7 @@ test("test_single_network_is_skipped_for_unlocks", async () => {
 });
 
 test("test_single_network_is_skipped_for_tips_both_ways", async () => {
-  const { ctl, submit } = setup({ kind: "tip", chains: ["base"] });
+  const { ctl, submit } = setup({ kind: "tip", chains: ["base"], onramp: NO_CARD });
   ctl.nextStep();
   await submit.idle();
   ctl.poll();
@@ -315,7 +315,7 @@ test("test_start_failure_returns_to_network_with_the_message", async () => {
 });
 
 test("test_start_failure_on_a_skipped_network_shows_the_network_step", async () => {
-  const { ctl, fakes, submit } = setup({ kind: "tip", chains: ["base"] });
+  const { ctl, fakes, submit } = setup({ kind: "tip", chains: ["base"], onramp: NO_CARD });
   fakes["base"] = new FakeChain();
   fakes["base"].down = true;
   ctl.nextStep();
@@ -387,56 +387,103 @@ test("test_the_controller_pumps_and_reopens_an_overlay_page", async () => {
   assert.equal((ctl._server as PageWithPump).reopens, 1);
 });
 
-// --- the buy link (configure({onramp})) ----------------------------------------------------
+// --- the network step: main tiles, "More networks", "Pay with card" -------------------------
 
-test("test_the_method_step_offers_the_buy_page_for_the_chosen_network", async () => {
+test("test_the_main_networks_are_tiles_and_the_rest_sit_behind_more_networks", () => {
+  const { ctl } = setup();
+  assert.deepEqual(ctl.networkLayout(), {
+    main: ["ethereum", "arc"], more: ["base", "arbitrum", "polygon"], expanded: false,
+    card: ["ethereum", "arc", "base", "arbitrum", "polygon"],
+  });
+  ctl.toggleMoreNetworks();
+  assert.equal(ctl.networkLayout().expanded, true);
+  ctl.toggleMoreNetworks();
+  assert.equal(ctl.networkLayout().expanded, false);
+});
+
+test("test_more_networks_stays_open_when_the_chosen_network_is_behind_it", async () => {
+  const { ctl } = await onMethodStep();
+  ctl.back();
+  assert.ok(ctl.step === "network" && ctl.networkLayout().expanded === true);
+  ctl.toggleMoreNetworks(); // closing it hides the chosen network...
+  assert.equal(ctl.networkLayout().expanded, true); // ...so it stays open while it's chosen
+});
+
+test("test_without_a_main_network_the_first_two_are_tiles", () => {
+  const { ctl } = setup({ chains: ["base", "arc"] });
+  assert.deepEqual(ctl.networkLayout(), { main: ["base", "arc"], more: [], expanded: false, card: ["base", "arc"] });
+  const three = setup({ chains: ["base", "arc", "polygon"] }).ctl.networkLayout();
+  assert.deepEqual([three.main, three.more], [["base", "arc"], ["polygon"]]);
+});
+
+test("test_pay_with_card_skips_the_method_step_for_the_card_page", async () => {
   const { ctl, submit } = setup();
-  assert.ok(ctl.onrampUrl() === null && ctl.showsOnramp === false); // no network yet
-  ctl.chooseNetwork("arbitrum");
+  assert.equal(ctl.cardUrl(), null);
+  ctl.payWithCard("arbitrum");
   await submit.idle();
   ctl.poll();
-  assert.deepEqual([ctl.step, ctl.showsOnramp], ["method", true]);
+  assert.ok(ctl.step === "card" && ctl.method === "card");
+  assert.deepEqual(ctl.stepPath(), ["network", "card", "waiting"]);
+  assert.deepEqual(ctl.stepDots(), [1, 3]);
   const units = BigInt(ctl.session!["units"]);
   assert.ok(units >= 4_990_000n && units < 5_000_000n);
-  assert.equal(ctl.onrampUrl(), "https://thirdweb.com/bridge/buy-widget?chain=42161"
-    + `&tokenAddress=${USDC_ARB}&amount=5.00&tokenEditable=false&paymentMethods=card`);
+  const amount = `4.99${String(units % 10_000n).padStart(4, "0")}`;
+  assert.equal(ctl.cardUrl(), "https://thirdweb.com/bridge/checkout-widget?chain=42161"
+    + `&tokenAddress=${USDC_ARB}&amount=${amount}&seller=${DEV}&paymentMethods=card`);
+  const url = ctl.cardUrl();
+  assert.equal(ctl.openCard(), url);
+  assert.equal(ctl.step, "waiting");
+  ctl.back();
+  assert.equal(ctl.step, "card");
+  ctl.back();
+  assert.ok(ctl.step === "network" && ctl.canGoBack === false);
 });
 
-test("test_on_arc_the_buy_amount_keeps_a_cent_for_the_fee", async () => {
-  const { ctl, submit } = setup({ chains: ["base", "arc"] });
-  ctl.chooseNetwork("arc");
+test("test_the_networks_own_tile_still_goes_to_the_method_step", async () => {
+  const { ctl, submit } = setup();
+  ctl.payWithCard("arbitrum");
   await submit.idle();
   ctl.poll();
-  assert.ok(ctl.onrampUrl()!.endsWith("&amount=5.01&tokenEditable=false&paymentMethods=card"));
+  ctl.back();
+  ctl.chooseNetwork("arbitrum"); // same network: the session is kept
+  assert.deepEqual([ctl.step, ctl.method], ["method", "browser"]);
+  const sid = ctl.sessionId;
+  ctl.back();
+  ctl.payWithCard("arbitrum");
+  assert.deepEqual([ctl.step, ctl.sessionId], ["card", sid]);
 });
 
-test("test_the_buy_link_moves_to_the_only_payment_page", async () => {
-  let { ctl } = await onMethodStep({ methods: ONLY_MANUAL });
-  assert.ok(ctl.step === "manual" && ctl.showsOnramp === true);
-  ({ ctl } = await onMethodStep());
-  ctl.chooseMethod("qr");
-  assert.ok(ctl.step === "qr" && ctl.showsOnramp === false); // the method step showed it
-  ctl.markSent();
-  assert.equal(ctl.showsOnramp, false);
+test("test_pay_with_card_follows_the_onramp_option", async () => {
+  let { ctl, submit } = setup({ onramp: { enabled: false } });
+  assert.deepEqual(ctl.networkLayout().card, []);
+  ctl.payWithCard("arbitrum"); // no button: nothing happens
+  assert.ok(ctl.step === "network" && ctl.session === null);
+  ({ ctl } = setup({ onramp: { chains: ["base"] } }));
+  assert.deepEqual(ctl.networkLayout().card, ["base"]);
+  ({ ctl, submit } = setup({ onramp: { url: "https://pay.example/{chain}/{token}?a={amount}&to={recipient}" } }));
+  ctl.payWithCard("base");
+  await submit.idle();
+  ctl.poll();
+  assert.equal(ctl.cardUrl(), `https://pay.example/base/USDC?a=${ctl.payAmountText}&to=${DEV}`);
 });
 
-test("test_the_buy_link_follows_the_onramp_option", async () => {
-  let { ctl } = await onMethodStep({ onramp: { enabled: false } });
-  assert.ok(ctl.onrampUrl() === null && ctl.showsOnramp === false);
-  ({ ctl } = await onMethodStep({ onramp: { chains: ["base"] } }));
-  assert.ok(ctl.chain_key === "arbitrum" && ctl.onrampUrl() === null);
-  ({ ctl } = await onMethodStep({ onramp: { url: "https://buy.example/{chain}/{token}?a={amount}" } }));
-  assert.equal(ctl.onrampUrl(), "https://buy.example/arbitrum/USDC?a=5.00");
+test("test_a_single_network_with_a_card_button_keeps_the_network_step", async () => {
+  let { ctl, submit } = setup({ chains: ["base"] });
+  assert.ok(ctl.step === "network" && ctl.stepPath()[0] === "network");
+  ({ ctl, submit } = setup({ chains: ["base"], onramp: NO_CARD }));
+  await submit.idle();
+  ctl.poll();
+  assert.equal(ctl.step, "method"); // nothing to choose: skipped as before
 });
 
-test("test_before_a_session_the_buy_link_suggests_the_most_the_payment_can_be", () => {
-  const cfg = buildConfig({ wallet: DEV, chains: ["arbitrum", "arc"] });
-  const view = (chainKey: string | null) => onrampView(cfg, {
-    token: "USDC", chainKey, units: null, amount: Dec.parse("4.99") as Dec, step: "method",
-    path: ["network", "method", "browser", "waiting"], canGoBack: true, optionKeys: ["arbitrum", "arc"],
-  });
-  // 4.99 plus at most 0.009999 of item code and nonce: the session's 4.993742 also gives 5.00
-  assert.ok(view("arbitrum").url!.includes("&amount=5.00&"));
-  assert.ok(view("arc").url!.includes("&amount=5.01&"));
-  assert.deepEqual(view(null), { url: null, shows_onramp: false, shows_onramp_hint: true });
+test("test_open_card_waits_for_the_session", async () => {
+  const { ctl, submit } = setup();
+  assert.equal(ctl.openCard(), null); // not on the card page
+  ctl.payWithCard("base");
+  assert.ok(ctl.step === "network" && ctl.openCard() === null);
+  await submit.idle();
+  ctl.poll();
+  assert.equal(ctl.step, "card");
+  assert.notEqual(ctl.openCard(), null);
+  assert.equal(ctl.step, "waiting");
 });

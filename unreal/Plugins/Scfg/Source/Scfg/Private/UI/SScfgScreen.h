@@ -212,6 +212,9 @@ protected:
 	// A segmented option: a label and an optional smaller second line, filled with the accent when selected.
 	TSharedRef<SWidget> Option(const FString& Key, const FString& Text, const FString& Sub, bool bSelected,
 		TFunction<void()> OnPress, const FString& Row = FString());
+	// A small underlined text link (Ren'Py's scfg_card_link): muted, ink while hovered or bSelected.
+	TSharedRef<SWidget> Link(const FString& Key, const FString& Text, bool bSelected, TFunction<void()> OnPress,
+		const FString& Row = FString());
 	// A text field: at most MaxLength characters, only those in Allowed; OnText gets the cleaned text, OnSubmit the
 	// Enter key (and the gamepad's confirm).
 	TSharedRef<SWidget> Field(const FString& Key, const FString& Text, int32 MaxLength, const FString& Allowed,

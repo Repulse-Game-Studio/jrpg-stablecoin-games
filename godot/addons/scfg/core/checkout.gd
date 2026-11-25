@@ -9,7 +9,8 @@
 ##                                      \-> underpaid | expired
 ##
 ## The sheet shows one step at a time (`step`):
-## amount (tips only) -> network -> method -> browser | qr | manual -> waiting -> done.
+## amount (tips only) -> network -> method -> browser | qr | manual -> waiting -> done,
+## or, through a network's "Pay with card" button: network -> card -> waiting -> done.
 ## Steps with a single option are skipped both ways. `back()` works until a transaction is seen; a
 ## seen payment moves the sheet to waiting and a final state to done.
 ##
@@ -48,9 +49,7 @@ const FINAL_STATES := ["paid", "underpaid", "expired"]
 const HINT_VERDICTS := ["tx_reverted", "tx_not_a_payment", "tx_not_landed"]
 ## Order of the steps; the three method pages share a place.
 const STEP_ORDER := {"amount": 0, "network": 1, "method": 2, "browser": 3, "qr": 3, "manual": 3,
-	"waiting": 4, "done": 5}
-## The three method pages.
-const ONRAMP_PAGES := ["browser", "qr", "manual"]
+	"card": 3, "waiting": 4, "done": 5}
 
 static var MESSAGES := {
 	"network_unavailable": "Can't reach the network. Retrying...",
@@ -98,6 +97,7 @@ var init_error: Variant = null
 var _future: Variant = null
 var _server: Variant = null
 var _picked_network: bool = false  # move on from the network step once the session starts
+var more_networks: bool = false  # the player opened "More networks" on the network step
 
 # --- read-only views ---------------------------------------------------------
 
@@ -149,25 +149,6 @@ var can_go_back: bool:
 		if step == "done" or tx_seen:
 			return false
 		return _previous_step() != null
-
-## Whether this step offers the buy link.
-var shows_onramp: bool:
-	get:
-		var view: Variant = _onramp()
-		if view is ScfgErr:
-			return false
-		return view["shows_onramp"]
-
-## Whether this step points to the buy link instead ("Pick another network"), because the chosen
-## network has none (Solana) but another one the player can pick has it. Its button goes back to
-## the network step (`back()`).
-var shows_onramp_hint: bool:
-	get:
-		var view: Variant = _onramp()
-		if view is ScfgErr:
-			return false
-		return view["shows_onramp_hint"]
-
 
 func _init(opts: Dictionary) -> void:
 	config = opts.get("config")
@@ -253,59 +234,82 @@ func payment_uri() -> Variant:
 		"recipient": recipient, "units": session["units"]})
 
 
-## The buy link's state on a checkout step, as the controller and every port decide it (Python's
-## checkout.onramp_view, pinned by the tier1 vectors): {"url", "shows_onramp", "shows_onramp_hint"}.
-## url: configure's onramp page for the chosen network when it is offered there, else null; the
-## suggested amount is the session's exact `pay_units`, or before a session (null) the payment
-## `pay_amount` plus the most the item code and nonce add (ONRAMP_EXACT_UNITS); plus a cent where the
-## token is the network's gas coin (Arc); rounded up to whole cents. The link goes on the method
-## step, or on the payment page the sheet opens on when `path` has no method step. The hint shows
-## there instead, without a url, while the player can go back and another network in
-## `option_keys` has the link.
-## @fallible
-static func onramp_view(cfg: Dictionary, pay_token: String, pay_chain: Variant, pay_units: Variant, pay_amount: Variant,
-		at_step: String, path: Array, go_back: bool, option_keys: Array) -> Variant:
+## Whether the network gets a "Pay with card" button: configure's `onramp` is on and lists it (by
+## default the built-in EVM chains of a mainnet game; never Solana). Python's checkout.card_offered.
+static func card_offered_on(cfg: Dictionary, key: Variant) -> bool:
 	var opts: Variant = cfg.get("onramp")
-	var on: bool = opts is Dictionary and opts["enabled"]
-	var c: Variant = ScfgConfig.enabled_chains(cfg).get(pay_chain) if ScfgPy.py_truthy(pay_chain) else null
-	var url: Variant = null
-	if on and c != null and (opts["chains"] as Array).has(c["key"]):
-		var u: Variant = pay_units
-		if u == null:
-			u = ScfgAmounts.decimal_to_units(pay_amount)
-			if u is ScfgErr:
-				return u
-			u = int(u) + ScfgPaylinks.ONRAMP_EXACT_UNITS
-		url = ScfgPaylinks.onramp_url(opts["url"], c["key"], c["chain_id"], pay_token, c["tokens"][pay_token]["address"],
-			ScfgPaylinks.onramp_amount(int(u), c["native_token"] == pay_token))
-		if url is ScfgErr:
-			return url
-	var here := at_step == "method" or (at_step in ONRAMP_PAGES and not path.has("method"))
-	var hint := false
-	if on and here and url == null and go_back:
-		for key: Variant in option_keys:
-			if (opts["chains"] as Array).has(key):
-				hint = true
-				break
-	return {"url": url, "shows_onramp": here and url != null, "shows_onramp_hint": hint}
+	return (opts is Dictionary and opts["enabled"] and ScfgPy.py_truthy(key)
+		and ScfgConfig.in_strs(opts["chains"], key) and ScfgConfig.enabled_chains(cfg).has(key))
 
 
+## The card checkout page for a running session (Python's checkout.card_url, pinned by the tier1
+## vectors): configure's onramp template filled in for the network, the developer's wallet there
+## and the session's exact amount. Null without a session (`units` null) or where the network has
+## no card button.
 ## @fallible
-func _onramp() -> Variant:
+static func card_url_for(cfg: Dictionary, pay_token: String, key: Variant, units: Variant) -> Variant:
+	if units == null or not card_offered_on(cfg, key):
+		return null
+	var c: Dictionary = ScfgConfig.enabled_chains(cfg)[key]
+	var amount_text: Variant = ScfgAmounts.format_units(units)
+	if amount_text is ScfgErr:
+		return amount_text
+	return ScfgPaylinks.onramp_url(cfg["onramp"]["url"], c["key"], c["chain_id"], pay_token,
+		c["tokens"][pay_token]["address"], amount_text, ScfgConfig.wallet_for(cfg, c))
+
+
+## How the network step lays out the networks the player can pick, `option_keys` in display order
+## (Python's checkout.network_view, pinned by the tier1 vectors): {"main", "more", "expanded", "card"}.
+## - main: the tiles always shown: the options among MAIN_CHAINS (Ethereum, Solana), and when there
+##   are fewer than MAIN_TILES of those, the next options in order until there are MAIN_TILES (an
+##   EVM-only game: Ethereum and Arc). In display order.
+## - more: the rest, behind "More networks" (empty: no "More networks").
+## - expanded: whether "More networks" is open: as the player left it, or because the chosen network
+##   (`key`) is behind it (coming back to the step shows it).
+## - card: the options with a "Pay with card" button (card_offered_on), in display order.
+static func network_view(cfg: Dictionary, option_keys: Array, key: Variant, expanded: bool) -> Dictionary:
+	var featured := 0
+	for k: Variant in option_keys:
+		if ScfgChains.MAIN_CHAINS.has(k):
+			featured += 1
+	var fill := maxi(0, ScfgChains.MAIN_TILES - featured)
+	var main := []
+	var more := []
+	for k: Variant in option_keys:
+		if ScfgChains.MAIN_CHAINS.has(k):
+			main.append(k)
+		elif fill > 0:
+			main.append(k)
+			fill -= 1
+		else:
+			more.append(k)
+	var card := []
+	for k: Variant in option_keys:
+		if card_offered_on(cfg, k):
+			card.append(k)
+	return {"main": main, "more": more, "expanded": not more.is_empty() and (expanded or more.has(key)),
+		"card": card}
+
+
+## The network step's layout: main tiles, "More networks", card buttons (network_view).
+func network_layout() -> Dictionary:
 	var keys := []
 	for o: Array in chain_options():
 		keys.append(o[0])
-	return onramp_view(config, spec["token"], chain_key, session["units"] if ScfgPy.py_truthy(session) else null,
-		amount, step, step_path(), can_go_back, keys)
+	return network_view(config, keys, chain_key, more_networks)
 
 
-## The page where a player without the token buys some with a card, for the chosen network, with
-## the payment (plus a cent for the fee on Arc) suggested as the amount. Null when configure's
-## `onramp` doesn't offer it on this network (see onramp_view).
+## Whether the network `key` has a "Pay with card" button.
+func card_offered(key: Variant) -> bool:
+	return card_offered_on(config, key)
+
+
+## The card checkout page for this session: thirdweb's by default, paying the exact amount to the
+## developer's wallet on the chosen network. Null before the session starts or where the network
+## has no card button.
 ## @fallible
-func onramp_url() -> Variant:
-	var view: Variant = _onramp()
-	return view if view is ScfgErr else view["url"]
+func card_url() -> Variant:
+	return card_url_for(config, spec["token"], chain_key, session["units"] if ScfgPy.py_truthy(session) else null)
 
 
 ## @fallible
@@ -349,8 +353,11 @@ func status_info() -> Dictionary:
 ## The steps this payment walks through, without the single-option ones.
 func step_path() -> Array:
 	var path := ["amount"] if spec["kind"] == "tip" else []
-	if chain_options().size() != 1:
+	if _network_has_choice():
 		path.append("network")
+	if method == "card":
+		path.append_array(["card", "waiting"])
+		return path
 	if methods().size() != 1:
 		path.append("method")
 	path.append(method if ScfgPy.py_truthy(method) else "browser")
@@ -385,7 +392,7 @@ func select_chain(key: Variant) -> Variant:
 	var opts := {"item": spec["item"], "amount": amount, "token": spec["token"], "title": spec["title"]}
 	_future = submit.call(func(e: Variant) -> Variant: return await e.start_session(kind, key, opts))  # err-ok: an ScfgErr fails the job, which the caller reads
 	var available := methods()
-	if not available.has(method):
+	if not available.has(method) and not (method == "card" and card_offered(key)):
 		method = available[0] if not available.is_empty() else null
 	return null
 
@@ -393,6 +400,28 @@ func select_chain(key: Variant) -> Variant:
 ## Network step: start a session on `key`, or keep the one already running.
 ## @fallible
 func choose_network(key: Variant) -> Variant:
+	if method == "card":
+		method = null  # the network's own button: pick a method as usual
+	return _pick_network(key)
+
+
+## Network step, a network's "Pay with card" button: start a session on `key` (or keep the one
+## running), then go to the card page, skipping the method step.
+## @fallible
+func pay_with_card(key: Variant) -> Variant:
+	if not card_offered(key):
+		return null
+	method = "card"
+	return _pick_network(key)
+
+
+## Open or close "More networks" on the network step.
+func toggle_more_networks() -> void:
+	more_networks = not network_layout()["expanded"]
+
+
+## @fallible
+func _pick_network(key: Variant) -> Variant:
 	step = "network"
 	nav_dir = 1
 	if key == chain_key and ScfgPy.py_truthy(session) and state == "waiting":
@@ -439,6 +468,20 @@ func mark_sent() -> void:
 	if step == "qr" or step == "manual":
 		error = null
 		_go("waiting", 1)
+
+
+## Card page: returns the card checkout's URL for the sheet to open, and moves to waiting; null
+## (staying put) before the session has started.
+## @fallible
+func open_card() -> Variant:
+	if step != "card":
+		return null
+	var url: Variant = card_url()
+	if url is ScfgErr:
+		return url
+	if ScfgPy.py_truthy(url):
+		_go("waiting", 1)
+	return url
 
 
 ## Browser page: start the localhost page and move to waiting; returns its URL (or null).
@@ -684,14 +727,24 @@ func _previous_step() -> Variant:
 ## @fallible
 func _enter_network() -> Variant:
 	var options := chain_options()
-	if options.size() == 1:
+	if not _network_has_choice():
 		return choose_network(options[0][0])
 	_go("network", 1)
 	return null
 
 
-## The session is running: go to the method step, or straight to the only method.
+## The network step is shown unless there is a single network without a card button.
+func _network_has_choice() -> bool:
+	var options := chain_options()
+	return options.size() != 1 or card_offered(options[0][0])
+
+
+## The session is running: go to the method step, or straight to the only method; after "Pay with
+## card", to the card page.
 func _after_network() -> void:
+	if method == "card":
+		_go("card", 1)
+		return
 	var available := methods()
 	if not available.has(method):
 		method = available[0] if not available.is_empty() else null

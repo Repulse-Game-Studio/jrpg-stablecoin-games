@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "0.3.0",
+	"VersionName": "0.4.0",
 	"FriendlyName": "Stablecoin for Games Showcase (SCFG sample)",
 	"Description": "A one-screen tour of the SCFG plugin's API on testnets: three unlocks, a tip jar and the player tools. Needs the Scfg plugin.",
 	"Category": "Samples",

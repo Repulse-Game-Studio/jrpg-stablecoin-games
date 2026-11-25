@@ -13,6 +13,7 @@
 ##     ScfgWarning, ScfgDev, ScfgError, ScfgOk, ScfgStatus, ScfgMono, ScfgQrStep, ScfgOptionText,
 ##     ScfgOptionSub, ScfgOptionTextSelected, ScfgOptionSubSelected, ScfgToastText;
 ##   Button: ScfgOption, ScfgOptionSelected, ScfgPrimary, ScfgAccent, ScfgSmall, ScfgBack;
+##   LinkButton: ScfgCardLink, ScfgCardLinkSelected ("Pay with card" under a network's tile);
 ##   PanelContainer: ScfgSheetPanel, ScfgQrFrame, ScfgToast; Panel: ScfgRule.
 ## Colors the screens draw themselves (the step dots, the status dot, the back arrow) are theme
 ## colors of the type "ScfgSheet": accent, on_accent, ink, line, ok, warn, error, muted, dim. Its constants
@@ -130,6 +131,18 @@ static func build(accent_hex: String, k: float) -> Theme:
 		"disabled": _box(accent, radius, accent, line_w, px(6, k), px(7, k)),
 	}, on_accent, on_accent)
 	_button(t, "ScfgBack", px(20, k), null, focus, _outlined(radius, line_w, 0, 0), INK, FAINT)
+	# "Pay with card" under a network's tile: small underlined text, muted, ink on hover and when
+	# selected (Ren'Py's scfg_card_link)
+	for v: Array in [["ScfgCardLink", MUTED], ["ScfgCardLinkSelected", INK]]:
+		t.set_type_variation(v[0], "LinkButton")
+		t.set_font_size("font_size", v[0], px(15, k))
+		t.set_color("font_color", v[0], v[1])
+		for name: String in ["font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
+			t.set_color(name, v[0], INK)
+		var link_focus := focus.duplicate() as StyleBoxFlat
+		link_focus.set_corner_radius_all(px(4, k))
+		link_focus.set_expand_margin_all(maxf(3.0, px(4, k)))
+		t.set_stylebox("focus", v[0], link_focus)
 
 	# fields
 	t.set_stylebox("normal", "LineEdit", _box(CLEAR, radius, LINE, line_w, px(12, k), px(9, k)))

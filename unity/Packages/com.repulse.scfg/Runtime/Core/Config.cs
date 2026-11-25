@@ -23,15 +23,15 @@ using Scfg.Core.Solana;
 namespace Scfg.Core
 {
     /// <summary>
-    /// configure's onramp, merged and checked: the "No USDC yet? Buy some with a card" link. Python's Config.onramp
+    /// configure's onramp, merged and checked: the "Pay with card" button under each network. Python's Config.onramp
     /// dict {"enabled", "url", "chains"}.
     /// </summary>
     public sealed class OnrampOptions
     {
         public bool Enabled { get; }
-        /// <summary>The buy page template (Paylinks.OnrampUrl fills its placeholders).</summary>
+        /// <summary>The card checkout page template (Paylinks.OnrampUrl fills its placeholders).</summary>
         public string Url { get; }
-        /// <summary>The chain keys the buy link is offered on, in order.</summary>
+        /// <summary>The chain keys that get a "Pay with card" button, in order.</summary>
         public IReadOnlyList<string> Chains { get; }
 
         public OnrampOptions(bool enabled, string url, IReadOnlyList<string> chains)
@@ -68,7 +68,7 @@ namespace Scfg.Core
         public Dictionary<string, Chain> CustomChains { get; }
         /// <summary>add_item(), in the order added.</summary>
         public Dictionary<string, Item> Items { get; }
-        /// <summary>The buy link (configure's onramp).</summary>
+        /// <summary>Pay with card (configure's onramp).</summary>
         public OnrampOptions Onramp { get; }
 
         public ConfigData(string? wallet, bool testnet, IReadOnlyList<string> chains, IReadOnlyList<string> tokens,
@@ -652,7 +652,7 @@ namespace Scfg.Core
                     if (!(c is string key) || !chains.Contains(key))
                         throw new ConfigError("onramp.chains contains disabled chain " + Py.Repr(c), "onramp.disabled_chain");
                     if (registry[key].Family != "evm")
-                        throw new ConfigError("onramp.chains: " + Py.Repr(key) + " is not an EVM chain; the buy link is offered "
+                        throw new ConfigError("onramp.chains: " + Py.Repr(key) + " is not an EVM chain; Pay with card is offered "
                                               + "on EVM chains only", "onramp.not_evm");
                     keys.Add(key);
                 }
@@ -684,7 +684,7 @@ namespace Scfg.Core
         /// build_config's keyword arguments: wallet, testnet, chains, tokens, methods, rpc_urls, confirmations,
         /// previous_wallets, logo, accent, custom_chains (a list of <see cref="Chain"/> from <see cref="BuildChain"/>;
         /// those of the other network are ignored; any other entry is a ConfigError), solana_wallet and onramp (a dict
-        /// of enabled, url and chains: the buy link).
+        /// of enabled, url and chains: Pay with card).
         /// </summary>
         public static ConfigData BuildConfig(JsonObject kwargs)
         {
@@ -717,14 +717,11 @@ namespace Scfg.Core
             List<object?> chainValues;
             if (chainsArg == null)
             {
-                chainValues = new List<object?>();
-                if (!string.IsNullOrEmpty(wallet))
-                {
-                    chainValues.AddRange(Chains.DisplayOrder);
-                    chainValues.AddRange(custom.Keys);
-                }
-                if (!string.IsNullOrEmpty(sol))
-                    chainValues.AddRange(registry.Where(kv => kv.Value.Family == "solana").Select(kv => kv.Key));
+                // Built-ins in display order, then the developer's own, each where its family has a wallet.
+                bool Offered(Chain c) => c.Family == "solana" ? !string.IsNullOrEmpty(sol) : !string.IsNullOrEmpty(wallet);
+                chainValues = Chains.DisplayOrder.Concat(registry.Keys.Where(k => !Chains.DisplayOrder.Contains(k)))
+                                    .Where(k => registry.ContainsKey(k) && Offered(registry[k]))
+                                    .Cast<object?>().ToList();
             }
             else
             {
@@ -749,7 +746,7 @@ namespace Scfg.Core
             }
 
             var merged = MergeMethods(Opt(kwargs, "methods"), chains);
-            var buy = MergeOnramp(Opt(kwargs, "onramp"), chains, registry, testnet);
+            var card = MergeOnramp(Opt(kwargs, "onramp"), chains, registry, testnet);
 
             var urls = new Dictionary<string, IReadOnlyList<string>>();
             var rpcUrlsArg = Opt(kwargs, "rpc_urls");
@@ -786,7 +783,7 @@ namespace Scfg.Core
             foreach (var kv in confs) confirmations[kv.Key] = Ints.ToLong(kv.Value, "confirmations");
 
             var cfg = new ConfigData(wallet, testnet, chains, tokens, merged, urls, confirmations, prev, sol, prevSol,
-                                     logo, accent, custom, buy);
+                                     logo, accent, custom, card);
             if (EnabledChains(cfg).Count == 0)
                 throw new ConfigError("no enabled chain supports any enabled token", "config.no_usable_token");
             return cfg;

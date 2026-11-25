@@ -61,7 +61,7 @@ async function started(o: SetupOpts = {}) {
 test("test_initial_state_and_chain_options", () => {
   const { ctl } = setup();
   assert.ok(ctl.state === "choose" && ctl.session === null);
-  assert.deepEqual(ctl.chainOptions().map(([k]) => k), ["arbitrum", "base", "arc", "polygon", "ethereum"]);
+  assert.deepEqual(ctl.chainOptions().map(([k]) => k), ["ethereum", "arc", "base", "arbitrum", "polygon"]);
   assert.equal(ctl.payAmountText, "4.99");
 });
 
@@ -296,5 +296,5 @@ test("test_messages_match_catalogue", () => {
 test("test_constants", () => {
   assert.deepEqual(FINAL_STATES, ["paid", "underpaid", "expired"]);
   assert.deepEqual(HINT_VERDICTS, ["tx_reverted", "tx_not_a_payment", "tx_not_landed"]);
-  assert.deepEqual(STEP_ORDER, { amount: 0, network: 1, method: 2, browser: 3, qr: 3, manual: 3, waiting: 4, done: 5 });
+  assert.deepEqual(STEP_ORDER, { amount: 0, network: 1, method: 2, browser: 3, qr: 3, manual: 3, card: 3, waiting: 4, done: 5 });
 });

@@ -4,6 +4,6 @@ namespace Scfg.Core
 {
     public static class PackageVersion
     {
-        public const string Text = "0.3.0";
+        public const string Text = "0.4.0";
     }
 }

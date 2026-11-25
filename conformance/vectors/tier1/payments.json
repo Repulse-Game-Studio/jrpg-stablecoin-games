@@ -21,11 +21,11 @@
    },
    "out": {
     "chains": [
-     "arbitrum",
-     "base",
+     "ethereum",
      "arc",
-     "polygon",
-     "ethereum"
+     "base",
+     "arbitrum",
+     "polygon"
     ],
     "code": 1,
     "item": "chapter-2",
@@ -57,11 +57,11 @@
    },
    "out": {
     "chains": [
-     "arbitrum",
-     "base",
+     "ethereum",
      "arc",
-     "polygon",
-     "ethereum"
+     "base",
+     "arbitrum",
+     "polygon"
     ],
     "code": 1,
     "item": "chapter-2",
@@ -93,11 +93,11 @@
    },
    "out": {
     "chains": [
-     "arbitrum",
-     "base",
+     "ethereum",
      "arc",
-     "polygon",
-     "ethereum"
+     "base",
+     "arbitrum",
+     "polygon"
     ],
     "code": 1,
     "item": "chapter-2",
@@ -129,11 +129,11 @@
    },
    "out": {
     "chains": [
-     "arbitrum",
-     "base",
+     "ethereum",
      "arc",
-     "polygon",
-     "ethereum"
+     "base",
+     "arbitrum",
+     "polygon"
     ],
     "code": 1,
     "item": "chapter-2",
@@ -165,9 +165,9 @@
    },
    "out": {
     "chains": [
+     "ethereum",
      "arbitrum",
-     "polygon",
-     "ethereum"
+     "polygon"
     ],
     "code": 1,
     "item": "chapter-2",
@@ -199,11 +199,11 @@
    },
    "out": {
     "chains": [
-     "arbitrum",
-     "base",
+     "ethereum",
      "arc",
-     "polygon",
-     "ethereum"
+     "base",
+     "arbitrum",
+     "polygon"
     ],
     "code": 1,
     "item": "chapter-2",
@@ -241,9 +241,9 @@
    },
    "out": {
     "chains": [
+     "ethereum",
      "arbitrum",
-     "polygon",
-     "ethereum"
+     "polygon"
     ],
     "code": 3,
     "item": "chapter-3",
@@ -275,12 +275,12 @@
    },
    "out": {
     "chains": [
-     "arbitrum",
-     "base",
-     "arc",
-     "polygon",
      "ethereum",
-     "solana"
+     "solana",
+     "arc",
+     "base",
+     "arbitrum",
+     "polygon"
     ],
     "code": 1,
     "item": "chapter-2",
@@ -382,11 +382,11 @@
    },
    "out": {
     "chains": [
-     "arbitrum",
-     "base",
+     "ethereum",
      "arc",
-     "polygon",
-     "ethereum"
+     "base",
+     "arbitrum",
+     "polygon"
     ],
     "code": 0,
     "item": null,
@@ -418,11 +418,11 @@
    },
    "out": {
     "chains": [
-     "arbitrum",
-     "base",
+     "ethereum",
      "arc",
-     "polygon",
-     "ethereum"
+     "base",
+     "arbitrum",
+     "polygon"
     ],
     "code": 0,
     "item": null,
@@ -454,9 +454,9 @@
    },
    "out": {
     "chains": [
+     "ethereum",
      "arbitrum",
-     "polygon",
-     "ethereum"
+     "polygon"
     ],
     "code": 0,
     "item": null,
@@ -489,11 +489,11 @@
    },
    "out": {
     "chains": [
-     "arbitrum",
-     "base",
+     "ethereum",
      "arc",
-     "polygon",
-     "ethereum"
+     "base",
+     "arbitrum",
+     "polygon"
     ],
     "code": 0,
     "item": null,
@@ -526,11 +526,11 @@
    },
    "out": {
     "chains": [
-     "arbitrum",
-     "base",
+     "ethereum",
      "arc",
-     "polygon",
-     "ethereum"
+     "base",
+     "arbitrum",
+     "polygon"
     ],
     "code": 0,
     "item": "ignored",
@@ -563,12 +563,12 @@
    },
    "out": {
     "chains": [
-     "arbitrum",
-     "base",
-     "arc",
-     "polygon",
      "ethereum",
-     "solana"
+     "solana",
+     "arc",
+     "base",
+     "arbitrum",
+     "polygon"
     ],
     "code": 0,
     "item": null,
@@ -620,11 +620,11 @@
    },
    "out": {
     "chains": [
-     "arbitrum",
-     "base",
+     "ethereum",
      "arc",
-     "polygon",
-     "ethereum"
+     "base",
+     "arbitrum",
+     "polygon"
     ],
     "code": 0,
     "item": null,

@@ -377,15 +377,7 @@
       "0xecf0d51ac5eeba297a73a3036f458a39cdec936ed907213ba08d69157ded0084"
      ],
      "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": null}",
-     "url": "https://arb1.arbitrum.io/rpc"
-    },
-    {
-     "method": "eth_getTransactionReceipt",
-     "params": [
-      "0xecf0d51ac5eeba297a73a3036f458a39cdec936ed907213ba08d69157ded0084"
-     ],
-     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": null}",
-     "url": "https://mainnet.base.org"
+     "url": "https://ethereum-rpc.publicnode.com"
     },
     {
      "method": "eth_getTransactionReceipt",
@@ -401,7 +393,7 @@
       "0xecf0d51ac5eeba297a73a3036f458a39cdec936ed907213ba08d69157ded0084"
      ],
      "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": null}",
-     "url": "https://polygon-bor-rpc.publicnode.com"
+     "url": "https://mainnet.base.org"
     },
     {
      "method": "eth_getTransactionReceipt",
@@ -409,7 +401,15 @@
       "0xecf0d51ac5eeba297a73a3036f458a39cdec936ed907213ba08d69157ded0084"
      ],
      "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": null}",
-     "url": "https://ethereum-rpc.publicnode.com"
+     "url": "https://arb1.arbitrum.io/rpc"
+    },
+    {
+     "method": "eth_getTransactionReceipt",
+     "params": [
+      "0xecf0d51ac5eeba297a73a3036f458a39cdec936ed907213ba08d69157ded0084"
+     ],
+     "response_text": "{\"id\": 1, \"jsonrpc\": \"2.0\", \"result\": null}",
+     "url": "https://polygon-bor-rpc.publicnode.com"
     }
    ],
    "entropy": [],

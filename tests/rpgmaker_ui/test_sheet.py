@@ -35,7 +35,7 @@ def _assert_matches(game):
 
 def _to_manual(game):
     game.pay()
-    game.key("network_arbitrum").click()
+    game.network("arbitrum")
     game.pass_()
     game.wait_step("method")
     game.key("method_manual").click()
@@ -53,11 +53,20 @@ def test_steps_follow_the_controller(make_game):
     assert game.key("title").inner_text() == "Chapter 2"
     assert game.key("price").inner_text() == "4.99"
     assert game.key("token").inner_text() == "USDC"
-    shown = [game.key(f"network_{k}").inner_text().splitlines()[0] for k, _name, _fee in v["chainOptions"]]
-    assert shown == [name for _k, name, _fee in v["chainOptions"]]
+    names = {k: name for k, name, _fee in v["chainOptions"]}
+    layout = v["layout"]
+    # no Solana wallet: Arc fills the second tile
+    assert layout["main"] == ["ethereum", "arc"] and layout["more"] == ["base", "arbitrum", "polygon"]
+    assert [game.key(f"network_{k}").inner_text().splitlines()[0] for k in layout["main"]] == ["Ethereum", "Arc"]
+    assert all(game.key(f"network_{k}").count() == 0 for k in layout["more"]), "behind More networks"
+    game.key("more_networks").click()
+    game.frames(2)
+    assert game.key("more_networks").inner_text() == "Fewer networks"
+    shown = [game.key(f"network_{k}").inner_text().splitlines()[0] for k in layout["main"] + layout["more"]]
+    assert shown == [names[k] for k in layout["main"] + layout["more"]]
     assert game.key("cancel").is_visible() and game.key("keep_playing").count() == 0
 
-    game.key("network_arbitrum").click()
+    game.network("arbitrum")
     game.frames(2)
     assert game.view()["state"] == "starting"
     assert game.key("status").inner_text() == "Preparing the payment..."
@@ -148,11 +157,21 @@ def test_keyboard_only_manual_payment(make_game):
     game = make_game()
     game.setup()
     game.pay()
-    first = game.view()["chainOptions"][0][0]
-    assert game.focused_key() == f"network_{first}", "the first network has the focus"
-    # walk to Arbitrum with the arrow keys, then Enter (MZ's "ok")
-    keys = [k for k, _n, _f in game.view()["chainOptions"]]
-    for _ in range(keys.index("arbitrum")):
+    assert game.focused_key() == "network_ethereum", "the first network has the focus"
+    # past the main tiles and their "Pay with card" links to More networks, open it, then on to
+    # Arbitrum and Enter (MZ's "ok")
+    seen = []
+    for _ in range(8):
+        game.hold("ArrowDown")
+        seen.append(game.focused_key())
+        if seen[-1] == "more_networks":
+            break
+    assert seen[-1] == "more_networks" and {"network_arc", "card_ethereum", "card_arc"} <= set(seen)
+    game.hold("Enter")
+    assert game.view()["layout"]["expanded"] and game.focused_key() == "more_networks"
+    for _ in range(8):
+        if game.focused_key() == "network_arbitrum":
+            break
         game.hold("ArrowDown")
     assert game.focused_key() == "network_arbitrum"
     game.hold("Enter")
@@ -218,7 +237,7 @@ def test_desktop_branches(make_game):
     game.js("() => scfgTest.desktop()")
     game.setup()
     game.pay()
-    game.key("network_arbitrum").click()
+    game.network("arbitrum")
     game.pass_()
     game.wait_step("method")
     assert game.view()["methods"] == ["browser", "qr", "manual"], "a computer's browser can always open the page"
@@ -251,60 +270,78 @@ def test_desktop_branches(make_game):
     assert game.key("paste").count() == 0, "no Paste button on desktop (Ren'Py: web only)"
 
 
-def test_buy_link_on_the_method_step_opens_the_buy_page(make_game):
+def test_pay_with_card_under_a_network_opens_the_card_checkout(make_game):
     game = make_game()
     game.js("() => scfgTest.desktop()")
     game.setup()
     game.pay()
-    assert game.key("onramp").count() == 0, "no link before a network is chosen"
-    game.key("network_arbitrum").click()
-    game.pass_()
-    game.wait_step("method")
-    url = game.view()["onramp"]
-    assert url.startswith("https://thirdweb.com/bridge/buy-widget?chain=42161&") and "&amount=5.00&" in url
-    assert game.key("onramp").inner_text() == "No USDC yet? Buy some with a card"
-    game.key("onramp").click()
+    link = game.key("card_ethereum")
+    assert link.inner_text() == "Pay with card"
+    assert "underline" in link.evaluate("(el) => getComputedStyle(el).textDecorationLine")
+    assert game.key("card_arbitrum").count() == 0, "behind More networks with its tile"
+    game.network("arbitrum", card=True)
     game.frames(2)
-    assert game.js("() => scfgTest.opened") == [url], "nw.Shell.openExternal"
-    game.key("method_qr").click()
-    game.wait_step("qr")
-    assert game.key("onramp").count() == 0, "the method step showed it"
-
-
-def test_buy_link_moves_to_the_only_payment_page_and_follows_the_option(make_game):
-    game = make_game()
-    game.setup(config={"methods": {"browser": {"enabled": False}, "qr": {"enabled": False}}})
-    game.pay()
-    game.key("network_arbitrum").click()
+    assert game.view()["state"] == "starting" and game.step() == "network"
     game.pass_()
-    game.wait_step("manual")
-    assert game.key("onramp").is_visible()
+    game.wait_step("card")
+    v = _assert_matches(game)
+    assert v["method"] == "card" and v["dots"] == [1, 3]
+    body = game.page.locator("#scfg-host .screen .sheet-body").inner_text()
+    assert "Opens a card checkout page in your browser. You pay by card there, and the payment goes " \
+           "straight to the game's developer." in body
+    assert game.key("card_pays").inner_text() == f"Pays {v['payAmount']} USDC on Arbitrum."
+    assert game.key("note").count() == 0, "no exact-amount note on the card step"
+    assert game.key("forward").inner_text() == "Open card checkout"
+    assert game.focused_key() == "forward"
+    url = v["card"]
+    assert url == ("https://thirdweb.com/bridge/checkout-widget?chain=42161&tokenAddress="
+                   f"{v['tokenAddress']}&amount={v['payAmount']}&seller={v['recipient']}&paymentMethods=card")
+    game.key("forward").click()
+    game.wait_step("waiting")
+    assert game.js("() => scfgTest.opened") == [url], "nw.Shell.openExternal"
+    _assert_matches(game)
+    game.key("back").click()
+    game.wait_step("card")
+    game.key("back").click()
+    game.wait_step("network")
+    assert game.key("card_arbitrum").get_attribute("aria-pressed") == "true", "the chosen card link"
+    assert "selected" not in game.key("network_arbitrum").get_attribute("class").split()
+    assert game.focused_key() == "card_arbitrum"
+    game.key("network_arbitrum").click()  # the tile itself: the method step, the same session
+    game.wait_step("method")
+    assert game.view()["session"] == v["session"]
+
+
+def test_pay_with_card_follows_the_option_and_skips_solana(make_game):
+    game = make_game()
+    game.setup(config={"onramp": {"enabled": False}})
+    game.pay()
+    assert game.page.locator("#scfg-host .screen .card-link").count() == 0
     game2 = make_game()
-    game2.setup(config={"onramp": {"enabled": False}})
+    game2.setup(config={"solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"})
     game2.pay()
-    game2.key("network_arbitrum").click()
+    assert game2.view()["layout"]["main"] == ["ethereum", "solana"]
+    assert game2.key("network_solana").is_visible() and game2.key("card_solana").count() == 0
+    assert game2.key("card_ethereum").is_visible()
+    # the two main tiles side by side, the same size
+    box = "(el) => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; }"
+    eth, sol = game2.key("network_ethereum").evaluate(box), game2.key("network_solana").evaluate(box)
+    # within half a pixel: Chrome lays fractional widths out to 1/64 px or finer, so equal cells can
+    # differ in the last bits (178.9375 and 178.93756 on CI)
+    assert all(abs(a - b) < 0.5 for a, b in zip(eth[1:], sol[1:])) and sol[0] > eth[0]
+
+
+def test_a_single_network_with_a_card_button_keeps_the_network_step(make_game):
+    game = make_game()
+    game.setup(config={"chains": ["base"]})
+    game.pay()
+    assert game.step() == "network" and game.key("card_base").is_visible()
+    assert game.key("more_networks").count() == 0
+    game2 = make_game()
+    game2.setup(config={"chains": ["base"], "onramp": {"enabled": False}})
+    game2.pay()
     game2.pass_()
     game2.wait_step("method")
-    assert game2.key("onramp").count() == 0
-
-
-def test_solana_points_to_a_network_with_the_buy_link(make_game):
-    game = make_game()
-    game.setup(config={"solana_wallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"})
-    game.pay()
-    game.key("network_solana").click()
-    game.pass_()
-    game.wait_step("method")
-    assert game.view()["onramp"] is None
-    assert game.key("onramp").count() == 0, "Solana has no buy page"
-    assert game.key("onramp_hint").inner_text() == "No USDC yet? Pick another network to buy some with a card"
-    game.key("onramp_hint").click()
-    game.wait_step("network")
-    assert game.key("onramp_hint").count() == 0
-    game.key("network_arbitrum").click()
-    game.pass_()
-    game.wait_step("method")
-    assert game.key("onramp").is_visible() and game.key("onramp_hint").count() == 0
 
 
 def test_typing_a_hash_keeps_backspace_and_blocks_the_game(make_game):
@@ -365,7 +402,7 @@ def test_qr_matches_core_matrix(make_game):
     game = make_game()
     game.setup()
     game.pay()
-    game.key("network_arbitrum").click()
+    game.network("arbitrum")
     game.pass_()
     game.wait_step("method")
     game.key("method_qr").click()
@@ -455,12 +492,21 @@ def test_strings_come_from_texts(make_game):
     game.key("forward").click()
     game.wait_step("network")
     _assert_pseudo(game, "network")
-    game.key("network_arbitrum").click()
+    game.network("arbitrum")
     game.frames(2)
     _assert_pseudo(game, "network, starting")
     game.pass_()
     game.wait_step("method")
     _assert_pseudo(game, "method")
+    game.key("back").click()
+    game.wait_step("network")
+    game.key("card_arbitrum").click()
+    game.wait_step("card")
+    _assert_pseudo(game, "card")
+    game.key("back").click()
+    game.wait_step("network")
+    game.network("arbitrum")
+    game.wait_step("method")
     game.key("method_qr").click()
     game.wait_step("qr")
     _assert_pseudo(game, "qr")
@@ -520,7 +566,7 @@ def test_a_key_held_in_the_field_is_forgotten_once_the_sheet_closes(make_game):
     game.frames(2)
     assert game.js(RAW) == []
     game.pay()
-    game.key("network_arbitrum").focus()
+    game.key("network_ethereum").focus()
     game.hold("ArrowRight")  # on a button: MZ's Input gets the key, and must get its release
     assert game.js(RAW) == [], "MZ's right is released"
     game.key("cancel").click()
@@ -617,7 +663,12 @@ def test_headless_host_buttons_match_the_sheet(make_game):
     same("amount")
     game.key("forward").click()
     same("network")
-    game.key("network_arbitrum").click()
+    game.network("arbitrum", card=True)
+    game.pass_()
+    same("card")
+    game.key("back").click()
+    same("network")
+    game.network("arbitrum")
     game.pass_()
     same("method")
     for method in ("browser", "qr"):
@@ -633,7 +684,7 @@ def test_headless_host_buttons_match_the_sheet(make_game):
     game.frames(3)
     # the browser's waiting step (Reopen), then the done step of a paid unlock
     game.pay()
-    game.key("network_arbitrum").click()
+    game.network("arbitrum")
     game.pass_()
     game.key("method_browser").click()
     game.wait_step("browser")
@@ -641,10 +692,19 @@ def test_headless_host_buttons_match_the_sheet(make_game):
     same("waiting")
     game.js("() => scfgTest.payOnChain()")
     same("done")
-    assert seen.count("method") == 3 and {"amount", "network", "browser", "qr", "manual", "waiting", "done"} <= set(seen)
+    assert seen.count("method") == 3 and {"amount", "network", "card", "browser", "qr", "manual", "waiting",
+                                          "done"} <= set(seen)
     game.key("continue").click()
     game.frames(3)
     assert game.box()["result"]["status"] == "paid"
+    # the default chains: Ethereum's tile, More networks, and the networks behind it
+    game = make_game()
+    game.js("() => scfgTest.desktop()")
+    game.setup()
+    game.pay()
+    same("network")
+    game.key("more_networks").click()
+    same("network")
 
 
 def test_an_unhandled_rejection_stops_the_game_as_mz(make_game):
