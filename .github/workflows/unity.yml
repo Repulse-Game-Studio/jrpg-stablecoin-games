@@ -133,7 +133,7 @@ jobs:
           path: unity/Project/Library
           key: library-tests-${{ matrix.unity }}-${{ hashFiles('unity/Project/Packages/packages-lock.json') }}
           restore-keys: library-tests-${{ matrix.unity }}-
-      - uses: game-ci/unity-test-runner@fa6ced25861c16ef56187828c43f76d00df43a23 # v4.3.2
+      - uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
@@ -159,7 +159,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
       - run: uv run --no-project python tools/check_unity_samples.py
       - name: Copy the samples into the dev project
         run: cp -r "unity/Packages/com.repulse.scfg/Samples~" "$PROJECT/Assets/Samples"
@@ -202,7 +202,7 @@ jobs:
           cliVersion: ${{ env.GAMECI_CLI_VERSION }}
           buildMethod: Scfg.E2E.ScfgE2EBuild.BuildLinux
           customParameters: -scfgBackend il2cpp -scfgOut /github/workspace/build/linux-il2cpp
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
       - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
       - name: Install Agave (solana-test-validator)
         run: |
@@ -247,7 +247,7 @@ jobs:
           cliVersion: ${{ env.GAMECI_CLI_VERSION }}
           buildMethod: Scfg.E2E.ScfgE2EBuild.BuildWebGL
           customParameters: -scfgOut /github/workspace/build/webgl
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
       - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
       - name: Install Agave (solana-test-validator)
         run: |
